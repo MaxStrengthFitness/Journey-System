@@ -36,7 +36,11 @@ Each card, in the order the floor needs it (the-floor.md, "Where the eye goes"):
    The loudest open note on the machine shows beside the name in the one
    note key (`machine-menu/note-key.ts`): a plum circle for a Heads up, the
    Hub's crimson triangle for Critical.
-2. **Its settings**, the short keys the grid uses, each speaking its full name.
+2. **Its settings**, one 40px button since the open session round (Oct 9
+   2026; AJ's "2a"), the iPad Now Bar's (`journey-grid/setup-button.ts`):
+   "Set up · 2 not set" on a first time, the settings by their full names
+   once set, opening the machine card on the first empty dial; Save closes
+   it, with Undo in the toast. Without `onSetUp`, the short keys as words.
 3. **Its last five times**, side by side, newest on the right (`lastTimes`):
    the date, the weight, the count, the star or the kaizen. They are the
    machine's own last five times, not her last five sessions: a card stands
@@ -88,6 +92,22 @@ starting range in the Now Bar's readout and the one order-effect line under
 the grid (the card's own "First time on this machine." is the phone's
 first-time line); a column picked on the plan's sheet still shows on the
 iPad.
+
+**The FileMaker floor on a phone** (the open session round, Oct 9 2026; AJ's
+"1b"). While the floor is showing (an open session, a client session with no
+routine: the tracker's `showAllMachines`), today's machines stay cards and the
+rest of the floor follows them as a plain list of names in the walking order
+(`floor`, `.ph-floor`), each name whole and wrapping (`names-wrap.test.ts`)
+with its own 40px **Add** in the plan's quiet dashed blue. Add sends what
+waits on the card in hand, then calls the tracker's add (`onAddMachine`, the
+grid's +): the machine joins today's list and is the card in hand. An empty
+day says "Tap Add on a machine you're doing." A machine out of service on
+the roster is listed with "Out of service" in place of its Add. The tracker
+lets a second add inside 400ms go (`journey-grid/add-bounce.ts`). The
+session records only what was added, never the floor. **Start from a
+routine…** is at the foot beside Reorder (`onStartFrom`, the iPad corner's
+sheet, `routine-plan/ui/StartFromRoutineSheet`): one tap lays a routine's
+machines on today's list, what is done kept first.
 
 ## Tests
 

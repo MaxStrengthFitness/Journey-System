@@ -3226,3 +3226,100 @@ Round document: `docs/rounds/2026-10-08-first-session-screens.md` (§7.6 is how 
 
 **Everywhere**
 - [ ] **Names wrap, nothing is cut short,** every tap is at least a fingertip, Save and every selection blue, orange only on Start session and Finish; light and dark; nothing on screen says "her" or "his" about a client, or guesses one.
+
+## Round 66 — The open session · *Oct 9 2026, branch `oct9/open-session`*
+
+Round document: `docs/rounds/2026-10-09-open-session.md` (§4.8 is how to ship; AJ's picks "1b 2a 3a": the open session "should honestly feel most like a filemaker session"). Walk it AFTER Round 65 and AFTER `ship-open-session.ps1 -Stage golive` (the `sessions` index and the rules are live: Who's this? is refused under the old rules), and BEFORE Render's Manual Deploy.
+
+**Before you start.** In the branch's folder, `npx tsx scripts/check-live-rules.ts --key ..\..\..\service-account.json --project gen-lang-client-0731527386 --database ai-studio-32cbbdcc-6e08-4770-9665-867c68878efa` ends "RESULT: the live rules are firestore.rules". In the same folder, `npm run dev`; on the iPad, Safari (never the Home Screen icon, which is the live app) at `http://<the PC's Wi-Fi address>:3000`. The dev server writes to production: walk it on test clients. Make **Test Five** with Add Client ("New client, not in Mindbody yet") and leave it with nothing prepared; **Test Six** is made inside a session, and a third for the client with no routine. Walk it upright and on its side, as a trainer, at a studio with a machine or two out of service if there is one; the phone's lines at the end.
+
+**Start an open session, online**
+- [ ] **Client Directory → Open session**: the Active Session opens in the same tap. The bar says "Open session" and has **Who's this?** (blue, 40px) where Notes and Pulse would be; there is no Notes or Pulse button.
+- [ ] **The floor:** every machine on this studio's floor, in the walking order, each with a + in the Today column, under "Rest of the floor"; nothing is called a routine. The Now Bar says "Tap + on a machine you're doing." with Add a machine.
+- [ ] **Out of service:** a machine marked out of service on the roster is on the floor, says "Out of service" in its Today cell, and has no +.
+- [ ] **Back to Hub, then the Client Directory again:** the button says "Back to the open session" and takes you back to the SAME session; it never starts a second. The bottom bar has a Session tab, "Open session", which goes back to it too.
+
+**+ three machines (the FileMaker circle)**
+- [ ] **+ on three machines, in any order:** each tap adds the machine and makes it the one in hand; it rises into "Today", numbered 1, 2, 3 in the order tapped, and the rest stays under "Rest of the floor".
+- [ ] **A quick double tap on a +** adds one machine, never the row that slid under your finger.
+- [ ] **Type a set on each** (weight and reps, as usual). Nothing asks who the client is.
+
+**Start from a routine…**
+- [ ] **The grid's corner → Start from a routine…:** a sheet, "Start from a routine · For today only. What's done today stays.", listing the studio's starting routines (day one), its templates and head office's, each by its name and first machines. No group of a client's own routines (there is no client yet).
+- [ ] **Pick one:** its machines go into Today in the routine's order, after the three already done; the rest of the floor stays below. A machine this floor lacks, or one out of service, is named on its row, never silently dropped. A routine with nothing to lay lies flat and says "None of its machines can go on today's list".
+- [ ] **Nothing wrote a routine:** no client's Programming changed.
+
+**Set up on a first-time machine (count the taps)**
+- [ ] **On a machine with two empty dials, the Now Bar's button says "Set up · 2 not set"** (one 40px button where the setting tiles were).
+- [ ] **Set up for Seat 12 and Back pad 3:** tap **Set up** (1): the machine card opens with the first empty dial's TILE as its field, on the NUMBER pad. Type 12. Tap the **Back pad tile** (2) (or the keyboard's Next): that tile is its field now, number pad. Type 3. Tap **Save set-up** (3): the card closes. **Three taps and the digits** (it was six taps and three keys). Write your count down if it isn't three. (Since Oct 10 2026 there is no Next or Done button: Round 67's "The settings card".)
+- [ ] **The first digit never changes the editor:** typing "1" then "2" into an empty dial stays a typed field, never a row of positions.
+- [ ] **Before Who's this?, the set-up is kept on the session:** the toast says "{Machine}: set-up kept on this session · saved to the client when you choose them", with **Undo** for ten seconds. Reopen the card: it shows Seat 12 and Back pad 3, and says "Kept on this session · saved to the client when you choose them" where "Last changed" would be. No reason is asked.
+- [ ] **Undo** on the toast within ten seconds: the dials are empty again. Set them once more.
+- [ ] **Use studio standard for all:** on a machine with two or more empty dials that have a studio standard, the card offers it; it fills them, unsaved until Save set-up.
+- [ ] **The card's notes before Who's this?:** the list says "The client's notes show here once you choose who this is (Who's this?)". A note about the client says "Choose who this is first (Who's this?) · your words stay here" and writes nothing; "The machine itself" still files a floor note.
+
+**Who's this? mid-session**
+- [ ] **Who's this?** opens the picker: names only (no height or weight), every name whole; a nickname or part of a name finds them as the Client Directory does; New client at the foot.
+- [ ] **Choose Test Five:** the bar says Test Five, Notes and Pulse appear, and the session carries on: the same sets, Today's list in its order, the floor still open below. Nothing restarts.
+- [ ] **The held set-up went to Test Five:** open that machine's card: Seat 12 and Back pad 3, now Test Five's (the "Kept on this session" line is gone). On Test Five's profile afterwards, the machine's Setting changes list the set-up.
+- [ ] **Programming → Setup (later, on Test Five's profile):** change a saved value and Save with "Why the change? (optional)" left empty: it saves.
+
+**Finish → the Wrap-up's Next time**
+- [ ] **Finish:** the End session question is Test Five's (the Note for the next trainer, then Finish session), never "Who is this session for?".
+- [ ] **The Wrap-up:** today's machines, then **Next time**, "Tick the ones that start Routine A", every row unticked for a client with no routine. Tick two. Back to Hub.
+- [ ] **Programming → Routine A:** exactly the two ticked machines, in the order they were done. Activity Archive → Sessions has the session as Test Five's, with every set.
+
+**An open session finished without Who's this? (and New client)**
+- [ ] **Open session, + one machine, a set, then Finish:** the question asks "Who is this session for?" with **Choose the client**, **New client** and, under Danger zone, Delete session.
+- [ ] **New client:** the Add a client form opens OVER the session (the session is still there under it). Make **Test Six** and save: it never waits on the network, the question comes back as Test Six's, and Finish runs the ordinary Finish, the Wrap-up and Next time.
+
+**Start an open session, offline**
+- [ ] **Wi-Fi off, Client Directory → Open session:** the session opens in the same tap, never a spinner that stays. + two machines, a set on each, Set up one machine (kept on the session).
+- [ ] **Still offline, Back to Hub, then Open session again:** the same session, never a second.
+- [ ] **Wi-Fi on:** the line under the bar stops saying it is waiting and the sets send. Who's this? on a test client, then Finish: the session, its sets and the set-up are all theirs.
+
+**A client with no routine**
+- [ ] **A new test client's session** (Add Client, nothing prepared; Start session on the profile, then Start on the briefing): Today holds the briefing's day one, and below it "Rest of the floor", every other machine with a +. The floor is a view: only Today is the session's list (Round 65's "never the whole floor" still holds: the rest of the floor is never today's list).
+- [ ] **+ one machine from the floor:** it joins Today. **Start from a routine…** in the corner lists the client's own first ("Routine A · day one" while Routine A is empty with a kept plan, or "None yet."), then the studio's.
+- [ ] **Finish:** Next time offers today's machines, the added one "Added today · not in the plan", every row unticked after the consult.
+
+**On a phone (once)**
+- [ ] **Open session on a phone:** today's machines as cards, then "Rest of the floor" as names, each with a 40px Add; with nothing in Today yet, Start from a routine… comes BEFORE the floor. Set up is on the card; Who's this? is in the bar.
+
+**Everywhere**
+- [ ] **Names wrap, nothing is cut short,** every tap is at least a fingertip, Save and every selection blue, orange only on Start session and Finish; light and dark; nothing on screen says "her" or "his" about a client, or guesses one.
+
+## Round 67 — The floor, finished · *Oct 9 2026, branch `oct9/floor`*
+
+Round document: `docs/rounds/2026-10-09-floor.md` (AJ's "1a 2a 3a": the six fixes the rules decide, the briefing's dials folded, the Wrap-up in the order the trainer acts). **One walk for the whole floor:** Round 65 and Round 66 as written, then the checks below, in one sitting. Set up as Round 66 says, in this branch's folder (`.claude\worktrees\floor`); Demo Mode is a real studio with made-up clients, so walk there wherever you can.
+
+**The peek**
+- [ ] **A client card on the Hub → the peek:** "Last in · Tue, 4 days ago" (or "Yesterday", or a date "…, 35 days ago"): "Last in" said once.
+
+**The briefing**
+- [ ] **On the way in:** the four dials are folded; Dials · Sore spot · Note · Update Pulse · Hand over the iPad are all there. Tap **Dials**: the four dials. Tap one answer, tap **Dials** again: folded, and the chip says "Dials · 1".
+
+**The session bar**
+- [ ] **Notes and Pulse:** their icons are the ink colour, like their words; the only orange on the bar is **Finish**.
+
+**The settings card: tap the setting, type, Save** (Oct 10 2026; AJ's "1a 2a 3a", `src/features/machine-menu/README.md` → "The settings card")
+- [ ] **From the machine's name, not Set up:** tap a machine's name, then tap a setting's number (or Not set). THAT tile becomes the box, on the number pad, the old value selected; nothing opens under the tiles, and there is no Done or Next button. Type the new number, tap **Save**: the card closes and the toast says it, with **Undo** for ten seconds. Count: the name, the setting, the digits, Save.
+- [ ] **A setting that already has a value** (Seat 5): tapping the 5 gives the typed box, never a row of numbers to pick from; − and + on the tile still move it one step.
+- [ ] **Two settings:** type one, tap the other tile (the first keeps what you typed), type, Save. Or the keyboard's Next to the next empty one; on the last, the keyboard's Done puts it away and Save is there.
+- [ ] **Change a value the client already has** (Seat 5 → 6 on a client's own session): the strip says "Seat 5 → 6" with **Why? (optional)** folded and Save right under it. Tap Why?: the six reasons; pick one, and the button says "Why: Comfort or fit". Save without a reason also saves.
+- [ ] **Pain or discomfort** as the reason: Save keeps the card open, with **Add a Health note**.
+- [ ] **On the profile** (a client's Journey grid → a machine's name): the same, and Save closes it there too.
+- [ ] **Save and Add note on the card are blue**, light and dark; the only orange on the floor is Start session and Finish.
+- [ ] **A client with settings and no recorded change** (Demo Mode's Frodo Baggins, Leg Extension): the Settings heading says "No changes recorded", never "No settings saved yet" over the values.
+
+**Finish**
+- [ ] **Finish:** the question reads "Finish {first name}'s session?" on one line, with nothing under it. **The keyboard does NOT come up by itself.** Tap the note box: now it does, and the box's edge is blue, never orange. The hint says "On the next four briefings." The link at the bottom says **Scrap session**.
+- [ ] **An open session (Round 66) before Who's this?:** the question reads "Finish this session?".
+
+**The Wrap-up**
+- [ ] **The order:** Today (today's machines only) · **How it went** (the sentence to read out, then Where the work went) · Next session's weights · Next time (when it shows) · **Effort · profile note · Pulse** · **Next** (the booking, with Times with room).
+- [ ] **Where the work went:** Upper Body's bar is indigo, never orange; "lb moved" and the percentages are in the app's own typeface, like the words around them.
+- [ ] **Offline at Finish** (turn the iPad's Wi-Fi off just before Finish, on a client with earlier sessions): How it went says "Couldn't read the earlier sessions here. The trend is on the profile." Nothing says "Not enough history", and no line under Today says "First time". Turn the Wi-Fi back on: the session sends by itself.
+
+**Everywhere**
+- [ ] **Light and dark, upright and on its side,** an iPad mini if there is one: names wrap, nothing is cut short, and orange is only on Start session and Finish.

@@ -1088,7 +1088,8 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
     // Moved on purpose (type and depth review, Oct 5 2026; AJ's 1A and 3B):
     // a card's head was 12px capitals, the pattern the round took out
     // everywhere else. It is the label voice now, 14/700 in ink-2.
-    const head = Array.from(host.querySelectorAll("div")).find((d) => d.textContent === "The journey")!;
+    // "The journey" became "How it went" (the floor round, Oct 9 2026, 3a).
+    const head = Array.from(host.querySelectorAll("div")).find((d) => d.textContent === "How it went")!;
     const cls = head.className.split(/\s+/);
     expect(cls).toEqual(expect.arrayContaining(["text-[14px]", "font-bold", "text-ink-d2"]));
     expect(cls).not.toContain("uppercase");
@@ -1107,6 +1108,21 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
       expect([...sizes].filter((n) => ![11, 12, 14, 17, 22, 30].includes(n)), f).toEqual([]);
       expect(src, f).not.toMatch(/ring-cyan|border-cyan/);
       expect(src.split(/["'`]/).filter((s) => PALETTE.test(s)), f).toEqual([]);
+      // Geist for every number, even-width where they line up (the floor round, Oct 9 2026, F5):
+      // the code typeface drew "lb moved", the shares, today's lines and the lifetime tiles until then.
+      expect(src, f).not.toMatch(/\bfont-mono\b/);
+    }
+  });
+
+  // The floor round, Oct 9 2026, F4: Upper Body's bar was amber (chart-5), which beside the Navy
+  // Frame read as the orange of now and go. chart-5 is a cool data colour in both themes.
+  it("draws no region's bar in an orange", () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../index.css"), "utf8");
+    const values = [...css.matchAll(/--chart-5:\s*(#[0-9A-Fa-f]{6})/g)].map((m) => m[1]);
+    expect(values).toHaveLength(2);
+    for (const hex of values) {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      expect(b > r && b > g, `${hex} is a cool colour, never amber or orange`).toBe(true);
     }
   });
 
@@ -1398,14 +1414,13 @@ describe("Next: her next booking, and the door to Times with room", () => {
     expect(door(host)?.getAttribute("data-door")).toBe("quiet");
   });
 
-  it("keeps the door inside the Next line, so its arriving moves nothing on the card above the dose Dial", async () => {
-    /** The Next card's rows down to the dose card, by what they are. */
-    const rowsAboveDose = (host: HTMLElement) => {
-      const rows = Array.from(nextLine(host).parentElement!.children);
-      const dose = rows.findIndex((el) => el.getAttribute("data-testid") === "effort-card");
-      expect(dose).toBeGreaterThan(0);
-      return rows.slice(0, dose).map((el) => `${el.tagName}:${el.getAttribute("data-testid") ?? ""}`);
-    };
+  // Since the floor round (AJ, Oct 9 2026, 3a) the next booking is its own card, the last of the
+  // cards the trainer acts on: the door arriving inside its line can move nothing above it, the
+  // Effort Dial included, which was under the line in the same card until then.
+  it("keeps the door inside the Next line, in its own card after the Effort Dial, so its arriving moves nothing above", async () => {
+    /** The card a node is drawn in. */
+    const cardOf = (el: Element) => el.closest("section")!;
+    const effortCard = (host: HTMLElement) => host.querySelector('[data-testid="effort-card"]')!;
 
     const withDoor = await mount(<NextScreen />);
     await settle();
@@ -1414,16 +1429,33 @@ describe("Next: her next booking, and the door to Times with room", () => {
     // The live region is the sentence, not the door beside it.
     expect(nextLine(withDoor).hasAttribute("aria-live")).toBe(false);
     expect(withDoor.querySelector('[data-testid="next-booking-sentence"]')!.getAttribute("aria-live")).toBe("polite");
-    const rowsWithDoor = rowsAboveDose(withDoor);
+    expect(cardOf(nextLine(withDoor))).not.toBe(cardOf(effortCard(withDoor)));
+    expect(effortCard(withDoor).compareDocumentPosition(nextLine(withDoor)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    // A studio with nothing to offer yet: no door, and the same rows.
+    // A studio with nothing to offer yet: no door, and the line in the same place.
     forgetPersonalMemory();
     openingsFake.summary = null;
     openingsFake.weeks = { docs: [{ ...samWeek(), final: null, proposed: samWeek().final }], loading: false, error: null };
     const noDoor = await mount(<NextScreen />);
     await settle();
     expect(door(noDoor)).toBeNull();
-    expect(rowsAboveDose(noDoor)).toEqual(rowsWithDoor);
+    expect(cardOf(nextLine(noDoor))).not.toBe(cardOf(effortCard(noDoor)));
+    expect(effortCard(noDoor).compareDocumentPosition(nextLine(noDoor)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("lays its cards out in the order the trainer acts (AJ, Oct 9 2026, the floor round's 3a)", async () => {
+    const host = await mount(<NextScreen />);
+    await settle();
+    const heads = Array.from(host.querySelectorAll("section > div:first-child")).map((d) => d.textContent?.trim());
+    const order = ["Today", "How it went", "Effort · profile note · Pulse", "Next"];
+    // Today's head row also says "vs last time on each machine".
+    const at = order.map((h) => heads.findIndex((t) => t === h || (h === "Today" && t?.startsWith("Today"))));
+    expect(at.every((i) => i >= 0), heads.join(" | ")).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(heads).not.toContain("The journey");
+    // Where the work went moved out of Today into How it went.
+    const where = host.querySelector('[data-testid="where-the-work-went"]');
+    if (where) expect(where.closest("section")!.querySelector("div")!.textContent).toBe("How it went");
   });
 
   it("opens Times with room on top of the Wrap-up, naming no client, and closes back to it", async () => {

@@ -24,6 +24,14 @@
  *     setting changes, the floor's notes) are made each time it opens.
  *   - Imported statically, never loaded on demand: the session's warm-up
  *     covers it, and a deploy can't strand it mid-session.
+ *   - QUICK SET-UP (the open session round, Oct 9 2026; AJ's "2a"): the Now
+ *     Bar's Set up opens it with `focusDial` (the first empty dial's tile
+ *     is its field, given the focus in place of the dialog's first button).
+ *     The same card, the same blocks in the same order.
+ *   - SAVE CLOSES IT, from every door (the settings card, Oct 10 2026; AJ's
+ *     "1a"), and the toast keeps a ten-second Undo. It was Set up's alone
+ *     (`closeOnSave`), so a change made from the machine's name left the
+ *     card open on "Set-up kept on this session · Undo" for the X.
  */
 import { useCallback, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -41,6 +49,13 @@ export interface MachineMenuProps {
   onClose: () => void;
   /** What the door hands the card (useMachineMenuData's `MachineMenuHost`). */
   host: MachineMenuHost;
+  /** Open on the first empty dial's editor (the Now Bar's Set up). Either door may pass it. */
+  focusDial?: boolean;
+}
+
+/** Set up's first field takes the focus the dialog would give its first button; without one, the dialog's own. */
+function firstDialField(): HTMLElement | true {
+  return document.querySelector<HTMLElement>('.mm-dialog [data-block="settings"] [data-editor="field"] input') ?? true;
 }
 
 export function MachineMenu(props: MachineMenuProps) {
@@ -53,7 +68,7 @@ export function MachineMenu(props: MachineMenuProps) {
   return <MenuFrame {...props} />;
 }
 
-function MenuFrame({ open, machineId, onClose, host }: MachineMenuProps) {
+function MenuFrame({ open, machineId, onClose, host, focusDial = false }: MachineMenuProps) {
   const { byId: catalogById } = useMachineCatalog();
   const scope = useLeaveScope();
   const known = !!machineId && host.machines.some((m) => m.id === machineId);
@@ -69,6 +84,7 @@ function MenuFrame({ open, machineId, onClose, host }: MachineMenuProps) {
       <DialogContent
         showCloseButton={false}
         className="mm-dialog max-w-none sm:max-w-none p-0 gap-0 border-0 ring-0 bg-transparent shadow-none rounded-[20px]"
+        initialFocus={focusDial ? firstDialField : undefined}
       >
         <UnsavedChangesScope scope={scope}>
           <MachineMenuBody
@@ -78,6 +94,7 @@ function MenuFrame({ open, machineId, onClose, host }: MachineMenuProps) {
             catalogById={catalogById}
             onClose={close}
             titleAs={DialogTitle}
+            focusDial={focusDial}
           />
         </UnsavedChangesScope>
       </DialogContent>

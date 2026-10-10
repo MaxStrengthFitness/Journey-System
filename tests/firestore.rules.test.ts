@@ -7199,3 +7199,316 @@ describe("oct8 first session: starting routines and a studio's choice", () => {
     await assertFails(forged.commit());
   });
 });
+
+// WHO'S THIS? (the open session round, Oct 9 2026). An open session's sets
+// carry no client; naming the client is ONE batch that gives the session its
+// client and every set the same one (src/features/open-session/assign.ts).
+// The set rule kept a set's client fixed, so Assign moved the session and
+// its sets were refused, silently. Now a set with no client may take the
+// client its own session is given in the same batch, while that session is
+// still open, and nothing else about a set's client may change.
+describe("open session: Who's this? gives the session and its sets one client", () => {
+  const OPEN = "openSess";
+  const CLIENT = "assignClient";
+  const SETS = [
+    { id: `${OPEN}_m-leg-press`, machineId: "m-leg-press" },
+    { id: `${OPEN}_m-pulldown`, machineId: "m-pulldown" },
+    { id: `${OPEN}_m-torso-rotation_Left`, machineId: "m-torso-rotation", side: "Left" },
+    { id: `${OPEN}_m-torso-rotation_Right`, machineId: "m-torso-rotation", side: "Right" },
+  ];
+  const as = (uid: string) => testEnv.authenticatedContext(uid).firestore();
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "clients", CLIENT), {
+        firstName: "Sam", lastName: "Open", isActive: true, homeStudioId: "studioA", sessionCount: 4,
+      });
+      // As Open session starts one: no client, an empty list, run by trainerA at studio A.
+      await setDoc(doc(db, "sessions", OPEN), {
+        isUnassigned: true, sessionType: "Standard", sessionNumber: 0, date: "2026-10-09",
+        hostedAtStudioId: "studioA", clientHomeStudioId: null, isCrossTrain: false,
+        sessionMachineIds: ["m-leg-press", "m-pulldown", "m-torso-rotation"],
+        trainerInitials: "TA", trainerName: "Trainer A", trainerId: "trainerA", startedByTrainerId: "trainerA",
+        status: "In-Progress", pausedAt: null, totalPausedMs: 0,
+      });
+      // Its sets, as the tracker writes them with no client: no clientId field at all.
+      for (const s of SETS) {
+        await setDoc(doc(db, "exerciseLogs", s.id), {
+          sessionId: OPEN, machineId: s.machineId, ...(s.side ? { side: s.side } : {}),
+          weight: "100", reps: "10", machineSettings: {}, studioId: "studioA", homeStudioId: "", clientHomeStudioId: "",
+        });
+      }
+    });
+  });
+
+  /** The assign batch as the tracker builds it. */
+  const assignBatch = (
+    db: ReturnType<typeof as>,
+    client = CLIENT,
+    setClient = client,
+    sets: { id: string; machineId: string }[] = SETS,
+  ) => {
+    const b = writeBatch(db);
+    b.update(doc(db, "sessions", OPEN), {
+      clientId: client, isUnassigned: false, mindbodyClientId: null, clientName: "Sam Open",
+      homeStudioId: "studioA", clientHomeStudioId: "studioA", isCrossTrain: false, sessionNumber: 5,
+      lastHeartbeatAt: serverTimestamp(),
+    });
+    for (const s of sets) {
+      b.set(doc(db, "exerciseLogs", s.id), {
+        sessionId: OPEN, machineId: s.machineId, clientId: setClient, homeStudioId: "studioA", clientHomeStudioId: "studioA",
+      }, { merge: true });
+    }
+    return b;
+  };
+
+  it("passes for the session's trainer: the session and every set get the client in one batch", async () => {
+    const db = as("trainerA");
+    await assertSucceeds(assignBatch(db).commit());
+    const after = await getDoc(doc(db, "exerciseLogs", SETS[2].id));
+    expect(after.data()?.clientId).toBe(CLIENT);
+    expect(after.data()?.weight).toBe("100");
+  });
+
+  /* The review (Oct 9 2026): each set's rule reads the trainer, the session
+     before the write and the session after it, against a limit of 20
+     document reads a batch. Four sets could not tell whether repeated reads
+     of the same documents are counted once, so this assigns a whole
+     FileMaker-floor session: the four above and eight more machines on both
+     sides, twenty sets in one batch with the session. */
+  it("passes for a whole floor's session: twenty sets and the session in one batch", async () => {
+    const more = Array.from({ length: 8 }, (_, i) => `m-floor-${i + 1}`).flatMap((machineId) =>
+      (["Left", "Right"] as const).map((side) => ({ id: `${OPEN}_${machineId}_${side}`, machineId, side })),
+    );
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      for (const s of more) {
+        await setDoc(doc(db, "exerciseLogs", s.id), {
+          sessionId: OPEN, machineId: s.machineId, side: s.side,
+          weight: "80", reps: "9", machineSettings: {}, studioId: "studioA", homeStudioId: "", clientHomeStudioId: "",
+        });
+      }
+    });
+    const all = [...SETS, ...more];
+    expect(all).toHaveLength(20);
+    const db = as("trainerA");
+    await assertSucceeds(assignBatch(db, CLIENT, CLIENT, all).commit());
+    const last = await getDoc(doc(db, "exerciseLogs", all[19].id));
+    expect(last.data()?.clientId).toBe(CLIENT);
+    expect(last.data()?.reps).toBe("9");
+  });
+
+  it("a set that has a client can't be moved, even in the assign batch", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "exerciseLogs", SETS[0].id), { clientId: "someoneElse" });
+    });
+    await assertFails(assignBatch(as("trainerA")).commit());
+  });
+
+  it("a set can't take a client its session doesn't get", async () => {
+    await assertFails(assignBatch(as("trainerA"), CLIENT, "someoneElse").commit());
+  });
+
+  it("a set can't take a client on its own, with the session left open", async () => {
+    const db = as("trainerA");
+    await assertFails(
+      setDoc(doc(db, "exerciseLogs", SETS[0].id), { sessionId: OPEN, machineId: "m-leg-press", clientId: CLIENT }, { merge: true }),
+    );
+  });
+
+  it("once the session has its client, a set left behind can't follow on its own", async () => {
+    const db = as("trainerA");
+    const b = writeBatch(db);
+    b.update(doc(db, "sessions", OPEN), { clientId: CLIENT, isUnassigned: false });
+    b.set(doc(db, "exerciseLogs", SETS[0].id), { sessionId: OPEN, machineId: "m-leg-press", clientId: CLIENT }, { merge: true });
+    await assertSucceeds(b.commit());
+    await assertFails(
+      setDoc(doc(db, "exerciseLogs", SETS[1].id), { sessionId: OPEN, machineId: "m-pulldown", clientId: CLIENT }, { merge: true }),
+    );
+    // ...while a set that has the client is written as before.
+    await assertSucceeds(
+      setDoc(doc(db, "exerciseLogs", SETS[0].id), { sessionId: OPEN, machineId: "m-leg-press", reps: "11" }, { merge: true }),
+    );
+  });
+
+  it("a set can't change sessions on the way", async () => {
+    const db = as("trainerA");
+    const b = writeBatch(db);
+    b.update(doc(db, "sessions", OPEN), { clientId: CLIENT, isUnassigned: false });
+    b.set(doc(db, "exerciseLogs", SETS[0].id), { sessionId: "sessionA", machineId: "m-leg-press", clientId: CLIENT }, { merge: true });
+    await assertFails(b.commit());
+  });
+
+  it("a trainer the session is nothing to is refused the batch", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "trainers", "trainerC"), {
+        fullName: "Trainer C", initials: "TC", role: "LifeTransformer",
+        primaryHomeStudioId: "studioC", accessibleStudioIds: ["studioC"],
+      });
+    });
+    await assertFails(assignBatch(as("trainerC")).commit());
+  });
+
+  /* SETTINGS HELD ON THE SESSION (the open session round, Oct 9 2026; AJ's
+     "3a"). Before its client is chosen, the machine card keeps what was
+     typed on the session, `heldSetup.{machineId}` (it went to the ghost
+     `clientMachineSettings/_{machineId}`); Assign saves each machine to the
+     client in its own batch and deletes `heldSetup` in the session's write
+     (src/features/open-session/held-store.ts). No rule changed: the
+     sessions update rule already lets the session's trainer write it. */
+  it("lets the session's trainer keep a set-up on the open session, one machine at its own path", async () => {
+    const db = as("trainerA");
+    await assertSucceeds(
+      updateDoc(doc(db, "sessions", OPEN), {
+        "heldSetup.m-leg-press": { values: { Seat: "12" }, at: serverTimestamp(), byUid: "trainerA" },
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(db, "sessions", OPEN), {
+        // A value taken from a suggestion keeps its source beside it (the review, Oct 9 2026).
+        "heldSetup.m-pulldown": { values: { "Back pad": "3" }, sources: { "Back pad": "suggested" }, at: serverTimestamp(), byUid: "trainerA" },
+      }),
+    );
+    const after = await getDoc(doc(db, "sessions", OPEN));
+    expect(after.data()?.heldSetup?.["m-leg-press"]?.values).toEqual({ Seat: "12" });
+    expect(after.data()?.heldSetup?.["m-pulldown"]?.values).toEqual({ "Back pad": "3" });
+    expect(after.data()?.heldSetup?.["m-pulldown"]?.sources).toEqual({ "Back pad": "suggested" });
+    expect(after.data()?.isUnassigned).toBe(true);
+  });
+
+  it("refuses a held set-up from a trainer the session is nothing to", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "trainers", "trainerC"), {
+        fullName: "Trainer C", initials: "TC", role: "LifeTransformer",
+        primaryHomeStudioId: "studioC", accessibleStudioIds: ["studioC"],
+      });
+    });
+    await assertFails(
+      updateDoc(doc(as("trainerC"), "sessions", OPEN), {
+        "heldSetup.m-leg-press": { values: { Seat: "12" }, at: serverTimestamp(), byUid: "trainerC" },
+      }),
+    );
+  });
+
+  it("passes the assign batch that saves the held set-up to the client and clears it from the session", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "sessions", OPEN), {
+        heldSetup: { "m-leg-press": { values: { Seat: "12" }, sources: { Seat: "suggested" }, byUid: "trainerA" } },
+      });
+      // What the client already has on the machine: the move writes only the dial it set.
+      await setDoc(doc(context.firestore(), "clientMachineSettings", `${CLIENT}_m-leg-press`), {
+        clientId: CLIENT, machineId: "m-leg-press", settings: { Seat: "4", "Back pad": "3" },
+      });
+    });
+    const db = as("trainerA");
+    // As the tracker builds it: the session's write names its client and deletes what it held, in one update.
+    const b = writeBatch(db);
+    b.update(doc(db, "sessions", OPEN), {
+      clientId: CLIENT, isUnassigned: false, mindbodyClientId: null, clientName: "Sam Open",
+      homeStudioId: "studioA", clientHomeStudioId: "studioA", isCrossTrain: false, sessionNumber: 5,
+      lastHeartbeatAt: serverTimestamp(), heldSetup: deleteField(),
+    });
+    for (const st of SETS) {
+      b.set(doc(db, "exerciseLogs", st.id), {
+        sessionId: OPEN, machineId: st.machineId, clientId: CLIENT, homeStudioId: "studioA", clientHomeStudioId: "studioA",
+      }, { merge: true });
+    }
+    b.set(
+      doc(db, "clientMachineSettings", `${CLIENT}_m-leg-press`),
+      { clientId: CLIENT, machineId: "m-leg-press", settings: { Seat: "12" }, sources: { Seat: "suggested" }, updatedAt: new Date(), updatedBy: "trainerA" },
+      { merge: true },
+    );
+    b.set(doc(collection(db, "machines", "m-leg-press", "settingHistory")), {
+      clientId: CLIENT, timestamp: new Date().toISOString(), trainerId: "trainerA", trainerName: "Trainer A",
+      changeType: "SETTINGS", oldValue: "Seat: 4", newValue: "Seat: 12", reason: "Settings update",
+    });
+    await assertSucceeds(b.commit());
+    const session = await getDoc(doc(db, "sessions", OPEN));
+    expect(session.data()?.heldSetup).toBeUndefined();
+    expect(session.data()?.clientId).toBe(CLIENT);
+    const setting = await getDoc(doc(db, "clientMachineSettings", `${CLIENT}_m-leg-press`));
+    expect(setting.data()?.settings).toEqual({ Seat: "12", "Back pad": "3" });
+    expect(setting.data()?.sources).toEqual({ Seat: "suggested" });
+  });
+
+  /* THE WHOLE-BRANCH REVIEW (Oct 9 2026). */
+  it("gives an open session only a client on record: a refused New client refuses the assign with it", async () => {
+    const db = as("trainerA");
+    // New client's own write was refused, so the client isn't there: the session and its sets can't name them.
+    await assertFails(assignBatch(db, "ghostClient").commit());
+    await assertFails(updateDoc(doc(db, "sessions", OPEN), { clientId: "ghostClient", isUnassigned: false }));
+    // The client written in the same batch is on record once it lands.
+    const b = assignBatch(db, "brandNew");
+    b.set(doc(db, "clients", "brandNew"), { firstName: "Bo", lastName: "New", homeStudioId: "studioA", isActive: true, remainingSessions: 0 });
+    await assertSucceeds(b.commit());
+  });
+
+  it("the write that gives a set its client must close the session: one left open with a client lets no set follow on its own", async () => {
+    const db = as("trainerA");
+    // The session named, but left open: refused.
+    const b = writeBatch(db);
+    b.update(doc(db, "sessions", OPEN), { clientId: CLIENT });
+    b.set(doc(db, "exerciseLogs", SETS[0].id), { sessionId: OPEN, machineId: "m-leg-press", clientId: CLIENT }, { merge: true });
+    await assertFails(b.commit());
+    // A session already open WITH a client (as a Finish before this round could leave one): a set can't take it alone.
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "sessions", OPEN), { clientId: CLIENT });
+    });
+    await assertFails(
+      setDoc(doc(db, "exerciseLogs", SETS[1].id), { sessionId: OPEN, machineId: "m-pulldown", clientId: CLIENT }, { merge: true }),
+    );
+  });
+
+  it("a Finish that lands after a refused Who's this? closes the session and names its client on every set", async () => {
+    const db = as("trainerA");
+    const b = writeBatch(db);
+    b.update(doc(db, "sessions", OPEN), {
+      status: "Completed", endTime: serverTimestamp(), clientId: CLIENT, isUnassigned: false,
+      homeStudioId: "studioA", clientHomeStudioId: "studioA", hostedAtStudioId: "studioA",
+      trainerId: "trainerA", trainerName: "Trainer A", trainerInitials: "TA",
+    });
+    for (const st of SETS) {
+      b.set(doc(db, "exerciseLogs", st.id), { sessionId: OPEN, machineId: st.machineId, clientId: CLIENT, homeStudioId: "studioA" }, { merge: true });
+    }
+    await assertSucceeds(b.commit());
+  });
+
+  it("after a refused assign, a set of the still-open session may let go of the client it was typed with", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      // Typed after Who's this? was tapped: created with the client while the assign was on its way, then refused.
+      await updateDoc(doc(context.firestore(), "exerciseLogs", SETS[0].id), { clientId: CLIENT });
+    });
+    const db = as("trainerA");
+    await assertSucceeds(
+      setDoc(doc(db, "exerciseLogs", SETS[0].id), { sessionId: OPEN, machineId: "m-leg-press", clientId: deleteField() }, { merge: true }),
+    );
+    expect((await getDoc(doc(db, "exerciseLogs", SETS[0].id))).data()?.clientId).toBeUndefined();
+    // ...and then the client chosen next takes it in the assign.
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "clients", "otherClient"), { firstName: "Other", lastName: "One", isActive: true, homeStudioId: "studioA" });
+    });
+    await assertSucceeds(assignBatch(db, "otherClient").commit());
+  });
+
+  it("a set of a session that has its client can't let go of it", async () => {
+    const db = as("trainerA");
+    await assertSucceeds(assignBatch(db).commit());
+    await assertFails(
+      setDoc(doc(db, "exerciseLogs", SETS[0].id), { sessionId: OPEN, machineId: "m-leg-press", clientId: deleteField() }, { merge: true }),
+    );
+  });
+
+  it("keeps heldSetup on an open session only: a client's session can't be given one", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "sessions", OPEN), { clientId: CLIENT, isUnassigned: false });
+    });
+    await assertFails(
+      updateDoc(doc(as("trainerA"), "sessions", OPEN), {
+        "heldSetup.m-leg-press": { values: { Seat: "12" }, at: serverTimestamp(), byUid: "trainerA" },
+      }),
+    );
+    // Its other writes go on as before (a heartbeat).
+    await assertSucceeds(updateDoc(doc(as("trainerA"), "sessions", OPEN), { lastHeartbeatAt: serverTimestamp() }));
+  });
+});

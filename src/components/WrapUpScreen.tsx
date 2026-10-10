@@ -78,6 +78,13 @@ import { NextTimeCard } from "../features/routine-plan/ui/NextTimeCard";
  * `origin: "post_session"`, and the tracker still calls this face
  * "post-session" in code.
  *
+ * Since the floor round (AJ, Oct 9 2026, 3a) the cards run in the order the
+ * trainer acts: TODAY; HOW IT WENT (the journey's sentence, read out while
+ * the client is still there, then where the work went); the next session's
+ * weights and Next time; EFFORT · PROFILE NOTE · PULSE, its own card; and
+ * NEXT, the booking, last. The list below is each piece's story as it was
+ * written, in the order the screen had then.
+ *
  * Thirty seconds, walking the client out. AJ's order of business:
  *   1. TODAY — "here's how they did": one line per machine, today against
  *      last time, the max-strength stars, and where the work went.
@@ -152,7 +159,7 @@ import { NextTimeCard } from "../features/routine-plan/ui/NextTimeCard";
  * colour on it is a token that reads in both: brand blue (`--eq-live*`) for
  * a gain, a save and the focus ring, green (`--eq-ok`) for booked and saved,
  * plum (`--eq-warn`) for a caution (nothing booked, a note left unsaved), the
- * journey grid's gold star for a max-strength set, and sky, amber and neutral
+ * journey grid's gold star for a max-strength set, and sky, indigo and neutral
  * for where the work went (GROUP_TONE says why not the brand's two). Until
  * Sep 27 2026 the Dial, Loudness and the two trays were pinned dark (a
  * `.dark` + `data-theme="dark"` wrapper left over from when the whole screen
@@ -366,10 +373,12 @@ export interface WrapUpScreenProps {
    colours, so neither is used: chart-2 is the hero orange, kept for the one
    loud action of a screen, and chart-1 is the brand blue of action and
    selection in the light theme. Nor the meaning colours: green is "done" and
-   plum a caution, and a muscle group is neither. So sky (chart-4), amber
+   plum a caution, and a muscle group is neither. So sky (chart-4), indigo
    (chart-5) and the strong neutral ink, with the chart palette's own grey
-   (chart-3) for "Other". The region's name and share are written beside
-   every bar, so the colour is never the only way to tell. */
+   (chart-3) for "Other". chart-5 was amber until the floor round (Oct 9
+   2026, F4): beside the Navy Frame it read as the orange of now and go. The
+   region's name and share are written beside every bar, so the colour is
+   never the only way to tell. */
 const GROUP_TONE: Record<string, string> = {
   "Lower Body": "bg-chart-4",
   "Upper Body": "bg-chart-5",
@@ -381,7 +390,8 @@ const OTHER_TONE = GROUP_TONE.Other;
 /** A card's head: the label voice, 14/700 in ink-2, in its own
  *  capitalisation (type and depth review, Oct 5 2026; it was 12px capitals,
  *  the pattern the round took out everywhere else). The page's one eyebrow,
- *  over the h1, keeps the capitals. */
+ *  over the h1, keeps the capitals: the app's one capitals style, the same
+ *  over every page title (type-voice.test.ts, EYEBROW_STYLE). */
 function Kicker({ children }: { children: React.ReactNode }) {
   return <div className="text-[14px] font-bold text-ink-d2 break-words">{children}</div>;
 }
@@ -436,7 +446,7 @@ function TodayRow({ line, coverage }: { line: TodayLine; coverage: HistoryCovera
       <span className="flex-1 min-w-0 text-[14px] font-semibold text-ink-d1 break-words">{line.name}</span>
       {performed ? (
         <>
-          <span className="font-mono tabular-nums text-[14px] font-bold text-ink-d1 whitespace-nowrap">
+          <span className="tabular-nums text-[14px] font-bold text-ink-d1 whitespace-nowrap">
             {line.weight !== null ? fmtLb(line.weight) : "–"}
             <span className="text-[11px] font-semibold text-ink-d3 ml-0.5">lb</span>
             <span className="text-ink-d3 mx-1">×</span>
@@ -501,6 +511,16 @@ export function WrapUpScreen({
   const offersNextTime = !!onNextTime;
   const nextRows = useMemo(() => (nextTime && offersNextTime ? nextTimeOffer(nextTime) : []), [nextTime, offersNextTime]);
   const [nextTicked, setNextTicked] = useState<string[]>(() => nextRows.filter((r) => r.defaultOn).map((r) => r.machineId));
+  /* Rows that arrive after the screen opened (the card worked out once the
+     client's routines answered, a Finish straight after Who's this?; the
+     whole-branch review, Oct 9 2026) start ticked as the rows say, once:
+     after that the ticks are the trainer's. */
+  const nextSeededRef = useRef(nextRows.length > 0);
+  useEffect(() => {
+    if (nextSeededRef.current || nextRows.length === 0) return;
+    nextSeededRef.current = true;
+    setNextTicked(nextRows.filter((r) => r.defaultOn).map((r) => r.machineId));
+  }, [nextRows]);
   const nextTimeRef = useRef({ rows: nextRows, ticked: nextTicked });
   nextTimeRef.current = { rows: nextRows, ticked: nextTicked };
   const onNextTimeRef = useRef(onNextTime);
@@ -856,66 +876,25 @@ export function WrapUpScreen({
                 <TodayRow key={l.machineId} line={l} coverage={coverage} />
               ))}
             </ol>
-            {byRegion.length > 0 && (
-              <div className="pt-2 border-t border-div-d">
-                <div className="flex items-baseline justify-between mb-2">
-                  <span className="text-[12px] font-semibold text-ink-d3">Where the work went</span>
-                  <span className="font-mono text-[12px] text-ink-d2">{Math.round(tonnage).toLocaleString()} lb moved</span>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {byRegion.map(([g, v]) => (
-                    <div key={g} className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${GROUP_TONE[g] ?? OTHER_TONE}`} />
-                      <span className="w-24 text-[12px] text-ink-d2">{g}</span>
-                      <span className="flex-1 h-1.5 rounded-full bg-bg-dark-3 overflow-hidden">
-                        <span className={`block h-full ${GROUP_TONE[g] ?? OTHER_TONE}`} style={{ width: `${Math.round((100 * v) / tonnage)}%` }} />
-                      </span>
-                      <span className="w-10 text-right font-mono text-[11px] text-ink-d3">{Math.round((100 * v) / tonnage)}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </Card>
 
           {/* The rest of the screen a frame later (the iPad round, Oct 6 2026):
                  the first frame is the title and Today, so the Wrap-up is on
                  screen at once, and the cards below arrive with the next
-                 render, already rising in as they always did. */}
+                 render, already rising in as they always did.
+
+                 In the order the trainer acts (AJ, Oct 9 2026, the floor
+                 round's 3a): How it went, read out while the client is still
+                 there; then what the trainer does — the next session's
+                 weights, Next time, Effort, the profile note and Pulse — and
+                 last the next booking. */}
           {restDrawn && (
           <>
-          {/* 1b · the next session's weights (the Atlas answers, Oct 2 2026):
-                 the trainer sets what the next session loads, up or down; the
-                 app never suggests one. Silent when nothing was performed. */}
-          {onNextWeight && lines.some((l) => l.outcome === "performed" && l.weight !== null) && (
-            <Card delay={0.08}>
-              <Kicker>Next session's weights</Kicker>
-              <NextWeightCard lines={lines} onSave={onNextWeight} />
-            </Card>
-          )}
-
-          {/* 1c · next time (the first-session design round, Oct 8 2026,
-                 §4.7): today's performed machines the routine lacks, ticked
-                 into it for next time, with the Road for next time under
-                 them. Written once on the way out, never per tick. No card
-                 for a Free session, or when there is nothing to offer. */}
-          {nextTime && nextRows.length > 0 && (
-            <Card delay={0.1}>
-              <Kicker>Next time</Kicker>
-              <NextTimeCard
-                snapshot={nextTime}
-                rows={nextRows}
-                ticked={nextTicked}
-                onTicked={setNextTicked}
-                firstName={clientFirstName(client)}
-                todayYmd={todayKey}
-              />
-            </Card>
-          )}
-
-          {/* 2 · the journey */}
-          <Card delay={0.12}>
-            <Kicker>The journey</Kicker>
+          {/* 2 · how it went: the journey, the sentence the trainer reads out,
+                 and where today's work went, one card (3a; they were the
+                 journey card and a block under Today). */}
+          <Card delay={0.08}>
+            <Kicker>How it went</Kicker>
             <p className={`text-[14px] leading-snug ${journey.enough ? "text-ink-d1 font-semibold" : "text-ink-d3"}`}>
               {journeySentence(journey, clientFirstName(client))}
             </p>
@@ -933,74 +912,62 @@ export function WrapUpScreen({
                 ))}
               </div>
             )}
+            {byRegion.length > 0 && (
+              <div className="pt-2 border-t border-div-d" data-testid="where-the-work-went">
+                <div className="flex items-baseline justify-between mb-2">
+                  <span className="text-[12px] font-semibold text-ink-d3">Where the work went</span>
+                  <span className="tabular-nums text-[12px] text-ink-d2">{Math.round(tonnage).toLocaleString()} lb moved</span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {byRegion.map(([g, v]) => (
+                    <div key={g} className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${GROUP_TONE[g] ?? OTHER_TONE}`} />
+                      <span className="w-24 text-[12px] text-ink-d2">{g}</span>
+                      <span className="flex-1 h-1.5 rounded-full bg-bg-dark-3 overflow-hidden">
+                        <span className={`block h-full ${GROUP_TONE[g] ?? OTHER_TONE}`} style={{ width: `${Math.round((100 * v) / tonnage)}%` }} />
+                      </span>
+                      <span className="w-10 text-right tabular-nums text-[11px] text-ink-d3">{Math.round((100 * v) / tonnage)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </Card>
 
-          {/* 3 · next */}
-          <Card delay={0.18}>
-            <Kicker>Next</Kicker>
-            {/* Booked is done (green); nothing booked is a caution (plum);
-                checking and can't-check are neither. The line keeps room for
-                two lines of the sentence, or the 44px door, in every state,
-                so neither the answer nor the door arriving moves anything
-                while the client reads it or the trainer reaches for the
-                controls below.
+          {/* 1b · the next session's weights (the Atlas answers, Oct 2 2026):
+                 the trainer sets what the next session loads, up or down; the
+                 app never suggests one. Silent when nothing was performed. */}
+          {onNextWeight && lines.some((l) => l.outcome === "performed" && l.weight !== null) && (
+            <Card delay={0.1}>
+              <Kicker>Next session's weights</Kicker>
+              <NextWeightCard lines={lines} onSave={onNextWeight} />
+            </Card>
+          )}
 
-                The door to Times with room sits INSIDE the line, after the
-                sentence: prominent only when the server confirmed nothing is
-                booked, quiet on every other Wrap-up with something to offer,
-                absent before there is anything. Both are the same height, so
-                one turning into the other moves nothing either. */}
-            <div
-              className={`flex items-center gap-3 min-h-14 py-1.5 px-3 rounded-xl border ${
-                next.state === "booked"
-                  ? "border-(--eq-ok)/40 bg-(--eq-ok-fill)"
-                  : next.state === "none"
-                    ? "border-(--eq-warn)/40 bg-(--eq-warn-fill)"
-                    : "border-div-d bg-bg-dark-3"
-              }`}
-              data-testid="next-booking"
-              data-state={next.state}
-            >
-              {next.state === "booked" ? (
-                <CalendarCheck2 size={18} className="text-(--eq-ok) shrink-0" aria-hidden="true" />
-              ) : next.state === "none" ? (
-                <CalendarX2 size={18} className="text-(--eq-warn) shrink-0" aria-hidden="true" />
-              ) : (
-                <CalendarSearch size={18} className="text-ink-d3 shrink-0" aria-hidden="true" />
-              )}
-              <span
-                className={`min-w-0 flex-1 text-[14px] font-semibold break-words ${next.state === "checking" || next.state === "cant-check" ? "text-ink-d2" : "text-ink-d1"}`}
-                data-testid="next-booking-sentence"
-                role="status"
-                aria-live="polite"
-              >
-                {nextBookingSentence(next, openings.now)}
-              </span>
-              {door === "prominent" && (
-                <button
-                  type="button"
-                  onClick={() => setTimesOpen(true)}
-                  data-testid="times-door"
-                  data-door="prominent"
-                  className="shrink-0 min-h-11 rounded-xl border border-input bg-(--raised) shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) px-4 text-[14px] font-bold text-ink-d1 whitespace-nowrap hover:opacity-90 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
-                >
-                  <CalendarClock size={16} className="text-(--eq-warn) shrink-0" aria-hidden="true" />
-                  {TIMES_WITH_ROOM}
-                </button>
-              )}
-              {door === "quiet" && (
-                <button
-                  type="button"
-                  onClick={() => setTimesOpen(true)}
-                  data-testid="times-door"
-                  data-door="quiet"
-                  className="shrink-0 min-h-11 px-2 rounded-md text-[14px] font-bold text-(--eq-live-text) whitespace-nowrap underline underline-offset-4 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
-                >
-                  {TIMES_WITH_ROOM}
-                </button>
-              )}
-            </div>
+          {/* 1c · next time (the first-session design round, Oct 8 2026,
+                 §4.7): today's performed machines the routine lacks, ticked
+                 into it for next time, with the Road for next time under
+                 them. Written once on the way out, never per tick. No card
+                 for a Free session, or when there is nothing to offer. */}
+          {nextTime && nextRows.length > 0 && (
+            <Card delay={0.12}>
+              <Kicker>Next time</Kicker>
+              <NextTimeCard
+                snapshot={nextTime}
+                rows={nextRows}
+                ticked={nextTicked}
+                onTicked={setNextTicked}
+                firstName={clientFirstName(client)}
+                todayYmd={todayKey}
+              />
+            </Card>
+          )}
 
+          {/* 3 · effort, the profile note and Pulse: what the trainer does
+                 before the client leaves (3a; they were the lower half of the
+                 Next card, under a small label). */}
+          <Card delay={0.15}>
+            <Kicker>Effort · profile note · Pulse</Kicker>
             {/* A note started during the session and never saved. Said
                 plainly, above everything else on this card, because the
                 trainer is about to walk the client out and this is the last
@@ -1055,8 +1022,6 @@ export function WrapUpScreen({
                 </span>
               </div>
             )}
-
-            <div className="text-[11px] text-ink-d3 font-semibold mt-1">Effort · profile note · Pulse</div>
 
             {/* The effort Dial (Oct 2 2026; it replaced the dose Dial) — one
                 rating for the whole workout, the trainer's own judgement,
@@ -1169,6 +1134,73 @@ export function WrapUpScreen({
             </div>
           </Card>
 
+          {/* 4 · next: the next booking, last (3a), and its door to Times with room. */}
+          <Card delay={0.18}>
+            <Kicker>Next</Kicker>
+            {/* Booked is done (green); nothing booked is a caution (plum);
+                checking and can't-check are neither. The line keeps room for
+                two lines of the sentence, or the 44px door, in every state,
+                so neither the answer nor the door arriving moves anything
+                while the client reads it or the trainer reaches for the
+                controls below.
+
+                The door to Times with room sits INSIDE the line, after the
+                sentence: prominent only when the server confirmed nothing is
+                booked, quiet on every other Wrap-up with something to offer,
+                absent before there is anything. Both are the same height, so
+                one turning into the other moves nothing either. */}
+            <div
+              className={`flex items-center gap-3 min-h-14 py-1.5 px-3 rounded-xl border ${
+                next.state === "booked"
+                  ? "border-(--eq-ok)/40 bg-(--eq-ok-fill)"
+                  : next.state === "none"
+                    ? "border-(--eq-warn)/40 bg-(--eq-warn-fill)"
+                    : "border-div-d bg-bg-dark-3"
+              }`}
+              data-testid="next-booking"
+              data-state={next.state}
+            >
+              {next.state === "booked" ? (
+                <CalendarCheck2 size={18} className="text-(--eq-ok) shrink-0" aria-hidden="true" />
+              ) : next.state === "none" ? (
+                <CalendarX2 size={18} className="text-(--eq-warn) shrink-0" aria-hidden="true" />
+              ) : (
+                <CalendarSearch size={18} className="text-ink-d3 shrink-0" aria-hidden="true" />
+              )}
+              <span
+                className={`min-w-0 flex-1 text-[14px] font-semibold break-words ${next.state === "checking" || next.state === "cant-check" ? "text-ink-d2" : "text-ink-d1"}`}
+                data-testid="next-booking-sentence"
+                role="status"
+                aria-live="polite"
+              >
+                {nextBookingSentence(next, openings.now)}
+              </span>
+              {door === "prominent" && (
+                <button
+                  type="button"
+                  onClick={() => setTimesOpen(true)}
+                  data-testid="times-door"
+                  data-door="prominent"
+                  className="shrink-0 min-h-11 rounded-xl border border-input bg-(--raised) shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) px-4 text-[14px] font-bold text-ink-d1 whitespace-nowrap hover:opacity-90 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
+                >
+                  <CalendarClock size={16} className="text-(--eq-warn) shrink-0" aria-hidden="true" />
+                  {TIMES_WITH_ROOM}
+                </button>
+              )}
+              {door === "quiet" && (
+                <button
+                  type="button"
+                  onClick={() => setTimesOpen(true)}
+                  data-testid="times-door"
+                  data-door="quiet"
+                  className="shrink-0 min-h-11 px-2 rounded-md text-[14px] font-bold text-(--eq-live-text) whitespace-nowrap underline underline-offset-4 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
+                >
+                  {TIMES_WITH_ROOM}
+                </button>
+              )}
+            </div>
+          </Card>
+
           {/* 3b · what they told you — see the header. Both silent when empty. */}
           {unfiledNotes.length > 0 && (
             <div className="wu-fade mx-5" style={{ "--wu-delay": "0.22s" } as React.CSSProperties}>
@@ -1226,7 +1258,7 @@ export function WrapUpScreen({
             ].map((t) => (
               <div key={t.label} className="rounded-xl border border-(--edge) bg-clip-padding bg-bg-dark-2 shadow-(--panel-lift) px-3 py-2">
                 <div className="text-[12px] font-semibold text-ink-d3">{t.label}</div>
-                <div className="font-mono text-[14px] font-bold text-ink-d2">{t.value}</div>
+                <div className="tabular-nums text-[14px] font-bold text-ink-d2">{t.value}</div>
               </div>
             ))}
           </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Users,
   AlertCircle,
@@ -24,9 +25,11 @@ import {
   where,
   setDoc,
   getDocs,
+  getDocsFromCache,
   getDoc,
   getDocFromServer,
   limit,
+  orderBy,
   Timestamp,
   deleteField,
 } from "firebase/firestore";
@@ -77,6 +80,7 @@ import {
   plannedBFloorOf,
   nextTimeWrite,
   ranAsFree,
+  ranWholeFloorUnchosen,
   routineHolds,
   withRoutineNow,
   type NextTimeSnapshot,
@@ -98,6 +102,8 @@ import type { PlanWrite } from "../features/routine-plan/lineup";
 import { floorMachinesOf, machineNamer } from "../features/routine-plan/ui/host";
 import { useSessionPlan } from "../features/routine-plan/ui/useSessionPlan";
 import { SessionPlanSheet } from "../features/routine-plan/ui/SessionPlanSheet";
+import { StartFromRoutineSheet } from "../features/routine-plan/ui/StartFromRoutineSheet";
+import { inHandAfterLay, laidToday, type StartFromChoice } from "../features/routine-plan/start-from";
 import { SessionOrderLine } from "../features/routine-plan/ui/SessionOrderLine";
 import { StartingRangeSheet } from "../features/routine-plan/ui/StartingRangeSheet";
 import { knownElsewhere } from "../features/machine-menu/header-words";
@@ -153,7 +159,18 @@ interface PostSessionSnapshot {
    * (that iPad has its own): no card.
    */
   nextTime: NextTimeSnapshot | null;
+  /**
+   * Next time's inputs, frozen at Finish, while the client's routines were
+   * not known yet (the whole-branch review, Oct 9 2026: a Finish straight
+   * after Who's this?, before the client's routines had answered, lost the
+   * card). The card is worked out from them on the Wrap-up once the
+   * routines answer, and this is cleared.
+   */
+  nextTimeLater?: NextTimeLater | null;
 }
+
+/** What Next time is worked out from, all but the client's routines. */
+type NextTimeLater = Omit<Parameters<typeof nextTimeAtFinish>[0], "routines">;
 
 const LOG_WRITE_DEBOUNCE_MS = 600;
 /** ...but a trainer who keeps typing must not outrun the flush indefinitely. */
@@ -179,6 +196,7 @@ import {
 
 import { useActiveStudio } from "../contexts/ActiveStudioContext";
 import { useStudioMachines } from "../hooks/useStudioMachines";
+import { isBounceAdd, type LastAdd } from "../features/journey-grid/add-bounce";
 import { resolveMachineOrder } from "../data/machine-display-order";
 import {
   JourneyGrid,
@@ -209,6 +227,7 @@ import {
   isAnotherTrainersSession,
   myTrainerIds,
   peekLiveSessionId,
+  pickOpenSession,
   rememberLiveSession,
   sessionDayWords,
   splitInProgress,
@@ -266,6 +285,9 @@ import { addFloorNote } from "../features/floor-notes/store";
 import { ActiveSessionTimer } from "./ActiveSessionTimer";
 import { MachineMenu } from "../features/machine-menu/MachineMenu";
 import type { MachineMenuHost } from "../features/machine-menu/useMachineMenuData";
+import { isFirstSetup, notSetCount } from "../features/machine-menu/setting-draft";
+import { fieldsForMachine } from "../features/equipment/adapters";
+import { useMachineCatalog } from "../hooks/useMachineCatalog";
 /* Lazy, and the reason is measurable: the assessment panel is a 162 kB
    chunk (50 kB gzipped) that most sessions never open. A static import
    would put it on the critical path of the one screen a trainer opens
@@ -289,12 +311,46 @@ import { machineNoteCount, machineNoteLoudness } from "../features/equipment/mac
 import { machineJournalOf } from "../features/equipment/useMachineJournal";
 import { sessionNoteStudioId } from "../features/client-notes/note-studio";
 import { ClientSelectionDialog } from "../features/tracker/ClientSelectionDialog";
+import { CreateClientModal } from "./CreateClientModal";
+import {
+  ASSIGN_SERVER_READ_WAIT_MS,
+  assignRefusedWords,
+  assignSessionPatch,
+  assignSetPatch,
+  resendSetFields,
+  setsToAssign,
+  type HeldSet,
+} from "../features/open-session/assign";
+import {
+  hasHeldSetup,
+  heldAsSettings,
+  heldAuthorsOf,
+  heldClosedError,
+  heldKey,
+  heldMoves,
+  heldSetupEntry,
+  heldSourcesOf,
+  heldValuesOf,
+  type OnFile,
+} from "../features/open-session/held-setup";
+import { keepHeldSetup, queueHeldMoves } from "../features/open-session/held-store";
+import {
+  OPEN_SESSION_REFUSED,
+  OPEN_SESSION_REFUSED_KEPT,
+  declineStaleOpenSession,
+  onOpenSessionRefused,
+} from "../features/open-session/start";
+import type { SettingSource } from "../features/machine-fit/types";
+import { useLeaveGuard } from "../features/unsaved-changes";
 import "../features/journey-grid/journey-grid.css";
 type RoutineType = "A" | "B" | "Free";
 
 /** How long a locally-created session is protected from being cleared by a
  *  snapshot that has not caught up with the write yet. */
 const JUST_STARTED_GRACE_MS = 15000;
+
+/** No settings: one map, so a client with none never redraws for a new empty one. */
+const NO_SETTINGS: Record<string, ClientMachineSetting> = {};
 
 /** Milliseconds from a Firestore Timestamp, Date, or ISO string; null if absent. */
 function toMillisOrNull(value: any): number | null {
@@ -313,7 +369,7 @@ export function WorkoutTrackerView({
   user,
   setView,
   setSelectedClientId,
-  onStartNewClientOnboarding,
+  setSelectedClientIdNow,
   authTrainer,
   isSyncing,
   setIsSyncing,
@@ -323,16 +379,39 @@ export function WorkoutTrackerView({
   onStudioClick,
   clientLookup,
   onRetryClient,
+  clientsStatus = "ready",
+  onStartOpenSession,
 }: {
   clientId: string | null;
   clients: Client[];
+  /**
+   * Whether the studio's client list has answered (AppContent's roster):
+   * Who's this? says it is reading them, or couldn't, never "No clients
+   * found" off a list that hasn't answered (the whole-branch review, Oct 9
+   * 2026).
+   */
+  clientsStatus?: "loading" | "ready" | "error";
+  /**
+   * Open session's Start (AppContent's `startOpenSession`): the abandoned
+   * open session's question offers "Start a new session", which leaves it
+   * as it is and starts a new open session (the whole-branch review, Oct 9
+   * 2026).
+   */
+  onStartOpenSession?: () => void;
   machines: Machine[];
   schedules: any[];
   trainers: Trainer[];
   user: FirebaseUser;
   setView: (v: View) => void;
   setSelectedClientId: (id: string | null) => void;
-  onStartNewClientOnboarding: (v: string) => void;
+  /**
+   * The client on screen, set without asking again (AppContent's raw
+   * setter): for Who's this?, which asked about typing elsewhere at the tap,
+   * and for taking back a client the database refused, which leaves nothing
+   * behind to ask about (the open session round, Oct 9 2026). Without it,
+   * `setSelectedClientId`.
+   */
+  setSelectedClientIdNow?: (id: string | null) => void;
   authTrainer: Trainer | null;
   isSyncing: boolean;
   setIsSyncing: (v: boolean) => void;
@@ -371,10 +450,12 @@ export function WorkoutTrackerView({
   // tracker with no machines is far worse than a tracker showing the catalog.
   // The bridge makes the resolved list fall back to the catalog, so those two
   // studios degrade to exactly today's behaviour instead of to nothing.
-  const { machines: studioFloor, byId: studioFloorById } = useStudioMachines(
-    contextActiveStudioId,
-    { bridgeWhenRosterEmpty: true },
-  );
+  const {
+    machines: studioFloor,
+    byId: studioFloorById,
+    loading: studioFloorLoading,
+    failed: studioFloorFailed,
+  } = useStudioMachines(contextActiveStudioId, { bridgeWhenRosterEmpty: true });
 
   /**
    * THE FLOOR — what this studio actually has, in the shape this screen
@@ -400,6 +481,9 @@ export function WorkoutTrackerView({
   );
 
   const { error: toastError, info: toastInfo } = useToast();
+  /* Who's this? changes the client on screen without leaving it, so it asks
+     about typing elsewhere first, the way AppContent's client change does. */
+  const guardLeave = useLeaveGuard();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [logs, setLogs] = useState<Record<string, ExerciseLog>>({});
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -412,10 +496,16 @@ export function WorkoutTrackerView({
    * moment they are (features/session-record/start-plan.ts). Keyed by the
    * client, so a listener re-opened for the same client keeps it.
    */
-  const [knownFor, setKnownFor] = useState<{ routines: string | null; settings: string | null; settingsRead: string | null }>({
+  const [knownFor, setKnownFor] = useState<{
+    routines: string | null;
+    settings: string | null;
+    settingsRead: string | null;
+    settingsServer: string | null;
+  }>({
     routines: null,
     settings: null,
     settingsRead: null,
+    settingsServer: null,
   });
   const routinesKnown = !!clientId && knownFor.routines === clientId;
   const settingsKnown = !!clientId && knownFor.settings === clientId;
@@ -424,6 +514,20 @@ export function WorkoutTrackerView({
      blank, but "no weight on file" may never be said off a failed read (the
      Academy's starting range, the first-session design round, Oct 8 2026). */
   const settingsRead = !!clientId && knownFor.settingsRead === clientId;
+  /* The SERVER has answered the settings (the open session round's review,
+     Oct 9 2026). Only then does a machine missing from them have nothing on
+     file: Finish writes a machine's stored settings and its starting weight
+     off that, and an open session given its client a moment before Finish,
+     or a read the iPad's cache answered empty, must never write the client's
+     saved seat and positions over with nothing (sync-utils,
+     `settingsOnFileKnown`). */
+  const settingsServerRead = !!clientId && knownFor.settingsServer === clientId;
+  /* The client's sessions listener has had the SERVER's answer (the
+     whole-branch review, Oct 9 2026): a session given its client a moment
+     ago (Who's this?) holds only itself, or the iPad's partial copy, until
+     then, and the Wrap-up must not call a machine the client has done for
+     years "First time" off it. */
+  const [sessionsServerFor, setSessionsServerFor] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   /* The client's machine totals (the last set on each machine: Start's
      prefilled weights) have answered. They live in their own document since
@@ -462,10 +566,22 @@ export function WorkoutTrackerView({
   const [activeMachineIds, setActiveMachineIds] = useState<string[]>([]);
   /* Read by Start's follow-up (R9), which must not redraw on every change. */
   const activeMachineIdsRef = useRef<string[]>([]);
+  /* The Finish question opens on its title, never on the note box: on an
+     iPad a focused box raises the keyboard over Finish session (the floor
+     round, Oct 9 2026, F6). */
+  const finishTitleRef = useRef<HTMLHeadingElement>(null);
   activeMachineIdsRef.current = activeMachineIds;
-  const [clientMachineSettings, setClientMachineSettings] = useState<
-    Record<string, ClientMachineSetting>
-  >({});
+  /* The client's machine settings, kept with WHOSE they are (the whole-branch
+     review, Oct 9 2026): the map is read only for the client on screen. A
+     client chosen a moment ago (Who's this?, or the open session's tracker
+     staying mounted from another client's briefing) had the last client's
+     map until their own answered, so a prompt Finish wrote one client's seat
+     and positions onto the other's, and the grid showed them. */
+  const [settingsHeld, setSettingsHeld] = useState<{ clientId: string | null; map: Record<string, ClientMachineSetting> }>({
+    clientId: null,
+    map: NO_SETTINGS,
+  });
+  const clientMachineSettings = clientId && settingsHeld.clientId === clientId ? settingsHeld.map : NO_SETTINGS;
   const [currentSessionNotes, setCurrentSessionNotes] = useState<string>("");
   /* What kind of note the Note for the next trainer is (notes round, Oct 3
      2026): one optional tap under the End Session box, offered once
@@ -516,10 +632,27 @@ export function WorkoutTrackerView({
   // there is one card: it used to be two (settings, notes) and a trainer had
   // to know which of two targets to hit (features/machine-menu).
   const [menuMachineId, setMenuMachineId] = useState<string | null>(null);
+  /* The card was opened by the Now Bar's Set up (the open session round, Oct
+     9 2026; AJ's "2a"): on the first empty dial, and Save closes it. Any
+     other door opens it as before. */
+  const [menuQuickFor, setMenuQuickFor] = useState<string | null>(null);
+  const openMachineMenu = React.useCallback((id: string) => {
+    setMenuQuickFor(null);
+    setMenuMachineId(id);
+  }, []);
+  /* The card's Set up, from the Now Bar and the phone's card, in an open
+     session too (its settings are held on the session until Assign).
+     Stable for the memo'd Now Bar: the setters never change. */
+  const onSetUpMachine = React.useCallback((id: string) => {
+    setMenuQuickFor(id);
+    setMenuMachineId(id);
+  }, []);
   // The 90-day assessment, opened mid-session. See the panel at the bottom
   // of this file for why it is a slide-over and not a screen.
   const [isShowingAssessment, setIsShowingAssessment] = useState(false);
-  const [showAllMachines, setShowAllMachines] = useState(false);
+  /* The corner's pick of today's list or every machine, for one session (the
+     FileMaker floor below decides the default: `showAllMachines`). */
+  const [showAllPick, setShowAllPick] = useState<{ sessionId: string | null; all: boolean } | null>(null);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [isPreSessionMode, setIsPreSessionMode] = useState(false);
   const [targetRoutine, setTargetRoutine] = useState<Routine | null>(null);
@@ -612,6 +745,81 @@ export function WorkoutTrackerView({
   useEffect(() => {
     watchedSessionRef.current = watchedSession;
   }, [watchedSession]);
+
+  /*
+   * SETTINGS HELD ON AN OPEN SESSION (the open session round, Oct 9 2026;
+   * finding 4, AJ's "3a"). While no client is on screen (an open session,
+   * or one Who's this? is giving its client while its batch's reads are
+   * out), the machine card's Save keeps what was typed on the session
+   * (`heldSetup.{machineId}`, features/open-session) instead of on a client:
+   * it went to the ghost `clientMachineSettings/_{machineId}`, which nobody
+   * read. The card, the Now Bar's Set up, the grid's chips and each set's
+   * settings read the held values as the saved ones (`shownSettings`), so
+   * reopening the card shows them. At Assign they are saved to the client in
+   * the assign's batch, which deletes `heldSetup` (assignSessionToClient).
+   * A watched open session shows its held values, read only.
+   */
+  const noClientYet = !clientId && !!currentSession;
+  const heldSession = clientId ? null : (currentSession ?? watchedSession);
+  const heldNow = heldValuesOf(heldSession);
+  const heldNowKey = heldKey(heldNow);
+  const heldSourcesNow = heldSourcesOf(heldSession);
+  const heldSourcesKey = heldKey(heldSourcesNow);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const heldSettings = useMemo(() => heldAsSettings(heldNow, heldSourcesNow), [heldNowKey, heldSourcesKey]);
+  const shownSettings: Record<string, ClientMachineSetting> = clientId ? clientMachineSettings : heldSettings;
+  /* The session on screen as it is now, for Assign's batch: what is held is
+     gathered when the batch is built, so a set-up kept while its reads were
+     out is moved too. A keep writes it here at once as well (below), so a
+     batch built before the next draw still sees it. */
+  const currentSessionRef = useRef<WorkoutSession | null>(null);
+  currentSessionRef.current = currentSession;
+  /* The sessions whose Assign batch has been built, with the client's name:
+     from then on a keep is refused (the review, Oct 9 2026). An Undo that
+     outlived Assign (the toast's ten seconds, or a card still open) would
+     write `heldSetup` onto a session that has its client, where nothing
+     moves it again, and say "undone" while the client keeps the value; the
+     card says where the set-up is instead. Forgotten if the batch is refused
+     (the session is open again). */
+  const heldClosedRef = useRef<Map<string, string>>(new Map());
+  /* The card's Save while no client is on screen: kept on this iPad's copy
+     of the session at once (the card reads it back), and one update issued,
+     never awaited; its promise is the database's answer, which the card
+     waits on only through settleOrQueue. Signed with the Auth uid. */
+  const authUid = user?.uid ?? "";
+  const keepHeldHere = React.useCallback(
+    (sessionId: string, machineId: string, values: Record<string, string>, sources?: Record<string, SettingSource> | null): Promise<unknown> => {
+      const closedFor = heldClosedRef.current.get(sessionId);
+      if (closedFor !== undefined) return Promise.reject(heldClosedError(closedFor));
+      if (!authUid) return Promise.reject(new Error("Nobody is signed in: the set-up was not kept."));
+      const entry = heldSetupEntry(values, authUid, Timestamp.now(), sources);
+      const withEntry = (s: WorkoutSession | null) =>
+        s && s.id === sessionId ? { ...s, heldSetup: { ...(s.heldSetup ?? {}), [machineId]: entry } } : s;
+      currentSessionRef.current = withEntry(currentSessionRef.current);
+      setCurrentSession(withEntry);
+      return keepHeldSetup({ sessionId, machineId, values, sources, byUid: authUid });
+    },
+    [authUid],
+  );
+  /* Only an open session holds a set-up (the rules refuse it on any other,
+     the whole-branch review, Oct 9 2026): one started with no client, still
+     open, or being given its client while its batch's reads are out (its
+     copy on screen already says isUnassigned false; the database's is still
+     open, and the batch moves what it holds). A client's session never
+     carries the field. */
+  const holdSessionId =
+    noClientYet && currentSession?.isUnassigned !== undefined ? (currentSession?.id ?? null) : null;
+  const holdSetupDoor = useMemo(
+    () =>
+      holdSessionId
+        ? {
+            sessionId: holdSessionId,
+            keep: (machineId: string, values: Record<string, string>, sources?: Record<string, SettingSource> | null) =>
+              keepHeldHere(holdSessionId, machineId, values, sources),
+          }
+        : null,
+    [holdSessionId, keepHeldHere],
+  );
   /* Every id this person's sessions may carry; the listeners read the ref. */
   const myIds = useMemo(() => myTrainerIds(authTrainer, user?.uid), [authTrainer, user?.uid]);
   const myIdsRef = useRef(myIds);
@@ -739,7 +947,7 @@ export function WorkoutTrackerView({
       clientMachineSettings,
       user.uid,
       endedAt ? { endTime: endedAt } : undefined,
-      { asOfDay: s.date || null },
+      { asOfDay: s.date || null, settingsOnFileKnown: settingsServerRead },
     ).then(
       (r) => {
         toastInfo(`${name}'s unfinished session from ${day} is finished as it was.`);
@@ -971,8 +1179,48 @@ export function WorkoutTrackerView({
     logsRef.current = logs as Record<string, ExerciseLog>;
   }, [logs]);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
-  const [pendingAssignSession, setPendingAssignSession] =
-    useState<WorkoutSession | null>(null);
+  /*
+   * WHO'S THIS? (the open session round, Oct 9 2026). Where the client
+   * picker was opened from: the session bar (the session carries on as the
+   * client's) or Finish (the End session question comes back, now the
+   * client's, and its Finish runs the ordinary Finish). `creatingClient` is
+   * New client, drawn over the session so the session is never left behind
+   * (it used to replace the whole screen, and the open session was lost).
+   * `assigningRef` is the session being given its client, so the open
+   * sessions' listener does not take it off the screen as it leaves that
+   * list. `assignedHereId` is an open session given its client on this
+   * iPad: it keeps the floor open while the client's routines are read (it
+   * has no routine, and none comes; it never folds for a moment).
+   */
+  const [assignFrom, setAssignFrom] = useState<"bar" | "finish">("bar");
+  const [assignedHereId, setAssignedHereId] = useState<string | null>(null);
+  const [creatingClient, setCreatingClient] = useState(false);
+  const assigningRef = useRef<{ sessionId: string; clientId: string } | null>(null);
+  /* The assign's batch while its reads are out: a Finish tapped meanwhile
+     issues it at once, with what is known, ahead of its own batch. */
+  const assignIssueRef = useRef<{ sessionId: string; now: () => void } | null>(null);
+  /* Sessions discarded while their assign's reads were out: the assign is
+     dropped, never issued after the Discard (the whole-branch review, Oct 9
+     2026: it pointed the device at the deleted session, switched the client
+     on whatever screen the trainer was on, and marked the client's first
+     Journey day for a session that never happened). */
+  const assignDroppedRef = useRef<Set<string>>(new Set());
+  /* A client added on this iPad for this session (New client, from Who's
+     this? or Finish): nothing is on file for them anywhere, so their empty
+     routines, settings and history are known to be empty before the server
+     says so (offline included), and the Wrap-up's Next time can start their
+     Routine A. */
+  const createdHereRef = useRef<string | null>(null);
+  const chooseClientNow = setSelectedClientIdNow ?? setSelectedClientId;
+  /* Whether this screen is still up: a refusal that lands after the trainer
+     left it is said, and changes nothing on the screen they are on now. */
+  const trackerMountedRef = useRef(true);
+  useEffect(() => {
+    trackerMountedRef.current = true;
+    return () => {
+      trackerMountedRef.current = false;
+    };
+  }, []);
   /**
    * Reorder mode.
    *
@@ -1038,6 +1286,23 @@ export function WorkoutTrackerView({
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
+  /* Which studio's open sessions have answered, so the screen with no client
+     says "Opening the session…" until they have, never "No session is open
+     here" in the moment after Open session (the open session round, Oct 9
+     2026). Keyed by studio, so a studio switch asks again. A read that FAILED
+     is kept as that (the whole-branch review, Oct 9 2026): the screen says it
+     couldn't read them, with Try again (`openSessionsTry` opens the
+     listener again), never "No session is open here". */
+  const [openSessionsRead, setOpenSessionsRead] = useState<{ key: string; failed: boolean } | null>(null);
+  const [openSessionsTry, setOpenSessionsTry] = useState(0);
+  /* This trainer's ABANDONED open session (an hour with nothing typed), when
+     nothing of theirs is live here (the whole-branch review, Oct 9 2026). It
+     could not be reached from anywhere, Who's this? with it, and Open session
+     started a second one. It is asked about, never taken up by itself: carry
+     on with it, or leave it as it is and start a new one. */
+  const [staleOpenSession, setStaleOpenSession] = useState<WorkoutSession | null>(null);
+  const [declinedStaleOpenId, setDeclinedStaleOpenId] = useState<string | null>(null);
+
   // Special listener for unassigned sessions when no client is selected
   useEffect(() => {
     if (!clientId && user) {
@@ -1051,34 +1316,64 @@ export function WorkoutTrackerView({
          record, Sep 26 2026): this iPad records its own, and watches
          another's only when it has none. It read `limit(1)`, so it adopted
          whichever open session came first, someone else's included. A
-         studio has a handful at most; the limit is a guard rail. */
+         studio has a handful at most; the limit is a guard rail. Newest
+         first (the open session round, Oct 9 2026): unordered, the limit
+         kept the first twenty by document id, so with abandoned open
+         sessions piled up a session just started could fall out of it. */
+      const studioKey = contextActiveStudioId ?? "__none__";
       const unassignedQuery = query(
         collection(db, "sessions"),
-        where("hostedAtStudioId", "==", contextActiveStudioId ?? "__none__"),
+        where("hostedAtStudioId", "==", studioKey),
         where("isUnassigned", "==", true),
         where("status", "==", "In-Progress"),
+        orderBy("createdAt", "desc"),
         limit(20),
       );
 
       const unsubscribe = onSnapshot(
         unassignedQuery,
         (snapshot) => {
+          setOpenSessionsRead((r) => (r?.key === studioKey && !r.failed ? r : { key: studioKey, failed: false }));
           const open = snapshot.docs.map(
             (d) => ({ id: d.id, ...d.data() }) as WorkoutSession,
           );
+          /* The open session on screen is being given its client (Who's
+             this?): the screen carries on with it as the client's, and this
+             listener closes. Whatever it says meanwhile (the session still
+             open, or gone from the list as it stops being open, never
+             because it ended) is not news. A refusal clears the mark. */
+          const assigning = assigningRef.current;
+          if (assigning && assigning.sessionId === currentSessionIdRef.current) return;
           const takingOver = takingOverRef.current;
           const settlingId =
             takingOver && Date.now() - takingOver.at < JUST_STARTED_GRACE_MS ? takingOver.id : null;
-          const mine = open.find(
-            (s) => s.id === settlingId || !isAnotherTrainersSession(s, myIdsRef.current),
-          );
+          /* Which one is this iPad's (the open session round, Oct 9 2026):
+             the one on screen, else the one the device remembers (Open
+             session and the Session tab set it) while it is live, else the
+             newest live one of this trainer's; an abandoned one is never
+             taken up without asking, nor watched. It took the first of this
+             trainer's it came to, so a second open session could bring back
+             the old one. */
+          const remembered = peekLiveSessionId();
+          const { mine, watch, stale } = pickOpenSession(open, {
+            myIds: myIdsRef.current,
+            settlingId,
+            onScreenId: currentSessionIdRef.current,
+            rememberedId: remembered,
+          });
           const onScreen = open.find((s) => s.id === currentSessionIdRef.current);
+          /* This trainer's abandoned open session, asked about on the screen
+             with nothing on it. Brought here to it (Open session goes back to
+             it, and the device points at it), it is asked about rather than
+             another trainer's session being watched. */
+          setStaleOpenSession(mine ? null : stale);
+          const askFirst = !mine && !!stale && stale.id === remembered;
           if (mine) {
             setWatchedSession(null);
             setTakenFromHere(false);
             setCurrentSession(mine);
             setSessions([mine]);
-          } else if (open.length > 0) {
+          } else if (watch && !askFirst) {
             if (finishingRef.current) return;
             /* The open session on screen was taken over on another iPad:
                what was typed here is sent first, as for a client's session. */
@@ -1088,10 +1383,9 @@ export function WorkoutTrackerView({
               currentSessionIdRef.current = null;
               setTakenFromHere(true);
             }
-            const watched = onScreen ?? open[0];
             setCurrentSession(null);
-            setWatchedSession(watched);
-            setSessions([watched]);
+            setWatchedSession(watch);
+            setSessions([watch]);
           } else {
             setCurrentSession(null);
             setWatchedSession(null);
@@ -1099,20 +1393,73 @@ export function WorkoutTrackerView({
           }
         },
         (error) => {
+          setOpenSessionsRead({ key: studioKey, failed: true });
           handleFirestoreError(error, OperationType.GET, "sessions");
         },
       );
 
       return () => unsubscribe();
     }
-  }, [clientId, user?.uid]);
+    /* The studio is a dependency (the open session round, Oct 9 2026): with
+       only the client and the person, a studio switch kept the old studio's
+       query, so this iPad went on recording and watching another studio's
+       open sessions. A Try again after a failed read opens it again. */
+  }, [clientId, user?.uid, contextActiveStudioId, openSessionsTry]);
+
+  /* Carry on with the abandoned open session (the question's Resume): it is
+     on screen at once, the device points at it, and a heartbeat marks it
+     running again. Who's this? is still there. Nothing else about it changes:
+     its sets stay under its day. */
+  const resumeStaleOpenSession = () => {
+    const s = staleOpenSession;
+    if (!s?.id) return;
+    currentSessionIdRef.current = s.id;
+    setStaleOpenSession(null);
+    setWatchedSession(null);
+    setTakenFromHere(false);
+    setCurrentSession(s);
+    setSessions([s]);
+    rememberLiveSession(s.id);
+    updateDoc(doc(db, "sessions", s.id), { lastHeartbeatAt: serverTimestamp() }).catch((error) =>
+      handleFirestoreError(error, OperationType.UPDATE, "sessions"),
+    );
+  };
+
+  /* ...or leave it exactly as it is and start a new open session: Open
+     session doesn't bring the trainer back to it again on this visit. */
+  const leaveStaleOpenSession = () => {
+    const s = staleOpenSession;
+    if (s?.id) {
+      declineStaleOpenSession(s.id);
+      setDeclinedStaleOpenId(s.id);
+      forgetLiveSession(s.id);
+    }
+    onStartOpenSession?.();
+  };
 
   useEffect(() => {
     if (clientId && clients) {
       const client = clients.find((c) => c.id === clientId);
-      setSelectedClient(client || null);
+      /* A client an open session was just given (Who's this?, the open
+         session round, Oct 9 2026) is on screen at once, from what the
+         picker or New client knew of them; the studio's list replaces that
+         copy the moment it has them. A brand-new client is not in it yet. */
+      setSelectedClient((prev) => client || (prev?.id === clientId ? prev : null));
     }
   }, [clientId, clients]);
+  /* The client on screen let go of (the whole-branch review, Oct 9 2026): a
+     client's briefing, then the Session tab to this trainer's open session,
+     keeps this screen mounted with no client, and the last client stayed
+     here: the open session's bar said their name, and their Notes and Pulse
+     were drawn on it. Only when the client CHANGES to none: Who's this? puts
+     the chosen client here a moment before the client on screen follows, and
+     the studio's list changing meanwhile must not take them away. */
+  const lastClientIdRef = useRef(clientId);
+  useEffect(() => {
+    const was = lastClientIdRef.current;
+    lastClientIdRef.current = clientId;
+    if (!clientId && was) setSelectedClient(null);
+  }, [clientId]);
 
   /* The client's settings, routines and sessions, listened to once per
      client and person. `clients` is NOT a dependency (the iPad round, Oct 6
@@ -1137,23 +1484,33 @@ export function WorkoutTrackerView({
          from the last performed weights alone, as it did before the speed
          round. The seed only ever fills a blank, so nothing is overwritten. */
       let settingsArrived = false;
+      /* With metadata changes, as the routines below: the server confirming
+         what the iPad's cache already said changes no document, and without
+         them that answer (`settingsServer`) would never be heard. A
+         metadata-only answer changes no setting: no new map, no redraw. */
       const unsubscribeSettings = onSnapshot(
         settingsQuery,
+        { includeMetadataChanges: true },
         (snapshot) => {
-          settingsArrived = true;
-          const settingsMap: Record<string, ClientMachineSetting> = {};
-          snapshot.docs.forEach((doc) => {
-            const data = { id: doc.id, ...doc.data() } as ClientMachineSetting;
-            settingsMap[data.machineId] = data;
-          });
-          setClientMachineSettings(settingsMap);
+          const fromServer = !snapshot.metadata?.fromCache;
+          if (!settingsArrived || snapshot.docChanges().length > 0) {
+            settingsArrived = true;
+            const settingsMap: Record<string, ClientMachineSetting> = {};
+            snapshot.docs.forEach((doc) => {
+              const data = { id: doc.id, ...doc.data() } as ClientMachineSetting;
+              settingsMap[data.machineId] = data;
+            });
+            setSettingsHeld({ clientId, map: settingsMap });
+          }
           setKnownFor((k) =>
-            k.settings === clientId && k.settingsRead === clientId ? k : { ...k, settings: clientId, settingsRead: clientId },
+            k.settings === clientId && k.settingsRead === clientId && (!fromServer || k.settingsServer === clientId)
+              ? k
+              : { ...k, settings: clientId, settingsRead: clientId, ...(fromServer ? { settingsServer: clientId } : {}) },
           );
         },
         (error) => {
           if (!settingsArrived) {
-            setClientMachineSettings({});
+            setSettingsHeld({ clientId, map: NO_SETTINGS });
             setKnownFor((k) => (k.settings === clientId ? k : { ...k, settings: clientId }));
           }
           handleFirestoreError(
@@ -1182,7 +1539,11 @@ export function WorkoutTrackerView({
         routinesQuery,
         { includeMetadataChanges: true },
         (snapshot) => {
-          const trusted = !(snapshot.empty && snapshot.metadata?.fromCache);
+          /* A client added on this iPad for this session has none anywhere:
+             their empty list is the answer, offline too (the whole-branch
+             review, Oct 9 2026: the Wrap-up's Next time waited for a server
+             that might never answer, and a walk-in's Routine A never came). */
+          const trusted = !(snapshot.empty && snapshot.metadata?.fromCache) || createdHereRef.current === clientId;
           // A metadata-only answer changes no routine: no new list, no redraw.
           if (!routinesSeen || snapshot.docChanges().length > 0) {
             routinesSeen = true;
@@ -1241,6 +1602,8 @@ export function WorkoutTrackerView({
               return timeB - timeA;
             });
           setSessions(sessionsData);
+          // The server's answer has been heard for this client (the Wrap-up's comparisons wait on it after Who's this?).
+          if (!snapshot.metadata?.fromCache) setSessionsServerFor((v) => (v === clientId ? v : clientId));
           // What the stream says each session is, the moment it says it (Finish reads it at the tap, R9).
           streamStatusRef.current = new Map(sessionsData.map((s) => [s.id ?? "", s.status ?? null]));
 
@@ -1478,7 +1841,8 @@ export function WorkoutTrackerView({
    * chosen (a walk-in built on the fly, the first-session design round, Oct
    * 8 2026): it runs empty and the trainer adds machines as they go, never
    * the whole floor. Only a session with no list on record at all and no
-   * routine (an unassigned tracking session) takes the floor. A routine read
+   * routine (an open session started before Oct 9 2026; an open session
+   * started since records its empty list) takes the floor. A routine read
    * here runs what it runs today (`todayFor`: its machines, else its plan's
    * day one while it is empty), never an empty list in place of day one.
    */
@@ -1517,7 +1881,7 @@ export function WorkoutTrackerView({
       setSeededSessionId(sessionId);
       setActiveMachineIds([]);
     } else if (!currentSession?.routineId && floorMachines.length > 0) {
-      // No list on record and no routine to read (unassigned tracking): the floor is the list.
+      // No list on record and no routine to read (an open session from before Oct 9 2026): the floor is the list.
       seededMachinesForSession.current = sessionId;
       setSeededSessionId(sessionId);
       setActiveMachineIds(floorMachines.map((m) => m.id!));
@@ -1567,6 +1931,41 @@ export function WorkoutTrackerView({
     studioId: string;
   } | null>(null);
   /*
+   * THE FILEMAKER FLOOR (the open session round, Oct 9 2026; AJ's "1b": "i
+   * think the open session should honestly feel most like a filemaker
+   * session ... you have every machine on the screen and you just fill in
+   * the ones you did"). A session with no routine that records its own list
+   * (an open session, `[]` at Start; a client session with no routine,
+   * which has started empty since Oct 8 2026) opens with every machine on
+   * the floor showing, in the studio's walking order: the grid's "Not in
+   * today's routine" fold is open, so every row has the Today column's +,
+   * and + adds the machine and makes it the one in hand. The floor is a
+   * VIEW: the session records only what was added (`sessionMachineIds`, in
+   * the order done), never the floor, so it is never read as Free
+   * (`ranAsFree`): a client session's Wrap-up offers Next time from it, and
+   * so does an open session's once Who's this? has given it a client (its
+   * Finish is the ordinary one since then, `assignSessionToClient`); an open
+   * session given its client here keeps the floor open (`assignedHereId`).
+   * For a client, only once the routines are known AND a Start that could
+   * not decide its routine has (`startFollowUpRef`, read here because the
+   * effect that settles it always sets the session after): until then the
+   * session has no routine yet and may take the client's in a moment, and
+   * the floor would open for a frame and fold again (the review, Oct 9
+   * 2026). The corner's Today's routine still folds it, for this session.
+   */
+  const startDeciding =
+    !!currentSession &&
+    startFollowUpRef.current?.sessionId === currentSession.id &&
+    !startFollowUpRef.current.routineDone;
+  const floorView =
+    !!currentSession &&
+    !currentSession.routineId &&
+    Array.isArray(currentSession.sessionMachineIds) &&
+    (!clientId || assignedHereId === currentSession.id || (routinesKnown && !startDeciding));
+  const showAllSessionId = currentSession?.id ?? null;
+  const showAllMachines = showAllPick && showAllPick.sessionId === showAllSessionId ? showAllPick.all : floorView;
+  const setShowAllMachines = (all: boolean) => setShowAllPick({ sessionId: showAllSessionId, all });
+  /*
    * How the session on screen was started (A, B or Free), for the Wrap-up's
    * Next time: a Free session has none (the first-session design round,
    * Oct 8 2026, §4.7). A session resumed after a reload has no record of
@@ -1587,6 +1986,8 @@ export function WorkoutTrackerView({
   const heldDuringSessionRef = useRef<{ sessionId: string; ids: string[] } | null>(null);
   /** What the Wrap-up's Next time last wrote, for this session: a later hand-over writes only the difference. */
   const nextTimeHandedRef = useRef<{ sessionId: string; ticked: string[] } | null>(null);
+  /** The client's own routine Start from a routine… last laid on this session (none when it laid a template). */
+  const laidRoutineRef = useRef<{ sessionId: string; routineId: string | null } | null>(null);
   useEffect(() => {
     const sessionId = currentSession?.id;
     if (!sessionId || !routinesKnown) return;
@@ -2093,42 +2494,344 @@ export function WorkoutTrackerView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routinesKnown, settingsKnown, totalsKnown, routines, clientMachineSettings, currentSession?.id, clientId]);
 
-  const assignSessionToClient = async (targetClientId: string) => {
-    const sessionToAssign = pendingAssignSession || currentSession;
-    if (!sessionToAssign?.id) return;
-    try {
-      // 1. Update session
-      await updateDoc(doc(db, "sessions", sessionToAssign.id), {
-        clientId: targetClientId,
-        isUnassigned: false,
-        status: "Completed",
-        endTime: serverTimestamp(),
+  /*
+   * WHO'S THIS? (the open session round, Oct 9 2026; finding 3 of
+   * docs/rounds/2026-10-09-open-session.md). An open session is given its
+   * client at any time, from the session bar or still at Finish, and carries
+   * on as that client's session: the same session, its sets and its list,
+   * with the client's settings, history, totals and plan arriving as their
+   * listeners answer. Nothing restarts.
+   *
+   * It used to await every step, write the sets one at a time (refused by the
+   * rules, so the session moved and its sets didn't, with only a
+   * console.error), mark the session Completed and send the trainer to the
+   * profile, so Finish never ran: no session number, counters, totals,
+   * Wrap-up or Next time.
+   *
+   * Now it is ONE batch, issued and never awaited (features/open-session/
+   * assign.ts): the session gets the client's fields as a client Start
+   * writes them, and every set it holds gets the client. The sets are
+   * gathered when the batch is built, never at the tap (the rules never let
+   * a set follow on its own once the session has its client, so a set typed
+   * in between must be in it): from the screen, from the typing timer (sent
+   * first, so they are on record before the batch names their client), from
+   * the iPad's own copy of the database (`getDocsFromCache`, at once,
+   * offline too) and, when that copy may not hold them all, from the
+   * server's (`getDocs`, for a moment at most). Nothing on screen waits for
+   * the reads, and a Finish tapped meanwhile issues the batch first
+   * (`assignIssueRef`). A refusal is a toast, the sets are sent again
+   * without the client, and the session goes back to being open on screen.
+   * At Finish, the End session question comes back as the client's, and its
+   * Finish is the ordinary one (commitEndSession, the Wrap-up, Next time).
+   */
+  const assignSessionToClient = (targetClientId: string, known?: Client | null, madeHere = false) => {
+    setShowAssignDialog(false);
+    setCreatingClient(false);
+    const session = currentSession;
+    const target =
+      clients.find((c) => c.id === targetClientId) ?? (known && known.id === targetClientId ? known : null);
+    if (!session?.id || !session.isUnassigned || !target?.id) return;
+    const fromFinish = assignFrom === "finish";
+    // New client: nothing is on file for them anywhere (their routines, settings and history are known empty).
+    if (madeHere) createdHereRef.current = target.id;
+    /* Whether the iPad's copy holds every set of this session: its sets
+       listener has had the server's answer for it. Almost always, on a
+       session that has been running; not on one just taken over or resumed. */
+    const copyIsWhole = logsWindow?.state === "ready" && logsWindow.ids.includes(session.id);
+    const online = sendState.online;
+    guardLeave(() => {
+      const sessionId = session.id!;
+      // Once only: a second tap in the picker as it closes names nobody else.
+      if (assigningRef.current?.sessionId === sessionId) return;
+      const client = target as Client & { id: string };
+
+      const patch = assignSessionPatch({
+        client,
+        hostedAtStudioId: session.hostedAtStudioId || contextActiveStudioId,
+        stamp: serverTimestamp(),
       });
 
-      // 2. Update all logs
-      const logsQ = query(
-        collection(db, "exerciseLogs"),
-        where("sessionId", "==", sessionToAssign.id),
-      );
-      const snap = await getDocs(logsQ);
-      for (const d of snap.docs) {
-        await updateDoc(doc(db, "exerciseLogs", d.id), {
-          clientId: targetClientId,
-        });
-      }
+      /* On screen at once, as the client's session. */
+      const assigned = { ...session, ...patch, lastHeartbeatAt: Timestamp.now() } as WorkoutSession;
+      assigningRef.current = { sessionId, clientId: client.id };
+      // The client's sessions stream may answer before the batch is in the iPad's copy: hold the session meanwhile.
+      justStartedSessionRef.current = { id: sessionId, clientId: client.id, at: Date.now() };
+      currentSessionIdRef.current = sessionId;
+      setAssignedHereId(sessionId);
+      setCurrentSession(assigned);
+      setSessions((prev) => [assigned, ...prev.filter((s) => s.id !== sessionId)]);
+      setLogs((prev) => {
+        const next: Record<string, ExerciseLog> = {};
+        for (const [key, log] of Object.entries(prev)) {
+          next[key] = log?.sessionId === sessionId && !log.clientId ? ({ ...log, clientId: client.id } as ExerciseLog) : log;
+        }
+        return next;
+      });
+      setSelectedClient(client);
+      if (fromFinish) setShowEndConfirmation(true);
 
-      // Update local state if it was the current session
-      if (currentSession?.id === sessionToAssign.id) {
-        setCurrentSession(null);
-      }
+      /* The batch, then the client on screen everywhere (the tracker's
+         clientId, and with it the client's listeners and every set written
+         from here). In that order: a set written with the client before the
+         batch has named the session's would be refused. The sets are
+         gathered HERE, when the batch is built, never at the tap: a set
+         typed while the reads were out is in it (the rules never let a set
+         follow on its own once the session has its client). */
+      const issue = (read: HeldSet[]) => {
+        /* Discarded while the reads were out: nothing is given to anyone. */
+        if (assignDroppedRef.current.has(sessionId)) {
+          if (assigningRef.current?.sessionId === sessionId) assigningRef.current = null;
+          return;
+        }
+        /* The sets still on the typing timer, then sent, ahead of the batch. */
+        const queued: HeldSet[] = [];
+        for (const [id, pending] of Array.from(pendingLogWritesRef.current.entries())) {
+          const p = pending.payload ?? {};
+          // A client being let go of (deleteField, after a refused assign) is no client.
+          const named = typeof p.clientId === "string" && p.clientId ? p.clientId : null;
+          if (p.sessionId === sessionId) queued.push({ id, sessionId, machineId: p.machineId ?? null, clientId: named });
+        }
+        flushAllLogWrites();
+        const onScreen: HeldSet[] = (Object.values(logsRef.current) as ExerciseLog[])
+          .filter((l) => l?.sessionId === sessionId && !!l.id && !String(l.id).startsWith("temp_"))
+          .map((l) => ({ id: String(l.id), sessionId, machineId: l.machineId ?? null, clientId: l.clientId ?? null }));
+        try {
+          const { sets, withClient } = setsToAssign(sessionId, client.id, [onScreen, queued, read]);
+          if (withClient.length > 0) console.warn("[assign] sets that already have another client are left as they are", withClient);
+          const batch = writeBatch(db);
+          /* THE SETTINGS HELD ON THE SESSION go to the client in this same
+             batch (AJ's "3a"; features/open-session/held-setup.ts), gathered
+             now, so a set-up kept while the reads were out goes too; from
+             here on a keep is refused (`heldClosedRef`). Each machine's
+             settings document and history row for the client, writing only
+             the dials the held set-up set, by name (`dialsOnly`,
+             `writeDials`): a held value wins only for those, and every other
+             dial the client already has stays as the database holds it,
+             whatever this iPad read of them. Then `heldSetup` is deleted in
+             the session's own write: all of it lands or none of it does, and
+             a refused batch leaves the values on the session. The journal
+             copies and the machine-fit rows go only once the batch has
+             committed (`afterHeld`). A move that couldn't be put in the
+             batch, or a held set-up that couldn't be worked out at all,
+             keeps the values on the session and never stops the assign. */
+          heldClosedRef.current.set(sessionId, clientFirstName(client));
+          const sessionNow = currentSessionRef.current?.id === sessionId ? currentSessionRef.current : session;
+          let clearHeld = hasHeldSetup(sessionNow);
+          let afterHeld: () => void = () => {};
+          const held = heldValuesOf(sessionNow);
+          const heldBy = heldAuthorsOf(sessionNow);
+          if (Object.keys(held).length > 0) {
+            try {
+              if (!authUid) throw new Error("Nobody is signed in: the held set-up stays on the session.");
+              const moves = heldMoves({
+                held,
+                sources: heldSourcesOf(sessionNow),
+                // Only the server's answer says what is on file (no first set-up claimed, no fit row, off a copy).
+                onFile: onFileRead.server ? onFileServer : onFileCache,
+                serverAnswered: onFileRead.server,
+                fieldsOf: (machineId) => {
+                  const m = floorMachines.find((x) => x.id === machineId);
+                  return m ? fieldsForMachine(m, dialCatalogById, studioDialStandards) : [];
+                },
+              });
+              const link = sessionLinkOf({ ...sessionNow, ...patch, id: sessionId } as WorkoutSession, studioTodayKey());
+              const { failed, afterCommit } = queueHeldMoves(batch, {
+                clientId: client.id,
+                moves,
+                nameOf: (machineId) => floorMachines.find((x) => x.id === machineId)?.name || "Machine",
+                author: { id: authUid, fullName: authTrainer?.fullName || authTrainer?.initials || "Unknown", initials: authTrainer?.initials },
+                /* Signed by whoever kept it (a take-over's trainer before this one), when the team list knows them. */
+                authorOf: (machineId) => {
+                  const by = heldBy[machineId];
+                  if (!by || by === authUid) return null;
+                  const who = trainers.find((t) => t.authUid === by || t.id === by);
+                  return who ? { id: by, fullName: who.fullName || who.initials || "Unknown", initials: who.initials } : null;
+                },
+                journal: {
+                  studioId: sessionNoteStudioId(client, contextActiveStudioId || authTrainer?.primaryHomeStudioId),
+                  origin: "in_session",
+                  sessionId,
+                  sessionNumber: link.sessionNumber,
+                  sessionDay: link.sessionDay,
+                },
+                homeStudioId: client.homeStudioId || null,
+              });
+              afterHeld = afterCommit;
+              if (failed.length > 0) clearHeld = false;
+            } catch (error) {
+              console.error("[assign] the set-up held on the session stays there", error);
+              clearHeld = false;
+            }
+          }
+          batch.update(doc(db, "sessions", sessionId), clearHeld ? { ...patch, heldSetup: deleteField() } : patch);
+          for (const set of sets) {
+            batch.set(doc(db, "exerciseLogs", set.id), assignSetPatch(sessionId, set, client), { merge: true });
+          }
+          /* A client's first session marks their first Journey day, as a
+             client Start does (startClientPatch), in its own write: "Client
+             since", milestones and Month's anniversaries read it, and
+             nothing else writes it. Only once the assign has landed (the
+             whole-branch review, Oct 9 2026): a refused assign marked a
+             first day for a session that never went onto their record. */
+          const mark = startClientPatch({
+            routineType: "Free",
+            client,
+            sessionNumber: Number(patch.sessionNumber) || 0,
+            runsSavedRoutine: false,
+          });
+          const landed = () => {
+            afterHeld();
+            if (mark.firstSessionDate) {
+              updateDoc(doc(db, "clients", client.id), { firstSessionDate: serverTimestamp() }).catch((error) =>
+                console.error("[assign] the client's first-session mark was not saved", error),
+              );
+            }
+          };
+          // Never awaited. The mark that it is being assigned stays while it is on screen:
+          // the open sessions' listener must not take it off as it leaves their list.
+          batch.commit().then(landed, (error) => assignRefused(sessionId, session, client, error));
+          markSent();
+        } catch (error) {
+          assignRefused(sessionId, session, client, error);
+          return;
+        }
+        rememberLiveSession(sessionId);
+        /* Asked about at the tap (guardLeave); never asked twice. Only while
+           this screen is up: once the trainer has left it, the screen they
+           are on now is not switched to the client under them. */
+        if (trackerMountedRef.current) chooseClientNow(client.id);
+      };
 
-      setSelectedClientId(targetClientId);
-      setShowAssignDialog(false);
-      setPendingAssignSession(null);
-      setView("profile"); // Take them to profile to see the work
-    } catch (error) {
-      console.error("Error assigning session:", error);
+      /* What the database holds of the session's sets: the iPad's copy at
+         once, and the server's too when the copy may not hold them all
+         (online, for a moment at most). Nothing on screen waits for either,
+         and a Finish tapped meanwhile issues the batch with what is known,
+         ahead of its own (`assignIssueRef`). */
+      const setsQuery = query(collection(db, "exerciseLogs"), where("sessionId", "==", sessionId));
+      const read: HeldSet[] = [];
+      // What the client has on file, by machine (read below only when the session holds settings),
+      // and whether the server answered by the time the batch is built.
+      const onFileCache: Record<string, OnFile> = {};
+      const onFileServer: Record<string, OnFile> = {};
+      const onFileRead = { server: false };
+      const take = (snap: { docs: { id: string; data: () => unknown }[] }) => {
+        for (const d of snap.docs) {
+          const data = (d.data() ?? {}) as Partial<ExerciseLog>;
+          read.push({ id: d.id, sessionId: data.sessionId ?? null, machineId: data.machineId ?? null, clientId: data.clientId ?? null });
+        }
+      };
+      let issued = false;
+      const issueOnce = () => {
+        if (issued) return;
+        issued = true;
+        if (assignIssueRef.current?.sessionId === sessionId) assignIssueRef.current = null;
+        issue(read);
+      };
+      assignDroppedRef.current.delete(sessionId);
+      assignIssueRef.current = { sessionId, now: issueOnce };
+      // A copy that can't be read: the sets on screen and on the timer are the ones it knows.
+      const reads: Promise<unknown>[] = [getDocsFromCache(setsQuery).then(take, () => undefined)];
+      if (!copyIsWhole && online) {
+        reads.push(
+          Promise.race([
+            getDocs(setsQuery).then(take, () => undefined),
+            new Promise((done) => setTimeout(done, ASSIGN_SERVER_READ_WAIT_MS)),
+          ]),
+        );
+      }
+      /* With settings held on the session (AJ's "3a"): what the client
+         already has on file, so each move's history row says what it changed
+         from. The tracker's own settings listener's query (its index), the
+         iPad's copy and, online, the server's for a moment at most. The
+         settings rest on neither: a move writes only the dials it set. Only
+         the server's answer, in by the time the batch is built, lets a move
+         claim a first set-up or write the client's machine-fit row (the
+         review, Oct 9 2026): off the iPad's copy, a slow server, or a set-up
+         kept after this tap (no read at all), neither is claimed. */
+      if (hasHeldSetup(session)) {
+        const settingsQuery = query(collection(db, "clientMachineSettings"), where("clientId", "==", client.id));
+        const takeSettings = (into: Record<string, OnFile>) => (snap: { docs: { data: () => unknown }[] }) => {
+          for (const d of snap.docs) {
+            const data = (d.data() ?? {}) as Partial<ClientMachineSetting>;
+            if (data.machineId) into[data.machineId] = { settings: data.settings ?? null, sources: data.sources ?? null, fitAcks: data.fitAcks ?? null };
+          }
+        };
+        reads.push(getDocsFromCache(settingsQuery).then(takeSettings(onFileCache), () => undefined));
+        if (online) {
+          reads.push(
+            Promise.race([
+              getDocs(settingsQuery).then((snap) => {
+                takeSettings(onFileServer)(snap);
+                // getDocs answers from the iPad's copy when the server can't: that is not the server's word.
+                onFileRead.server = (snap as { metadata?: { fromCache?: boolean } }).metadata?.fromCache !== true;
+              }, () => undefined),
+              new Promise((done) => setTimeout(done, ASSIGN_SERVER_READ_WAIT_MS)),
+            ]),
+          );
+        }
+      }
+      Promise.all(reads).then(issueOnce, issueOnce);
+    });
+  };
+
+  /* The batch was refused. Said, unless a Finish has run for the session
+     (its own result speaks: Finish names the client in its own batch). The
+     sets typed meanwhile are sent again without the client the rules refused
+     them for. And, while this screen is up, the session is open again on it
+     (it still is in the database), without asking (nothing is left behind:
+     the client on screen goes back to none); once the trainer has left it,
+     the screen they are on now is left alone. */
+  const assignRefused = (sessionId: string, before: WorkoutSession, client: Client, error: unknown) => {
+    console.error("[assign] the session was not given its client", error);
+    // Open again in the database: its card may keep a set-up on it once more.
+    heldClosedRef.current.delete(sessionId);
+    if (assigningRef.current?.sessionId === sessionId) assigningRef.current = null;
+    if (assignIssueRef.current?.sessionId === sessionId) assignIssueRef.current = null;
+    if (justStartedSessionRef.current?.id === sessionId) justStartedSessionRef.current = null;
+    // A client added here for it may not be on record at all (New client's own write refused).
+    if (createdHereRef.current === client.id) createdHereRef.current = null;
+    if (currentSessionIdRef.current !== sessionId || finishingRef.current) return;
+    toastError(assignRefusedWords(clientFirstName(client)));
+    /* Every set of the session on this iPad is sent again WITHOUT the client,
+       which it lets go of (the rules let a set of a still-open session do
+       so, `logLeavesItsOpenSessionsClient`): a set typed after Who's this?
+       was written naming the client, and one that didn't exist yet landed
+       with it even though the batch was refused. Left on it, choosing a
+       different client next would leave that set behind, and Finish, which
+       names the session's client on every set, would be refused for it
+       every time (the whole-branch review, Oct 9 2026). Sets still on the
+       typing timer go the same way. */
+    for (const pending of Array.from(pendingLogWritesRef.current.values())) {
+      if (pending.payload?.sessionId === sessionId) pending.payload.clientId = deleteField();
     }
+    for (const log of Object.values(logsRef.current) as ExerciseLog[]) {
+      if (log?.sessionId !== sessionId || !log.id || String(log.id).startsWith("temp_")) continue;
+      if (pendingLogWritesRef.current.has(String(log.id))) continue;
+      setDoc(
+        doc(db, "exerciseLogs", String(log.id)),
+        cleanPayload({
+          ...resendSetFields(log as unknown as Record<string, unknown>),
+          clientId: deleteField(),
+          updatedAt: serverTimestamp(),
+        }),
+        { merge: true },
+      ).catch((e) => console.error("[assign] a set was not sent again", e));
+    }
+    if (!trackerMountedRef.current) return;
+    setAssignedHereId(null);
+    setShowEndConfirmation(false);
+    /* Open again as it was, with what it holds now: a set-up kept while the
+       batch was on its way went in its own write and is on the session. */
+    setCurrentSession((cur) => (cur?.id === sessionId && cur.heldSetup ? { ...before, heldSetup: cur.heldSetup } : before));
+    setLogs((prev) => {
+      const next: Record<string, ExerciseLog> = {};
+      for (const [key, log] of Object.entries(prev)) {
+        next[key] = log?.sessionId === sessionId && log.clientId === client.id ? ({ ...log, clientId: null } as unknown as ExerciseLog) : log;
+      }
+      return next;
+    });
+    setSelectedClient(null);
+    chooseClientNow(null);
   };
 
   /*
@@ -2150,6 +2853,12 @@ export function WorkoutTrackerView({
    * at that step with the session still there.
    */
   const deleteSession = (sessionId: string) => {
+    /* An assign still waiting on its reads is dropped with the session: it
+       is never issued after the Discard (the whole-branch review, Oct 9
+       2026). */
+    assignDroppedRef.current.add(sessionId);
+    if (assignIssueRef.current?.sessionId === sessionId) assignIssueRef.current = null;
+    if (assigningRef.current?.sessionId === sessionId) assigningRef.current = null;
     try {
       for (const [key, pending] of Array.from(pendingLogWritesRef.current.entries())) {
         if (pending.payload?.sessionId !== sessionId) continue;
@@ -2194,7 +2903,6 @@ export function WorkoutTrackerView({
       }
       setShowEndConfirmation(false);
       setShowCancelConfirmation(false);
-      setPendingAssignSession(null);
     } catch (error) {
       console.error("Error deleting session:", error);
     }
@@ -2299,6 +3007,12 @@ export function WorkoutTrackerView({
   const commitEndSession = async () => {
     if (!currentSession?.id || !selectedClient) return;
     if (finishingRef.current) return;
+    // A client added on this iPad for this session (New client): nothing is on file for them anywhere.
+    const createdHere = createdHereRef.current === selectedClient.id;
+    /* A client chosen a moment ago (Who's this?) whose batch still waits on
+       its reads: issued now, with what is known, so it lands before this
+       Finish's own batch, which never waits for it. */
+    if (assignIssueRef.current?.sessionId === currentSession.id) assignIssueRef.current.now();
     finishingRef.current = currentSession.id;
 
     // Land anything still debounced before the finish batch reads local state.
@@ -2407,6 +3121,9 @@ export function WorkoutTrackerView({
           clientMachineSettings,
           user.uid,
           sessionExtras,
+          // A machine with no settings is "nothing on file" only once the server has said so (Oct 9 2026);
+          // a client added here for this session has nothing on file anywhere.
+          { settingsOnFileKnown: settingsServerRead || createdHere, newClient: createdHere },
         );
         const outcome = await settleOrQueue(finishing, sendState.online);
         if (outcome.kind === "failed") throw outcome.error;
@@ -2504,7 +3221,23 @@ export function WorkoutTrackerView({
 
       /* The read the post-session screen shows: today against the last
          performed set per machine, and the journey since the first
-         session — computed here, once, from the grid's view of history. */
+         session — computed here, once, from the grid's view of history.
+         After Who's this? on this iPad, only once the client's earlier
+         sessions and their sets have been read from the server (the
+         whole-branch review, Oct 9 2026): until then the grid holds only
+         this session, or the iPad's partial copy, and "First time" would be
+         said of machines the client has done for years. A client added here
+         has no earlier sessions: what is read is all there is.
+         Every other session too, only once the server answered for the
+         sessions and their sets (the floor round, Oct 9 2026, F1): an iPad
+         offline or on slow Wi-Fi at Finish holds only its own copy, and
+         "Not enough history yet" or "First time" would be said of a client
+         with years behind them. A failed read is "can't tell". */
+      const historyRead =
+        createdHere || (sessionsServerFor === selectedClient.id && logsWindow?.state === "ready");
+      const priorKnown =
+        historyRead &&
+        (createdHere || assignedHereId !== sessionId || (sessionsServerFor === selectedClient.id && sessionsAllRead));
       const priorOf = (machineId: string): PriorSet | undefined => {
         const row = gridRows.find((r) => r.machine.id === machineId);
         if (!row) return undefined;
@@ -2515,10 +3248,10 @@ export function WorkoutTrackerView({
           : undefined;
       };
       const machineName = (id: string) => floorMachines.find((m) => m.id === id)?.name || id;
-      const lines = todayLines({ order: activeMachineIds, logs: finalLogs, nameOf: machineName, priorOf });
+      const lines = todayLines({ order: activeMachineIds, logs: finalLogs, nameOf: machineName, priorOf, priorKnown });
       const todayWeight = new Map(lines.filter((l) => l.outcome === "performed").map((l) => [l.machineId, l.weight]));
       const journey = strengthJourney(
-        gridRows.map((row) => {
+        (priorKnown ? gridRows : []).map((row) => {
           const sets = orderedSets(row, gridHistory);
           const first = computeRowStats(row, gridHistory).first;
           const performedToday = todayWeight.has(row.machine.id);
@@ -2533,6 +3266,7 @@ export function WorkoutTrackerView({
             startDate: row.startingWeightDate ?? first?.session.date ?? null,
           };
         }),
+        priorKnown,
       );
 
       /* The Wrap-up's Next time (the first-session design round, Oct 8
@@ -2540,8 +3274,12 @@ export function WorkoutTrackerView({
          listener holds it, and today's performed machines. A Free session
          has none; one resumed after a reload with no record of how it
          started is read as Free when it ran no routine over the whole
-         floor (`ranAsFree`). Routines not known yet: no card, never a
-         guess. A machine let go today (the client can't do it, or the
+         floor with no list of its own (`ranAsFree`): a client session with
+         no routine records what was added, so it has Next time (the open
+         session round, Oct 9 2026; an open session reaches here once Who's
+         this? has given it a client, `assignSessionToClient`).
+         Routines not known yet: no card, never a guess. A machine let go
+         today (the client can't do it, or the
          routine held it while the session ran and doesn't now) is never
          offered back. Not when another iPad finished the session: that
          iPad has its own Next time, and two would write the routine twice
@@ -2552,30 +3290,41 @@ export function WorkoutTrackerView({
          missing Next time is acceptable; a stuck Finish is not (the
          whole-branch review, Oct 9 2026). */
       let nextTime: NextTimeSnapshot | null = null;
+      let nextTimeLater: NextTimeLater | null = null;
       try {
         const startedAs = startedAsRef.current?.sessionId === sessionId ? startedAsRef.current.routineType : null;
+        /* The routine the session ran: its own, else the client's Routine A
+           or B that Start from a routine… laid on it (the whole-branch
+           review, Oct 9 2026). */
+        const laid = laidRoutineRef.current?.sessionId === sessionId ? laidRoutineRef.current.routineId : null;
+        const ranRoutineId = currentSession.routineId || laid || null;
         const ranFree = ranAsFree({
           startedAs,
-          routineId: currentSession.routineId,
+          routineId: ranRoutineId,
+          // A session with its own list is never Free: on the floor it is what was added (Oct 9 2026).
+          recorded: currentSession.sessionMachineIds,
           floor: floorMachines.map((m) => m.id),
           today: activeMachineIds,
         });
-        nextTime = alreadyFinished
-          ? null
-          : nextTimeAtFinish({
-              free: ranFree,
-              routineId: currentSession.routineId,
-              routines: routinesKnown ? routines : null,
-              performed: lines.filter((l) => l.outcome === "performed").map((l) => l.machineId),
-              floor: floorMachinesOf(floorMachines),
-              nameOf: machineNamer(floorMachines, machines),
-              todayYmd: studioTodayKey(),
-              heldDuringSession:
-                heldDuringSessionRef.current?.sessionId === sessionId ? heldDuringSessionRef.current.ids : [],
-            });
+        const inputs: NextTimeLater = {
+          free: ranFree,
+          routineId: ranRoutineId,
+          performed: lines.filter((l) => l.outcome === "performed").map((l) => l.machineId),
+          floor: floorMachinesOf(floorMachines),
+          nameOf: machineNamer(floorMachines, machines),
+          todayYmd: studioTodayKey(),
+          heldDuringSession:
+            heldDuringSessionRef.current?.sessionId === sessionId ? heldDuringSessionRef.current.ids : [],
+        };
+        if (!alreadyFinished) {
+          if (routinesKnown) nextTime = nextTimeAtFinish({ ...inputs, routines });
+          // Not known yet: worked out on the Wrap-up once they answer, never a guess now.
+          else if (!ranFree) nextTimeLater = inputs;
+        }
       } catch (error) {
         console.error("[finish] next time not worked out", error);
         nextTime = null;
+        nextTimeLater = null;
       }
 
       setPostSession({
@@ -2588,6 +3337,7 @@ export function WorkoutTrackerView({
         nextTrainerNote: nextTrainerNote ? { id: null, body: nextTrainerNote } : null,
         queued,
         nextTime,
+        nextTimeLater,
       });
       clearSessionDraft(currentSession?.id);
       setNoteDraft(null);
@@ -2661,6 +3411,24 @@ export function WorkoutTrackerView({
       },
     );
   };
+
+  /* Next time worked out on the Wrap-up (the whole-branch review, Oct 9
+     2026): a Finish before the client's routines had answered (straight after
+     Who's this?, or offline for a client added here) froze its inputs, and
+     the card comes the moment the routines are known, from the routines as
+     they first answer. Never a guess before. */
+  useEffect(() => {
+    const ps = postSession;
+    const later = ps?.nextTimeLater;
+    if (!ps || !later || ps.nextTime || !routinesKnown || clientId !== ps.client.id) return;
+    let worked: NextTimeSnapshot | null = null;
+    try {
+      worked = nextTimeAtFinish({ ...later, routines });
+    } catch (error) {
+      console.error("[wrap-up] next time not worked out", error);
+    }
+    setPostSession((cur) => (cur === ps ? { ...cur, nextTime: worked, nextTimeLater: null } : cur));
+  }, [postSession, routinesKnown, routines, clientId]);
 
   /**
    * The Wrap-up's Next time (the first-session design round, Oct 8 2026,
@@ -2991,6 +3759,35 @@ export function WorkoutTrackerView({
     Array.from(pendingLogWritesRef.current.keys()).forEach(flushLogWrite);
   }, [flushLogWrite]);
 
+  /* An open session's Start refused by the database (the whole-branch
+     review, Oct 9 2026): it was issued from the Client Directory, and the
+     refusal can come long after (on reconnect, after a whole offline
+     session). Said here when this screen holds it or sets typed into it, as
+     a client Start's refusal is: the sets still waiting are sent, since they
+     are the only record of what was lifted, and the toast says they are
+     kept. The session leaves the screen. */
+  useEffect(
+    () =>
+      onOpenSessionRefused((sessionId) => {
+        const holds = currentSessionIdRef.current === sessionId;
+        const typed =
+          Array.from(pendingLogWritesRef.current.values()).some((q) => q.payload?.sessionId === sessionId) ||
+          (Object.values(logsRef.current) as ExerciseLog[]).some((l) => l?.sessionId === sessionId && isBegunLog(l));
+        if (!holds && !typed) return false;
+        for (const [key, pending] of Array.from(pendingLogWritesRef.current.entries())) {
+          if (pending.payload?.sessionId === sessionId) flushLogWrite(key);
+        }
+        if (holds) {
+          currentSessionIdRef.current = null;
+          setCurrentSession(null);
+          setSessions([]);
+        }
+        toastError(typed ? OPEN_SESSION_REFUSED_KEPT : OPEN_SESSION_REFUSED);
+        return true;
+      }),
+    [flushLogWrite, toastError],
+  );
+
   const queueLogWrite = React.useCallback(
     (docId: string, fields: Record<string, any>) => {
       const now = Date.now();
@@ -3066,7 +3863,8 @@ export function WorkoutTrackerView({
     side?: "Left" | "Right",
   ) => {
     const key = logDocId(sessionId, machineId, side);
-    const currentSettings = clientMachineSettings[machineId]?.settings || {};
+    // The client's settings, or what an open session holds for the machine (AJ's "3a").
+    const currentSettings = shownSettings[machineId]?.settings || {};
 
     /* The per-machine clock goes onto the log the first time anything is
        written for the machine — never earlier, so the weight-only placeholder
@@ -3246,6 +4044,32 @@ export function WorkoutTrackerView({
     return kept;
   }, [logs, shownSessionId]);
 
+  /* THE SETTINGS BUTTON'S COUNT (the open session round, Oct 9 2026; AJ's
+     "2a"): how many of each machine's dials the card would open empty on,
+     over the card's own dial list (equipment/adapters.ts `fieldsForMachine`,
+     the shared catalog read: no new listener), and whether anything is
+     saved. "Nothing saved" (Set up) is said only off the SERVER's answer:
+     an empty answer from the iPad's cache may be a cold cache, and a first
+     set-up saved off it would write the client's other dials over when it
+     syncs (the review, Oct 9 2026). Something saved is said off either.
+     An open session with no client yet counts what it HOLDS (AJ's "3a":
+     the card keeps its settings on the session, `heldSetup`): the session
+     is its own record, so what it holds is known, and Set up is offered. */
+  const { byId: dialCatalogById } = useMachineCatalog();
+  const studioDialStandards = activeStudio?.machineSettings;
+  const setupById = useMemo(() => {
+    const out: Record<string, { notSet?: number; firstSetup?: boolean }> = {};
+    for (const m of floorMachines) {
+      if (!m.id) continue;
+      const saved = shownSettings[m.id]?.settings ?? {};
+      const fields = fieldsForMachine(m, dialCatalogById, studioDialStandards);
+      const first = isFirstSetup(saved);
+      const known = noClientYet || settingsServerRead || (settingsRead && !first);
+      out[m.id] = { notSet: notSetCount(fields, saved), ...(known ? { firstSetup: first } : {}) };
+    }
+    return out;
+  }, [floorMachines, dialCatalogById, studioDialStandards, shownSettings, settingsRead, settingsServerRead, noClientYet]);
+
   const gridRows = useMemo(() => {
     const ordered = [...floorMachines].sort(
       (a, b) =>
@@ -3268,11 +4092,12 @@ export function WorkoutTrackerView({
     );
     // Which notes are open is a studio-day question (client-notes/threads.ts).
     const noteDay = studioTodayKey();
-    return toJourneyRows(ordered, historyLogs, clientMachineSettings, starred).map(
+    // The client's settings, or what an open session holds (`shownSettings`).
+    return toJourneyRows(ordered, historyLogs, shownSettings, starred).map(
       (row) => {
         const machine = ordered.find((m) => m.id === row.machine.id);
         if (!machine) return row;
-        const setting = clientMachineSettings[machine.id!];
+        const setting = shownSettings[machine.id!];
         const entries = orderMachineSettings(
           setting?.settings || {},
           machine.standardSettings || {},
@@ -3324,12 +4149,17 @@ export function WorkoutTrackerView({
             settingLabels: entries.length
               ? Object.fromEntries(entries.map(([k, , full]) => [k, full]))
               : undefined,
+            // The Now Bar's settings button: "Set up · 2 not set" (Oct 9 2026).
+            dialsNotSet: setupById[machine.id!]?.notSet,
+            firstSetup: setupById[machine.id!]?.firstSetup,
             // The mark beside the name: the loudest open note, in the one
             // note key (machine menu, Oct 2026).
             alert: machineNoteLoudness({ ...noteInput, today: noteDay }) ?? undefined,
             // Each thread once, as the card counts them (machine-notes.ts).
             noteCount: machineNoteCount(noteInput),
             sides: isSidesMachine(machine),
+            // Out of service on the roster: said on the floor, with no + (Oct 9 2026).
+            outOfService: studioFloorById[row.machine.id]?.rosterStatus === "maintenance" || undefined,
           },
         };
       },
@@ -3337,11 +4167,12 @@ export function WorkoutTrackerView({
   }, [
     floorMachines,
     historyLogs,
-    clientMachineSettings,
+    shownSettings,
     studioFloorById,
     gridHistory,
     selectedClient?.currentMachineMetrics,
     machineJournal,
+    setupById,
   ]);
 
   const gridSections = useMemo<GridSection[]>(() => {
@@ -3351,20 +4182,31 @@ export function WorkoutTrackerView({
       .filter(Boolean) as typeof gridRows;
     const inRoutine = new Set(shownMachineIds);
     const others = gridRows.filter((r) => !inRoutine.has(r.machine.id));
+    /* The FileMaker floor (Oct 9 2026) has no routine to name: today's
+       machines are "Today", numbered in the order they were added, over the
+       rest of the floor in its walking order; no label over nothing yet. */
     return [
       // No label row while only the routine is listed: the grid's corner
       // says "Routine" (session top, option 1, Oct 3 2026).
-      { id: "routine", label: "Today's routine", rows: routineRows, numbered: true, bare: !showAllMachines },
+      {
+        id: "routine",
+        label: floorView ? "Today" : "Today's routine",
+        rows: routineRows,
+        numbered: true,
+        bare: !showAllMachines || (floorView && routineRows.length === 0),
+      },
       {
         id: "others",
-        label: "Not in today's routine",
+        label: floorView ? "Rest of the floor" : "Not in today's routine",
+        idleNote: floorView ? "not added today" : undefined,
         rows: others,
         collapsed: !showAllMachines,
         onToggle: () => setShowAllMachines(!showAllMachines),
         inactive: true,
       },
     ];
-  }, [gridRows, shownMachineIds, showAllMachines]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setShowAllMachines is keyed on showAllSessionId
+  }, [gridRows, shownMachineIds, showAllMachines, floorView, showAllSessionId]);
 
   const toNum = (v: unknown): number | null => {
     if (v === undefined || v === null || v === "") return null;
@@ -3616,17 +4458,28 @@ export function WorkoutTrackerView({
   /* The live column, memoised with steady callbacks (R10): it used to be a
      new object on every render, which redrew every row of the grid. The
      callbacks call the newest handler through a ref, so they never go stale. */
+  /** The last + (or the phone floor's Add): a second tap landing on the row that slid under it is let go. */
+  const lastAddRef = useRef<LastAdd | null>(null);
   const gridLiveHandlers = useRef<{
     change: (machineId: string, patch: Partial<LiveSet>) => void;
     onAddMachine: (id: string) => void;
   } | null>(null);
   gridLiveHandlers.current = {
     change: handleGridLiveChange,
-    /* Straight into the session's own list, through the one recorder the
-       reorder sheet uses: the session document, never the routine. */
+    /* Into the session's own list, through the reorder sheet's recorder: the session document, never the routine. */
     onAddMachine: (id: string) => {
-      if (activeMachineIds.includes(id)) return;
-      applySessionMachineIds([...activeMachineIds, id]);
+      const now = Date.now();
+      if (isBounceAdd(lastAddRef.current, id, now)) return; // the same tap twice (add-bounce.ts)
+      lastAddRef.current = { id, at: now };
+      flushAllLogWrites();
+      if (!activeMachineIds.includes(id)) applySessionMachineIds([...activeMachineIds, id]);
+      /* The machine in hand in the same tap, as the plan's Add makes it,
+         at the end of today's numbered group, in the order done
+         (FileMaker's circle; the open session round, Oct 9 2026: "you have
+         every machine on the screen and you just fill in the ones you
+         did"). It used to take a second tap on its Today cell. What was
+         waiting on the last machine is sent first, as Next sends it. */
+      setFocusMachineOverride(id);
     },
   };
   const onGridLiveChange = React.useCallback(
@@ -3707,10 +4560,15 @@ export function WorkoutTrackerView({
   const machineMenuHost = useMemo<MachineMenuHost>(
     () => ({
       door: "session",
+      // No client yet (an open session): "" names nobody, and the card keeps
+      // its settings on the session through `holdSetup`, never on a client.
       clientId: clientId || "",
       client: selectedClient,
       machines: floorMachines,
-      clientSettings: clientMachineSettings,
+      clientSettings: shownSettings,
+      holdSetup: holdSetupDoor,
+      // Until the server has answered for the client's settings, the card writes only the dials it changes.
+      settingsUnsure: !!clientId && !settingsServerRead,
       author: authTrainer
         ? { id: user.uid, fullName: authTrainer.fullName || authTrainer.initials || "Unknown", initials: authTrainer.initials }
         : null,
@@ -3737,7 +4595,9 @@ export function WorkoutTrackerView({
       clientId,
       selectedClient,
       floorMachines,
-      clientMachineSettings,
+      shownSettings,
+      holdSetupDoor,
+      settingsServerRead,
       authTrainer,
       user?.uid,
       contextActiveStudioId,
@@ -3759,7 +4619,10 @@ export function WorkoutTrackerView({
       menuWatching,
     ],
   );
-  const closeMachineMenu = React.useCallback(() => setMenuMachineId(null), []);
+  const closeMachineMenu = React.useCallback(() => {
+    setMenuMachineId(null);
+    setMenuQuickFor(null);
+  }, []);
 
   /*
    * ROUTINE A'S PLAN ON THE FLOOR (the first-session design round, Oct 8
@@ -3931,15 +4794,63 @@ export function WorkoutTrackerView({
   };
   const planLoggedToday = (id: string) => setLoggedToday(gridLiveValues[id]);
 
+  /* START FROM A ROUTINE… (the open session round, Oct 9 2026; AJ's "1b":
+     "i want to be able to take advantage of our routine builder so we can
+     use it if we wanted too"). The corner's sheet (the phone's foot too)
+     hands up a routine's machines on this floor; they go on today's list
+     through the one recorder, what is already done today kept first, in
+     the order done (routine-plan/start-from.ts, `laidToday`), and the first
+     machine still to do is the one in hand. Today's list only: no routine
+     is written, and Routine A still comes only through the Wrap-up's Next
+     time. Offered once today's list is on screen (an add before it would be
+     recorded as the session's whole list) and a Start that couldn't decide
+     its routine has (`startDeciding`): until then the client's routine may
+     still come and be laid ahead of it, and fold the floor (the review,
+     Oct 9 2026). */
+  const startFromOffered = !!currentSession && todaySeeded && !startDeciding;
+  const [startFromOpen, setStartFromOpen] = useState(false);
+  const onOpenStartFrom = React.useCallback(() => setStartFromOpen(true), []);
+  const startFromLayRef = useRef<(ids: string[], choice?: StartFromChoice) => void>(() => {});
+  startFromLayRef.current = (laid: string[], choice?: StartFromChoice) => {
+    flushAllLogWrites();
+    /* The client's own Routine A or B laid on a session with no routine: the
+       session ran it, so the Wrap-up's Next time offers today's machines to
+       it (the whole-branch review, Oct 9 2026: a Routine A still being built
+       never heard what was done). Kept here, never written on the session;
+       the last routine laid is the one. */
+    const sessionId = currentSession?.id;
+    if (sessionId && !currentSession?.routineId) {
+      laidRoutineRef.current = { sessionId, routineId: choice?.routineId ?? null };
+    }
+    const done = (id: string) => setLoggedToday(gridLiveValues[id]);
+    const next = laidToday({ today: activeMachineIds, laid, done });
+    applySessionMachineIds(next);
+    const hand = inHandAfterLay({ next, inHand: gridFocusMachineId, done });
+    if (hand) setFocusMachineOverride(hand);
+  };
+  const onLayRoutine = React.useCallback((ids: string[], choice: StartFromChoice) => startFromLayRef.current(ids, choice), []);
+  /* Out of service on the roster: left out of a routine laid, and said. */
+  const startFromOut = useMemo(() => gridRows.filter((r) => r.machine.outOfService).map((r) => r.machine.id), [gridRows]);
+  /* Nothing is offered, or said missing, off a floor not read yet or whose read failed. */
+  const startFromFloorState: "known" | "reading" | "failed" = studioFloorLoading ? "reading" : studioFloorFailed ? "failed" : "known";
+
   /* One calm line when today's order trips one of the Academy's sequencing
      rules: a sentence, never a block (routine-plan/order-effects.ts). */
   const hasLiveSession = !!currentSession;
-  /* A Free session (no routine) runs the whole floor in its walking order,
-     which nobody chose: it says nothing about order. */
-  const runsWholeFloor =
-    !currentSession?.routineId &&
-    floorMachines.length > 0 &&
-    floorMachines.every((m) => !m.id || activeMachineIds.includes(m.id));
+  /* An old Free session, or an open session from before Oct 9 2026 (no
+     routine, no list of its own), runs the whole floor in its walking
+     order, which nobody chose: it says nothing about order. A session that
+     records its own list chose it, the FileMaker floor's included (what was
+     added, in the order done; `ranWholeFloorUnchosen`), even when every
+     machine on the floor was added. One machine is never an order: the
+     Academy's rules are about two (`findViolations` reads pairs), so the
+     first + on the floor says nothing (the open session round, Oct 9 2026). */
+  const runsWholeFloor = ranWholeFloorUnchosen({
+    routineId: currentSession?.routineId,
+    recorded: currentSession?.sessionMachineIds,
+    floor: floorMachines.map((m) => m.id),
+    today: activeMachineIds,
+  });
   const todayEffects = useMemo(
     () => (hasLiveSession && !runsWholeFloor ? orderEffects(activeMachineIds, planNameOf, sessionPlan.floorList) : []),
     [hasLiveSession, runsWholeFloor, activeMachineIds, planNameOf, sessionPlan.floorList],
@@ -3967,6 +4878,8 @@ export function WorkoutTrackerView({
      to ask. */
   useEffect(() => {
     if (screen !== "tracker" && screen !== "watch") setMenuMachineId(null);
+    // And it opens as an ordinary card next time, never as Set up's.
+    if (screen !== "tracker" && screen !== "watch") setMenuQuickFor(null);
   }, [screen]);
 
   if (screen === "post-session" && postSession) {
@@ -4073,7 +4986,7 @@ export function WorkoutTrackerView({
           title="Machine"
           /* The machine menu, read only: its settings, notes and chart,
              with no box, no buttons and no saves (machine menu design §F). */
-          onOpenMachine={(id) => setMenuMachineId(id)}
+          onOpenMachine={openMachineMenu}
         />
       </WatchingSession>
       <MachineMenu open={!!menuMachineId} machineId={menuMachineId} onClose={closeMachineMenu} host={machineMenuHost} />
@@ -4086,18 +4999,44 @@ export function WorkoutTrackerView({
        null, trusting the routing never to arrive here; it did arrive, when a
        client's record couldn't be read and when a session left the screen,
        and the trainer saw nothing but the bottom bar. */
+    const openKey = contextActiveStudioId ?? "__none__";
+    const openRead: boolean | "failed" = !user
+      ? true
+      : openSessionsRead?.key === openKey
+        ? openSessionsRead.failed
+          ? "failed"
+          : true
+        : false;
+    const nothing = nothingKind(clientId, clientLookup, openRead);
+    /* The abandoned open session, asked about over the empty screen (the
+       whole-branch review, Oct 9 2026; features/tracker/StaleSessionDialog.tsx). */
+    const staleOpenAsk =
+      !clientId && staleOpenSession?.id && staleOpenSession.id !== declinedStaleOpenId ? (
+        <StaleSessionDialog
+          open
+          clientFirstName={null}
+          session={staleOpenSession}
+          begunMachines={null}
+          todayKey={studioTodayKey()}
+          onResume={resumeStaleOpenSession}
+          onStartNew={leaveStaleOpenSession}
+        />
+      ) : null;
     return (
-      <NothingOnScreen
-        kind={nothingKind(clientId, clientLookup)}
-        studioName={activeStudio?.name}
-        trainerInitials={authTrainer?.initials}
-        onRetry={onRetryClient}
-        onFindClient={() => setView("client-directory")}
-        onHub={() => setView("clients")}
-        rightControls={rightControls}
-        trainerDropdown={trainerDropdown}
-        onStudioClick={onStudioClick}
-      />
+      <>
+        <NothingOnScreen
+          kind={nothing}
+          studioName={activeStudio?.name}
+          trainerInitials={authTrainer?.initials}
+          onRetry={nothing === "open-failed" ? () => setOpenSessionsTry((n) => n + 1) : onRetryClient}
+          onFindClient={() => setView("client-directory")}
+          onHub={() => setView("clients")}
+          rightControls={rightControls}
+          trainerDropdown={trainerDropdown}
+          onStudioClick={onStudioClick}
+        />
+        {staleOpenAsk}
+      </>
     );
   }
 
@@ -4199,8 +5138,8 @@ export function WorkoutTrackerView({
               {selectedClient
                 ? clientDisplayName(selectedClient)
                 : currentSession?.isUnassigned
-                  ? "Unassigned Tracking"
-                  : "Initializing..."}
+                  ? "Open session"
+                  : (currentSession?.clientName || "").trim() || "Initializing..."}
             </h3>
             <div className="jg-sbar__meta">
               {/* No number for a client whose total nobody has recorded:
@@ -4260,29 +5199,55 @@ export function WorkoutTrackerView({
           )}
           <span className="jg-sbar__sp" />
 
-          <button
-            type="button"
-            className="jg-sbar__btn"
-            onClick={() => setIsShowingSessionNotes(true)}
-            aria-label="Session notes"
-          >
-            <MessageSquare size={15} strokeWidth={2.5} className="fill-current" />
-            <span>Notes</span>
-          </button>
+          {/* Who's this? (the open session round, Oct 9 2026): an open
+              session is given its client at any time, and carries on as
+              theirs. Blue and quiet: a choice, never the loud action. */}
+          {currentSession?.isUnassigned && !clientId && (
+            <button
+              type="button"
+              className="jg-sbar__btn jg-sbar__btn--who"
+              onClick={() => {
+                setAssignFrom("bar");
+                setShowAssignDialog(true);
+              }}
+              aria-label="Who's this? Choose the client for this session"
+            >
+              <Users size={15} strokeWidth={2.5} aria-hidden />
+              <span>Who's this?</span>
+            </button>
+          )}
+
+          {/* Notes and Pulse are about a client, so an open session, which
+              has none yet, does not draw them: they were two buttons that
+              opened nothing (the open session round, Oct 9 2026). They come
+              with the client. */}
+          {clientId && (
+            <button
+              type="button"
+              className="jg-sbar__btn"
+              onClick={() => setIsShowingSessionNotes(true)}
+              aria-label="Session notes"
+            >
+              <MessageSquare size={15} strokeWidth={2.5} className="fill-current" />
+              <span>Notes</span>
+            </button>
+          )}
           {/* The assessment (one name for it, everywhere), reachable without
               ending the session. A trainer has about ninety seconds while a
               client works the lumbar machine, and what they want to do with
               it is record the one thing the client just said. */}
-          <button
-            type="button"
-            className="jg-sbar__btn"
-            onClick={() => setIsShowingAssessment(true)}
-            aria-label="Open the Pulse"
-            title="Update the Pulse without leaving the session"
-          >
-            <HeartPulse size={15} strokeWidth={2.5} />
-            <span>Pulse</span>
-          </button>
+          {clientId && (
+            <button
+              type="button"
+              className="jg-sbar__btn"
+              onClick={() => setIsShowingAssessment(true)}
+              aria-label="Open the Pulse"
+              title="Update the Pulse without leaving the session"
+            >
+              <HeartPulse size={15} strokeWidth={2.5} />
+              <span>Pulse</span>
+            </button>
+          )}
           {/* Past the divider: the two buttons that END the session. Discard
               is a trash icon because it is pressed once a month; Finish is
               the one loud button because it is pressed every session. */}
@@ -4317,21 +5282,57 @@ export function WorkoutTrackerView({
           this machine. Every write goes through
           features/equipment/mutations.ts and never waits on the database.
           It replaces the machine sheet, which replaced two modals that used
-          to sit here (settings, and notes behind a separate small icon). */}
-      <MachineMenu open={!!menuMachineId} machineId={menuMachineId} onClose={closeMachineMenu} host={machineMenuHost} />
+          to sit here (settings, and notes behind a separate small icon).
+          The Now Bar's Set up (and the phone card's) opens it on the first
+          empty dial (the open session round, Oct 9 2026; AJ's "2a"), and
+          its Save closes it with Undo in the toast, from every door (Oct 10
+          2026; AJ's "1a"). */}
+      <MachineMenu
+        open={!!menuMachineId}
+        machineId={menuMachineId}
+        onClose={closeMachineMenu}
+        host={machineMenuHost}
+        focusDial={!!menuMachineId && menuQuickFor === menuMachineId}
+      />
 
-      {/* Client Selection Dialog (for assigning) */}
+      {/* Who's this? The client picker for an open session, from the
+          session bar or from Finish (the open session round, Oct 9 2026). */}
       <ClientSelectionDialog
         open={showAssignDialog}
         clients={clients}
-        onSelect={assignSessionToClient}
+        clientsStatus={clientsStatus}
+        onSelect={(id) => assignSessionToClient(id)}
+        onCreateNew={() => {
+          setShowAssignDialog(false);
+          setCreatingClient(true);
+        }}
         /* Closing without choosing goes back to the open session, like Keep
            Training. It used to drop the session from the screen, which then
            had nothing to draw (session record, Sep 26 2026). */
         onClose={() => setShowAssignDialog(false)}
-        title="Assign Completed Session"
-        description="Choose which client's profile should receive this session's data."
+        description={
+          assignFrom === "finish"
+            ? "Choose the client, then finish their session."
+            : "Choose the client. The session carries on as theirs."
+        }
       />
+      {/* New client, over the session: the session stays where it is and is
+          given to the new client (it used to replace the whole screen, and
+          the open session was lost). Portalled to the page, so no box of the
+          session's clips it or sits above it. */}
+      {creatingClient &&
+        currentSession?.isUnassigned &&
+        createPortal(
+          <CreateClientModal
+            clients={clients}
+            studios={studios ?? []}
+            activeStudioId={contextActiveStudioId ?? null}
+            authorId={authTrainer?.id ?? ""}
+            onClose={() => setCreatingClient(false)}
+            onClientCreated={(id, made, isNew) => assignSessionToClient(id, made ?? null, isNew === true)}
+          />,
+          document.body,
+        )}
 
       {/* End Session Confirmation Dialog */}
       {/* The session's two closing dialogs speak the app's voice (type and
@@ -4340,65 +5341,52 @@ export function WorkoutTrackerView({
           their 3:1 edge and their lift, and the shared dialog's lift in
           both modes. */}
       <Dialog open={showEndConfirmation} onOpenChange={setShowEndConfirmation}>
-        <DialogContent className="sm:max-w-100 rounded-[32px] p-0 overflow-hidden border-none">
+        <DialogContent className="sm:max-w-100 rounded-[32px] p-0 overflow-hidden border-none" initialFocus={finishTitleRef}>
           <div className="bg-primary p-8 text-primary-foreground space-y-3">
             <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-2">
               <AlertCircle className="w-6 h-6 text-primary-foreground" />
             </div>
-            <h3 className="text-[22px] font-extrabold tracking-[-0.015em]">
-              End session?
+            {/* One line, the client's name in it (the floor round, Oct 9
+                2026, F3): it replaced a title and a sentence that asked the
+                same thing twice in the words of the code. */}
+            <h3 ref={finishTitleRef} tabIndex={-1} className="text-[22px] font-extrabold tracking-[-0.015em] outline-none break-words">
+              {!currentSession?.isUnassigned && selectedClient
+                ? `Finish ${clientFirstName(selectedClient, "this client")}'s session?`
+                : "Finish this session?"}
             </h3>
-            <p className="text-primary-foreground/90 font-medium text-sm leading-relaxed">
-              Are you sure you want to conclude this{" "}
-              {/*
-                The optional chain guarded `currentSession` and NOT
-                `sessionType`, so a session document without the field threw
-                here and took the whole screen down with it — the End Session
-                dialog is in the tree whether or not it is open, so the crash
-                is at render, not at the tap.
-
-                Every writer in the app sets it today, so this is a latent
-                landmine rather than a live bug: any session written before
-                the field existed, or by anything outside this codebase, ends
-                a trainer's session with a white screen. HistoryList.tsx
-                already guards the same field.
-
-                Found by the render test in this round — it failed on its
-                first run, before asserting anything.
-              */}
-              {currentSession?.sessionType?.toLowerCase() ?? "standard"} workout
-              session?
-            </p>
           </div>
 
           <div className="p-6 space-y-4">
             {currentSession?.isUnassigned ? (
               <div className="space-y-3">
+                {/* Who's this?, at Finish: the client is chosen (or added),
+                    and this question comes back as theirs, whose Finish is
+                    the ordinary one: the Wrap-up and Next time (the open
+                    session round, Oct 9 2026). It used to skip Finish and
+                    open the profile. */}
                 <p className="text-sm font-bold text-ink-d2 px-1 mb-2">
-                  Unassigned session actions
+                  Who is this session for?
                 </p>
                 <Button
                   className="w-full h-14 rounded-2xl"
                   onClick={() => {
                     setShowEndConfirmation(false);
+                    setAssignFrom("finish");
                     setShowAssignDialog(true);
                   }}
                 >
-                  <Users className="w-4 h-4 mr-3" /> Assign to client
+                  <Users className="w-4 h-4 mr-3" /> Choose the client
                 </Button>
                 <Button
                   variant="outline"
                   className="w-full h-14 rounded-2xl"
                   onClick={() => {
                     setShowEndConfirmation(false);
-                    setPendingAssignSession(currentSession);
-                    onStartNewClientOnboarding("");
-                    // We don't necessarily need to setView('clients') if the modal is global,
-                    // but it helps if user cancels modal to be in a logical place.
-                    setView("clients");
+                    setAssignFrom("finish");
+                    setCreatingClient(true);
                   }}
                 >
-                  <PlusCircle className="w-4 h-4 mr-3" /> Create new client
+                  <PlusCircle className="w-4 h-4 mr-3" /> New client
                 </Button>
                 <div className="py-2 flex items-center gap-4">
                   <div className="h-px bg-border flex-1" />
@@ -4485,10 +5473,10 @@ export function WorkoutTrackerView({
                     onChange={(e) => setCurrentSessionNotes(e.target.value)}
                     placeholder="What should the next trainer know before the next session?"
                     aria-describedby="next-trainer-note-hint"
-                    className="min-h-25 resize-none focus-visible:ring-(--eq-hero) focus-visible:border-(--eq-hero)"
+                    className="min-h-25 resize-none"
                   />
                   <p id="next-trainer-note-hint" className="text-xs text-muted-foreground">
-                    Read out on the briefing at the next four sessions. A note just for the profile goes on the Wrap-up, next.
+                    On the next four briefings.
                   </p>
                   {currentSessionNotes.trim() ? (
                     <div className="flex flex-col gap-1.5" data-testid="next-trainer-file-as">
@@ -4530,7 +5518,7 @@ export function WorkoutTrackerView({
                     }}
                     className="text-sm font-bold text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors py-3 px-6 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
-                    Abort session (no record)
+                    Scrap session
                   </button>
                 </div>
               </div>
@@ -4611,19 +5599,28 @@ export function WorkoutTrackerView({
       {isPhone && gridLive ? (
         <PhoneSessionStage
           rows={gridSections[0]?.rows ?? []}
+          /* The FileMaker floor on a phone (Oct 9 2026): the rest of the
+             floor under today's cards, each name with its own Add, which
+             adds and makes it the card in hand, as the grid's + does. */
+          floor={showAllMachines ? (gridSections[1]?.rows ?? []) : null}
+          onAddMachine={onGridAddMachine}
           history={gridHistory}
           values={gridLiveValues}
           focusId={gridFocusMachineId ?? null}
           onFocus={(id) => setFocusMachineOverride(id)}
           onChange={onGridLiveChange}
           onCommit={flushAllLogWrites}
-          onOpenMachine={(id) => setMenuMachineId(id)}
+          onOpenMachine={openMachineMenu}
+          /* The card's Set up, as the iPad's Now Bar (AJ's "2a"). */
+          onSetUp={onSetUpMachine}
           onReorder={() => setIsOrderSheetOpen(true)}
           planNext={planNext}
           onAddPlanned={onAddPlanned}
           /* The plan's sheet from the phone too (the iPad's corner's door). */
           plan={currentSession && sessionPlan.plan && sessionPlan.progress ? { have: sessionPlan.progress.have, of: sessionPlan.progress.of } : null}
           onOpenPlan={onOpenPlan}
+          /* Start from a routine…, the corner's sheet, from the phone's foot. */
+          onStartFrom={startFromOffered ? onOpenStartFrom : undefined}
           step={2}
           /* A card with no past times says what that means, the machine
              menu's way: never "first time" for a machine a running total
@@ -4676,6 +5673,9 @@ export function WorkoutTrackerView({
                 plan={currentSession && sessionPlan.plan && sessionPlan.progress ? { have: sessionPlan.progress.have, of: sessionPlan.progress.of } : null}
                 onPlan={onOpenPlan}
                 onKey={() => setIsLegendOpen(true)}
+                floor={floorView}
+                /* Start from a routine… (AJ's "1b"): once today's list is on screen. */
+                onStartFrom={startFromOffered ? onOpenStartFrom : undefined}
               />
             }
             /* The machine's NAME is the target -- one big one, the width of
@@ -4684,11 +5684,14 @@ export function WorkoutTrackerView({
                audit's hesitation, and both did the same thing. It OPENS the
                machine menu on every tap (onOpenMachine): the old row trace
                toggled, so a machine just closed would not reopen. */
-            onOpenMachine={(id) => setMenuMachineId(id)}
+            onOpenMachine={openMachineMenu}
             layout="fill"
             /* Rows shrink to fit what is on screen (44 → 26px) instead of a
                fixed 44px that showed ~15 machines and hid the rest below
-               the fold. Routine-only stays at 44px; Show: All fits twenty. */
+               the fold. Routine-only stays at 44px. With the Today column's
+               + on screen (the FileMaker floor, All machines) a row keeps
+               40px, so the + is 40px to tap, and the grid scrolls (the open
+               session round, Oct 9 2026). */
             fit="auto"
             targetColumns={nowBarSide ? 8 : 10}
             title="Machine"
@@ -4725,6 +5728,8 @@ export function WorkoutTrackerView({
           planNext={planNext}
           onAddPlanned={onAddPlanned}
           nothingToday={todaySeeded && activeMachineIds.length === 0}
+          /* Every machine's + is on screen: the empty bar says where to tap. */
+          floorOpen={showAllMachines}
           startingRange={focusRange}
           onStartingRange={onStartingRange}
           noHistoryLine={focusNoHistory}
@@ -4744,7 +5749,9 @@ export function WorkoutTrackerView({
                 )
               : null
           }
-          onOpenFlag={gridFocusMachineId ? () => setMenuMachineId(gridFocusMachineId) : undefined}
+          onOpenFlag={gridFocusMachineId ? () => openMachineMenu(gridFocusMachineId) : undefined}
+          /* Set up: the card on the first empty dial, Save closes it (AJ's "2a"). */
+          onSetUp={onSetUpMachine}
           level={traineeLevelOf(selectedClient)}
           layout={nowBarSide ? "side" : "bar"}
           readMachineSeconds={readFocusedMachineSeconds}
@@ -4792,6 +5799,26 @@ export function WorkoutTrackerView({
             setPlanSheetOpen(false);
             setRangeSheet("pick");
           }}
+        />
+      )}
+
+      {/* Start from a routine… (the open session round, Oct 9 2026): mounted
+          while open, so its one read happens only then. Today's list only. */}
+      {currentSession && startFromOpen && (
+        <StartFromRoutineSheet
+          onClose={() => setStartFromOpen(false)}
+          studioId={contextActiveStudioId || currentSession.hostedAtStudioId || null}
+          studioName={activeStudio?.name ?? null}
+          floor={sessionPlan.floorList}
+          floorState={startFromFloorState}
+          nameOf={planNameOf}
+          todayYmd={planTodayYmd}
+          /* The client's routines once they are known, "reading" until then (their place held);
+             an open session has none until Who's this?. */
+          clientRoutines={clientId ? (routinesKnown ? routines : "reading") : null}
+          firstName={clientId ? clientFirstName(selectedClient, "") || null : null}
+          outOfService={startFromOut}
+          onLay={onLayRoutine}
         />
       )}
 
@@ -4929,7 +5956,7 @@ export function WorkoutTrackerView({
             journalStream={flagJournalStream}
             onOpenMachine={(id) => {
               setIsShowingSessionNotes(false);
-              setMenuMachineId(id);
+              openMachineMenu(id);
             }}
             onClose={() => setIsShowingSessionNotes(false)}
           />

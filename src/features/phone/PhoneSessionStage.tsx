@@ -20,7 +20,7 @@
  * machine menu (settings, notes) opens from a machine's name, as on the iPad.
  */
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, ListOrdered, Minus, Plus, Route } from "lucide-react";
+import { ChevronRight, ListOrdered, ListPlus, Minus, Plus, Route } from "lucide-react";
 import type { JourneyRow, JourneySession, LiveSet, RepQuality } from "../journey-grid/types";
 import type { Client } from "../../types";
 import type { HistoryCoverage } from "../../lib/prior-history";
@@ -28,6 +28,7 @@ import { studioTodayKey } from "../../lib/studio-time";
 import { QualityMark } from "../journey-grid/QualityMark";
 import { knownElsewhere } from "../machine-menu/header-words";
 import { noteKey } from "../machine-menu/note-key";
+import { setupButtonOf } from "../journey-grid/setup-button";
 import {
   cardLogged,
   cardNextOf,
@@ -47,6 +48,16 @@ import "./phone.css";
 export interface PhoneSessionStageProps {
   /** Today's routine, in order. */
   rows: JourneyRow[];
+  /**
+   * The rest of the floor, in its walking order, when the FileMaker floor is
+   * showing (the open session round, Oct 9 2026; AJ's "1b": "you have every
+   * machine on the screen and you just fill in the ones you did"): drawn
+   * under today's cards as a plain list of names, each with its own Add.
+   * Null or absent: today's cards only, as before.
+   */
+  floor?: JourneyRow[] | null;
+  /** Adds a machine of the floor to today's list and makes it the card in hand (the grid's +). */
+  onAddMachine?: (machineId: string) => void;
   /** Her past sessions, oldest → newest. */
   history: JourneySession[];
   values: Record<string, LiveSet>;
@@ -57,6 +68,13 @@ export interface PhoneSessionStageProps {
   onCommit: () => void;
   /** The machine menu (features/machine-menu): settings, notes and how the client has done. */
   onOpenMachine: (machineId: string) => void;
+  /**
+   * The card's settings as one button, the iPad Now Bar's (the open
+   * session round, Oct 9 2026; AJ's "2a"): "Set up · 2 not set" on a first
+   * time, the settings once set, opening the machine card on the first empty
+   * dial. Absent, the settings are words, as before.
+   */
+  onSetUp?: (machineId: string) => void;
   /** Reorder, add or take off a machine (the iPad's RoutineOrderSheet). */
   onReorder: () => void;
   /**
@@ -76,6 +94,12 @@ export interface PhoneSessionStageProps {
    */
   plan?: { have: number; of: number } | null;
   onOpenPlan?: () => void;
+  /**
+   * Start from a routine… (the open session round, Oct 9 2026; AJ's "1b"):
+   * the iPad corner's sheet, from the phone's foot. Absent until today's
+   * list is on screen.
+   */
+  onStartFrom?: () => void;
   step?: number;
   /**
    * What a card with no past times may say (machine menu, Oct 2026): every
@@ -96,6 +120,8 @@ export interface PhoneSessionStageProps {
 
 export function PhoneSessionStage({
   rows,
+  floor = null,
+  onAddMachine,
   history,
   values,
   focusId,
@@ -103,11 +129,13 @@ export function PhoneSessionStage({
   onChange,
   onCommit,
   onOpenMachine,
+  onSetUp,
   onReorder,
   planNext = null,
   onAddPlanned,
   plan = null,
   onOpenPlan,
+  onStartFrom,
   step = 2,
   everythingRead = false,
   coverage = "unknown",
@@ -116,6 +144,7 @@ export function PhoneSessionStage({
 }: PhoneSessionStageProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const today = studioTodayKey();
+  const floorRows = floor && onAddMachine ? floor : null;
 
   // The card in hand comes into view when it changes (Next, or a tap on
   // another card), never while the trainer is typing into it.
@@ -125,6 +154,33 @@ export function PhoneSessionStage({
     el?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [focusId]);
 
+  /* The doors: Reorder or add, Start from a routine…, the plan. With
+     nothing on today's list yet and the floor below, they come FIRST (the
+     whole-branch review, Oct 9 2026): under twenty-odd floor rows, Start
+     from a routine… was a long scroll away on the phone, one tap away in the
+     iPad's corner. */
+  const doorsFirst = rows.length === 0 && !!floorRows && floorRows.length > 0;
+  const doors = (
+    <div className="ph-stage__doors" data-testid="phone-doors">
+      <button type="button" className="ph-stage__reorder" onClick={onReorder}>
+        <ListOrdered size={16} aria-hidden />
+        Reorder or add a machine
+      </button>
+      {onStartFrom && (
+        <button type="button" className="ph-stage__reorder" data-testid="phone-start-from" onClick={onStartFrom}>
+          <ListPlus size={16} aria-hidden />
+          Start from a routine…
+        </button>
+      )}
+      {plan && onOpenPlan && (
+        <button type="button" className="ph-stage__reorder" data-testid="phone-plan" onClick={onOpenPlan}>
+          <Route size={16} aria-hidden />
+          The plan · {plan.have} of {plan.of}
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="ph-stage" ref={listRef}>
       <p className="ph-stage__note" role="note">
@@ -132,7 +188,9 @@ export function PhoneSessionStage({
       </p>
       {rows.length === 0 ? (
         <>
-          <p className="ph-stage__empty">No machines in today's routine yet.</p>
+          <p className="ph-stage__empty">
+            {floorRows && floorRows.length > 0 ? "Tap Add on a machine you're doing." : "No machines in today's routine yet."}
+          </p>
           {planNext && onAddPlanned && (
             <button type="button" className="ph-card__next ph-card__next--plan ph-stage__plan" onClick={() => onAddPlanned(planNext.id)}>
               Next in the plan: <span>{planNext.name}</span> · Add
@@ -171,6 +229,7 @@ export function PhoneSessionStage({
                 }}
                 onChange={(patch) => onChange(id, patch)}
                 onOpenMachine={() => onOpenMachine(id)}
+                onSetUp={onSetUp ? () => onSetUp(id) : undefined}
                 noPast={noPastWords({
                   knownElsewhere: knownElsewhere(
                     { metric: totals?.currentMachineMetrics?.[id] ?? null, stat: totals?.machineStats?.[id] ?? null },
@@ -185,18 +244,40 @@ export function PhoneSessionStage({
           })}
         </ol>
       )}
-      <div className="ph-stage__doors">
-        <button type="button" className="ph-stage__reorder" onClick={onReorder}>
-          <ListOrdered size={16} aria-hidden />
-          Reorder or add a machine
-        </button>
-        {plan && onOpenPlan && (
-          <button type="button" className="ph-stage__reorder" data-testid="phone-plan" onClick={onOpenPlan}>
-            <Route size={16} aria-hidden />
-            The plan · {plan.have} of {plan.of}
-          </button>
-        )}
-      </div>
+      {doorsFirst && doors}
+      {floorRows && floorRows.length > 0 && (
+        /* The rest of the floor: names only, in the walking order, each a
+           40px Add. A plain list, never a second set of cards: the card is
+           for the machine in hand. */
+        <section className="ph-floor" aria-label="Rest of the floor">
+          <h3 className="ph-floor__head">Rest of the floor</h3>
+          <ul className="ph-floor__list">
+            {floorRows.map((row) => (
+              <li key={row.machine.id} className="ph-floor__row">
+                <span className="ph-floor__name">{row.machine.name}</span>
+                {row.machine.outOfService ? (
+                  /* Out of service on the roster: said, with no Add (the grid's Today cell says the same). */
+                  <span className="ph-floor__out">Out of service</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="ph-floor__add"
+                    aria-label={`Add ${row.machine.name} to today's session`}
+                    onClick={() => {
+                      onCommit();
+                      onAddMachine?.(row.machine.id);
+                    }}
+                  >
+                    <Plus size={16} strokeWidth={2.5} aria-hidden />
+                    Add
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {!doorsFirst && doors}
     </div>
   );
 }
@@ -215,6 +296,7 @@ function MachineCard({
   onNext,
   onChange,
   onOpenMachine,
+  onSetUp,
   noPast,
 }: {
   order: number;
@@ -231,6 +313,8 @@ function MachineCard({
   onNext: () => void;
   onChange: (patch: Partial<LiveSet>) => void;
   onOpenMachine: () => void;
+  /** The settings button: the machine card on the first empty dial. */
+  onSetUp?: () => void;
   /** What the strip says with no past times on the card (`noPastWords`). */
   noPast: string;
 }) {
@@ -243,6 +327,7 @@ function MachineCard({
   const outcome = value?.outcome ?? null;
   const bloodFlow = outcome === "practice" && value?.bloodFlow === true;
   const settings = machine.settings ? Object.entries(machine.settings) : [];
+  const setup = onSetUp ? setupButtonOf(machine) : null;
   const nextIs = cardNextOf(nextName, planNext);
   const ghost = seconds
     ? last?.isTSC && typeof last.seconds === "number"
@@ -272,7 +357,12 @@ function MachineCard({
         </button>
       </div>
 
-      {settings.length > 0 && (
+      {setup ? (
+        /* One 40px button, the Now Bar's: it wraps, never cut. */
+        <button type="button" className="ph-card__setup" data-kind={setup.kind} aria-label={setup.aria} onClick={onSetUp}>
+          {setup.words}
+        </button>
+      ) : settings.length > 0 && (
         <p className="ph-card__settings">
           {settings.map(([k, v]) => (
             <span key={k} title={machine.settingLabels?.[k] ?? k}>

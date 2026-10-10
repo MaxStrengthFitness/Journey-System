@@ -257,10 +257,18 @@ describe("in a session, the box is the tracker's one draft", () => {
     expect(host.textContent).toContain("Saved");
   });
 
-  it("steps Add down to blue while a settings change is unsaved", async () => {
-    const host = await mount(<Session onChange={vi.fn()} stepDown />);
+  /* The open session round's review (Oct 9 2026): before Who's this?
+     there is no client to file a note on. It said "Couldn't save" with a Try
+     again that could never work. */
+  it("an open session with no client yet writes nothing, keeps the words and says to choose who this is, with no Try again", async () => {
+    const host = await mount(<Session onChange={vi.fn()} clientId="" clientFirstName="" />);
     await type(box(host), "Knee tracks in at the top");
-    expect(byText(host, "Add note")!.getAttribute("data-quiet")).toBe("true");
+    await click(byText(host, "Add note"));
+    expect(writes.machineNotes).toEqual([]);
+    expect(host.textContent).toContain("Choose who this is first (Who's this?) · your words stay here");
+    expect(host.textContent).not.toContain("Couldn't save");
+    expect(byText(host, "Try again")).toBeNull();
+    expect(box(host).value).toBe("Knee tracks in at the top");
   });
 });
 

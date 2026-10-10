@@ -269,4 +269,75 @@ describe("completeWorkoutSession", () => {
     const sessionWrite = calls.batchWrites.find((w) => w.path === "sessions/sess1")!;
     expect(sessionWrite.data).not.toHaveProperty("notes");
   });
+
+  /* The open session round's review (Oct 9 2026): Who's this? at Finish
+     opens the client's settings a moment before Finish runs. A machine
+     missing from settings nobody has read from the server is not "nothing on
+     file": a merged `settings: {}` would still replace the saved seat and
+     positions, and a starting weight would be written over the real one. */
+  it("with the client's settings not known yet, writes today's weight and leaves the saved settings and starting weight alone", async () => {
+    await completeWorkoutSession({} as never, session, client, logs, "", trainer, {}, "uid-t1", undefined, { settingsOnFileKnown: false });
+    const setting = calls.batchWrites.find((w) => w.path === "clientMachineSettings/c1_m1")!;
+    expect(setting.data.currentWeight).toBe(180);
+    expect(setting.options).toEqual({ merge: true });
+    for (const kept of ["settings", "startingWeight", "startingWeightDate"]) {
+      expect(setting.data, kept).not.toHaveProperty(kept);
+    }
+  });
+
+  it("not known yet, a machine whose settings ARE on screen writes them back as before", async () => {
+    const onScreen = { m1: { machineId: "m1", settings: { seat: "4" }, startingWeight: 150 } };
+    await completeWorkoutSession({} as never, session, client, logs, "", trainer, onScreen, "uid-t1", undefined, { settingsOnFileKnown: false });
+    const m1 = calls.batchWrites.find((w) => w.path === "clientMachineSettings/c1_m1")!;
+    expect(m1.data.settings).toEqual({ seat: "4" });
+    expect(m1.data).not.toHaveProperty("startingWeight");
+    // m2 has no entry: left alone.
+    const m2 = calls.batchWrites.find((w) => w.path === "clientMachineSettings/c1_m2")!;
+    expect(m2.data).not.toHaveProperty("settings");
+    expect(m2.data).not.toHaveProperty("startingWeight");
+  });
+
+  it("known (the default): a first time on a machine records its starting weight, as before", async () => {
+    await finish();
+    const setting = calls.batchWrites.find((w) => w.path === "clientMachineSettings/c1_m1")!;
+    expect(setting.data.settings).toEqual({});
+    expect(setting.data.startingWeight).toBe(180);
+  });
+
+  /* The whole-branch review (Oct 9 2026). */
+  it("not known yet, a partial entry on this iPad (an assign's held set-up) is never taken for the whole: no starting weight over the server's", async () => {
+    // The assign's merge left only the held dials on this iPad's copy: no startingWeight in it.
+    const partial = { m1: { machineId: "m1", settings: { seat: "4" } } };
+    await completeWorkoutSession({} as never, session, client, logs, "", trainer, partial, "uid-t1", undefined, { settingsOnFileKnown: false });
+    const m1 = calls.batchWrites.find((w) => w.path === "clientMachineSettings/c1_m1")!;
+    expect(m1.data.settings).toEqual({ seat: "4" });
+    expect(m1.data).not.toHaveProperty("startingWeight");
+    expect(m1.data).not.toHaveProperty("startingWeightDate");
+  });
+
+  it("known, the starting weight is today's only on the client's first performed set on the machine: an earlier one in Journey writes none", async () => {
+    // A Finish whose settings weren't known wrote no starting weight; the client's totals hold that session's set.
+    const done = { ...client, currentMachineMetrics: { m1: { weight: "150", lastSessionId: "sess0" } } };
+    await completeWorkoutSession({} as never, session, done, logs, "", trainer, { m1: { machineId: "m1", settings: {}, currentWeight: 150 } }, "uid-t1");
+    const m1 = calls.batchWrites.find((w) => w.path === "clientMachineSettings/c1_m1")!;
+    expect(m1.data).not.toHaveProperty("startingWeight");
+    // m2 was never performed before: a first time, recorded.
+    const m2 = calls.batchWrites.find((w) => w.path === "clientMachineSettings/c1_m2")!;
+    expect(m2.data.startingWeight).toBe(120);
+  });
+
+  it("a client added on this iPad for the session: every machine is a first time, whatever has answered", async () => {
+    await completeWorkoutSession({} as never, session, client, logs, "", trainer, {}, "uid-t1", undefined, { settingsOnFileKnown: false, newClient: true });
+    const m1 = calls.batchWrites.find((w) => w.path === "clientMachineSettings/c1_m1")!;
+    expect(m1.data.settings).toEqual({});
+    expect(m1.data.startingWeight).toBe(180);
+  });
+
+  it("closes a session that was open (isUnassigned false), and leaves a client session's fields as they were", async () => {
+    await completeWorkoutSession({} as never, { ...session, isUnassigned: false }, client, logs, "", trainer, {}, "uid-t1");
+    expect(calls.batchWrites.find((w) => w.path === "sessions/sess1")!.data.isUnassigned).toBe(false);
+    calls.batchWrites = [];
+    await finish();
+    expect(calls.batchWrites.find((w) => w.path === "sessions/sess1")!.data).not.toHaveProperty("isUnassigned");
+  });
 });

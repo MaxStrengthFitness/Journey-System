@@ -13,8 +13,10 @@
  *   · A cleared field is removed; a key the screen does not show survives
  *     (settings-write.ts).
  *   · Every settings change leaves an audit row in the machine's
- *     settingHistory, with a reason. A first-time set-up needs none; changing
- *     values that were already saved does — once, for the whole Save.
+ *     settingHistory, with a reason. A first-time set-up asks none; changing
+ *     values that were already saved ASKS for one, once for the whole Save,
+ *     and never requires it (the first-session round, Oct 8 2026): with none
+ *     typed, `reasonFor` writes "Settings update".
  *   · A load typed here is the CURRENT weight. It becomes the starting weight
  *     too only when the client has none, the way the Equipment tab does it.
  *   · A starting weight already on file is changed only by "Correct the
@@ -91,7 +93,11 @@ export interface SetupPlanEntry {
 
 export interface SetupPlan {
   entries: SetupPlanEntry[];
-  /** True when values that were already saved are being changed: the Save needs a reason. */
+  /**
+   * True when values that were already saved are being changed: the Save
+   * ASKS for a reason, never requires one (the open session round, Oct 9
+   * 2026); with none typed, `reasonFor` gives the default.
+   */
   needsReason: boolean;
   settingsChanged: number;
   weightsChanged: number;

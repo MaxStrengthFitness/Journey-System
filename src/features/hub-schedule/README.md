@@ -17,7 +17,7 @@ This folder is the Hub's Schedule layer: the grid, its cards, the top, the spotl
 | `HubGrid.tsx` + `hub-grid.css` | The grid (prefix `hs-`). One scroller for both axes; your column pinned |
 | `day-summary.ts` | The week strip's counts and dots, the chips, the spotlight's words. Pure |
 | `DayHeader.tsx` + `day-header.css` | `DayHeader` (the command bar: layers, chips, Today, Tasks, Key; then the week), `DaySummary` (the spotlight's line, an unread day, the phone's Focus), `KeySheet` (prefix `hd-`) |
-| `peek-model.ts` | What the peek says, from the same entry as an opened Opportunities row. Pure |
+| `peek-model.ts` | What the peek says, from the same entry as an opened Opportunities row. Pure. Its "Last in" row says the day once, "Tue, 4 days ago" (`lastInText`, the floor round, Oct 9 2026, F2): the engine's "Last in Tue (4 days)" stays as written on the Opportunities list, where nothing labels it |
 | `Peek.tsx` + `peek.css` | The peek (prefix `hp-`) |
 | `your-day.ts` | Your own column, in words: the head's line ("12 sessions · 6:00 AM – 12:00 PM · 8 to go"), in parts so a narrow head can drop the span. Pure (hub cherry round) |
 | `next-half-hour.ts` | Who is on the Next 30 minutes strip and when it shows: today only, from half an hour before the first booking to the end of the last; never a booking that is over. Pure (hub cherry round) |
@@ -54,7 +54,7 @@ AJ, on the Screen Atlas's list of what looks off on the Hub: "these very much ne
 - **Columns by id, never a name** (`columns.ts`): Unassigned holds what no trainer can claim, saying Mindbody's staff name whole; "You" by trainer id; two names that read alike show the full names.
 - **The card's second line is never cut**: "Not logged", "Didn't come" and "Left open" sit with the time; "New to Journey" and a service show whole or not at all, and the peek says them in full (`cardRestWords`).
 - **Left open**: a session gone quiet for an hour (the app's one staleness rule, `isSessionValid`) is never "In session" all day; it recedes with a plum edge.
-- **The peek says what happened** and its button follows it (`peekState`): Edit session opens the Activity Archive's own session pop-up for that day's session (AJ: "switching 'start session' to 'edit session'"); Open session or Resume or start new go to the Active Session; Log past session opens her Activity Archive; Didn't come has no Start.
+- **The peek says what happened** and its button follows it (`peekState`): Edit session opens the Activity Archive's own session pop-up for that day's session (AJ: "switching 'start session' to 'edit session'"); Back to the session (it read "Open session" until Oct 10 2026, when AJ took that name for the Client Directory's session before a client is chosen) or Resume or start new go to the Active Session; Log past session opens her Activity Archive; Didn't come has no Start.
 - **A tap on a column head** opens Opportunities narrowed to that trainer's bookings (AJ approved), with Show everyone.
 - **The first time label** sits below its line, never half under the trainer row.
 - **The service** only when it isn't the day's usual one (`usualServiceOf`: the name most of the day's bookings carry).

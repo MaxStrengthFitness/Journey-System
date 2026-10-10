@@ -104,6 +104,8 @@ import {
   makeItAboutWords,
   noteOrigin,
   noteRefusedLaterWords,
+  NOTE_NEEDS_CLIENT,
+  NOTES_NEED_CLIENT,
   noteSaveLine,
   reachesLeaders,
   resolvedLabel,
@@ -161,8 +163,6 @@ export interface MenuNotesProps {
   /** In a session: the tracker's one note draft, and where every change to it goes. */
   draft?: SessionNoteDraft | null;
   onDraftChange?: (draft: SessionNoteDraft) => void;
-  /** A settings change is unsaved: one loud action at a time, so Add steps down to blue. */
-  stepDown?: boolean;
   /** "Add a Health note" after a save for pain or discomfort; a new `nonce` opens the box again. */
   healthNote?: { changeWords: string; nonce: number } | null;
   /** On the profile: open the session a note was written in. */
@@ -207,7 +207,6 @@ export function MenuNotes({
   quotableNumbers = false,
   draft = null,
   onDraftChange,
-  stepDown = false,
   healthNote = null,
   onOpenSession,
   focusNote = null,
@@ -346,6 +345,14 @@ export function MenuNotes({
     }
     const w = clientNoteOf(d);
     if (!w) return;
+    /* No client yet (an open session before Who's this?; the open session
+       round's review, Oct 9 2026): nothing to file it on, so nothing is
+       written (addMachineNote refuses it) and the words stay. Said plainly,
+       never a Try again that can't work; "The machine itself" still saves. */
+    if (!clientId.trim()) {
+      setStatus({ text: NOTE_NEEDS_CLIENT, retry: false });
+      return;
+    }
     let write: Promise<MachineNote | null>;
     try {
       write = addMachineNote({
@@ -667,6 +674,11 @@ export function MenuNotes({
   };
 
   const list = () => {
+    /* No client yet (an open session before Who's this?): there are no
+       notes of theirs to read, so the list never loads. Said, never
+       "Loading notes…" for as long as the session has no client (the open
+       session's screens preview, Oct 9 2026). */
+    if (!clientId.trim()) return <p className="mm-none">{NOTES_NEED_CLIENT}</p>;
     if (!zones) {
       return <p className="mm-none">{journalFailed ? NOTES_UNREAD_LINE : THREAD_WORDS.loading}</p>;
     }
@@ -842,7 +854,6 @@ export function MenuNotes({
                   <button
                     type="button"
                     className="mm-add"
-                    data-quiet={stepDown ? "true" : undefined}
                     disabled={busy || !hasText || !author || (target === "floor" && !floorStudio.id)}
                     onClick={() => void add()}
                   >

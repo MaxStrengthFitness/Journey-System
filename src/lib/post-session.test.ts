@@ -50,6 +50,24 @@ describe("todayLines", () => {
     expect(todayLines({ order: ["hip"], logs: [{ machineId: "hip", weight: "40", reps: "8" }], nameOf, priorOf: () => undefined })[0].first).toBe(true);
   });
 
+  it("with the earlier sets not read yet, compares nothing and calls nothing a first (the whole-branch review, Oct 9 2026)", () => {
+    const lines = todayLines({
+      order: ["hip", "leg"],
+      logs: [
+        { machineId: "hip", weight: "66", reps: "9" },
+        { machineId: "leg", weight: "120", reps: "6" },
+      ],
+      nameOf,
+      // What a partial read happens to hold: never compared against.
+      priorOf: (id) => ({ hip: { weight: 50, reps: 8 } })[id],
+      priorKnown: false,
+    });
+    expect(lines.map((l) => l.first)).toEqual([false, false]);
+    expect(lines.map((l) => l.loadDelta)).toEqual([null, null]);
+    expect(lines.map((l) => l.countDelta)).toEqual([null, null]);
+    expect(lines.map((l) => l.outcome)).toEqual(["performed", "performed"]);
+  });
+
   it("collapses a two-sided machine into one line", () => {
     const lines = todayLines({
       order: ["torso"],
@@ -122,6 +140,20 @@ describe("strengthJourney", () => {
     expect(journeySentence(read, "Judy")).toBe(
       "Judy's working loads are up 21% since Jul 1, 2026 across 4 machines. Strongest trend: lower body, up 33%.",
     );
+  });
+
+  // The floor round, Oct 9 2026, F1: an iPad that never heard the server's answer for the
+  // earlier sessions holds only its own copy. That is "can't tell", never "not enough history".
+  it("says it couldn't read, never that the history is thin, when the earlier sessions were not read", () => {
+    const unread = strengthJourney(rows, false);
+    expect(unread).toMatchObject({ enough: false, pct: null, standout: null, byGroup: [], historyRead: false });
+    expect(journeySentence(unread, "Judy")).toBe("Couldn't read the earlier sessions here. The trend is on the profile.");
+    expect(journeySentence(unread, "Judy")).not.toMatch(/Not enough history/);
+  });
+
+  it("treats a snapshot made before the field as read", () => {
+    const { historyRead: _gone, ...older } = strengthJourney(rows.slice(0, 2));
+    expect(journeySentence(older, "Judy")).toMatch(/Not enough history yet/);
   });
 });
 

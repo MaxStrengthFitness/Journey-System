@@ -71,14 +71,23 @@ const num = (v: unknown): number | null => {
  * One line per planned machine, in the order the routine was performed.
  * Torso Rotation's two sides collapse into one line (the left side's
  * numbers, which is what the grid shows too).
+ *
+ * `priorKnown: false` when the client's earlier sets have not been read (a
+ * session given its client a moment before Finish, the open session's Who's
+ * this?; the whole-branch review, Oct 9 2026): nothing is compared and no
+ * machine is called a first, since "no earlier set" would only mean "not
+ * read yet".
  */
 export function todayLines(params: {
   order: readonly string[];
   logs: readonly TodayLog[];
   nameOf: (machineId: string) => string;
   priorOf: (machineId: string) => PriorSet | undefined;
+  priorKnown?: boolean;
 }): TodayLine[] {
-  const { order, logs, nameOf, priorOf } = params;
+  const { order, logs, nameOf } = params;
+  const known = params.priorKnown !== false;
+  const priorOf = (id: string) => (known ? params.priorOf(id) : undefined);
   const byMachine = new Map<string, TodayLog>();
   for (const l of logs) {
     if (l.side === "Right" && byMachine.has(l.machineId)) continue;
@@ -109,7 +118,7 @@ export function todayLines(params: {
         comparable && count !== null
           ? count - ((isTSC ? prior.seconds : prior.reps) ?? 0)
           : null,
-      first: performed && !prior,
+      first: known && performed && !prior,
       skipReason: log?.skipReason ?? null,
     };
   });
@@ -167,13 +176,24 @@ export interface JourneyRead {
   /** The one machine with the biggest gain. */
   standout: { name: string; startWeight: number; nowWeight: number; pct: number } | null;
   enough: boolean;
+  /**
+   * False when the earlier sessions were not read from the server (an iPad
+   * offline or on slow Wi-Fi at Finish): the history is unknown, never thin
+   * (the floor round, Oct 9 2026, F1). Missing means read, for snapshots
+   * made before the field.
+   */
+  historyRead?: boolean;
 }
 
 /** Minimum history before the screen makes a claim about the journey. */
 export const JOURNEY_MIN_MACHINES = 3;
 export const JOURNEY_MIN_SESSIONS = 3;
 
-export function strengthJourney(rows: readonly JourneyRowInput[]): JourneyRead {
+/** Unread history: nothing claimed, and the sentence says it couldn't read rather than "not enough". */
+export const JOURNEY_UNREAD_SENTENCE = "Couldn't read the earlier sessions here. The trend is on the profile.";
+
+export function strengthJourney(rows: readonly JourneyRowInput[], historyRead = true): JourneyRead {
+  if (!historyRead) return { pct: null, machines: 0, since: null, byGroup: [], standout: null, enough: false, historyRead: false };
   const usable = rows.filter(
     (r) =>
       r.startWeight !== null &&
@@ -212,11 +232,13 @@ export function strengthJourney(rows: readonly JourneyRowInput[]): JourneyRead {
     byGroup: enough ? byGroup : [],
     standout: enough && standoutRow && standoutRow.pct > 0 ? standoutRow : null,
     enough,
+    historyRead: true,
   };
 }
 
 /** The sentence the trainer reads out. */
 export function journeySentence(read: JourneyRead, firstName: string): string {
+  if (read.historyRead === false) return JOURNEY_UNREAD_SENTENCE;
   if (!read.enough || read.pct === null) {
     return `Not enough history yet to call a trend — ${JOURNEY_MIN_SESSIONS} sessions on ${JOURNEY_MIN_MACHINES} machines is the bar.`;
   }

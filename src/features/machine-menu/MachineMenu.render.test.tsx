@@ -590,3 +590,143 @@ describe("a note about the machine itself, added from the card", () => {
     expect(strip?.textContent).toContain("Left pad sticks");
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * Set up from the Now Bar (the open session round, Oct 9 2026; AJ's "2a")
+ * ------------------------------------------------------------------ */
+
+describe("Set up: the card on the first empty dial, and Save closes it with Undo", () => {
+  const fly = { id: "chest-fly", name: "Chest Fly", order: 3, settingOptions: ["Gap", "Back Pad", "Seat"], standardSettings: { Gap: "1" } } as unknown as Machine;
+  const quickHost = () => host({ door: "session", machines: [...machines, fly], session: { id: "s3", number: 3, day: "2026-10-04" } });
+  const field = () => document.querySelector<HTMLInputElement>('.mm-dialog [data-editor="field"] input');
+  /** The label of the tile that is its editor now (the settings card, Oct 10 2026). */
+  const title = () => document.querySelector(".mm-dialog [data-editing] .mm-tile__label")?.textContent ?? null;
+
+  async function typeKeys(text: string) {
+    const input = field();
+    expect(input).not.toBeNull();
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    for (const ch of text) {
+      await act(async () => {
+        setValue.call(input, input!.value + ch);
+        input!.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(field()).toBe(input);
+    }
+  }
+
+  afterEach(() => {
+    delete (window as unknown as { __showToast?: unknown }).__showToast;
+  });
+
+  it("opens on Back Pad (the gap is the machine's 1), focused, on the number pad, in the card's own order", async () => {
+    await mount({ open: true, machineId: "chest-fly", onClose: () => {}, host: quickHost(), focusDial: true });
+    await settle();
+    expect(title()).toBe("Back Pad");
+    expect(document.activeElement).toBe(field());
+    expect(field()!.getAttribute("inputmode")).toBe("decimal");
+    // The same card: safety, the guide's set-up part, the settings, then Notes (doors.ts).
+    expect(blocks().slice(0, 3)).toEqual(["setupFirst", "settings", "notes"]);
+  });
+
+  it("either door may pass it, and neither door's order moves (doors.ts)", async () => {
+    const one = await mount({ open: true, machineId: "chest-fly", onClose: () => {}, host: quickHost() });
+    await settle();
+    const plain = blocks();
+    await act(async () => one.root.unmount());
+    mounted = mounted.filter((m) => m.root !== one.root);
+    document.body.innerHTML = "";
+    await mount({ open: true, machineId: "chest-fly", onClose: () => {}, host: host({ door: "profile", machines: [...machines, fly] }), focusDial: true });
+    await settle();
+    expect(title()).toBe("Back Pad");
+    const profile = blocks();
+    const withoutNotes = (order: string[]) => order.filter((b) => b !== "notes");
+    expect(withoutNotes(profile)).toEqual(withoutNotes(plain));
+  });
+
+  it("is the ordinary card from any other door: no editor open", async () => {
+    await mount({ open: true, machineId: "chest-fly", onClose: () => {}, host: quickHost() });
+    await settle();
+    expect(document.querySelector(".mm-dialog [data-editor]")).toBeNull();
+  });
+
+  it("Back Pad 3, Enter, Seat 12, Save set-up: the card closes and the toast keeps Undo for ten seconds", async () => {
+    const show = vi.fn();
+    (window as unknown as { __showToast?: typeof show }).__showToast = show;
+    let closed = 0;
+    await mount({ open: true, machineId: "chest-fly", onClose: () => (closed += 1), host: quickHost(), focusDial: true });
+    await settle();
+    await typeKeys("3");
+    await key(field(), "Enter");
+    expect(title()).toBe("Seat");
+    await typeKeys("12");
+    await click(buttonNamed("Save set-up"));
+    expect(closed).toBe(1);
+    expect(question()).toBeNull();
+    expect(show).toHaveBeenCalledTimes(1);
+    expect(show.mock.calls[0].slice(0, 3)).toEqual(["Chest Fly for Judy: set-up saved", "success", 10_000]);
+    expect(show.mock.calls[0][3].label).toBe("Undo");
+  });
+
+  /* AJ, Oct 10 2026: "i need to be able to just click on the setting and
+     input the new settings and save and exit" — his "1a": Save closes the
+     card from every door, not only Set up's. */
+  it.each(["session", "profile"] as const)("closes on Save from the machine's name too (the %s door): tap the setting, type, Save", async (door) => {
+    const show = vi.fn();
+    (window as unknown as { __showToast?: typeof show }).__showToast = show;
+    let closed = 0;
+    const h = door === "session" ? quickHost() : host({ door: "profile", machines: [...machines, fly] });
+    await mount({ open: true, machineId: "chest-fly", onClose: () => (closed += 1), host: h });
+    await settle();
+    await click(buttonNamed("Seat: not set. Set it")); // tap 1
+    expect(title()).toBe("Seat");
+    expect(document.activeElement).toBe(field());
+    await typeKeys("12");
+    await click(buttonNamed("Save set-up")); // tap 2
+    expect(closed).toBe(1);
+    expect(question()).toBeNull();
+    expect(show.mock.calls[0].slice(0, 3)).toEqual(["Chest Fly for Judy: set-up saved", "success", 10_000]);
+    expect(show.mock.calls[0][3].label).toBe("Undo");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * An open session's card, before Who's this? (the open session's screens
+ * preview, Oct 9 2026): no client, so no notes to read and no name to say
+ * ------------------------------------------------------------------ */
+
+describe("an open session's card, before the client is chosen", () => {
+  const openHost = () =>
+    host({
+      door: "session",
+      clientId: "",
+      client: null,
+      clientSettings: {},
+      sessions: [],
+      logs: [],
+      // The tracker has no client journal to listen to: it never answers.
+      journal: null,
+      journalState: "loading",
+      session: { id: "open-1", number: null, day: "2026-10-09" },
+      holdSetup: { sessionId: "open-1", keep: vi.fn(async () => undefined) },
+    } as Partial<MachineMenuHost>);
+
+  it("says where the notes come from instead of loading them for ever, and the chart says 'the client' mid-sentence", async () => {
+    await mount({ open: true, machineId: "chest-press", onClose: () => {}, host: openHost() });
+    await settle();
+    const text = card()?.textContent ?? "";
+    expect(text).toContain("Kept on this session · saved to the client when you choose them");
+    expect(text).toContain("The client's notes show here once you choose who this is (Who's this?)");
+    expect(text).not.toContain("Loading notes");
+    expect(text).toContain("How the client has done here");
+    expect(text).not.toContain("This client");
+  });
+
+  it("a client's card still loads their notes while the journal is on its way", async () => {
+    await mount({ open: true, machineId: "leg-press", onClose: () => {}, host: host({ door: "session", journal: null, journalState: "loading" }) });
+    await settle();
+    const text = card()?.textContent ?? "";
+    expect(text).toContain("Loading notes");
+    expect(text).not.toContain("once you choose who this is");
+  });
+});

@@ -11,8 +11,20 @@
  * shouldn't really be blocked"): "The plan · 3 of 6" opens Routine A's plan,
  * where a trainer swaps a machine in the plan, marks one can't do, or
  * re-plans, mid-session.
+ *
+ * The FileMaker floor (the open session round, Oct 9 2026): a session with
+ * no routine has no routine to name, so with `floor` the corner says
+ * "Today" where it said Routine and Today's routine, and "Reorder today",
+ * as the grid's groups say "Today" and "Rest of the floor".
+ *
+ * Start from a routine… (the same round, AJ's "1b": "i want to be able to
+ * take advantage of our routine builder so we can use it if we wanted too"):
+ * a sheet of routines to lay on today's list in one tap, the client's own,
+ * the starting routines and the templates. Offered on every session, and
+ * made for the one whose list is empty or built by +. It writes today's list
+ * only, never a routine.
  */
-import { Check, ChevronDown, Info, ListChecks, ListFilter, Settings2 } from "lucide-react";
+import { Check, ChevronDown, Info, ListChecks, ListFilter, ListPlus, Settings2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import "./journey-grid.css";
 
@@ -25,6 +37,8 @@ export function SessionCorner({
   plan = null,
   onPlan,
   onKey,
+  floor = false,
+  onStartFrom,
 }: {
   showAll: boolean;
   routineCount: number;
@@ -37,17 +51,22 @@ export function SessionCorner({
   /** Opens the plan's sheet. */
   onPlan?: () => void;
   onKey: () => void;
+  /** A session with no routine on the FileMaker floor: "Today", never "routine". */
+  floor?: boolean;
+  /** Opens Start from a routine…; absent until today's list is on screen. */
+  onStartFrom?: () => void;
 }) {
+  const today = floor ? "Today" : "Today's routine";
   const item = "min-h-11 rounded-lg px-3 flex items-center gap-2 cursor-pointer text-[13px] font-semibold";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         className="jg-corner__filter"
-        aria-label={`Showing ${showAll ? "every machine" : "today's routine"}, ${routineCount} of ${allCount}. Tap for the list, Reorder${plan ? ", the plan" : ""} and the Key.`}
+        aria-label={`Showing ${showAll ? "every machine" : floor ? "today's machines" : "today's routine"}, ${routineCount} of ${allCount}. Tap for the list, Reorder, Start from a routine${plan ? ", the plan" : ""} and the Key.`}
         data-testid="session-corner"
       >
         <ListFilter className="jg-corner__filter-icon" aria-hidden="true" />
-        <span className="jg-corner__title">{showAll ? "All machines" : "Routine"}</span>
+        <span className="jg-corner__title">{showAll ? "All machines" : floor ? "Today" : "Routine"}</span>
         <span className="jg-corner__count">
           {routineCount} of {allCount}
         </span>
@@ -56,7 +75,7 @@ export function SessionCorner({
       <DropdownMenuContent align="start" className="w-64 rounded-xl p-1.5">
         <DropdownMenuItem onClick={() => onShowAll(false)} className={item} data-testid="session-corner-routine">
           <Check className={`w-4 h-4 shrink-0 ${showAll ? "opacity-0" : ""}`} aria-hidden="true" />
-          <span className="flex-1">Today&apos;s routine</span>
+          <span className="flex-1">{today}</span>
           <span className="text-[12px] tabular-nums text-muted-foreground">{routineCount}</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onShowAll(true)} className={item} data-testid="session-corner-all">
@@ -67,7 +86,11 @@ export function SessionCorner({
         <div className="my-1 border-t border-slate-200 dark:border-slate-800" role="separator" />
         <DropdownMenuItem onClick={onReorder} disabled={!onReorder} className={item} data-testid="session-corner-reorder">
           <Settings2 className="w-4 h-4 shrink-0" aria-hidden="true" />
-          <span className="flex-1">Reorder today&apos;s routine</span>
+          <span className="flex-1">{floor ? "Reorder today" : "Reorder today's routine"}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onStartFrom} disabled={!onStartFrom} className={item} data-testid="session-corner-start-from">
+          <ListPlus className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span className="flex-1">Start from a routine…</span>
         </DropdownMenuItem>
         {plan && onPlan && (
           <DropdownMenuItem onClick={onPlan} className={item} data-testid="session-corner-plan">

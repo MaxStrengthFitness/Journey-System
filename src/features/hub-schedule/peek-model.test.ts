@@ -10,7 +10,22 @@ import { buildDirectoryRows } from "../client-directory/row";
 import { NOW, STUDIOS, TODAY, eastern, makeBooking, makeClient, makeContext } from "../client-directory/fixtures";
 import { momentsToday, type MomentsTodayInput } from "../hub-opportunities/moments-today";
 import type { FordEntry } from "../ford/types";
-import { peekContent, peekState } from "./peek-model";
+import { lastInText, peekContent, peekState } from "./peek-model";
+
+// The floor round, Oct 9 2026, F2: the row is labelled "Last in", so its words never say it again.
+describe("lastInText", () => {
+  it("says the day once, beside the row's own label", () => {
+    expect(lastInText("Last in Tue (4 days)")).toBe("Tue, 4 days ago");
+    expect(lastInText("Last in Aug 23 (35 days)")).toBe("Aug 23, 35 days ago");
+    expect(lastInText("Last in Yesterday (1 day)")).toBe("Yesterday");
+  });
+
+  it("leaves every other sentence as the engine wrote it", () => {
+    for (const s of ["In today already", "Back after 3 weeks — missed about 5", "First visit", "Can’t tell yet"]) {
+      expect(lastInText(s)).toBe(s);
+    }
+  });
+});
 
 function entryFor(client: Client, schedules: ScheduleEntry[], over: Partial<MomentsTodayInput> = {}) {
   const rows = buildDirectoryRows([client], makeContext({ schedules }));
@@ -126,7 +141,9 @@ describe("peekState: what happened, and the button that follows it (hub fixes, O
     expect(peekState("done", { loggedSessionHeld: false }).primary).toBeNull();
   });
   it("in session opens it; left open resumes or starts new, and says where to close it", () => {
-    expect(peekState("in-session").primary).toEqual({ kind: "open-session", label: "Open session" });
+    /* "Back to the session", never "Open session": that is the Client Directory's
+       new session before the client is chosen (AJ, Oct 10 2026: "yes"). */
+    expect(peekState("in-session").primary).toEqual({ kind: "open-session", label: "Back to the session" });
     const left = peekState("left-open");
     expect(left.words).toBe("Left open");
     expect(left.primary).toEqual({ kind: "open-session", label: "Resume or start new" });

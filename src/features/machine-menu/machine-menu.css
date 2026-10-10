@@ -23,9 +23,9 @@
        last-time figure a headline figure in it; the block heads speak the
        panel-title voice, 17/700; nothing is in capitals;
      - every button is RAISED on its 3:1 edge (a fill a hair lighter than
-       the card, a contact lift and a top light) and presses in; Save and
-       Add note take Go's depth in the 14/700 button voice; a solid blue
-       its own glow; a text button never lifts;
+       the card, a contact lift and a top light) and presses in; a solid
+       blue (Save and Add note since Oct 10 2026) drops its own glow, in
+       the 14/700 button voice; a text button never lifts;
      - a box inside the card is a WELL (the well tone, an inner shadow, no
        edge): the setting tiles, a big jump's positions, a note, Every
        session's table, a status line; a field keeps its 3:1 edge and sinks;
@@ -962,53 +962,49 @@
   color: var(--eq-ink-2);
 }
 
-/* The one loud action: Save on the change strip, the logo orange with navy
-   words, in Go's depth (a short orange glow and a white top light), never
-   Go's words: the slanted capitals are Start session's alone. The button
-   voice, 14/700 (it was 17/700), at its 56px. */
+/* Save on the change strip and Add note: the solid blue with its own words
+   and its depth (a blue-tinted lift and a top light), in the button voice,
+   14/700, at 56px. They were the logo orange, "the one loud action" (the
+   Navy Frame's open question 2); AJ's rule is that every Save is blue and
+   orange is only now and go (Start, Finish), so on the floor the one orange
+   is Finish (Oct 10 2026, the settings card: "take your pick"). Add note
+   stepped down to blue while a settings change was unsaved, one loud action
+   at a time; both blue, there is nothing to step down from. */
 .mm-save {
   min-height: 56px;
   padding: 0 24px;
   border-radius: 12px;
   border: 0;
-  background: var(--eq-go);
-  color: var(--eq-go-on);
-  box-shadow: var(--eq-glow-go), var(--eq-go-light);
+  background: var(--eq-live);
+  color: var(--eq-live-on);
+  box-shadow: var(--eq-glow-live), var(--eq-solid-light);
   font-size: 14px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
+/* A filled button restates its fill: an iPad keeps :hover after a tap. */
 .mm-save:hover {
-  background: var(--eq-go);
-  color: var(--eq-go-on);
+  background: var(--eq-live);
+  color: var(--eq-live-on);
 }
 
-/* Add note: loud too, and blue while a settings change is unsaved (one loud
-   action at a time), each in its own colour's depth. */
 .mm-add {
   min-height: 56px;
   padding: 0 24px;
   border-radius: 12px;
   border: 0;
-  background: var(--eq-go);
-  color: var(--eq-go-on);
-  box-shadow: var(--eq-glow-go), var(--eq-go-light);
+  background: var(--eq-live);
+  color: var(--eq-live-on);
+  box-shadow: var(--eq-glow-live), var(--eq-solid-light);
   font-size: 14px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
 .mm-add:hover {
-  background: var(--eq-go);
-  color: var(--eq-go-on);
-}
-
-.mm-add[data-quiet="true"],
-.mm-add[data-quiet="true"]:hover {
   background: var(--eq-live);
   color: var(--eq-live-on);
-  box-shadow: var(--eq-glow-live), var(--eq-solid-light);
 }
 
 /* Each presses in: a transform, never an animated shadow. */
@@ -1076,6 +1072,15 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 224px), 1fr));
   gap: 12px;
+}
+
+/* "Use studio standard for all" (the open session round, Oct 9 2026; AJ's
+   "2a"): one everyday button over the tiles, from two empty dials with a
+   standard up. */
+.mm-useall {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* A tile is a WELL (type and depth): the well tone, its inner shadow, no
@@ -1163,7 +1168,7 @@
   box-shadow: none;
 }
 
-/* The value, read with the iPad set down: 36px tabular. Tapping it opens the positions. */
+/* The value, read with the iPad set down: 36px tabular. Tapping it turns the tile into its field. */
 .mm-tile__val {
   flex: 1;
   min-width: 0;
@@ -1214,10 +1219,11 @@
   overflow-wrap: anywhere;
 }
 
-/* "Not set": the empty dial, a button that opens its editor. */
+/* "Not set": the empty dial, a button across the tile that turns it into
+   its field, as tall as the field, so the tile doesn't move as it opens. */
 .mm-tile__empty {
-  align-self: flex-start;
-  min-height: 44px;
+  align-self: stretch;
+  min-height: 56px;
   padding: 0 4px;
   border: 0;
   border-radius: 10px;
@@ -1250,34 +1256,17 @@
   text-align: center;
 }
 
-/* ---------- a big jump: positions, options, a field --------------------- */
+/* ---------- a dial being changed, in its own tile ---------------------- */
 
-/* A well (type and depth): the positions are raised out of it, the keys of
-   a keypad in its tray. It was a box on the 3:1 edge inside the card. */
-.mm-pos {
+/* The tile IS the editor (the settings card, Oct 10 2026; AJ: "click on the
+   setting and input the new settings and save and exit"): its field, or a
+   word dial's options, where the value was, inside the tile's well. It was a
+   second well under all the tiles, with the dial's name and a Done. */
+.mm-tile__edit {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--eq-surface-2);
-  box-shadow: var(--eq-elev-0);
-}
-
-.mm-pos__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.mm-pos__title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--eq-ink-2);
-  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 /* 48×48, 8px apart, wrapping: never a sideways scroll. */
@@ -1383,6 +1372,26 @@
   color: var(--eq-ink);
 }
 
+/* A dial's field in its tile: the value's own size (36px, tabular, read with
+   the iPad set down), so the number doesn't change size as it is typed; a
+   word dial's at the word's 24px. The tile's 56px row, the 3:1 edge kept. */
+.mm-tile__input {
+  width: 100%;
+  min-width: 0;
+  min-height: 56px;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.mm-tile__input[data-keypad="text"] {
+  font-size: 24px;
+  font-weight: 600;
+  text-align: left;
+}
+
 .mm-field__input:focus-visible,
 .mm-upd__input:focus-visible {
   outline: 2px solid var(--eq-focus-ring);
@@ -1464,11 +1473,13 @@
   background: var(--eq-live-fill);
 }
 
+/* "Seat 4 → 5" and, when a saved value moves, the folded "Why? (optional)"
+   (an everyday button; AJ's "3a", Oct 10 2026). */
 .mm-strip__line {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 12px;
+  align-items: center;
+  gap: 8px 12px;
   margin: 0;
 }
 
@@ -1477,11 +1488,6 @@
   font-weight: 700;
   color: var(--eq-ink);
   overflow-wrap: anywhere;
-}
-
-.mm-strip__why {
-  font-size: 15px;
-  color: var(--eq-ink-muted);
 }
 
 /* Save sits at least 24px below the nearest ± (the strip's own padding and gap). */

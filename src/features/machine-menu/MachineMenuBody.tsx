@@ -14,8 +14,6 @@
  *   - "Last changed …" selects that change's session on the chart;
  *   - the chart's Open note opens the note's thread in Notes;
  *   - "Add a Health note" after a pain save opens the note box;
- *   - while a settings change is unsaved, Add note steps down to blue (one
- *     loud action at a time);
  *   - a note about the machine itself, once added, reads the studio's notes
  *     on the unit again, so the safety strip shows it;
  *   - the header's pill shows while the safety strip is scrolled away, and
@@ -43,7 +41,7 @@ import type { MachineCatalogEntry } from "../../types/machines";
 import { SetupGuide } from "../equipment/SetupGuide";
 import { useScrollerPad } from "../client-profile/use-scroller-pad";
 import { usePhone } from "../phone/device";
-import { DialTiles } from "./DialTiles";
+import { DialTiles, type HeldTarget } from "./DialTiles";
 import { blockOrder, menuLayoutFor, type BlockId, type MenuLayout } from "./doors";
 import { MachineTimeline } from "./MachineTimeline";
 import { MenuHeader } from "./MenuHeader";
@@ -70,6 +68,8 @@ export interface MachineMenuBodyProps {
   inline?: boolean;
   /** A layout to use instead of the viewport's (tests, the inline pane). */
   layout?: MenuLayout;
+  /** Quick set-up (the Now Bar's Set up): the first empty dial's editor open at once. */
+  focusDial?: boolean;
 }
 
 /** The viewport's size, kept up to date through a turn of the iPad. */
@@ -99,7 +99,17 @@ function useViewport(): { width: number; height: number } {
   return size;
 }
 
-export function MachineMenuBody({ host, machineId, catalogById, onClose, onBack, titleAs, inline = false, layout: forcedLayout }: MachineMenuBodyProps) {
+export function MachineMenuBody({
+  host,
+  machineId,
+  catalogById,
+  onClose,
+  onBack,
+  titleAs,
+  inline = false,
+  layout: forcedLayout,
+  focusDial = false,
+}: MachineMenuBodyProps) {
   // A new number reads the studio's notes on the unit again (a floor note was added here).
   const [floorRound, setFloorRound] = useState(0);
   const data = useMachineMenuData(host, machineId, catalogById, floorRound);
@@ -109,7 +119,6 @@ export function MachineMenuBody({ host, machineId, catalogById, onClose, onBack,
   const layout: MenuLayout = forcedLayout ?? (inline ? (isPhone ? "phone" : "portrait") : menuLayoutFor(viewport.width, viewport.height, isPhone));
 
   const [selected, setSelected] = useState<string | null>(null);
-  const [settingsDirty, setSettingsDirty] = useState(false);
   const [healthNote, setHealthNote] = useState<{ changeWords: string; nonce: number } | null>(null);
   const [focusNote, setFocusNote] = useState<{ id: string; nonce: number } | null>(null);
 
@@ -183,6 +192,20 @@ export function MachineMenuBody({ host, machineId, catalogById, onClose, onBack,
     [host.door, layout, data.safety.count, data.firstTime],
   );
 
+  /* An open session before its client is chosen (the open session round,
+     Oct 9 2026; AJ's "3a"): the settings' Save keeps the values on the
+     session, never on a client. `key` is where this iPad notes what is held
+     for the toast's Undo, never a client's id. */
+  const holdSetup = host.holdSetup ?? null;
+  const equipmentId = equipment?.id ?? null;
+  const hold = useMemo<HeldTarget | null>(
+    () =>
+      holdSetup && !host.clientId && equipmentId
+        ? { key: `held:${holdSetup.sessionId}`, keep: (values, sources) => holdSetup.keep(equipmentId, values, sources) }
+        : null,
+    [holdSetup, host.clientId, equipmentId],
+  );
+
   if (!equipment || !model) return null;
 
   const machineNameOf = (id: string) => host.machines.find((m) => m.id === id)?.name ?? null;
@@ -237,7 +260,12 @@ export function MachineMenuBody({ host, machineId, catalogById, onClose, onBack,
             onSaved={data.history.reload}
             onLastChanged={onLastChanged}
             onAddHealthNote={onAddHealthNote}
-            onDirtyChange={setSettingsDirty}
+            focusDial={focusDial}
+            // Save closes the card from every door that has one (AJ's "1a",
+            // Oct 10 2026), with Undo in the toast; inline there is none.
+            onSaveClose={onClose}
+            hold={hold}
+            settingsUnsure={!!host.settingsUnsure}
           />
         );
       case "notes":
@@ -264,7 +292,6 @@ export function MachineMenuBody({ host, machineId, catalogById, onClose, onBack,
             quotableNumbers={!!data.ctx.quotableNumbers}
             draft={host.door === "session" ? (host.noteDraft ?? null) : undefined}
             onDraftChange={host.door === "session" ? host.onNoteDraftChange : undefined}
-            stepDown={settingsDirty}
             healthNote={healthNote}
             onOpenSession={host.door === "profile" ? host.onOpenSession : undefined}
             focusNote={focusNote}

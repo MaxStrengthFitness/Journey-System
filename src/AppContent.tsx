@@ -60,9 +60,13 @@ import { coverageOfClient, homeCutoverOf } from "./lib/client-coverage";
 import { LoadingArea } from "./components/LoadingMark";
 import {
   findMyLiveSession,
-  forgetLiveSession,
+  isOpenSession,
   myTrainerIds,
+  openSessionElsewhereWords,
+  ownSessionName,
   peekLiveSessionId,
+  resumeSession,
+  type RememberedSessionData,
 } from "./lib/live-session";
 import { afterOverlayClose } from "./lib/scroll-lock";
 import { installShakeUndoGuard } from "./lib/shake-undo";
@@ -165,7 +169,7 @@ import { FeedbackProvider, FeedbackButton } from "./features/feedback";
 import { NotificationBell } from "./features/notifications";
 import { plannerIntentFromLink, requestPlanner } from "./features/relay/intent";
 import { PlannerReminders } from "./features/relay/reminders/PlannerReminders";
-import { LeaveConfirmDialog, useGuardedSetter, useGuardedState, useLeaveGuard } from "./features/unsaved-changes";
+import { LeaveConfirmDialog, useGuardedSetter, useLeaveGuard } from "./features/unsaved-changes";
 import { sendSetsNow, signOutQuestion, unsentWritesWaiting } from "./features/session-record/sign-out-check";
 // Type-only, and from the module rather than the barrel, so nothing about the
 // studio-tasks chunk is pulled into the initial bundle.
@@ -338,7 +342,7 @@ export default function AppContent({
   /** Look the signed-in person up again ("Can't check" → Try again). */
   retryLookup?: () => void;
 }) {
-  const { success: toastSuccess, info: toastInfo } = useToast();
+  const { success: toastSuccess, info: toastInfo, error: toastError } = useToast();
   const { theme } = useTheme();
   const {
     activeStudioId,
@@ -504,9 +508,11 @@ export default function AppContent({
   >(null);
   // Guarded like `currentView`: a different client is a different screen,
   // and the client record stays MOUNTED across the change (see its discard).
-  const [selectedClientId, setSelectedClientId] = useGuardedState<
-    string | null
-  >(null);
+  // The raw setter goes to the Active Session alone, for Who's this? (asked
+  // at its own tap) and for taking back a client the database refused (the
+  // open session round, Oct 9 2026); every button gets the guarded one.
+  const [selectedClientId, setSelectedClientIdNow] = useState<string | null>(null);
+  const setSelectedClientId = useGuardedSetter(selectedClientId, setSelectedClientIdNow);
   const [selectedClientDoc, setSelectedClientDoc] = useState<Client | null>(
     null,
   );
@@ -729,17 +735,6 @@ export default function AppContent({
   const [hubSearchTerm, setHubSearchTerm] = useState("");
   const hubSearchInputRef = useRef<HTMLInputElement | null>(null);
 
-  const {
-    startUnassignedSession,
-    updateClient,
-  } = useClientMutations(
-    authTrainer,
-    activeStudioId,
-    machines,
-    setSelectedClientId,
-    setCurrentView,
-  );
-
   /** The header's button: the week ahead. Its click event is not a range. */
   const handleRefreshSchedule = () => {
     void pullScheduleFromMindbody();
@@ -796,54 +791,64 @@ export default function AppContent({
     [sessions, authTrainer, user?.uid],
   );
   const liveSession = currentSession ?? myLiveSession;
+  /* What sign-out and the new-version line call this trainer's running
+     session: "" is an open session, which has no client yet (Oct 9 2026). */
+  const mySessionName = ownSessionName(myLiveSession);
 
-  const resumeLiveSession = useCallback(async () => {
-    if (currentSession || (selectedClientId && !myLiveSession)) {
-      setCurrentView("workouts");
-      return;
-    }
-    if (myLiveSession?.clientId) {
-      setSelectedClientId(myLiveSession.clientId);
-      setCurrentView("workouts");
-      return;
-    }
-    // Second net: the id the device remembered, read directly — this works
-    // before the studio's sessions stream has arrived after a reload, and for
-    // a session that stream does not hold.
-    // Sep 24 2026: it is followed only while its session is LIVE. It used to
-    // be followed however old the heartbeat was, so the tab — which reads
-    // "Start Session" once nothing is live — took the trainer back into
-    // yesterday's abandoned session. An abandoned one is still reached from
-    // its client, where the Active Session asks before carrying on with it;
-    // the device just stops pointing at it (the session is not touched).
-    const rememberedId = peekLiveSessionId();
-    if (rememberedId) {
-      try {
-        const snap = await getDoc(doc(db, "sessions", rememberedId));
-        const data = snap.exists()
-          ? (snap.data() as { status?: string; clientId?: string; lastHeartbeatAt?: unknown; createdAt?: unknown })
-          : null;
-        if (data?.status === "In-Progress" && data.clientId && isSessionValid(data)) {
-          setSelectedClientId(data.clientId);
-          setCurrentView("workouts");
-          return;
-        }
-        forgetLiveSession(rememberedId);
-      } catch (error) {
-        console.error("Could not read the remembered session:", error);
-      }
-    }
-    if (selectedClientId) setCurrentView("workouts");
-    else setCurrentView("client-directory");
-  }, [currentSession, myLiveSession, selectedClientId]);
+  /* Open session goes back to this trainer's own running open session rather
+     than starting a second one (the open session round, Oct 9 2026), so the
+     stream it is found in is handed to the hook. */
+  const {
+    startOpenSession,
+    startingOpenSession,
+    updateClient,
+  } = useClientMutations({
+    authTrainer,
+    uid: user?.uid ?? null,
+    activeStudioId,
+    sessions,
+    setSelectedClientId,
+    setCurrentView,
+    onRefused: toastError,
+  });
+
+  /* The Session tab (lib/live-session.ts `resumeSession`): the stream's live
+     session, a client's or this trainer's open session, else the session the
+     device remembered, read by its id and followed only while it is live
+     (Sep 24 2026). An open session at another studio is said, not followed
+     (Oct 9 2026). */
+  const resumeLiveSession = useCallback(
+    () =>
+      resumeSession(
+        {
+          selectedHasSession: !!currentSession,
+          selectedClientId,
+          mine: myLiveSession,
+          activeStudioId,
+          rememberedId: peekLiveSessionId(),
+        },
+        {
+          readSession: async (id) => {
+            const snap = await getDoc(doc(db, "sessions", id));
+            return snap.exists() ? (snap.data() as RememberedSessionData) : null;
+          },
+          selectClient: setSelectedClientId,
+          show: (view) => setCurrentView(view),
+          elsewhere: (studioId) =>
+            toastInfo(openSessionElsewhereWords(studios.find((s) => s.id === studioId)?.name)),
+        },
+      ),
+    [currentSession, myLiveSession, selectedClientId, activeStudioId, studios, toastInfo],
+  );
 
   /*
    * A NEW VERSION (new-version round, Sep 26 2026). Every push to master
    * deploys, and a deploy deletes the screen files an open app has not
    * fetched yet. This notices a new version when Journey comes back on
    * screen, loads it by itself only on the Hub, and never over the Active
-   * Session, this trainer's open session, saves still sending, typing or a
-   * session note draft. Everywhere else the line under the header says so.
+   * Session, this trainer's own running session (a client's, or an open
+   * session with no client yet), saves still sending, typing or a session
+   * note draft. Everywhere else the line under the header says so.
    * See features/new-version/README.md.
    */
   const shellReady =
@@ -855,7 +860,7 @@ export default function AppContent({
     shellReady,
     uid: user?.uid ?? null,
     clientId: selectedClientId,
-    ownSessionClientName: myLiveSession ? (myLiveSession.clientName ?? "") : null,
+    ownSessionClientName: mySessionName,
     waitForPendingWrites: () => waitForPendingWrites(db),
     isKnownView: isReturnableView,
     restorePlace: (place) => {
@@ -867,9 +872,9 @@ export default function AppContent({
     () => ({
       recover: newVersion.recoverScreen,
       tap: newVersion.tapScreen,
-      ownSessionClientName: myLiveSession ? (myLiveSession.clientName ?? "") : null,
+      ownSessionClientName: mySessionName,
     }),
-    [newVersion.recoverScreen, newVersion.tapScreen, myLiveSession],
+    [newVersion.recoverScreen, newVersion.tapScreen, mySessionName],
   );
   // The Active Session and Pulse, fetched once the shell is up and quiet, so
   // a deploy later in the day cannot stop a session from opening
@@ -968,7 +973,7 @@ export default function AppContent({
     void (async () => {
       const unsent = await unsentWritesWaiting(() => waitForPendingWrites(db));
       const question = signOutQuestion({
-        openSessionClientName: myLiveSession ? (myLiveSession.clientName ?? "") : null,
+        ownSessionClientName: mySessionName,
         unsent,
       });
       if (question) setSignOutAsk(question);
@@ -1704,7 +1709,9 @@ export default function AppContent({
                       setSelectedClientId(id);
                       setCurrentView("profile");
                     }}
-                    onStartOpenSession={startUnassignedSession}
+                    onStartOpenSession={startOpenSession}
+                    openSessionStarting={startingOpenSession}
+                    openSessionRunning={isOpenSession(myLiveSession)}
                     // In today's Start: the Hub search card's own path.
                     onStartSession={(id) => {
                       setSelectedClientId(id);
@@ -1842,7 +1849,7 @@ export default function AppContent({
                     user={user}
                     setView={setView}
                     setSelectedClientId={setSelectedClientId}
-                    onStartNewClientOnboarding={startNewClientOnboarding}
+                    setSelectedClientIdNow={setSelectedClientIdNow}
                     authTrainer={authTrainer}
                     isSyncing={isSyncing}
                     setIsSyncing={setIsSyncing}
@@ -1859,6 +1866,8 @@ export default function AppContent({
                             : "missing"
                     }
                     onRetryClient={() => setClientReadAttempt((n) => n + 1)}
+                    clientsStatus={rosterStatus}
+                    onStartOpenSession={startOpenSession}
                   />
                 )}
                 {currentView === "profile" && (

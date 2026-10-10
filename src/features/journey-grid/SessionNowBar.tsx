@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ChevronRight, Info, Minus, Pause, Play, Plus, RotateCcw, Ruler, ShieldAlert, X } from "lucide-react";
+import { ChevronRight, Info, Minus, Pause, Play, Plus, RotateCcw, Ruler, ShieldAlert, SlidersHorizontal, X } from "lucide-react";
 import type { FlagLine } from "./session-flags";
 import {
   OUTCOME_GLOSS,
@@ -14,6 +14,7 @@ import { QualityMark, QUALITY_MARK_LABEL } from "./QualityMark";
 import type { HistoryCoverage } from "../../lib/prior-history";
 import { gainWords, progressFromSets } from "../machine-menu/progress-figure";
 import type { StartingRangeSlot } from "../routine-plan/session-plan";
+import { notSetWords, setupButtonOf } from "./setup-button";
 import "./journey-grid.css";
 
 /* ------------------------------------------------------------------ *
@@ -70,6 +71,13 @@ export interface SessionNowBarProps {
   /** Today's order has nothing in it yet: the empty bar says so. */
   nothingToday?: boolean;
   /**
+   * The floor is showing, every machine with the Today column's + (the
+   * FileMaker floor, the open session round, Oct 9 2026): an empty bar says
+   * where to tap ("Tap + on a machine you're doing.") in place of "Nothing in
+   * today's order yet.", and still offers Add a machine.
+   */
+  floorOpen?: boolean;
+  /**
    * The Academy's starting range for this machine (AJ's "3a"), in the head's
    * readout slot, only on a first time here (routine-plan/session-plan.ts
    * `startingRangeSlot`): the range line with an (i), the quiet "Academy's
@@ -97,6 +105,15 @@ export interface SessionNowBarProps {
    */
   flagLine?: FlagLine | null;
   onOpenFlag?: () => void;
+  /**
+   * The settings button (the open session round, Oct 9 2026; AJ's "2a"):
+   * opens the machine card on the first empty dial, and Save closes it. One
+   * 40px raised button where the read-only setting tiles were, "Set up · 2
+   * not set" on a first time and the settings themselves once set
+   * (setup-button.ts). Give it a stable function (the bar is memo); absent,
+   * the button shows the settings and does nothing.
+   */
+  onSetUp?: (machineId: string) => void;
   /**
    * The client's training level. Unused since the progression cue left the
    * bar (fluidity round, Sep 18) — kept so callers need not change; a future
@@ -348,10 +365,11 @@ function SkipStrip({
  * recorded: "the weight is always there; every set you enter reps; if you
  * aren't entering reps, that's when it's Practice or Skipped."
  *
- *   Line 1 — SET UP.  Order badge, machine name, then the settings as
- *            tiles (GAP 8 · SEAT 8) big enough to preset the machine from
- *            across it. On the right, one quiet context line: last set,
- *            best set, and the Up / Hold / Down cue.
+ *   Line 1 — SET UP.  Order badge, machine name, then the settings as ONE
+ *            40px button ("Gap 8 · Seat 8", or "Set up · 2 not set" on a
+ *            first time; the open session round, Oct 9 2026) that opens
+ *            the machine card on the first empty dial. On the right, one
+ *            quiet context line: the start and its climb, the readouts.
  *   Line 2 — THE SET.  Three labelled groups. LOAD: − [66 lb] +, sized for
  *            three digits. SET: the reps field with a real REPS | SEC
  *            switch, and the stopwatch inside the field when SEC is on.
@@ -382,11 +400,13 @@ function SessionNowBarImpl({
   planNext = null,
   onAddPlanned,
   nothingToday = false,
+  floorOpen = false,
   startingRange = null,
   onStartingRange,
   noHistoryLine = null,
   flagLine = null,
   onOpenFlag,
+  onSetUp,
   coverage = "unknown",
   everythingRead = false,
   layout = "bar",
@@ -517,7 +537,11 @@ function SessionNowBarImpl({
     return (
       <div className={`jg-nb jg-nb--empty jg-nb--${layout}`}>
         <span className="jg-nb__idle">
-          {nothingToday ? "Nothing in today's order yet." : "Tap a machine in the Today column to start logging."}
+          {nothingToday
+            ? floorOpen
+              ? "Tap + on a machine you're doing."
+              : "Nothing in today's order yet."
+            : "Tap a machine in the Today column to start logging."}
         </span>
         {(planOffer || onAddMachine) && (
           <div className="jg-nb__offers">
@@ -534,8 +558,7 @@ function SessionNowBarImpl({
     );
   }
 
-  const settingEntries = machine.settings ? Object.entries(machine.settings) : [];
-  const label = (k: string) => machine.settingLabels?.[k] ?? k;
+  const setup = setupButtonOf(machine);
   const noSet = v.outcome === "practice" || v.outcome === "skipped";
 
   /** The count field for one side: a number and the unit it is counted in. */
@@ -617,15 +640,48 @@ function SessionNowBarImpl({
           </span>
         </span>
 
-        {settingEntries.length > 0 && (
-          <span className="jg-nb__settings" aria-label="Machine settings for this client">
-            {settingEntries.map(([k, val]) => (
-              <span className="jg-nb__chip" key={k}>
-                <b>{label(k)}</b>
-                <span>{val}</span>
-              </span>
-            ))}
-          </span>
+        {/* The settings, one button (the open session round, Oct 9 2026;
+            AJ's "2a"): it opens the machine card on the first empty dial,
+            on the number pad, and Save closes it with Undo. They were
+            read-only tiles, and the only door was the grid's name. */}
+        {setup && (
+          <button
+            type="button"
+            className="jg-nb__setup"
+            data-kind={setup.kind}
+            data-testid="nb-setup"
+            aria-label={setup.aria}
+            disabled={!onSetUp}
+            onClick={() => onSetUp?.(machine.id)}
+          >
+            {setup.kind === "setup" ? (
+              <>
+                <SlidersHorizontal size={16} strokeWidth={2.5} aria-hidden="true" />
+                <span>Set up</span>
+                <span className="jg-nb__setk">· {notSetWords(setup.notSet)}</span>
+              </>
+            ) : setup.pairs.length === 0 ? (
+              <>
+                <SlidersHorizontal size={16} strokeWidth={2.5} aria-hidden="true" />
+                <span>{setup.words}</span>
+              </>
+            ) : (
+              <>
+                {setup.pairs.map(([k, val], i) => (
+                  <span className="jg-nb__setkv" key={k}>
+                    {i > 0 && (
+                      <span className="jg-nb__setk" aria-hidden="true">
+                        ·
+                      </span>
+                    )}
+                    <span className="jg-nb__setk">{k}</span>
+                    <span className="jg-nb__setv">{val}</span>
+                  </span>
+                ))}
+                {setup.notSet > 0 && <span className="jg-nb__setk">· {notSetWords(setup.notSet)}</span>}
+              </>
+            )}
+          </button>
         )}
 
         <span className="jg-nb__sp" />

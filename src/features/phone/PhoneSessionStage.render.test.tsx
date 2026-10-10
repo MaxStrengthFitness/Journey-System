@@ -194,6 +194,20 @@ describe("PhoneSessionStage", () => {
     expect(onOpenPlan).toHaveBeenCalledTimes(1);
   });
 
+  // AJ's "1b" (the open session round, Oct 9 2026): "i want to be able to take advantage of our routine builder".
+  it("opens Start from a routine…, the iPad corner's sheet, from the foot; nothing until the tracker offers it", () => {
+    const onStartFrom = vi.fn();
+    mount({ onStartFrom });
+    const door = q<HTMLButtonElement>('[data-testid="phone-start-from"]');
+    expect(door.textContent).toBe("Start from a routine…");
+    act(() => door.click());
+    expect(onStartFrom).toHaveBeenCalledTimes(1);
+    act(() => root!.unmount());
+    host!.remove();
+    mount();
+    expect(host!.querySelector('[data-testid="phone-start-from"]')).toBeNull();
+  });
+
   it("keeps the last card's quiet word when the plan has nothing next, and Next on any other card", () => {
     mount({ focusId: "leg" });
     const last = q<HTMLButtonElement>(".ph-card.is-in-hand .ph-card__next");
@@ -210,5 +224,120 @@ describe("PhoneSessionStage", () => {
     expect(host!.textContent).toContain("No machines in today's routine yet.");
     act(() => q<HTMLButtonElement>(".ph-stage__plan").click());
     expect(p.onAddPlanned).toHaveBeenCalledWith("m-leg-press");
+  });
+});
+
+/*
+ * THE FILEMAKER FLOOR ON A PHONE (the open session round, Oct 9 2026; AJ's
+ * "1b": "you have every machine on the screen and you just fill in the ones
+ * you did"). Today's machines stay cards; the rest of the floor is a plain
+ * list of names under them, each with a 40px Add that adds the machine and
+ * makes it the card in hand (the tracker's own add, the grid's +).
+ */
+describe("PhoneSessionStage with the floor showing", () => {
+  const FLOOR = [rowOf("row", "Compound Row", 60), rowOf("lumbar", "Lumbar Extension with a name long enough to wrap on a phone", 90)];
+
+  it("draws today's cards, then the rest of the floor as names, each with its own Add", () => {
+    mount({ floor: FLOOR, onAddMachine: vi.fn() });
+    expect(qa(".ph-card").map((c) => c.querySelector(".ph-card__name")!.textContent)).toEqual(["Chest Press", "Leg Press"]);
+    const list = q('section[aria-label="Rest of the floor"]');
+    expect(list.querySelector(".ph-floor__head")!.textContent).toBe("Rest of the floor");
+    // A plain list, never a second set of cards, in the order handed (the walking order).
+    expect(list.querySelectorAll(".ph-card")).toHaveLength(0);
+    expect(qa(".ph-floor__name").map((n) => n.textContent)).toEqual([
+      "Compound Row",
+      "Lumbar Extension with a name long enough to wrap on a phone",
+    ]);
+    const adds = qa(".ph-floor__add");
+    expect(adds.map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Add Compound Row to today's session",
+      "Add Lumbar Extension with a name long enough to wrap on a phone to today's session",
+    ]);
+    expect(adds.every((b) => b.textContent === "Add")).toBe(true);
+  });
+
+  it("Add sends what waits on the card in hand, then adds the machine (the tracker makes it the card in hand)", () => {
+    const p = mount({ floor: FLOOR, onAddMachine: vi.fn() });
+    act(() => qa(".ph-floor__add")[1].click());
+    expect(p.onCommit).toHaveBeenCalledTimes(1);
+    expect(p.onAddMachine).toHaveBeenCalledTimes(1);
+    expect(p.onAddMachine).toHaveBeenCalledWith("lumbar");
+    expect(p.onFocus).not.toHaveBeenCalled();
+  });
+
+  it("a machine out of service on the roster is listed, says so, and has no Add", () => {
+    const out = rowOf("row", "Compound Row", 60);
+    out.machine = { ...out.machine, outOfService: true };
+    mount({ floor: [out, FLOOR[1]], onAddMachine: vi.fn() });
+    const rows = qa(".ph-floor__row");
+    expect(rows.map((r) => r.querySelector(".ph-floor__name")!.textContent)).toEqual([
+      "Compound Row",
+      "Lumbar Extension with a name long enough to wrap on a phone",
+    ]);
+    expect(rows[0].querySelector(".ph-floor__out")!.textContent).toBe("Out of service");
+    expect(rows[0].querySelector(".ph-floor__add")).toBeNull();
+    expect(rows[1].querySelector(".ph-floor__add")).not.toBeNull();
+  });
+
+  it("an empty day says where to tap, over the floor", () => {
+    mount({ rows: [], focusId: null, floor: [...ROWS, ...FLOOR], onAddMachine: vi.fn() });
+    expect(q(".ph-stage__empty").textContent).toBe("Tap Add on a machine you're doing.");
+    expect(qa(".ph-card")).toHaveLength(0);
+    expect(qa(".ph-floor__name")).toHaveLength(4);
+  });
+
+  it("an empty day puts Start from a routine… above the floor, not a long scroll under it (the whole-branch review, Oct 9 2026)", () => {
+    mount({ rows: [], focusId: null, floor: [...ROWS, ...FLOOR], onAddMachine: vi.fn(), onStartFrom: vi.fn() });
+    const stage = q(".ph-stage");
+    const doors = q('[data-testid="phone-doors"]');
+    const floor = q('section[aria-label="Rest of the floor"]');
+    const kids = Array.from(stage.children);
+    expect(kids.indexOf(doors)).toBeLessThan(kids.indexOf(floor));
+    expect(doors.querySelector('[data-testid="phone-start-from"]')).not.toBeNull();
+    act(() => root?.unmount());
+    host?.remove();
+    // Once today's list has machines, the doors are at the foot again.
+    mount({ floor: FLOOR, onAddMachine: vi.fn(), onStartFrom: vi.fn() });
+    const after = Array.from(q(".ph-stage").children);
+    expect(after.indexOf(q('[data-testid="phone-doors"]'))).toBeGreaterThan(after.indexOf(q('section[aria-label="Rest of the floor"]')));
+  });
+
+  it("without the floor, or without a way to add, today's cards only, as before", () => {
+    mount({ floor: null, onAddMachine: vi.fn() });
+    expect(qa(".ph-floor__row")).toHaveLength(0);
+    act(() => root?.unmount());
+    host?.remove();
+    mount({ floor: FLOOR });
+    expect(qa(".ph-floor__row")).toHaveLength(0);
+    act(() => root?.unmount());
+    host?.remove();
+    mount({ rows: [], focusId: null, floor: [], onAddMachine: vi.fn() });
+    expect(q(".ph-stage__empty").textContent).toBe("No machines in today's routine yet.");
+  });
+});
+
+/* The phone's card gets the Now Bar's settings button (the open session
+   round, Oct 9 2026; AJ's "2a"): Set up on a first time, the settings once
+   set, and a tap opens the machine card on the first empty dial. */
+describe("PhoneSessionStage's settings button", () => {
+  const firstTime = (id: string, name: string): JourneyRow => ({
+    machine: { id, name, group: "Push", settings: { G: "1" }, settingLabels: { G: "Gap" }, dialsNotSet: 2, firstSetup: true },
+    sets: {},
+  });
+
+  it("says Set up · 2 not set on a first time and opens the card on that machine", () => {
+    const onSetUp = vi.fn();
+    mount({ rows: [firstTime("fly", "Chest Fly"), ROWS[1]], focusId: "fly", onSetUp });
+    const buttons = qa(".ph-card__setup");
+    expect(buttons.map((b) => b.textContent)).toEqual(["Set up · 2 not set", "Seat 4"]);
+    act(() => buttons[0].click());
+    expect(onSetUp).toHaveBeenCalledWith("fly");
+    expect(qa(".ph-card__settings")).toHaveLength(0);
+  });
+
+  it("keeps the settings as words without a door, as before", () => {
+    mount();
+    expect(qa(".ph-card__setup")).toHaveLength(0);
+    expect(qa(".ph-card__settings")).toHaveLength(2);
   });
 });
