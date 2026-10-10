@@ -1,6 +1,6 @@
 # The CLAUDE.md trim — Oct 9 2026
 
-Branch `oct9/claude-md`, on master's `546bb0aa`. Documents and one test only: no app code, no rules, no index, nothing a trainer sees, nothing to deploy.
+Branch `oct9/claude-md`, on master's `546bb0aa`; redone on master's `7957d1a0` on Oct 10 2026 (section 7). Documents and one test only: no app code, no rules, no index, nothing a trainer sees, nothing to deploy.
 
 ## 1. What AJ asked
 
@@ -54,3 +54,24 @@ The size Claude estimated before starting was about 30,000 characters. It came o
 
 - The "Always on" traps (about 5,000 characters) stay as they are: they are the rules that apply whatever a session touches.
 - The open-session round (`oct9/open-session`) does not touch `CLAUDE.md` yet; when its documents phase runs it adds one map line and, if any, one short decision, and the test will say if it does more.
+
+## 7. Redone on master's `7957d1a0` (Oct 10 2026)
+
+AJ, Oct 10 2026: "redo the CLAUDE.md trim on today's master, then I read the review page". By then master was 22 commits past `546bb0aa` (the open session, the floor round, the settings card). The Oct 9 draft was committed as it stood (`96022b74`) and master merged into it (`086ceb41`), then the lines below were added. Still not pushed, and nothing to deploy.
+
+- **The merge: three conflicts, each kept both sides.** `CLAUDE.md`: master's one change to it since `546bb0aa` was the floor round's sentence in Briefing and Wrap-up (`d56f7992`); it is in that entry in `docs/DECISIONS.md` word for word, and in short in the decision (644 characters of 650). `docs/rounds/CHANGELOG.md` and `docs/rounds/README.md`: every entry from both sides, in date order. `docs/ARCHITECTURE.md` and six READMEs (hub-schedule, machine-fit, machine-menu, phone, routine-plan) merged by themselves, the trim's additions beside master's.
+- **The open session round's lines** (its §6, written for after the trim): the map's open session row, a clause each on the machine menu row (Set up) and the routine plan row (Start from a routine…), the decision, and its full text as a new entry in `docs/DECISIONS.md`. Its §5 item about the missing row is marked done.
+- **The settings card** (Oct 10 2026, AJ's "1a 2a 3a"): one clause in the machine card decision ("A setting is typed in its own tile, its reason asked, never required, and Save closes the card"), and a dated paragraph under its entry in `docs/DECISIONS.md`. The detail stays in `src/features/machine-menu/README.md` → The settings card.
+- **The Tests row** is this branch's own count (below). Master's Tests row, which the Oct 9 draft replaced without moving (section 2 said it was already in the baselines; its facts were, its words were not), is now in `docs/KNOWN-TRAPS.md#baselines` word for word.
+- **The name check, against master's `CLAUDE.md`:** all 926 distinct names in backticks (726 of them in the map rows, as on Oct 9) are found again in the new `CLAUDE.md`, a README, `docs/DECISIONS.md`, `docs/KNOWN-TRAPS.md` or `docs/business/`; the same four only in a slightly different spelling (`retention` as a kind, `claims.{uid}`, `announcementReads/{uid}` with `acks.{id}`, the two `*-model.py` files by name), checked by hand.
+
+| | Master `7957d1a0` | The Oct 9 draft | Redone |
+| --- | --- | --- | --- |
+| `CLAUDE.md` | 115,107 characters, 17,612 words | 41,827 | 43,214 characters (38%), 6,672 words |
+| Where things are | 56 rows, the longest 3,510 | 55 rows, none over 320 | 56 rows, the longest 318 |
+| Decisions | 57, the longest 3,880 | 57: 39 shortened, 18 as they were | 58: 40 shortened, 18 as they were; the longest 644 |
+| `docs/DECISIONS.md` | — | 39 entries | 40 entries, 56,353 characters |
+
+**Measured on the branch** (Oct 10 2026, the worktree on AJ's PC, its files in LF): `src/claude-md.test.ts` 6 passing; the suite **13,470** passing in 815 files (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`: master's 13,464 in 814, the settings card's count, plus this test's 6); typecheck **2** (`clinical-review/charts.tsx`, `EditTrainerModal.tsx`); `git ls-files | tr A-Z a-z | sort | uniq -d` prints nothing. Rules tests not run (no rules change; 351 is the open session round's count).
+
+**Still standing from section 5, outside `CLAUDE.md`:** the Note for the next trainer "for three weeks" in `docs/ARCHITECTURE.md` (the Active Session, End) and `docs/business/glossary.md`; "Admins → Catalog → Models" in `src/features/admin/machines/README.md`. Left as they are, for AJ's word.
