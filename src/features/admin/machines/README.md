@@ -91,6 +91,8 @@ it: **read the machine, correct it, then publish** (the catalog gate round,
 - `publishPlan` refuses a machine missing anything the app would render wrong
   or the floor would coach wrong. The list is `BLOCKING_GAPS`, and a test
   pins it to what the twenty MSF machines themselves clear.
+- That test is `review.test.ts`, beside `../catalog/review.ts`: it asserts all
+  twenty MSF definitions clear `BLOCKING_GAPS`.
 - Publishing sends `definitionUnderReview()` — corporate's corrections if
   any, what arrived if none. Never read the raw document.
 

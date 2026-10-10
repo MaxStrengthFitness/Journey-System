@@ -324,3 +324,12 @@ the push unless master is already the branch). Then the seed (a dry run,
 then `--commit`), then the iPad walk of Round 65 against the PC, BEFORE
 Render's Manual Deploy and both crons' Manual Build. Measured on Oct 9 2026:
 13,132 tests in 802 files, typecheck 2, rules tests 334.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- The research was done on Oct 7 2026 and the screens were built on Oct 8 to
+  9 2026, in Rounds 1 and 2.
+- In the Active Session, the plan shows in three places. The grid corner's
+  "The plan · 3 of 6" sheet is `ui/SessionPlanSheet.tsx`, and on a phone it
+  sits beside Reorder. The Now Bar shows First time on this machine, the
+  Academy's starting range (`ui/StartingRangeSheet.tsx`) and Next in the plan.

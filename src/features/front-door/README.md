@@ -100,3 +100,10 @@ greeting and the picker). All three are mounted in `*.render.test.tsx`.
 
 The three directions AJ chose between are a git-ignored page,
 `harness/front-door.html`, in the worktree it was built in.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- AJ, Oct 3 2026: iPads change hands. That is why "Not you? Sign out" is on every screen after sign-in (`WhoChip`).
+- **Auth starts without the popup sign-in helper on an iPad that was signed in last time** (the speed round, Oct 5 2026). `src/firebase.ts` starts Auth with `initializeAuth`, and installs the helper only when nobody was signed in on the iPad last time (`src/lib/auth-boot.ts`). When a signed-in iPad reaches the sign-in screen anyway, the screen warms the helper itself (`sign-in-ready.ts`, `useSignInReady`), and where a browser needs it first, the buttons wait for it for at most six seconds.
+- **`index.html` paints the three squares before the app's script has loaded**, so the iPad never shows a blank page. `OpeningJourney` then keeps them still rather than dropping them in a second time.
+- **Each cold open sends one boot report to Render's logs.** `src/features/boot-timing/` is that report, and its README says what it holds and how to read it.

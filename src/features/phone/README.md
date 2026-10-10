@@ -94,3 +94,9 @@ iPad.
 `phone-session.test.ts` and `day-list.test.ts` are the pure halves;
 `PhoneSessionStage.render.test.tsx` and `PhoneDayList.render.test.tsx` mount
 the screens. `home-screen.test.ts` counts the phone bar's bottom inset.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- The round is `docs/rounds/2026-10-01-journey-lite.md`.
+- Rooms tighten for a phone only (under `@media (max-width: 599px)`, or a
+  container query where a part needs one), so the iPad is unchanged.

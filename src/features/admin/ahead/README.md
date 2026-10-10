@@ -80,3 +80,7 @@ Tests: each pure file beside itself; `AheadPage.render.test.tsx` mounts both vie
 - No May slip past the bookings Journey can see.
 - Nothing called clear while the nightly record can't judge (the note says so once).
 - Sessions left on every screen is Mindbody's number, never counted down.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- AJ answered the proposal's three questions with **"1b 2a 3a"** (Oct 7 2026): 1b, Ahead sits beside Month; 2a, the nightly record keeps the slowest and fastest pace and its dates counted from the day Mindbody counted; 3a, May slip is shown on the timeline.

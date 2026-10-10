@@ -437,3 +437,8 @@ Two readers are exported for the codex rather than re-implemented:
 answer to one statement, on 0–10, a v1 answer converted and `null` when the
 round did not ask; and `painKeyOf(spot)` (`scoring.ts`) — `region:side`, the
 key `summarizePain` pairs a spot with last round's.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- **Pulse (the living assessment) lives in this folder, `src/features/subjective-report/`.** The folder and the Firestore fields still say check-in / subjective. The panel is `components/journal/ClientCheckInPanel.tsx`, the floor entry is `PulseQuickLog`, and client mode is `PulseClientMode.tsx`.
+- **The Kaizen Deep Dive is `src/features/clinical-review/`**, a separate feature that reads Pulse's drift against the sets.

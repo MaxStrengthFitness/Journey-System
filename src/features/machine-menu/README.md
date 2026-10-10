@@ -94,7 +94,7 @@ One pure model (`timeline-model.ts`) drives the block in both doors; `timeline-g
 
 ## What it reads each time it opens
 
-Everything is Journey's own coaching data; **no Mindbody call**, no new collection, index or rule.
+Everything is Journey's own coaching data; **no Mindbody call**, no new collection, index or rule. In short, `useMachineMenuData.ts` makes one `settingHistory` read and three floor reads, with no Mindbody call and no new listener.
 
 - **What the door already holds**, handed down, never read again: the sessions and their sets, the client's machine settings (the host's live listener), the client's journal (the host's ONE listener — a session used to hold three), the client record's running totals and prior history, the studio's settings.
 - **One `getDocs` of the machine's setting changes** for this client (`machines/{id}/settingHistory`, `useSettingHistory.ts`), shared by the chart, "Last changed", Setting changes and the settings-copy filter. It **replaces** a live listener.

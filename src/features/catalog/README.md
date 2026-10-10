@@ -168,6 +168,18 @@ administrators in the catalog editor, not in code. The round is
   reads them off the catalog documents it already has (`useCatalogMachines`
   → `aliases`), no read of its own. `definitionOf` strips `aliases`, so the
   definition, the template boundary and a studio's overrides never see them.
+- **Standard machine on a machine's page**
+  (`admin/catalog/StandardMachineSwitch.tsx`). AJ, Sep 28 2026: "we dont need to
+  restore standard machine button, a machine just needs to be able to be marked
+  as a standard machine, a task only by admins". One switch in the catalog
+  editor, administrators only, writing the same `inStandardSet` flag the
+  Standard template's list writes.
+- **The floor editor's Walking order and Add from MSF**
+  (`admin/machines/floor-editor.ts`, the pure half). The walking order moves
+  up or down a place as well as by drag and is saved in one batch; Add from MSF
+  lists the MSF machines not on the floor, the standard's first, and a machine
+  added joins the end of a walking order the studio keeps. It is still one floor
+  editor with several doors, never a second editor.
 
 > **Read this first (Sep 17 2026).** This document is the spec and build notes
 > for the **pre-wiki** Catalog screen. The Wiki Redesign (Sep 10 2026) replaced
@@ -190,7 +202,12 @@ administrators in the catalog editor, not in code. The round is
 - **What changed** on a standard machine (the Codex's change log): read on
   the machine's page from `machines/{id}/changes`, written only by the
   catalog editor's save (`features/machine-codex/change-log.ts`). See that
-  README.
+  README. The panel is `MachineChangeLog` (`MachineChangeLog.tsx`); anyone
+  signed in can read `machines/{id}/changes`.
+- **Written down, not built:** head office's view (R6, a layer on All MSF
+  machines for administrators) and pointing Admins → Standard at the Catalog
+  (R7). Both wait for AJ's answers in `docs/rounds/2026-09-29-catalog-3.md`,
+  which is also the round for this wave.
 
 > **Still true and still load-bearing:** §1.1 and §11.1 (studio notes are
 > studio-scoped, never written to the shared `machines/{id}` doc), §4.1 (the

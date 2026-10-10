@@ -35,4 +35,8 @@ AJ, Oct 7 2026: *"Some studios may start building an A and B routine immediately
 ## The editors
 
 - **Admins → Standard → Studio defaults**: Max Strength's default for each, beside the app's.
-- **My Studio → Studio → This studio's settings**: each value with where it came from; a studio's leaders set or clear their own, everyone else who works there reads it.
+- **My Studio → Studio → This studio's settings**: each value with where it came from; a studio's leaders set or clear their own, everyone else who works there reads it. The screen is `StudioSettingsPanel`.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- `docs/rounds/2026-09-28-wave-2.md` is the wave (Sep 28 2026) in which these numbers became settings.

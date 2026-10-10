@@ -61,3 +61,7 @@ This is a web app with a manifest, not an App Store app. There is no service wor
 ## Before telling trainers to use it
 
 The sign-in is a popup (Google, Microsoft), and popups from a Home Screen app on iPadOS are the least-documented part of this. The iPad model changes which path Firebase takes (a mini and a full-size iPad report different user agents). Run the on-iPad test in `docs/rounds/2026-09-26-home-screen.md` first. If sign-in fails there, the fix is a same-site sign-in helper and a switch to redirect sign-in in Home Screen mode. That changes the Firebase config and the Google and Microsoft sign-in settings, so it needs AJ's OK first.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- `HEADER_TOKEN` in `theme-color.ts` is the name of the colour that `theme-color` follows: `--chrome`, the frame's navy `#002341`, in both themes since the Navy Frame (Oct 4 2026).

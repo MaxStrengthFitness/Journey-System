@@ -134,7 +134,8 @@ You do not need to remember this. You need to know it exists, so you can point.
 | `firestore.rules` | **Who is allowed to read and write what.** The security wall |
 | `scripts/` | One-off tools you run from the PC (imports, backfills, diagnostics) |
 | `docs/` | Everything written down. Start with this file, then `ARCHITECTURE.md` |
-| `CLAUDE.md` | The briefing Claude reads at the start of every session |
+| `CLAUDE.md` | The briefing Claude reads at the start of every session: the map, the commands and every decision as a short rule in your words |
+| `docs/DECISIONS.md` | The full text of each decision `CLAUDE.md` shortens: the history, the files and the tests that hold it |
 
 ### Inside `src/`
 
@@ -427,6 +428,7 @@ These exist because each one was learned the hard way. In plain language:
 | The full history | `docs/rounds/CHANGELOG.md` |
 | How do I set up / deploy / test? | `docs/ops/` |
 | What does Claude read automatically? | `CLAUDE.md`, plus the feature READMEs |
+| Why did we decide that, in full? | `docs/DECISIONS.md` |
 | Why does this feature work like that? | `src/features/<name>/README.md` |
 
 ---

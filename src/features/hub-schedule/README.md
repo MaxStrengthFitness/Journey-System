@@ -137,3 +137,11 @@ bold; on today the rail is blue up to now and the orange stop sits at now
 is 76px. With one column (`data-solo`), the column stops at 420px, the focus
 column's width, and the rest of the row is hatched and says "Nobody else is
 booked on this day". `HubGrid.render.test.tsx` holds both.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- Since the speed round (Oct 5 2026) the Hub works from its own week
+  (`hub-window.ts`: yesterday to a week on). It works the day out again only
+  when a booking boundary passes or the data or the day change, and it draws
+  only the cards whose state moved (`HubCard.sameCard`).
+  `ClientsView.tick.render.test.tsx` holds a quiet minute at no work.

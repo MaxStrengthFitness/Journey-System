@@ -116,7 +116,7 @@ Prescription card's words, "Start: 84, Current: 100" → "Start: 80, Current:
 100" (`setup-plan.ts` `weightRowOf`), which the machine menu's Setting changes
 lists as "Starting weight 84 → 80 lb". `startingWeightDate` is left alone: it
 says when a start was first recorded, and a correction changes the number, not
-that day. Never journalled, like every weight. It lives outside the keypad's
+that day. Never journalled, like every weight. It is written in Setup's one batch, with the rest of the set-up. It lives outside the keypad's
 run of cells, so Quick entry keeps the chart's order.
 
 **Sentences, not scores.** `MIN_CLIENTS` (5) is the named minimum, from machine

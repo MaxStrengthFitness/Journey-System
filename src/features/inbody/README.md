@@ -89,3 +89,7 @@ The progress report does **not** copy InBody numbers into the report document. `
 - **Photo of the printout:** read by the server's Gemini endpoints, with the trainer confirming each number. It would save as `source: "photo"`, which the rules already accept.
 - **LookinBody Web import:** each studio has its own LookinBody Web account (AJ, Sep 11). An import therefore needs one API key per studio, held server-side, with scans written by the server as `source: "lookinbody"`. The app can't write that source.
 - **A variation for the secondary measures** (BMI, water, lean masses, BMR, SMI, phase angle): not this round. They keep today's display, and no sentence names them.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- When a scan is due is `due.ts`, on the studio setting `inbodyEverySessions` or a client's own `inbodyEvery` (Oct 1 2026). The round is `docs/rounds/2026-10-01-filemaker-parity.md`.
