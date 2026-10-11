@@ -395,6 +395,12 @@ if ($Stage -eq 'prepare') {
   # development files, and the budget refuses it), and never a lab build.
   Remove-Item Env:NODE_ENV -ErrorAction SilentlyContinue
   Remove-Item Env:VITE_PERF_LAB -ErrorAction SilentlyContinue
+  # vite.config.ts keeps dist\ between builds (emptyOutDir false), so an
+  # earlier development or test build's files would still sit there and the
+  # marker scan below would read them as this build's (Oct 10 2026, this
+  # round's first prepare). dist\ is git-ignored build output and Render
+  # starts from an empty one: clear it so the scan sees only this build.
+  if (Test-Path 'dist') { Remove-Item -Recurse -Force 'dist' }
   $bd = Run 'build (the app)' 'npx vite build'
   Must $bd 'the app build'
   $bb = Run 'build (the crons)' 'npm run build:backend'
