@@ -96,7 +96,11 @@ the one control that writes ownership.
 
 On `oct10/franchise-partition`, one commit per piece:
 
-{COMMITS}
+- `62a3c1b1` the rules, their tests and the index;
+- `056a7fc8` the app and the server;
+- `7b439729` these documents and `scripts/ship/ship-partition.ps1`;
+- `8aea72a9` master merged in (the rooms round), then `91918ae1` the ship script's base moved to `c11151dc`;
+- `b2ead6f1` the second attack round's fixes (a client's home studio is fixed for non-administrators; the proxy's cross-train check needs the record's `mindbodyClientId`).
 
 - **The rules** (`firestore.rules`): `roleRunsOwnStudios`, `ownStudiosOf`,
   `ledStudios`, `franchiseRunsStudio`, `franchiseRunsClient`,
@@ -113,8 +117,8 @@ On `oct10/franchise-partition`, one commit per piece:
   administrators' until the privacy round pins it (§8).
 - **The rules tests**: the existing franchise fixtures now own the studio each
   test is about, and one new block, "the franchise partition: an owner runs
-  their own studios and no other", 28 cases each with a success beside its
-  refusal. **{RULES_TEST_COUNT}** rules tests (356 before).
+  their own studios and no other", 47 cases each with a success beside its
+  refusal. **404** rules tests (356 before).
 - **The app**: the one answer for "which studios does this person run"; the
   studio picker and Operations' scope from owned studios only; the staff
   roster's two `in` queries naming the studios a leader runs (one new index,
@@ -140,9 +144,9 @@ On `oct10/franchise-partition`, one commit per piece:
 
 **Measured** (`TZ=America/New_York npx vitest run --dir src
 --testTimeout=30000`, the worktree on AJ's PC, its files in LF):
-**{SUITE_COUNT}** tests in {SUITE_FILES} files (13,456 in 814 on master);
-typecheck **2**; rules tests **{RULES_TEST_COUNT}**; functions unchanged; the
-first screen {FIRST_SCREEN_KB} KB gzip of 480.
+**13,764** tests in 825 files (13,679 in 823 on master `c11151dc`, after the rooms round);
+typecheck **2**; rules tests **404**; functions unchanged; the
+first screen 464.3 KB gzip of 480.
 
 **The expression budget**, read off the emulator's rule-coverage report before
 and after ONE request (KNOWN-TRAPS, "`writesForStudio` is itself most of the
@@ -151,15 +155,15 @@ claim on the token unless it says so:
 
 | Rule | The worst case | Before | After |
 | --- | --- | --- | --- |
-| `trainers` update | a franchise owner of A and B moves a trainer's home to B with every list, role and email in one write | blew it Sep 20 before the resolve-once fix | {BUDGET_TRAINER_UPDATE} |
-| `trainers` create | an owner approving a hire at A with every list, through its pending request | — | {BUDGET_TRAINER_CREATE} |
-| `networks` update | an owner's full focus write, three lines at their limits | — | {BUDGET_NETWORK_FOCUS} |
-| `scheduleCoverage` | a full month for every writer, an owner of A included | 907 | {BUDGET_COVERAGE} |
-| `hub_announcements` | an owner's network notice to two owned studios, create then take down | blew it before | {BUDGET_ANNOUNCEMENTS} |
-| `sessions` read | an owner reading by `clientId` where a session is hosted elsewhere | blew it Sep 9 | {BUDGET_SESSIONS} |
-| `access_requests` list | an owner of two studios, `status ==` and `requestedStudioId in` | — | {BUDGET_ACCESS_REQUESTS} |
-| `studios/{s}` update | an owner's name change at A | — | {BUDGET_STUDIO} |
-| `standingWeeks` update | the fullest week, six away ranges, by an owner of A | ran out at ten ranges | {BUDGET_STANDING_WEEK} |
+| `trainers` update | a franchise owner of A and B moves a trainer's home to B with every list, role and email in one write | blew it Sep 20 before the resolve-once fix | 1,357 (a leader's role change 781 → 1,207; an administrator with a claim 855) |
+| `trainers` create | an owner approving a hire at A with every list, through its pending request | — | 1,746 (a leader's approval 1,783 → 1,742) |
+| `networks` update | an owner's full focus write, three lines at their limits | — | 434 |
+| `scheduleCoverage` | a full month for every writer, an owner of A included | 907 | 836 for the owner, 913 for a grant holder on the same scale |
+| `hub_announcements` | an owner's network notice to two owned studios, create then take down | blew it before | 674 create, 574 the author's take-down, 724 a non-author's (a leader's studio take-down 870 → 697) |
+| `sessions` read | an owner reading by `clientId` where a session is hosted elsewhere | blew it Sep 9 | 651 the list, 695 the one session |
+| `access_requests` list | an owner of two studios, `status ==` and `requestedStudioId in` | — | 1,462 (`requestedStudioId in`), 1,490 (`studioId in`) |
+| `studios/{s}` update | an owner's name change at A | — | 936 |
+| `standingWeeks` update | the fullest week, six away ranges, by an owner of A | ran out at ten ranges | 1,927 (a leader 1,901; 1,900 on master) |
 
 ## 5. Who it changes, live
 
