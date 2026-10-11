@@ -16,8 +16,9 @@ import { createRoot, type Root } from "react-dom/client";
 
 vi.mock("../firebase", () => ({ db: {}, auth: { currentUser: { uid: "aj" } } }));
 vi.mock("firebase/firestore", () => ({
-  addDoc: vi.fn(async () => ({ id: "r" })),
   collection: vi.fn(),
+  doc: vi.fn((_db: unknown, ...path: string[]) => ({ path: path.join("/") })),
+  setDoc: vi.fn(async () => undefined),
   getDocs: vi.fn(async () => ({ forEach: () => {} })),
   query: vi.fn(),
   serverTimestamp: () => "ts",
@@ -168,15 +169,47 @@ describe("while the lists are being read", () => {
     expect(el.textContent).toContain("No studios yet");
   });
 
-  it("waits for the networks before saying you're on no team", async () => {
+  // The franchise partition (Oct 2026): a franchise owner's studios are on
+  // their own trainer document, never their networks, so the picker no
+  // longer waits for the networks before saying you're on no team.
+  it("says you're on no team once the studios have answered, networks or not", async () => {
     const stranger = { ...aj, primaryHomeStudioId: "", accessibleStudioIds: [] } as unknown as Trainer;
-    const waiting = await mount({ authTrainer: stranger, trainers: [stranger], networksKnown: false });
-    expect(waiting.el.textContent).toContain("Checking you in");
-    expect(waiting.el.textContent).not.toContain("Not on a studio's team yet");
+    const unread = await mount({ authTrainer: stranger, trainers: [stranger], networksKnown: false });
+    expect(unread.el.textContent).not.toContain("Checking you in");
+    expect(unread.el.textContent).toContain("Not on a studio's team yet");
+  });
+
+  it("offers a franchise owner the studios an administrator marked them as owning", async () => {
+    const owner = {
+      ...aj,
+      role: "FranchiseOwner",
+      primaryHomeStudioId: "",
+      accessibleStudioIds: [],
+      ownedStudioIds: ["solon"],
+    } as unknown as Trainer;
+    const { el } = await mount({ authTrainer: owner, trainers: [owner] });
+    expect(button(el, "Start at Solon")).toBeTruthy();
+    // A LifeTransformer's leftover ownedStudioIds opens nothing.
     act(() => root?.unmount());
     host?.remove();
-    const answered = await mount({ authTrainer: stranger, trainers: [stranger], networksKnown: true });
-    expect(answered.el.textContent).toContain("Not on a studio's team yet");
+    const lt = { ...owner, role: "LifeTransformer" } as unknown as Trainer;
+    const other = await mount({ authTrainer: lt, trainers: [lt] });
+    expect(button(other.el, "Start at Solon")).toBeUndefined();
+    expect(other.el.textContent).toContain("Not on a studio's team yet");
+  });
+
+  it("asks to join at sa_{uid}_{studio}, with setDoc, never an auto-id", async () => {
+    const firestore = await import("firebase/firestore");
+    const guest = { ...aj, primaryHomeStudioId: "" } as unknown as Trainer;
+    const { el } = await mount({ authTrainer: guest, trainers: [guest] });
+    await act(async () => button(el, "studio you")!.click());
+    await act(async () => button(el, "Ask to join")!.click());
+    expect(firestore.doc).toHaveBeenCalledWith({}, "access_requests", "sa_aj_solon");
+    expect(firestore.setDoc).toHaveBeenCalledTimes(1);
+    const written = (firestore.setDoc as any).mock.calls[0][1];
+    expect(written).toMatchObject({ type: "studio_access", trainerId: "aj", studioId: "solon", status: "Pending" });
+    expect(written).not.toHaveProperty("userId");
+    expect(written).not.toHaveProperty("requestedStudioId");
   });
 
   it("goes in on your own studios while the networks are still being read", async () => {

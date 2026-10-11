@@ -9,16 +9,25 @@
  * within the hour (syncTrainerClaims). Then one line goes into the Activity
  * record (role-change.ts says which kind), after the change has landed —
  * the record never holds a change that didn't happen.
+ *
+ * A DEMOTION CLEARS WHAT THEY OWNED (the franchise partition, Oct 2026,
+ * review fix). When the new role doesn't run studios and the person owns
+ * some, the same write sets `ownedStudioIds` to empty, and the dialog says
+ * so before Save: a leftover list would come back to life on a later
+ * promotion. This is the one writer that changes an owner's role (the staff
+ * editor locks it, for administrators too), so the role and what they own
+ * never drift apart.
  */
 import { useEffect, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { UserCog, UserX, X } from "lucide-react";
 import { auth, db } from "../../../firebase";
 import { isSwitchedOff, switchOffConsequences, switchOffPatch, switchedOffWhat } from "../../sign-out/account-off";
-import type { Trainer, UserRole } from "../../../types";
+import type { Studio, Trainer, UserRole } from "../../../types";
 import { AdminButton, AdminField, AdminNotice, AdminSelect } from "../../admin/primitives";
 import { logActivity } from "../activity/log-activity";
 import { roleChangeRecord, roleChoicesFor, roleConsequences, roleLabel } from "./role-change";
+import { ownershipOnRoleChange } from "./studio-membership";
 
 export interface RoleDialogProps {
   /** Who, or null while the dialog is shut. */
@@ -26,6 +35,8 @@ export interface RoleDialogProps {
   /** The studio page it was opened from (null on Activity), for the record. */
   studioId: string | null;
   studioName?: string | null;
+  /** Every studio, to name the ones a demotion takes off. Ids are shown when absent. */
+  studios?: readonly Pick<Studio, "id" | "name">[];
   /** The signed-in administrator's name, for the record. */
   byName: string;
   onClose: () => void;
@@ -39,7 +50,7 @@ export function RoleDialog(props: RoleDialogProps) {
   return <RoleDialogOpen key={props.person.id} {...props} person={props.person} />;
 }
 
-function RoleDialogOpen({ person, studioId, studioName, byName, onClose, onSaved }: RoleDialogProps & { person: Trainer }) {
+function RoleDialogOpen({ person, studioId, studioName, studios = [], byName, onClose, onSaved }: RoleDialogProps & { person: Trainer }) {
   const [role, setRole] = useState<string>(person.role ?? "LifeTransformer");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +65,9 @@ function RoleDialogOpen({ person, studioId, studioName, byName, onClose, onSaved
 
   const name = person.fullName || "This person";
   const changed = role !== (person.role ?? "");
+  // What a demotion takes off, named (the franchise partition, Oct 2026).
+  const clears = changed ? ownershipOnRoleChange(person, role).clears : [];
+  const clearedNames = clears.map((id) => studios.find((s) => s.id === id)?.name || id).join(", ");
   // Not your own (you would lock yourself out), and not one already off.
   const canSwitchOff = person.id !== auth.currentUser?.uid && !isSwitchedOff(person);
 
@@ -91,10 +105,17 @@ function RoleDialogOpen({ person, studioId, studioName, byName, onClose, onSaved
     setBusy(true);
     setError(null);
     try {
-      await updateDoc(doc(db, "trainers", person.id), { role: role as UserRole });
+      // One write: the role, and (a demotion) the studios they no longer own.
+      await updateDoc(doc(db, "trainers", person.id), {
+        role: role as UserRole,
+        ...(clears.length ? { ownedStudioIds: [] } : {}),
+      });
       const record = roleChangeRecord({ personName: name, from: person.role, to: role, studioId, studioName });
+      const withOwns = clears.length
+        ? { ...record, before: { ...record.before, Owns: clearedNames }, after: { ...record.after, Owns: "none" } }
+        : record;
       // Awaited (it never throws) so a record read straight after shows the line.
-      await logActivity({ ...record, byName });
+      await logActivity({ ...withOwns, byName });
       await onSaved?.();
       onClose();
     } catch (err) {
@@ -129,6 +150,12 @@ function RoleDialogOpen({ person, studioId, studioName, byName, onClose, onSaved
               {roleConsequences({ personName: name, from: person.role, to: role }).map((line) => (
                 <li key={line}>{line}</li>
               ))}
+              {clears.length ? (
+                <li>
+                  {name} owns {clears.length} {clears.length === 1 ? "studio" : "studios"}. As {roleLabel(role)} they won&apos;t, so
+                  Journey takes {clears.length === 1 ? "it" : "those"} off: {clearedNames}.
+                </li>
+              ) : null}
             </ul>
           ) : null}
           {/* A former trainer (Oct 2 2026, AJ): switch the account off rather

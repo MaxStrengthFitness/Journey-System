@@ -14,6 +14,14 @@
  *                     home-studio select is not offered.
  *   grantStudioId     when set, the "Can manage My Studio" switch for that
  *                     studio (Trainer.managedStudioIds).
+ *   viewer,           who is looking, so the row offers only what the rules
+ *   viewerIsAdmin     let THEM save (edit-limits.ts; the franchise
+ *                     partition, Oct 2026): your own role and studios are
+ *                     head office's, a person based at a studio you don't
+ *                     lead is read only, and an owner's role or someone out
+ *                     of reach is locked, with one line saying why. A locked
+ *                     field is never put in the save, so a stale form can't
+ *                     send it.
  *
  * WHO THEY ARE (the Atlas answers, Oct 2 2026): a person's full name, email
  * and Mindbody Staff ID are a leader's to keep, here, not the trainer's own
@@ -25,11 +33,11 @@
  * updateDoc with only the fields on this form otherwise.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { arrayRemove, arrayUnion, doc, setDoc, updateDoc } from "firebase/firestore";
 import { CircleUserRound, Link2, ShieldAlert, UserCheck } from "lucide-react";
 import { db } from "../../../firebase";
-import type { Studio, UserRole } from "../../../types";
+import type { Studio, Trainer, UserRole } from "../../../types";
 import { ROLE_LABELS } from "../../../types";
 import { useToast } from "../../../contexts/ToastContext";
 import { OperationType, handleFirestoreError } from "../../../lib/firestore-errors";
@@ -46,6 +54,7 @@ import {
   ConfirmDialog,
 } from "../primitives";
 import { isStudioAccessRequest, requestStudioId, type StaffRow, type StaffState } from "./roster";
+import { staffEditLimits } from "./edit-limits";
 
 export const STATE_BADGE: Record<
   StaffState,
@@ -81,6 +90,10 @@ export interface StaffEditorProps {
   canChangeRole: boolean;
   lockHomeStudio?: boolean;
   grantStudioId?: string | null;
+  /** Who is looking (edit-limits.ts). Null: nothing is locked on their account. */
+  viewer?: Trainer | null;
+  /** The company tier: nothing locked but an owner's role. */
+  viewerIsAdmin?: boolean;
   onDone: () => Promise<void> | void;
 }
 
@@ -92,6 +105,8 @@ export function StaffEditor({
   canChangeRole,
   lockHomeStudio = false,
   grantStudioId = null,
+  viewer = null,
+  viewerIsAdmin = false,
   onDone,
 }: StaffEditorProps) {
   const { success: toastSuccess, error: toastError } = useToast();
@@ -124,8 +139,18 @@ export function StaffEditor({
   // editor never silently demotes an owner to the first thing on the list.
   const roleOptions: UserRole[] =
     row.role && !assignableRoles.includes(row.role) ? [row.role, ...assignableRoles] : assignableRoles;
-  const roleLocked = !canChangeRole && row.state !== "awaiting-approval";
+  // What this viewer may save on this row (the franchise partition, Oct
+  // 2026). A request row has no trainer document, so nothing is locked by it:
+  // the approval path has its own checks.
+  const limits = useMemo(
+    () => staffEditLimits({ viewer, target: row.trainer ?? null, viewerIsAdmin, studios }),
+    [viewer, row.trainer, viewerIsAdmin, studios],
+  );
+  const roleLocked = (!canChangeRole && row.state !== "awaiting-approval") || limits.roleLocked || limits.readOnly;
   const roleOutOfReach = Boolean(row.role && !assignableRoles.includes(row.role));
+  const homeLocked = limits.homeLocked || limits.readOnly;
+  const emailLocked = limits.emailLocked || limits.readOnly;
+  const grantShown = Boolean(grantStudioId) && !limits.grantHidden && !limits.readOnly;
 
   // The studio picker's Request Access comes from someone who already has an
   // account. Approving writes a WHOLE new trainers/{uid}, which would replace
@@ -187,7 +212,7 @@ export function StaffEditor({
 
   const saveAccess = async () => {
     const t = row.trainer;
-    if (!t) return;
+    if (!t || limits.readOnly) return;
     if (!roleLocked && role !== t.role && !assignableRoles.includes(role)) {
       toastError(`You can't hand out ${ROLE_LABELS[role]} from here.`);
       return;
@@ -205,17 +230,19 @@ export function StaffEditor({
         patch.fullName = name;
         patch.searchTokens = generateSearchTokens(name);
       }
+      // A locked field is never in the patch (edit-limits.ts): the rules
+      // refuse the whole write for one field out of reach.
       const mail = email.trim().toLowerCase();
-      if (mail !== (t.email ?? "").trim().toLowerCase()) patch.email = mail;
+      if (!emailLocked && mail !== (t.email ?? "").trim().toLowerCase()) patch.email = mail;
       const sid = staffId.trim();
       if (sid !== String(t.mindbodyStaffId ?? "").trim()) {
         patch.mindbodyStaffId = sid;
         patch.mindbodyLinked = sid.length > 0;
       }
-      if (!lockHomeStudio && homeStudioId && homeStudioId !== t.primaryHomeStudioId) {
+      if (!lockHomeStudio && !homeLocked && homeStudioId && homeStudioId !== t.primaryHomeStudioId) {
         patch.primaryHomeStudioId = homeStudioId;
       }
-      if (grantStudioId) {
+      if (grantStudioId && grantShown) {
         const had = (t.managedStudioIds ?? []).includes(grantStudioId);
         if (managesHere && !had) patch.managedStudioIds = arrayUnion(grantStudioId);
         if (!managesHere && had) patch.managedStudioIds = arrayRemove(grantStudioId);
@@ -307,6 +334,12 @@ export function StaffEditor({
           </div>
         )}
 
+        {!studioAccess && limits.reason && (
+          <div style={{ marginTop: 10 }}>
+            <AdminNotice tone="info">{limits.reason}</AdminNotice>
+          </div>
+        )}
+
         {!studioAccess && (
           <div style={{ marginTop: 12 }}>
             <AdminGrid>
@@ -336,7 +369,7 @@ export function StaffEditor({
                 </AdminField>
               ) : (
                 <AdminField label="Home studio">
-                  <AdminSelect value={homeStudioId} onChange={(e) => setHomeStudioId(e.target.value)}>
+                  <AdminSelect value={homeStudioId} disabled={homeLocked} onChange={(e) => setHomeStudioId(e.target.value)}>
                     <option value="">Choose a studio</option>
                     {studios.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -349,14 +382,27 @@ export function StaffEditor({
               {row.trainer && (
                 <>
                   <AdminField label="Full name">
-                    <AdminInput value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="First and last name" />
+                    <AdminInput
+                      value={fullName}
+                      disabled={limits.readOnly}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="First and last name"
+                    />
                   </AdminField>
                   <AdminField label="Email" hint="The address they sign in with.">
-                    <AdminInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
+                    <AdminInput
+                      type="email"
+                      value={email}
+                      readOnly={emailLocked}
+                      disabled={limits.readOnly}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@example.com"
+                    />
                   </AdminField>
                   <AdminField label="Mindbody Staff ID" hint="Links them to their Mindbody bookings. Blank: not linked.">
                     <AdminInput
                       inputMode="numeric"
+                      disabled={limits.readOnly}
                       value={staffId}
                       onChange={(e) => setStaffId(e.target.value.replace(/[^0-9]/g, ""))}
                       placeholder="e.g. 100000123"
@@ -365,18 +411,24 @@ export function StaffEditor({
                 </>
               )}
               <AdminField label="Initials" hint="Shown on the schedule and session grid.">
-                <AdminInput value={initials} maxLength={4} onChange={(e) => setInitials(e.target.value)} />
+                <AdminInput
+                  value={initials}
+                  maxLength={4}
+                  disabled={limits.readOnly}
+                  onChange={(e) => setInitials(e.target.value)}
+                />
               </AdminField>
               <AdminField label="Calendar" hint="Whether they appear on the studio schedule.">
                 <AdminSelect
                   value={onCalendar ? "yes" : "no"}
+                  disabled={limits.readOnly}
                   onChange={(e) => setOnCalendar(e.target.value === "yes")}
                 >
                   <option value="yes">Shown on the schedule</option>
                   <option value="no">Hidden from the schedule</option>
                 </AdminSelect>
               </AdminField>
-              {grantStudioId && (
+              {grantShown && (
                 <AdminField
                   label="Can manage My Studio"
                   hint={`Opens Team at ${grantStudioName}, and lets them change its studio settings and machines, without changing their role — how a studio grows its next leader.`}
@@ -407,13 +459,13 @@ export function StaffEditor({
             </AdminButton>
           )}
 
-          {row.trainer && (
+          {row.trainer && !limits.readOnly && (
             <AdminButton variant="primary" busy={busy} onClick={() => void saveAccess()}>
               Save access
             </AdminButton>
           )}
 
-          {row.trainer && row.mindbody && row.matchedBy !== "staffId" && (
+          {row.trainer && !limits.readOnly && row.mindbody && row.matchedBy !== "staffId" && (
             <AdminButton variant="quiet" busy={busy} onClick={() => void linkToMindbody()}>
               <Link2 className="w-3.5 h-3.5" />
               Confirm the Mindbody link
@@ -421,7 +473,7 @@ export function StaffEditor({
           )}
         </div>
 
-        {row.trainer && row.mindbody && row.matchedBy !== "staffId" && (
+        {row.trainer && !limits.readOnly && row.mindbody && row.matchedBy !== "staffId" && (
           <p className="adm-hint" style={{ marginTop: 8 }}>
             Matched on {row.matchedBy === "email" ? "email address" : "name"} rather than a stored
             staff id. Confirming writes the id, which is what makes the match survive a rename.

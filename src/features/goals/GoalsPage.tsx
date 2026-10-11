@@ -57,6 +57,8 @@ import { WorkingTowardCard } from "./WorkingTowardCard";
 import { ReachedShelf } from "./ReachedShelf";
 import { herWhyLinks, reachedShelf } from "./goals-page";
 import { useFocusActions } from "./useFocusActions";
+import { FRANCHISE_ROLES } from "../../lib/staff-access";
+import { leadsStudio } from "../renewals/permissions";
 import "./goals.css";
 
 export interface GoalsPageProps {
@@ -107,6 +109,15 @@ export function GoalsPage({
 }: GoalsPageProps) {
   const { formData, updateField, isDirty, revision } = form;
   const focusActions = useFocusActions({ clientId: client.id || null, client, authTrainer });
+  // A franchise owner of the client's home studio manages any coach's focus
+  // on her (the rules' franchiseRunsClient: homeStudioId, else studioId; the
+  // franchise partition, Oct 2026). Elsewhere, only the coach who set it and
+  // administrators.
+  const runsClientsStudio = Boolean(
+    authTrainer &&
+      FRANCHISE_ROLES.has(authTrainer.role) &&
+      leadsStudio(authTrainer, client.homeStudioId || (client as { studioId?: string }).studioId || null),
+  );
   const focusesState: JournalLoad = journal.loadState?.focuses ?? "loading";
 
   /** The form's value when it has one, else what is on the record. */
@@ -183,6 +194,7 @@ export function GoalsPage({
               machines={machines}
               viewerIds={focusActions.viewerIds}
               viewerRole={focusActions.viewerRole}
+              viewerRunsClientsStudio={runsClientsStudio}
               onCreate={focusActions.onCreate}
               onAchieve={focusActions.onAchieve}
               onExtend={focusActions.onExtend}

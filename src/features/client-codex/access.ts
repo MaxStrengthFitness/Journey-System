@@ -18,10 +18,12 @@
  *                 null or empty home is what the rule sees, and it refuses
  *                 the write, so nobody but an administrator is offered Edit
  *                 there — the same answer the prior-history door on the
- *                 Account page gives. A cross-train studio and a franchise
- *                 owner who does not work there READ the record and are
- *                 offered no editor.
- *   fordReadable  The FORD read rule: the same people, plus franchise owners.
+ *                 Account page gives. A cross-train studio READS the record
+ *                 and is offered no editor. A franchise owner edits the
+ *                 records of the studios they run, as a leader does, and
+ *                 nothing elsewhere (the franchise partition, Oct 2026).
+ *   fordReadable  The FORD read rule: the same people (a franchise owner
+ *                 at the studios they run, since the franchise partition).
  *                 That rule reads the DETAIL's stamped studio, not the
  *                 client document, so this uses `homeStudioId` below (the
  *                 lenient home a detail is stamped with), not the update
@@ -32,9 +34,9 @@
  *   fordWritable  The FORD CREATE rule (`isTrainerOfStudio(studioId)`, the
  *                 detail stamped with her home studio): anyone who trains at
  *                 or leads that studio, the grant and Demo Mode included.
- *                 NOT an administrator or franchise owner who works
- *                 elsewhere — the create rule has no such clause, so they
- *                 read FORD and edit the record but are refused a new
+ *                 NOT an administrator who works elsewhere — the create
+ *                 rule has no such clause, so they read FORD and edit
+ *                 the record but are refused a new
  *                 detail (client codex, phase 17: the intake card offers
  *                 its FORD tap only on this).
  *
@@ -44,7 +46,6 @@ import type { Studio, Trainer } from "../../types";
 import { canRecordInBody } from "../inbody/access";
 import { leadsStudio, worksAt } from "../renewals/permissions";
 import { hasRunOfDemo } from "../demo-mode/access";
-import { FRANCHISE_ROLES } from "../../lib/staff-access";
 import { ruleStudioIdOf } from "../client-profile/prior-history-door";
 
 export interface CodexAccess {
@@ -93,11 +94,13 @@ export function codexAccess(
   const homeStudioId = recordStudioIdOf(client);
   // The update rule's own reading of the home (absent-only fallback).
   const canEdit = canRecordInBody(trainer ?? null, ruleStudioIdOf(client));
-  const role = typeof trainer?.role === "string" ? trainer.role : "";
-  const fordReadable =
-    canRecordInBody(trainer ?? null, homeStudioId) || (Boolean(trainer) && FRANCHISE_ROLES.has(role));
-  // The FORD create rule has no administrator or franchise clause: only the
-  // studio's own people (isTrainerOfStudio), mirrored here.
+  // FORD is read by the studio's people, its leaders and administrators. A
+  // franchise owner reads it at the studios they run, through leadsStudio,
+  // and nowhere else (the franchise partition, Oct 2026: the rules' FORD
+  // read lost its company-wide franchise branch).
+  const fordReadable = canRecordInBody(trainer ?? null, homeStudioId);
+  // The FORD create rule has no administrator clause: it admits the studio's
+  // people, its franchise owner included (isTrainerOfStudio), mirrored here.
   const fordWritable =
     worksAt(trainer, homeStudioId) || leadsStudio(trainer, homeStudioId) || hasRunOfDemo(trainer, homeStudioId);
   const name = homeStudioId ? (studios ?? []).find((s) => s.id === homeStudioId)?.name?.trim() : "";

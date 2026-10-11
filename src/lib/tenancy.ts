@@ -38,12 +38,17 @@
 import type { Trainer } from "../types";
 import { DEMO_STUDIO_ID } from "../features/demo-mode/constants";
 import { isDemoStudioId } from "../features/demo-mode/is-demo";
+import { LEADS_OWN_STUDIO_ROLES } from "./staff-access";
 
 /** Firestore's cap on the number of values in an `in` clause. */
 export const MAX_IN_VALUES = 30;
 
 /**
- * Every studio this trainer stands in: home, granted, guest, owned.
+ * Every studio this trainer stands in: home, granted, guest, and owned for a
+ * role that runs its own studios (the studio tier and, since the franchise
+ * partition of Oct 2026, the franchise owner). The rules count
+ * `ownedStudioIds` for nobody else, so an `in` over a LifeTransformer's
+ * leftover owned studio would be refused whole.
  *
  * Order is stable and duplicates are removed, so two calls produce the same
  * query and React memoisation on the result actually holds.
@@ -51,6 +56,7 @@ export const MAX_IN_VALUES = 30;
 export function readableStudioIds(
   trainer: Pick<
     Trainer,
+    | "role"
     | "primaryHomeStudioId"
     | "accessibleStudioIds"
     | "activeGuestStudioIds"
@@ -62,7 +68,7 @@ export function readableStudioIds(
     trainer.primaryHomeStudioId,
     ...(trainer.accessibleStudioIds ?? []),
     ...(trainer.activeGuestStudioIds ?? []),
-    ...(trainer.ownedStudioIds ?? []),
+    ...(LEADS_OWN_STUDIO_ROLES.has(trainer.role) ? trainer.ownedStudioIds ?? [] : []),
   ].filter((id): id is string => Boolean(id));
   return [...new Set(all)];
 }

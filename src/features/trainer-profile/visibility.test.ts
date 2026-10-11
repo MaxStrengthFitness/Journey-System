@@ -64,7 +64,7 @@ describe("resolveProfileScope", () => {
     expect(resolveProfileScope(guest, aj)).toBe("peer");
   });
 
-  it.each(["Admin", "Founder", "Overseer", "Owner", "FranchiseOwner", "StudioOwner"] as UserRole[])(
+  it.each(["Admin", "Founder", "Overseer"] as UserRole[])(
     "gives %s leadership everywhere",
     (role) => {
       const boss = trainer({ id: "boss", role, primaryHomeStudioId: "somewhere-else" });
@@ -72,7 +72,9 @@ describe("resolveProfileScope", () => {
     },
   );
 
-  it.each(["StudioLeader", "HeadTrainer"] as UserRole[])(
+  // The franchise partition (Oct 2026): a studio owner and a franchise owner
+  // lead where they share a studio, as a studio leader does, never everywhere.
+  it.each(["StudioLeader", "HeadTrainer", "StudioOwner", "FranchiseOwner", "Owner"] as UserRole[])(
     "gives %s leadership only where they share a studio",
     (role) => {
       const here = trainer({ id: "lead", role, primaryHomeStudioId: "solon" });
@@ -122,6 +124,44 @@ describe("resolveProfileVisibility", () => {
     expect(v.showRecentlyCoached).toBe(false);
     // ...but the aggregate numbers are a credential, not client data.
     expect(v.showCoachingLoad).toBe(true);
+  });
+
+  it("lets a leader who shares a studio see a colleague's contact, but edit only someone based at their studio", () => {
+    // A StudioLeader at A who also works at B, looking at a trainer based at B.
+    const leader = trainer({ id: "lead", role: "StudioLeader", primaryHomeStudioId: "solon", accessibleStudioIds: ["solon", "westlake"] });
+    const atB = trainer({ id: "b", primaryHomeStudioId: "westlake" });
+    const v = resolveProfileVisibility(leader, atB);
+    expect(v.scope).toBe("leadership");
+    expect(v.showContact).toBe(true);
+    expect(v.showIntegration).toBe(true);
+    expect(v.canEdit).toBe(false);
+    expect(resolveProfileVisibility(leader, aj).canEdit).toBe(true);
+  });
+
+  it("gives a franchise owner leadership and Edit over their studio's trainers, and nothing over another's", () => {
+    const owner = trainer({ id: "own", role: "FranchiseOwner", primaryHomeStudioId: "willoughby", ownedStudioIds: ["solon"] });
+    const v = resolveProfileVisibility(owner, aj);
+    expect(v.scope).toBe("leadership");
+    expect(v.canEdit).toBe(true);
+    const atB = trainer({ id: "b", primaryHomeStudioId: "westlake" });
+    expect(resolveProfileVisibility(owner, atB).scope).toBe("outside");
+    expect(resolveProfileVisibility(owner, atB).canEdit).toBe(false);
+  });
+
+  it("no longer gives a studio owner leadership over another studio's trainers they share nothing with", () => {
+    const studioOwner = trainer({ id: "so", role: "StudioOwner", primaryHomeStudioId: "mentor" });
+    expect(resolveProfileVisibility(studioOwner, aj).scope).toBe("outside");
+    expect(resolveProfileVisibility(studioOwner, aj).canEdit).toBe(false);
+  });
+
+  it("lets only you and an administrator send Recently coached's query", () => {
+    const leader = trainer({ id: "lead", role: "StudioLeader", primaryHomeStudioId: "solon" });
+    const v = resolveProfileVisibility(leader, aj);
+    expect(v.showRecentlyCoached).toBe(true);
+    expect(v.fetchRecentlyCoached).toBe(false);
+    expect(resolveProfileVisibility(aj, aj).fetchRecentlyCoached).toBe(true);
+    const admin = trainer({ id: "adm", role: "Admin", primaryHomeStudioId: "system" });
+    expect(resolveProfileVisibility(admin, aj)).toMatchObject({ showRecentlyCoached: true, fetchRecentlyCoached: true, canEdit: true });
   });
 
   it("never lets a non-privileged viewer edit", () => {

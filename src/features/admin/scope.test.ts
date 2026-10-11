@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FranchiseNetwork, Studio, Trainer } from "../../types";
+import type { Studio, Trainer } from "../../types";
 import { operationsStudios, studiosInScope } from "./scope";
 
 const studios = [
@@ -8,8 +8,6 @@ const studios = [
   { id: "strongsville", name: "Strongsville" },
   { id: "willoughby", name: "Willoughby" },
 ] as Studio[];
-
-const networks = [{ id: "n1", name: "East", ownerIds: ["own-e"], studioIds: ["solon", "willoughby"] }] as FranchiseNetwork[];
 
 const trainer = (extra: Partial<Trainer>): Trainer =>
   ({
@@ -25,36 +23,47 @@ const trainer = (extra: Partial<Trainer>): Trainer =>
 
 describe("operationsStudios — what a reader may look at", () => {
   it("gives the company tier every studio, by name", () => {
-    expect(operationsStudios(trainer({ role: "Founder" }), studios, networks).map((s) => s.id)).toEqual([
+    expect(operationsStudios(trainer({ role: "Founder" }), studios).map((s) => s.id)).toEqual([
       "solon",
       "strongsville",
       "westlake",
       "willoughby",
     ]);
-    expect(operationsStudios(trainer({}), studios, networks, true)).toHaveLength(4);
+    expect(operationsStudios(trainer({}), studios, true)).toHaveLength(4);
   });
 
-  it("gives an owner the studios that reach them — ownerId, ownedStudioIds, a network they own", () => {
-    expect(operationsStudios(trainer({ id: "own-w", role: "Owner" }), studios, networks).map((s) => s.id)).toEqual(["westlake"]);
-    expect(operationsStudios(trainer({ id: "own-e", role: "FranchiseOwner" }), studios, networks).map((s) => s.id)).toEqual([
-      "solon",
-      "willoughby",
-    ]);
+  // The franchise partition (Oct 2026): an owner leads their home and the
+  // studios an administrator marked them as owning, and nothing else.
+  it("gives an owner their home and the studios marked as theirs", () => {
     expect(
-      operationsStudios(trainer({ role: "Owner", ownedStudioIds: ["strongsville"] }), studios, networks).map((s) => s.id),
-    ).toEqual(["strongsville"]);
+      operationsStudios(trainer({ role: "Owner", ownedStudioIds: ["strongsville"] }), studios).map((s) => s.id),
+    ).toEqual(["solon", "strongsville"]);
+    expect(
+      operationsStudios(trainer({ role: "FranchiseOwner", ownedStudioIds: ["westlake", "willoughby"] }), studios).map(
+        (s) => s.id,
+      ),
+    ).toEqual(["solon", "westlake", "willoughby"]);
+  });
+
+  it("gives nothing for a studio's ownerId or a network: an owner who owns nothing has only their home", () => {
+    // own-w is westlake's ownerId (the administrator who created it, really);
+    // own-e is a network's owner. Neither counts.
+    expect(operationsStudios(trainer({ id: "own-w", role: "Owner" }), studios).map((s) => s.id)).toEqual(["solon"]);
+    expect(operationsStudios(trainer({ id: "own-e", role: "FranchiseOwner" }), studios).map((s) => s.id)).toEqual([
+      "solon",
+    ]);
   });
 
   it("gives a studio leader the studios they run, and the grant counts", () => {
-    expect(operationsStudios(trainer({ role: "HeadTrainer" }), studios, networks).map((s) => s.id)).toEqual(["solon"]);
+    expect(operationsStudios(trainer({ role: "HeadTrainer" }), studios).map((s) => s.id)).toEqual(["solon"]);
     expect(
-      operationsStudios(trainer({ role: "StudioOwner", ownedStudioIds: ["westlake"] }), studios, networks).map((s) => s.id),
+      operationsStudios(trainer({ role: "StudioOwner", ownedStudioIds: ["westlake"] }), studios).map((s) => s.id),
     ).toEqual(["solon", "westlake"]);
-    expect(operationsStudios(trainer({ managedStudioIds: ["strongsville"] }), studios, networks).map((s) => s.id)).toEqual([
+    expect(operationsStudios(trainer({ managedStudioIds: ["strongsville"] }), studios).map((s) => s.id)).toEqual([
       "strongsville",
     ]);
-    expect(operationsStudios(trainer({}), studios, networks)).toEqual([]);
-    expect(operationsStudios(null, studios, networks)).toEqual([]);
+    expect(operationsStudios(trainer({}), studios)).toEqual([]);
+    expect(operationsStudios(null, studios)).toEqual([]);
   });
 });
 

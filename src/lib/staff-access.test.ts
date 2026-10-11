@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { DEMO_STUDIO_ID } from "../features/demo-mode/constants";
 import {
+  CROSS_TRAIN_CLIENT_PATHS,
+  LEADS_OWN_STUDIO_ROLES,
+  PRACTICE_STUDIO_ID,
+  crossTrainLookupAllowed,
   decideMindbodyAccess,
   decodeRestFields,
   resolveRole,
@@ -64,8 +69,8 @@ describe("resolveStaffAccess", () => {
     expect(lt.siteIds).toEqual(["5746957"]);
   });
 
-  it("gives super and franchise roles every site", () => {
-    for (const role of ["Admin", "Founder", "Overseer", "FranchiseOwner", "Owner"]) {
+  it("gives the super roles every site", () => {
+    for (const role of ["Admin", "Founder", "Overseer"]) {
       const access = resolveStaffAccess({
         uid: "u",
         trainer: { role, primaryHomeStudioId: "system" },
@@ -75,6 +80,72 @@ describe("resolveStaffAccess", () => {
     }
   });
 
+  // The franchise partition (Oct 2026): a franchise owner reaches the sites of
+  // the studios they run, never every site.
+  it("never gives the franchise roles every site", () => {
+    for (const role of ["FranchiseOwner", "Owner"]) {
+      const access = resolveStaffAccess({
+        uid: "u",
+        trainer: { role, primaryHomeStudioId: "system" },
+        siteIdByStudio: SITES,
+      })!;
+      expect(access.allSites).toBe(false);
+    }
+  });
+
+  it("lets a franchise owner reach the site of a studio they own, and no other", () => {
+    const owner = resolveStaffAccess({
+      uid: "u",
+      trainer: { role: "FranchiseOwner", primaryHomeStudioId: "offline", ownedStudioIds: ["westlake"] },
+      siteIdByStudio: SITES,
+    })!;
+    expect(owner.siteIds).toEqual(["29068"]);
+    expect(decideMindbodyAccess(owner, { siteId: "29068" }).ok).toBe(true);
+    expect(decideMindbodyAccess(owner, { siteId: "5746957" }).ok).toBe(false);
+  });
+
+  it("gives a franchise owner who owns nothing only their home studio's site", () => {
+    const owner = resolveStaffAccess({
+      uid: "u",
+      trainer: { role: "Owner", primaryHomeStudioId: "solon" },
+      siteIdByStudio: SITES,
+    })!;
+    expect(owner.siteIds).toEqual(["5746957"]);
+    expect(decideMindbodyAccess(owner, { siteId: "29068" }).ok).toBe(false);
+  });
+
+  it("reads the role from the document, never a claim: a document LifeTransformer is never every site", () => {
+    // resolveStaffAccess takes no claim at all: a claim outlives a demotion.
+    const access = resolveStaffAccess({
+      uid: "u",
+      trainer: { role: "LifeTransformer", primaryHomeStudioId: "solon" },
+      siteIdByStudio: SITES,
+    })!;
+    expect(access.role).toBe("LifeTransformer");
+    expect(access.allSites).toBe(false);
+    expect(decideMindbodyAccess(access, { siteId: "29068" }).ok).toBe(false);
+  });
+
+  it("never counts Demo Mode's studio, whatever site the map gives it", () => {
+    const access = resolveStaffAccess({
+      uid: "u",
+      trainer: { role: "LifeTransformer", primaryHomeStudioId: "solon", accessibleStudioIds: [PRACTICE_STUDIO_ID] },
+      siteIdByStudio: { ...SITES, [PRACTICE_STUDIO_ID]: "29068" },
+    })!;
+    expect(access.studioIds).toEqual(["solon"]);
+    expect(access.siteIds).toEqual(["5746957"]);
+  });
+
+  it("does not count the grant: a LifeTransformer granted B on another site is refused B's site", () => {
+    const access = resolveStaffAccess({
+      uid: "u",
+      trainer: { role: "LifeTransformer", primaryHomeStudioId: "solon", managedStudioIds: ["westlake"] } as any,
+      siteIdByStudio: SITES,
+    })!;
+    expect(access.siteIds).toEqual(["5746957"]);
+    expect(decideMindbodyAccess(access, { siteId: "29068" }).ok).toBe(false);
+  });
+
   it("ignores studios that have no Mindbody site", () => {
     const access = resolveStaffAccess({
       uid: "u1",
@@ -82,6 +153,37 @@ describe("resolveStaffAccess", () => {
       siteIdByStudio: SITES,
     })!;
     expect(access.siteIds).toEqual([]);
+  });
+});
+
+describe("the franchise partition's constants", () => {
+  it("keeps the practice studio's literal equal to Demo Mode's id", () => {
+    expect(PRACTICE_STUDIO_ID).toBe(DEMO_STUDIO_ID);
+  });
+
+  it("lists the studio tier and the franchise owner as running their own studios", () => {
+    expect([...LEADS_OWN_STUDIO_ROLES].sort()).toEqual(
+      ["FranchiseOwner", "HeadTrainer", "Owner", "StudioLeader", "StudioOwner"],
+    );
+  });
+});
+
+describe("crossTrainLookupAllowed", () => {
+  it("allows the three routes that look up one client, ignoring case and a trailing slash", () => {
+    expect([...CROSS_TRAIN_CLIENT_PATHS].sort()).toEqual([
+      "/client-commercial",
+      "/client-demographics",
+      "/client-master-sync",
+    ]);
+    expect(crossTrainLookupAllowed("/client-demographics")).toBe(true);
+    expect(crossTrainLookupAllowed("/Client-Master-Sync/")).toBe(true);
+    expect(crossTrainLookupAllowed("/client-commercial//")).toBe(true);
+  });
+
+  it("never allows the routes that serve a whole site", () => {
+    for (const p of ["/staff", "/locations", "/staff-appointments", "/staff-image", "/issueUserToken", ""]) {
+      expect(crossTrainLookupAllowed(p)).toBe(false);
+    }
   });
 });
 

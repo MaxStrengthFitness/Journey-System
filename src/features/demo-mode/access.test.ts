@@ -102,12 +102,12 @@ describe("Operations cannot mix the two", () => {
   it("an administrator's 'every studio' leaves Demo Mode out", () => {
     // The leak that matters: practice sessions folded into the company's
     // numbers, where nobody would ever notice they were there.
-    const readable = operationsStudios(admin, all, [], true, "solon");
+    const readable = operationsStudios(admin, all, true, "solon");
     expect(readable.map((s) => s.id)).toEqual(["solon", "westlake"]);
   });
 
   it("and inside Demo Mode is exactly one studio, so 'all my studios' cannot appear", () => {
-    const readable = operationsStudios(admin, all, [], true, DEMO_STUDIO_ID);
+    const readable = operationsStudios(admin, all, true, DEMO_STUDIO_ID);
     expect(readable.map((s) => s.id)).toEqual([DEMO_STUDIO_ID]);
     expect(readable.length > 1).toBe(false);
   });
@@ -117,13 +117,13 @@ describe("Operations cannot mix the two", () => {
     // would be empty -- Operations offered from the menu and then blank.
     const t = trainer({ role: "LifeTransformer" });
     expect(
-      operationsStudios(t, all, [], false, DEMO_STUDIO_ID).map((s) => s.id),
+      operationsStudios(t, all, false, DEMO_STUDIO_ID).map((s) => s.id),
     ).toEqual([DEMO_STUDIO_ID]);
   });
 
   it("and the same trainer back in their own studio gets nothing, as before", () => {
     const t = trainer({ role: "LifeTransformer" });
-    expect(operationsStudios(t, all, [], false, "solon")).toEqual([]);
+    expect(operationsStudios(t, all, false, "solon")).toEqual([]);
   });
 });
 
@@ -173,9 +173,10 @@ describe("the realm rule at the doors that list studios", () => {
   });
 
   it("an announcement from inside Demo Mode reaches Demo Mode alone", () => {
-    const r = announcementReach({ isAdmin: true, isOwnerTier: true, allStudios: withDemo, readable: [studio(DEMO_STUDIO_ID)], activeStudioId: DEMO_STUDIO_ID });
+    const r = announcementReach({ isAdmin: true, isOwnerTier: true, trainer: null, allStudios: withDemo, readable: [studio(DEMO_STUDIO_ID)], allNetworks: [], activeStudioId: DEMO_STUDIO_ID });
     expect(r.scopes).toEqual(["studio"]);
     expect(r.fixedStudioId).toBe(DEMO_STUDIO_ID);
     expect(r.studios.map((s) => s.id)).toEqual([DEMO_STUDIO_ID]);
+    expect(r.networks).toEqual([]);
   });
 });

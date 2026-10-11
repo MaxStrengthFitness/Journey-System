@@ -5,10 +5,11 @@
  * Relay's leader acts (posting a team job, assigning a shift task).
  *
  * Round: Planner rework, Sep 2026. Those are a leader's acts, and
- * firestore.rules allows them to administrators, franchise owners, and the
- * leaders OF THAT STUDIO — a leader role (head trainer, studio leader,
- * studio owner) at their home or an owned studio, or a trainer the studio's
- * leadership gave THE GRANT for it (`managedStudioIds`, My Studio round) —
+ * firestore.rules allows them to administrators and the leaders OF THAT
+ * STUDIO — a leader role (head trainer, studio leader, studio owner) or,
+ * since the franchise partition (Oct 2026), a franchise owner, at their home
+ * or an owned studio, or a trainer the studio's leadership gave THE GRANT for
+ * it (`managedStudioIds`, My Studio round) —
  * `isStudioOwnerOrHeadTrainer(studioId)` / `trainerLeads`. A head trainer
  * visiting another studio is a trainer there, so the buttons must follow the
  * studio the iPad is standing in, not the role alone — otherwise the screen

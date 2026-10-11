@@ -110,12 +110,17 @@ export function isFranchiseOwner(trainer: Trainer | null): boolean {
 }
 
 /**
- * Checks if a target studio ID belongs to the trainer's owned/territory access
+ * Checks if a target studio ID belongs to the trainer's owned/territory access.
+ *
+ * The franchise partition (Oct 2026): ownership is `ownedStudioIds` alone,
+ * marked by an administrator. A network the trainer owns no longer brings
+ * its studios with it (the rules count no network), so `networks` is
+ * accepted and ignored, for the callers that still pass it.
  */
 export function isStudioInTerritory(
   trainer: Trainer,
   studioId: string,
-  networks?: FranchiseNetwork[],
+  _networks?: FranchiseNetwork[],
 ): boolean {
   if (!studioId) return false;
 
@@ -124,16 +129,6 @@ export function isStudioInTerritory(
 
   // 2. Active primary home studio
   if (trainer.primaryHomeStudioId === studioId) return true;
-
-  // 3. Find if studio resides in a network owned by this Studio Owner
-  if (networks) {
-    const ownedNetworkIds = networks
-      .filter((net) => net.ownerId === trainer.id)
-      .map((net) => net.studioIds);
-    for (const studioIds of ownedNetworkIds) {
-      if (studioIds.includes(studioId)) return true;
-    }
-  }
 
   return false;
 }

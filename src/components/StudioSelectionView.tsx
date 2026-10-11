@@ -25,7 +25,7 @@
  * second; at once when the iPad asks for less motion).
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
+import { collection, doc, getDocs, query, serverTimestamp, setDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { Studio, FranchiseNetwork, Trainer } from "../types";
 import { useToast } from "../contexts/ToastContext";
@@ -37,7 +37,8 @@ import { canEnterDemo, splitOutDemo } from "../features/demo-mode/access";
 import { isDemoStudioId } from "../features/demo-mode/is-demo";
 import { SetUpDemoCard } from "../features/demo-mode/SetUpDemoCard";
 import { DEMO_STUDIO_TAGLINE } from "../features/demo-mode/constants";
-import { studioAccessRequest } from "../features/admin/staff/studio-access-request";
+import { studioAccessRequest, studioAccessRequestId } from "../features/admin/staff/studio-access-request";
+import { readableStudioIds } from "../lib/tenancy";
 import { mayOpenOperations } from "../features/admin/operations-access";
 import {
   ArrowIcon,
@@ -64,6 +65,12 @@ interface StudioSelectionViewProps {
    * lines wait for the trainers. features/front-door/boot-lookup.ts.
    */
   studiosKnown?: boolean;
+  /**
+   * No longer waited for (the franchise partition, Oct 2026): a franchise
+   * owner's studios are on their own trainer document, never their networks.
+   * Still accepted, because AppContent passes it; the networks only name a
+   * studio's group on its card.
+   */
   networksKnown?: boolean;
   trainersKnown?: boolean;
   authTrainer?: Trainer;
@@ -144,10 +151,11 @@ export function StudioSelectionView({
       // Demo Mode is open to every signed-in trainer, by the studio's id
       // (features/demo-mode/access.ts).
       if (canEnterDemo(authTrainer) && isDemoStudioId(studioId)) return true;
+      // Home, also works at, guest, and the studios an administrator marked
+      // them as owning for a role that runs its own (readableStudioIds; the
+      // franchise partition, Oct 2026), then the company tier.
       return (
-        authTrainer.primaryHomeStudioId === studioId ||
-        authTrainer.accessibleStudioIds?.includes(studioId) ||
-        authTrainer.activeGuestStudioIds?.includes(studioId) ||
+        readableStudioIds(authTrainer).includes(studioId) ||
         authTrainer.role === "Admin" ||
         authTrainer.role === "Founder" ||
         authTrainer.role === "Overseer"
@@ -271,7 +279,10 @@ export function StudioSelectionView({
     if (!authTrainer || !studio.id || !myUid) return;
     setRequestingStudioId(studio.id);
     try {
-      await addDoc(collection(db, "access_requests"), {
+      // At sa_{uid}_{studio} (the franchise partition, second review): the
+      // rules refuse a studio-access request anywhere else, so it can never
+      // squat someone's own sign-up id, and asking again is the same row.
+      await setDoc(doc(db, "access_requests", studioAccessRequestId(myUid, studio.id)), {
         ...studioAccessRequest({
           uid: myUid,
           authUser: auth.currentUser,
@@ -308,7 +319,7 @@ export function StudioSelectionView({
   // ---- still reading the lists -------------------------------------------------
   // Never "No studios yet" or "Not on a studio's team yet" off a list that
   // hasn't answered (the speed round, Oct 5 2026).
-  if (!opening && pickerWaits({ studiosKnown, networksKnown, mine: mine.length })) {
+  if (!opening && pickerWaits({ studiosKnown, mine: mine.length })) {
     return <CheckingIn step={2} email={authTrainer?.email ?? null} onSignOut={onSignOut ?? onBack} />;
   }
 

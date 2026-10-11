@@ -131,14 +131,16 @@ export const NOTHING_KNOWN: BootKnowledge = { studios: "unknown", trainers: "unk
 
 /**
  * Whether the studio picker must wait ("Checking you in") rather than say
- * what it found. With no studios read, "No studios yet" would be a guess;
- * with none of your own and the networks unread, "Not on a studio's team
- * yet" would be one too (a franchise owner's studios come through their
- * networks).
+ * what it found. With no studios read, "No studios yet" would be a guess.
+ * It waits for the studios alone: since the franchise partition (Oct 2026)
+ * a franchise owner's studios are the ones an administrator marked on their
+ * own trainer document (`ownedStudioIds`), never their networks, so once
+ * the studios have answered "Not on a studio's team yet" is no guess.
+ * `mine` stays in the input for the call sites' sake, and to keep the
+ * question's shape if another wait ever comes back.
  */
-export function pickerWaits(input: { studiosKnown: boolean; networksKnown: boolean; mine: number }): boolean {
-  if (!input.studiosKnown) return true;
-  return input.mine === 0 && !input.networksKnown;
+export function pickerWaits(input: { studiosKnown: boolean; mine: number }): boolean {
+  return !input.studiosKnown;
 }
 
 /** The fields that decide what a person may open. */

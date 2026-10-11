@@ -44,4 +44,24 @@ describe("9 of 12 have read it (the Atlas answers, Oct 2 2026)", () => {
     expect(maySeeReadCount(t("owner", { role: "Owner" }), "uid-owner", notice())).toBe(true);
     expect(maySeeReadCount(team[3], "uid-lead", notice({ asksRead: false }))).toBe(false);
   });
+
+  // The franchise partition (Oct 2026): a franchise owner sees the count where
+  // they lead, as a leader does, and a network notice's count is its
+  // author's and administrators' only.
+  it("shows a franchise owner who isn't the author the count at a studio they run, and not at another", () => {
+    const owner = t("owner", { role: "FranchiseOwner", primaryHomeStudioId: "solon", accessibleStudioIds: ["solon"], ownedStudioIds: ["westlake"] });
+    const elsewhere = t("owner2", { role: "FranchiseOwner", primaryHomeStudioId: "solon", accessibleStudioIds: ["solon"] });
+    expect(maySeeReadCount(owner, "uid-owner", notice())).toBe(true);
+    expect(maySeeReadCount(elsewhere, "uid-owner2", notice())).toBe(false);
+    expect(maySeeReadCount(t("adm", { role: "Admin" }), "uid-adm", notice())).toBe(true);
+  });
+
+  it("keeps a network notice's count to its author and administrators", () => {
+    const net = notice({ targetScope: "network", targetId: "netAB", studioId: "", authorId: "uid-author" } as Partial<HubAnnouncement>);
+    const runsAll = t("own", { role: "FranchiseOwner", primaryHomeStudioId: "westlake", ownedStudioIds: ["solon"] });
+    expect(noticeStudioId(net)).toBeNull();
+    expect(maySeeReadCount(runsAll, "uid-own", net)).toBe(false);
+    expect(maySeeReadCount(t("author"), "uid-author", net)).toBe(true);
+    expect(maySeeReadCount(t("adm", { role: "Founder" }), "uid-adm", net)).toBe(true);
+  });
 });

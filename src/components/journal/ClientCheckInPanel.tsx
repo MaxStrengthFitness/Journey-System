@@ -108,6 +108,7 @@ import {
   DeltaChip,
 } from "../../features/subjective-report/AssessmentHistoryLog";
 import { PulseClientMode } from "../../features/subjective-report/PulseClientMode";
+import { isEveryStudioRole } from "../../features/renewals/permissions";
 import type { AssessmentChange, SubjectiveAssessment } from "../../features/subjective-report/types";
 import "../../features/subjective-report/subjective-report.css";
 
@@ -235,6 +236,7 @@ export function ClientCheckInPanel({
   // reads nothing and never writes.
   const ownDraft = useCheckInDraft({ client, trainer, machines, enabled: !sharedDraft });
   const draft = sharedDraft ?? ownDraft;
+  const canDiscard = isEveryStudioRole(trainer);
   const [openId, setOpenId] = useState<string | null>(null);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -560,8 +562,17 @@ export function ClientCheckInPanel({
       {draft.hasDraft && (
         <div className="sra-foot">
           {/* Two taps: this deletes answers that may represent several
-              sessions of conversation, and it sits beside Save. */}
-          {confirmDiscard ? (
+              sessions of conversation, and it sits beside Save.
+              Administrators only: a draft is a progressReports document,
+              which firestore.rules lets only administrators delete until the
+              privacy round pins a report's clientId and trainerId (any
+              trainer may rewrite both on update today, so an author-based
+              delete would reach any report). For everyone else Discard only
+              ended in a refusal (the franchise partition's attack round,
+              Oct 2026); they finish the draft with Save instead. */}
+          {!canDiscard ? (
+            <span className="sra-foot__spacer" />
+          ) : confirmDiscard ? (
             <span className="sra-foot__spacer">
               <span className="sra-foot__ask sra-foot__ask--danger">Delete this draft and its answers?</span>
               <button type="button" className="sra-btn" onClick={() => setConfirmDiscard(false)}>

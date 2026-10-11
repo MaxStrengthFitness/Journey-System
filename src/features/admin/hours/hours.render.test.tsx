@@ -126,7 +126,7 @@ async function mount(who: Trainer, isAdmin = false) {
   await act(async () => {
     root!.render(
       <StrictMode>
-        <OperationsScopeProvider authTrainer={who} studios={studios} networks={[]} isAdmin={isAdmin} activeStudioId="solon">
+        <OperationsScopeProvider authTrainer={who} studios={studios} isAdmin={isAdmin} activeStudioId="solon">
           <ScopeBar />
           <AdminHoursTab trainers={trainers} />
         </OperationsScopeProvider>

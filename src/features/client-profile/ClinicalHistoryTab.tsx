@@ -83,7 +83,8 @@ export interface ClinicalHistoryTabProps {
   timeZone?: string;
   progressReports: ProgressReport[];
   onSelectReport: (id: string) => void;
-  onDeleteReport: (report: ProgressReport) => void;
+  /** Left out, the archive draws no Delete (administrators only; see ProgressReportArchive). */
+  onDeleteReport?: (report: ProgressReport) => void;
   onNewReport: () => void;
   /**
    * The reports above have answered for THIS client (the profile's

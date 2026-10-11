@@ -102,8 +102,12 @@ export function TrainerProfileView({
   const counters = useTrainerRollups(trainer?.id);
   const stats = useMemo(() => deriveTrainerStats(trainer, Date.now(), counters), [trainer, counters]);
 
+  // The card shows on any shared floor, but only you and an administrator
+  // send its query: on a colleague's profile it lists the loaded window,
+  // which the rules allow, instead of a read they refuse (the franchise
+  // partition, second review; visibility.ts fetchRecentlyCoached).
   const { rows: coached } = useRecentlyCoached(trainer, clients, sessions, {
-    enabled: visibility.showRecentlyCoached,
+    enabled: visibility.showRecentlyCoached && visibility.fetchRecentlyCoached,
   });
 
   const openClient = (clientId: string) => {

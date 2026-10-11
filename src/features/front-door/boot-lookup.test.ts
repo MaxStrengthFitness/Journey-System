@@ -36,14 +36,14 @@ describe("what is known about a list", () => {
 
 describe("the picker waits rather than guess", () => {
   it("while the studios haven't answered", () => {
-    expect(pickerWaits({ studiosKnown: false, networksKnown: true, mine: 2 })).toBe(true);
+    expect(pickerWaits({ studiosKnown: false, mine: 2 })).toBe(true);
+    expect(pickerWaits({ studiosKnown: false, mine: 0 })).toBe(true);
   });
-  it("while none are yours and the networks haven't answered", () => {
-    expect(pickerWaits({ studiosKnown: true, networksKnown: false, mine: 0 })).toBe(true);
-  });
-  it("not when your studios are there, networks or not", () => {
-    expect(pickerWaits({ studiosKnown: true, networksKnown: false, mine: 1 })).toBe(false);
-    expect(pickerWaits({ studiosKnown: true, networksKnown: true, mine: 0 })).toBe(false);
+  // The franchise partition (Oct 2026): ownership is on the trainer document,
+  // never the networks, so the picker waits only for the studios.
+  it("waits only for the studios: none of your own is an answer once they're read", () => {
+    expect(pickerWaits({ studiosKnown: true, mine: 1 })).toBe(false);
+    expect(pickerWaits({ studiosKnown: true, mine: 0 })).toBe(false);
   });
 });
 

@@ -44,7 +44,7 @@ const rowFor = (req: AccessRequest): StaffRow =>
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
-async function mount(row: StaffRow) {
+async function mount(row: StaffRow, extra: Partial<Parameters<typeof StaffEditor>[0]> = {}) {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -60,6 +60,7 @@ async function mount(row: StaffRow) {
           lockHomeStudio
           grantStudioId="westlake"
           onDone={() => {}}
+          {...extra}
         />
       </StrictMode>,
     );
@@ -150,5 +151,111 @@ describe("StaffEditor", () => {
     expect(writes[0].path).toBe("trainers/uid-sam");
     expect(writes[0].data).toMatchObject({ fullName: "Samantha Lee", mindbodyStaffId: "100000123", mindbodyLinked: true });
     expect(writes[0].data).not.toHaveProperty("email");
+  });
+});
+
+/*
+ * WHAT A ROW OFFERS THE VIEWER (the franchise partition, Oct 2026;
+ * edit-limits.ts). Under the partition's rules your own role and studios are
+ * head office's, a person based at a studio you don't lead is read only, and
+ * an owner's role is changed only on Admins → Change role. The editor offers
+ * none of what the rules would refuse, and a save never sends a locked field.
+ */
+describe("StaffEditor offers only what the viewer may save", () => {
+  const trainer = (over: Record<string, unknown>) =>
+    ({
+      initials: "XX",
+      role: "LifeTransformer",
+      primaryHomeStudioId: "westlake",
+      accessibleStudioIds: ["westlake"],
+      activeGuestStudioIds: [],
+      systemStatus: "active",
+      ...over,
+    }) as never;
+  const rowOf = (t: { id: string }) =>
+    buildStaffRoster({ trainers: [t as never], mindbodyStaff: [], requests: [], studioId: null }).find(
+      (r) => r.trainer?.id === t.id,
+    )!;
+  const select = (el: Element, label: string) =>
+    [...el.querySelectorAll(".adm-field")].find((f) => f.querySelector("label")?.textContent?.startsWith(label))?.querySelector("select") as
+      | HTMLSelectElement
+      | undefined;
+  const input = (el: Element, label: string) =>
+    [...el.querySelectorAll(".adm-field")].find((f) => f.querySelector("label")?.textContent?.startsWith(label))?.querySelector("input") as
+      | HTMLInputElement
+      | undefined;
+
+  const leader = trainer({ id: "uid-lee", authUid: "uid-lee", fullName: "Lee Leader", email: "lee@example.com", role: "StudioLeader" });
+
+  it("on the live leader's own row on My Studio → Team: the role is locked, no grant, and Save sends neither", async () => {
+    const el = await mount(rowOf(leader), { viewer: leader, viewerIsAdmin: false });
+    expect(select(el, "Role")!.disabled).toBe(true);
+    expect(el.textContent).not.toContain("Can manage My Studio");
+    expect(el.textContent).toContain("Your own role and studios are set by head office.");
+    await act(async () => {
+      const i = input(el, "Initials")!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(i, "LL");
+      i.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      [...el.querySelectorAll("button")].find((b) => b.textContent?.includes("Save access"))!.click();
+    });
+    expect(writes).toHaveLength(1);
+    expect(writes[0].data).toMatchObject({ initials: "LL" });
+    expect(writes[0].data).not.toHaveProperty("role");
+    expect(writes[0].data).not.toHaveProperty("managedStudioIds");
+  });
+
+  it("on an owner's own row on Operations → People: the home studio select is locked", async () => {
+    const owner = trainer({ id: "uid-own", fullName: "Olive Owner", role: "FranchiseOwner", ownedStudioIds: ["solon"] });
+    const el = await mount(rowOf(owner), { viewer: owner, viewerIsAdmin: false, lockHomeStudio: false, grantStudioId: null });
+    expect(select(el, "Home studio")!.disabled).toBe(true);
+    expect(select(el, "Role")!.disabled).toBe(true);
+  });
+
+  it("on an administrator's own row: everything is open", async () => {
+    const admin = trainer({ id: "uid-ada", fullName: "Ada Admin", role: "Admin" });
+    const el = await mount(rowOf(admin), {
+      viewer: admin,
+      viewerIsAdmin: true,
+      lockHomeStudio: false,
+      assignableRoles: ["LifeTransformer", "HeadTrainer", "StudioLeader", "StudioOwner", "Owner", "Admin"],
+    });
+    expect(select(el, "Role")!.disabled).toBe(false);
+    expect(select(el, "Home studio")!.disabled).toBe(false);
+    expect(el.textContent).toContain("Can manage My Studio");
+    expect(el.querySelector(".adm-notice")?.textContent ?? "").not.toContain("head office");
+  });
+
+  it("a franchise owner of Westlake opening a guest based at Solon sees the row read only, with no Save", async () => {
+    const viewer = trainer({ id: "uid-own", fullName: "Olive Owner", role: "FranchiseOwner", primaryHomeStudioId: "willoughby", ownedStudioIds: ["westlake"] });
+    const guest = trainer({ id: "uid-gail", fullName: "Gail Guest", primaryHomeStudioId: "solon", accessibleStudioIds: ["solon"], activeGuestStudioIds: ["westlake"] });
+    const el = await mount(rowOf(guest), { viewer, viewerIsAdmin: false });
+    expect(el.textContent).toContain("Gail is based at Solon, so that studio's leaders make changes.");
+    expect(buttons(el).some((b) => b.includes("Save access"))).toBe(false);
+    expect(input(el, "Full name")!.disabled).toBe(true);
+    expect(select(el, "Role")!.disabled).toBe(true);
+  });
+
+  it("an administrator opening an owner's row: the role is locked, with the Change role line", async () => {
+    const admin = trainer({ id: "uid-ada", fullName: "Ada Admin", role: "Admin" });
+    const owner = trainer({ id: "uid-own", fullName: "Olive Owner", role: "FranchiseOwner", ownedStudioIds: ["solon"] });
+    const el = await mount(rowOf(owner), {
+      viewer: admin,
+      viewerIsAdmin: true,
+      assignableRoles: ["LifeTransformer", "HeadTrainer", "StudioLeader", "StudioOwner", "Owner", "Admin"],
+    });
+    expect(select(el, "Role")!.disabled).toBe(true);
+    expect(el.textContent).toContain("Change role");
+    expect(buttons(el).some((b) => b.includes("Save access"))).toBe(true);
+  });
+
+  it("never makes a request row read only: the approval path has its own checks", async () => {
+    const el = await mount(
+      rowFor({ id: "r9", fullName: "Nia New", email: "nia@example.com", status: "Pending", userId: "uid-nia" }),
+      { viewer: leader, viewerIsAdmin: false },
+    );
+    expect(buttons(el).some((b) => b.includes("Approve and create the account"))).toBe(true);
+    expect(select(el, "Role")!.disabled).toBe(false);
   });
 });

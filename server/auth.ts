@@ -31,6 +31,7 @@ import path from "path";
 import {
   decideMindbodyAccess,
   decodeRestFields,
+  PRACTICE_STUDIO_ID,
   resolveStaffAccess,
   restDocId,
   type StaffAccess,
@@ -196,7 +197,7 @@ async function loadCallerStudioSites(
  * The caller's profile
  * ------------------------------------------------------------------ */
 
-/** The caller's trainer document, cached. The role is resolved per request, so a sign-in claim is never cached under someone else's answer. */
+/** The caller's trainer document, cached. Its role is the one that counts (the franchise partition, Oct 2026), so a demotion reaches the proxy within PROFILE_TTL_MS; a read that fails rides on the last good answer, which is never wider than what the person had when it was read. */
 const profiles = new Map<string, { trainer: TrainerAccessFields | null; expiresAt: number }>();
 
 async function loadTrainer(uid: string, idToken: string): Promise<TrainerAccessFields | null> {
@@ -222,15 +223,19 @@ async function loadTrainer(uid: string, idToken: string): Promise<TrainerAccessF
   return trainer;
 }
 
-async function loadAccess(uid: string, claimRole: unknown, idToken: string): Promise<StaffAccess | null> {
+async function loadAccess(uid: string, idToken: string): Promise<StaffAccess | null> {
   const trainer = await loadTrainer(uid, idToken);
   if (!trainer) return null;
   // First pass with no site map: it settles the role and the studio list.
-  // A role that reaches every site never needs a studio read at all.
-  const shape = resolveStaffAccess({ uid, claimRole, trainer, siteIdByStudio: {} });
+  // A role that reaches every site never needs a studio read at all. The
+  // role is the document's, never the sign-in token's claim (the franchise
+  // partition, Oct 2026): a claim outlives a demotion by up to an hour, and
+  // "every site" is handed out on the role alone. A demotion lands once this
+  // document is read again, within PROFILE_TTL_MS.
+  const shape = resolveStaffAccess({ uid, trainer, siteIdByStudio: {} });
   if (!shape || shape.allSites) return shape;
   const siteIdByStudio = await loadCallerStudioSites(shape.studioIds, idToken);
-  return resolveStaffAccess({ uid, claimRole, trainer, siteIdByStudio });
+  return resolveStaffAccess({ uid, trainer, siteIdByStudio });
 }
 
 /**
@@ -247,6 +252,10 @@ async function loadAccess(uid: string, claimRole: unknown, idToken: string): Pro
  * plain record answers for the other site's person, whose home site will not
  * match the request's, so falling back to it can refuse but never wrongly
  * allow.
+ *
+ * A client homed at Demo Mode's studio never vouches for a site (the
+ * franchise partition, second review): everyone has the run of the practice
+ * studio, so its records say nothing about who may reach Mindbody.
  */
 async function readableClientSite(
   mindbodyClientId: string,
@@ -266,6 +275,7 @@ async function readableClientSite(
     if (status !== 200) continue;
     const home = decodeRestFields(body?.fields).homeStudioId;
     if (typeof home !== "string" || !home) continue;
+    if (home === PRACTICE_STUDIO_ID) return null;
     return studioSiteOf(home, idToken);
   }
   return null;
@@ -283,6 +293,14 @@ function plainIdOrAbsent(v: unknown): boolean {
 export interface RequireStaffOptions {
   /** Only Admin / Founder / Overseer. */
   requireSuper?: boolean;
+  /**
+   * The route looks up ONE client by id (server.ts sends the paths in
+   * CROSS_TRAIN_CLIENT_PATHS here), so the cross-train allowance may apply.
+   * Off everywhere else (the franchise partition, second review): /staff,
+   * /locations and /staff-appointments never read the client id, so a
+   * request that carried a readable client's id was served the whole site.
+   */
+  clientLookup?: boolean;
 }
 
 function bearerToken(req: Request): string | null {
@@ -301,6 +319,8 @@ export function requireStaff(options: RequireStaffOptions = {}) {
         .json({ error: "Please sign in again — this request carried no sign-in." });
     }
 
+    // `role` is the claim; it is no longer used for access (the franchise
+    // partition, Oct 2026: the document's role decides, see loadAccess).
     let decoded: { uid: string; role?: unknown };
     try {
       decoded = (await tokenVerifier().verifyIdToken(idToken)) as any;
@@ -312,7 +332,7 @@ export function requireStaff(options: RequireStaffOptions = {}) {
 
     let access: StaffAccess | null;
     try {
-      access = await loadAccess(decoded.uid, decoded.role, idToken);
+      access = await loadAccess(decoded.uid, idToken);
     } catch (err: any) {
       const why = String(err?.message || err || "unknown error");
       console.error("[auth] could not resolve caller:", why);
@@ -341,11 +361,15 @@ export function requireStaff(options: RequireStaffOptions = {}) {
     // A cross-train client lives on another site: allowed when the caller may
     // open that exact client AND the request names that client's own site.
     // Only a lookup by id: the name search is dropped on this path, so it
-    // can't be used to find someone else on the other site.
+    // can't be used to find someone else on the other site. And only on a
+    // route that looks up that one client (options.clientLookup; the
+    // franchise partition, second review): elsewhere the client id is never
+    // read, so the allowance would have opened the whole site.
     const mbClient = body?.mindbodyClientId;
     if (
       !decision.ok &&
       access &&
+      options.clientLookup === true &&
       !options.requireSuper &&
       typeof siteId === "string" &&
       siteId !== "" &&

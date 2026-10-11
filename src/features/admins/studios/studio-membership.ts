@@ -21,27 +21,42 @@
  *                     this studio's team", and the same thing as removing it
  *                     from the list.
  *
- * Never touched: the home studio (`primaryHomeStudioId`, and its own entry in
- * `accessibleStudioIds`, which approval writes there), `ownedStudioIds` (an
- * owner runs the business without being on the floor's team), the role, the
- * trainer record itself and everything they did — sessions, notes, weeks
- * stay where they are. The home studio can't be taken away here: a person
- * always has one. They are given another first, on Operations → Setup →
- * People & access, and then the old one can be taken off.
+ * Never touched by Add or Remove: the home studio (`primaryHomeStudioId`, and
+ * its own entry in `accessibleStudioIds`, which approval writes there), the
+ * role, the trainer record itself and everything they did — sessions, notes,
+ * weeks stay where they are. `ownedStudioIds` is changed only by the Owns
+ * control below, never by Add or Remove: an owner taken off a studio's team
+ * still owns it. The home studio can't be taken away here: a person always
+ * has one. They are given another first, on Operations → Setup → People &
+ * access, and then the old one can be taken off.
+ *
+ * OWNS THIS STUDIO (the franchise partition, Oct 2026; ROADMAP Gate B). The
+ * one place a studio becomes a franchise owner's: an administrator marks it
+ * here, on `ownedStudioIds`, and the owner then runs it as its leaders do
+ * (the rules' trainerLeads). Only a role that runs its own studios may own
+ * one; never the home studio (they run it already, and an entry for it would
+ * outlive a later change of home); never Demo Mode. Adding it also puts the
+ * studio on "Also works at" when it isn't there, because the cross-train
+ * rules count where a person works, not what they own (second review).
+ * Removing it leaves "Also works at" as it is. A role change that no longer
+ * runs studios takes every owned studio off (ownershipOnRoleChange).
  *
  * Demo Mode is never offered (the realm rule, features/demo-mode/access.ts).
  */
 import { isDemoStudioId } from "../../demo-mode/is-demo";
+import { LEADS_OWN_STUDIO_ROLES } from "../../../lib/staff-access";
 import type { ActivityInput } from "../activity/activity";
 
 /** The trainer document as this file reads it. */
 export interface MemberLike {
   id?: string;
   fullName?: string | null;
+  role?: string | null;
   primaryHomeStudioId?: string | null;
   accessibleStudioIds?: readonly string[] | null;
   activeGuestStudioIds?: readonly string[] | null;
   managedStudioIds?: readonly string[] | null;
+  ownedStudioIds?: readonly string[] | null;
 }
 
 export interface StudioLike {
@@ -95,7 +110,7 @@ export function whyNotRemovable(t: MemberLike, studioId: string): "home" | null 
   return studioId && studioId === t.primaryHomeStudioId ? "home" : null;
 }
 
-export type ListField = "accessibleStudioIds" | "activeGuestStudioIds" | "managedStudioIds";
+export type ListField = "accessibleStudioIds" | "activeGuestStudioIds" | "managedStudioIds" | "ownedStudioIds";
 
 /** One list that changes: what goes in, what comes out, and the whole list after. */
 export interface FieldChange {
@@ -221,4 +236,117 @@ export function homeStudioLine(person: MemberLike, studios: readonly StudioLike[
   const who = (person.fullName ?? "").trim() || "This person";
   const home = person.primaryHomeStudioId ? nameOf(studios, person.primaryHomeStudioId) : "this studio";
   return `${home} is ${who}'s home studio, so it can't be taken away here: everyone has one. Give them another home studio first on Operations → Setup → People & access, then take ${home} off here.`;
+}
+
+/* ------------------------------------------------------------------ *
+ * OWNS THIS STUDIO (the franchise partition, Oct 2026) — see the header.
+ * ------------------------------------------------------------------ */
+
+/** A role that may own studios: one that runs its own (the studio tier and the franchise owner). */
+export function mayOwnStudios(role: string | null | undefined): boolean {
+  return Boolean(role && LEADS_OWN_STUDIO_ROLES.has(role));
+}
+
+/** Whether this person owns this studio now. */
+export function ownsStudio(t: MemberLike, studioId: string): boolean {
+  return Boolean(studioId) && clean(t.ownedStudioIds).includes(studioId);
+}
+
+export interface OwnershipChange {
+  /** `ownedStudioIds`, one studio in or out. */
+  owned: FieldChange;
+  /** `accessibleStudioIds` gaining the studio too, when owning it adds it to where they work; else null. */
+  alsoWorksAt: FieldChange | null;
+}
+
+/**
+ * What switching "Owns {studio}" to `owns` would write, or null when nothing
+ * changes or it can't be done: the demo studio; adding for a role that may
+ * not own studios; adding their own home studio (they run it already).
+ * Removing is always allowed, the home included, so a stale entry can be
+ * cleared.
+ */
+export function ownershipChange(t: MemberLike, studioId: string, owns: boolean): OwnershipChange | null {
+  if (!studioId || isDemoStudioId(studioId)) return null;
+  const current = clean(t.ownedStudioIds);
+  const has = current.includes(studioId);
+  if (owns === has) return null;
+  if (!owns) {
+    return { owned: { field: "ownedStudioIds", add: [], remove: [studioId], next: current.filter((id) => id !== studioId) }, alsoWorksAt: null };
+  }
+  if (!mayOwnStudios(t.role) || studioId === (t.primaryHomeStudioId ?? "")) return null;
+  const also = clean(t.accessibleStudioIds);
+  return {
+    owned: { field: "ownedStudioIds", add: [studioId], remove: [], next: [...current, studioId] },
+    alsoWorksAt: also.includes(studioId)
+      ? null
+      : { field: "accessibleStudioIds", add: [studioId], remove: [], next: [...also, studioId] },
+  };
+}
+
+/** The Activity entry for Owns: an admin grant, at that studio, so its own leaders read it. */
+export function ownershipRecord(input: {
+  person: MemberLike;
+  studioId: string;
+  owns: boolean;
+  studios: readonly StudioLike[];
+  byName: string;
+}): ActivityInput {
+  const { person, studioId, owns, studios, byName } = input;
+  const who = (person.fullName ?? "").trim() || "someone";
+  const studio = nameOf(studios, studioId);
+  return {
+    kind: "admin-grant",
+    what: owns ? `Made ${who} an owner of ${studio}: they run it as its leaders do.` : `${who} no longer owns ${studio}.`,
+    studioId,
+    before: { Owns: owns ? "no" : "yes" },
+    after: { Owns: owns ? "yes" : "no" },
+    byName,
+  };
+}
+
+/** What switching Owns will do, in sentences, before it is saved. */
+export function ownershipConsequences(input: {
+  person: MemberLike;
+  studioId: string;
+  change: OwnershipChange;
+  studios: readonly StudioLike[];
+  /** "Also works at" as the dialog will save it. */
+  alsoWorksAtAfter: readonly string[];
+}): string[] {
+  const { person, studioId, change, studios, alsoWorksAtAfter } = input;
+  const who = (person.fullName ?? "").trim() || "They";
+  const studio = nameOf(studios, studioId);
+  if (change.owned.add.length) {
+    const out = [
+      `${who} will run ${studio}: Operations, My Studio's leader sections, its clients and its records, as its leaders do. It reaches their iPad the next time they sign in or Journey reloads.`,
+    ];
+    if (change.alsoWorksAt) out.push(`${studio} is added to where they work, so they can see its cross-train visitors.`);
+    return out;
+  }
+  const out = [`${who} no longer runs ${studio}. Nothing they did there is deleted.`];
+  if (alsoWorksAtAfter.includes(studioId)) {
+    out.push(`They still work at ${studio} (Also works at, above): switch that off too if they no longer do.`);
+  }
+  return out;
+}
+
+/** Said in place of the Owns switch when it isn't offered. */
+export function ownershipLine(person: MemberLike, studio: StudioLike): string {
+  if (studio.id && studio.id === person.primaryHomeStudioId && mayOwnStudios(person.role)) {
+    return "Their home studio: they run it already.";
+  }
+  return "Owning a studio counts for a Franchise Owner or a studio leader role. Change their role first (Change role, beside this).";
+}
+
+/**
+ * What Change role takes off when the new role doesn't run studios: every
+ * owned studio, in the same write (the franchise partition, Oct 2026,
+ * review fix: a leftover `ownedStudioIds` would come back to life on a later
+ * promotion). A promotion, or a change between two roles that run studios,
+ * clears nothing.
+ */
+export function ownershipOnRoleChange(person: MemberLike, newRole: string | null | undefined): { clears: string[] } {
+  if (mayOwnStudios(newRole)) return { clears: [] };
+  return { clears: clean(person.ownedStudioIds) };
 }

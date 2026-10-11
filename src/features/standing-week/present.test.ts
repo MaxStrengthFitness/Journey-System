@@ -232,10 +232,20 @@ describe("who may read a studio's standing weeks", () => {
     expect(mayReadWeeks(at("LifeTransformer", "solon"), "solon")).toBe(true);
     expect(mayReadWeeks(at("LifeTransformer", "westlake"), "solon")).toBe(false);
     expect(mayReadWeeks(at("HeadTrainer", "westlake"), "solon")).toBe(false);
-    expect(mayReadWeeks(at("FranchiseOwner", "westlake"), "solon")).toBe(true);
+    expect(mayReadWeeks(at("FranchiseOwner", "westlake"), "solon")).toBe(false);
     expect(mayReadWeeks(at("Admin", "westlake"), "solon")).toBe(true);
     expect(mayReadWeeks(null, "solon")).toBe(false);
     expect(mayReadWeeks(at("LifeTransformer", "solon"), null)).toBe(false);
+  });
+
+  // The franchise partition (Oct 2026): a franchise owner reads the weeks of
+  // the studios they run, and no other's.
+  it("is a franchise owner at the studios they own, and a leader by the grant", () => {
+    expect(mayReadWeeks({ ...at("FranchiseOwner", "westlake"), ownedStudioIds: ["solon"] }, "solon")).toBe(true);
+    expect(mayReadWeeks({ ...at("Owner", "westlake"), ownedStudioIds: ["solon"] }, "willoughby")).toBe(false);
+    expect(mayReadWeeks({ ...at("LifeTransformer", "westlake"), managedStudioIds: ["solon"] }, "solon")).toBe(true);
+    // A trainer's leftover ownedStudioIds reads nothing.
+    expect(mayReadWeeks({ ...at("LifeTransformer", "westlake"), ownedStudioIds: ["solon"] }, "solon")).toBe(false);
   });
 });
 

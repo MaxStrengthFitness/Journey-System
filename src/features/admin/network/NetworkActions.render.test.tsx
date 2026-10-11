@@ -65,7 +65,15 @@ const studios = [
   { id: "solon", name: "Solon" },
   { id: "westlake", name: "Westlake" },
 ] as unknown as Studio[];
-const owner = { id: "owner", fullName: "Own Er", role: "FranchiseOwner" } as unknown as Trainer;
+// The owner runs both studios (the franchise partition, Oct 2026: a focus is
+// an owner's only on a network holding a studio they run, home or owned).
+const owner = {
+  id: "owner",
+  fullName: "Own Er",
+  role: "FranchiseOwner",
+  primaryHomeStudioId: "solon",
+  ownedStudioIds: ["westlake"],
+} as unknown as Trainer;
 const ohio = (relayFocus?: FranchiseNetwork["relayFocus"]): FranchiseNetwork => ({
   id: "n-ohio",
   name: "Ohio",

@@ -1,78 +1,29 @@
 /**
- * WHICH STUDIOS AND PEOPLE A FRANCHISE OWNER IS LOOKING AT.
+ * WHICH PEOPLE STAND IN A SET OF STUDIOS, AND WHAT NEEDS THE OWNER TODAY.
  *
- * Round: Admin Overhaul, Round 2 Phase 4 (Section 15).
+ * Round: Admin Overhaul, Round 2 Phase 4 (Section 15). The Franchise
+ * dashboard it was written for is gone; Operations → All my studios
+ * (network/NetworkOverview.tsx) reads the helpers that are left.
  *
- * THE BUG THIS EXTRACTS AND FIXES
- * -------------------------------
- * The scope was computed inline in FranchiseDashboardView, and the network
- * selection was seeded once:
- *
- *   const [selectedNetworkId, setSelectedNetworkId] =
- *     useState(displayNetworks[0]?.id || null);
- *
- * `networks` arrives from a Firestore listener, so on the first render that
- * array is EMPTY and the initial value is null. useState ignores every later
- * argument, so it stayed null. A super admin could recover by using the
- * picker; an ordinary franchise owner had no picker - it was rendered behind
- * `isSuperAdmin` - so for an owner whose studios are reached through network
- * membership rather than `ownerId`, the whole screen stayed empty. Forever.
- *
- * Resolving the selection as a DERIVED value rather than seeded state removes
- * the class of bug rather than the instance: `resolveScope` is handed the
- * current networks and the current preference every render, and falls back to
- * the first available network whenever the preference names one that is not
- * there - which covers the empty first render, a network being deleted, and
- * an owner losing access to one.
- *
- * WHY OWNERSHIP IS A UNION OF THREE THINGS
- * ----------------------------------------
- * A studio can reach an owner by `studio.ownerId`, by
- * `trainer.ownedStudioIds`, or by sitting in a network they own. All three
- * are in use, none is authoritative, and dropping any one of them hides real
- * studios from the person responsible for them. So the union is the answer,
- * and it is written down here once instead of being re-derived per screen.
+ * OWNERSHIP IS `ownedStudioIds` ALONE (the franchise partition, Oct 2026;
+ * ROADMAP Gate B). This header used to say a studio reached an owner three
+ * ways -- `studio.ownerId`, `trainer.ownedStudioIds`, or sitting in a network
+ * they own -- that "none is authoritative", and so took the union. That was
+ * the bug: `studio.ownerId` is the administrator who created the studio, and
+ * a network's owners had no screen that edited them, so the union handed out
+ * studios nobody had decided. Now an administrator marks each studio an owner
+ * runs ("Owns this studio", Admins → Studios → a studio → Team → Studios),
+ * and every screen asks admin/scope.ts's operationsStudios, which reads that
+ * through leadsStudio. `visibleNetworks` and `resolveScope`, the union's two
+ * halves, were deleted with no caller left.
  */
 
-import type { FranchiseNetwork, Studio, Trainer } from "../../../types";
+import type { Trainer } from "../../../types";
 
 const SUPER_ROLES = new Set(["Founder", "Admin", "Overseer"]);
 
 export function isSuperAdminRole(role: string | undefined): boolean {
   return SUPER_ROLES.has(role ?? "");
-}
-
-/** Networks this person may look at. A super admin may look at all of them. */
-export function visibleNetworks(
-  networks: FranchiseNetwork[],
-  viewer: Pick<Trainer, "id" | "role">,
-): FranchiseNetwork[] {
-  if (isSuperAdminRole(viewer.role)) return networks;
-  return networks.filter(
-    (n) => (n.ownerIds ?? []).includes(viewer.id) || n.ownerId === viewer.id,
-  );
-}
-
-export interface OwnerScope {
-  /** Networks the picker may offer. */
-  networks: FranchiseNetwork[];
-  /** The one in view. Null only when there are none at all. */
-  activeNetworkId: string | null;
-  activeNetwork: FranchiseNetwork | null;
-  /** Every studio this person is responsible for, in name order. */
-  studios: Studio[];
-  studioIds: string[];
-  /** Everyone standing in one of those studios, in name order. */
-  staff: Trainer[];
-}
-
-export interface ScopeInput {
-  viewer: Trainer;
-  studios: Studio[];
-  trainers: Trainer[];
-  networks: FranchiseNetwork[];
-  /** What the picker last selected. Ignored when it names nothing available. */
-  preferredNetworkId?: string | null;
 }
 
 /** Whether this trainer stands in any of the given studios. */
@@ -86,52 +37,6 @@ export function trainerIsIn(trainer: Trainer, studioIds: string[]): boolean {
     (trainer.accessibleStudioIds ?? []).some((id) => set.has(id)) ||
     (trainer.activeGuestStudioIds ?? []).some((id) => set.has(id))
   );
-}
-
-export function resolveScope(input: ScopeInput): OwnerScope {
-  const { viewer, studios, trainers, networks, preferredNetworkId } = input;
-  const mine = visibleNetworks(networks, viewer);
-
-  /**
-   * The preference wins only if it still names something available. This is
-   * the fix for the seeded-state bug in the header: on the render where the
-   * networks finally arrive, a stale null falls through to the first one.
-   */
-  const activeNetwork =
-    mine.find((n) => n.id === preferredNetworkId) ?? mine[0] ?? null;
-  const networkStudioIds = new Set(activeNetwork?.studioIds ?? []);
-
-  const superAdmin = isSuperAdminRole(viewer.role);
-  const owned = new Set(viewer.ownedStudioIds ?? []);
-
-  /**
-   * A super admin viewing a network sees exactly that network. Anyone else
-   * sees the union of the three ways a studio can reach them - see the
-   * header. Filtering a super admin down to the network is deliberate: they
-   * came here to look at ONE franchise, and folding in every studio they
-   * happen to own would make the picker do nothing.
-   */
-  const inScope = studios.filter((s) => {
-    const id = s.id ?? "";
-    if (!id) return false;
-    if (superAdmin) return networkStudioIds.has(id);
-    return s.ownerId === viewer.id || owned.has(id) || networkStudioIds.has(id);
-  });
-
-  const byName = <T extends { name?: string; fullName?: string }>(a: T, b: T) =>
-    (a.name ?? a.fullName ?? "").localeCompare(b.name ?? b.fullName ?? "");
-
-  const scoped = [...inScope].sort(byName);
-  const studioIds = scoped.map((s) => s.id as string);
-
-  return {
-    networks: mine,
-    activeNetworkId: activeNetwork?.id ?? null,
-    activeNetwork,
-    studios: scoped,
-    studioIds,
-    staff: trainers.filter((t) => trainerIsIn(t, studioIds)).sort(byName),
-  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -168,7 +73,7 @@ export function attentionCounts(staff: Trainer[]): AttentionCounts {
   };
 }
 
-/** Trainers per studio, counted the same way `resolveScope` scopes them. */
+/** Trainers per studio, counted by `trainerIsIn`. */
 export function staffCountByStudio(
   staff: Trainer[],
   studioIds: string[],

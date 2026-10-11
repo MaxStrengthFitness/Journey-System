@@ -85,11 +85,22 @@ describe("codexAccess", () => {
     expect(a.homeStudioName).toBe("Westlake");
   });
 
-  it("lets a franchise owner read FORD but not edit a studio they do not work at", () => {
+  // The franchise partition (Oct 2026): a franchise owner is the leader of
+  // the studios they run, and reads nothing elsewhere.
+  it("lets a franchise owner of the client's studio read and write FORD and edit the record", () => {
+    for (const role of ["FranchiseOwner", "Owner"] as const) {
+      const a = codexAccess(trainer({ role, ownedStudioIds: ["s-home"] }), client, studios);
+      expect(a.canEdit, role).toBe(true);
+      expect(a.fordReadable, role).toBe(true);
+      expect(a.fordWritable, role).toBe(true);
+    }
+  });
+
+  it("keeps a franchise owner of another studio out of FORD and the editor", () => {
     for (const role of ["FranchiseOwner", "Owner"] as const) {
       const a = codexAccess(trainer({ role }), client, studios);
       expect(a.canEdit, role).toBe(false);
-      expect(a.fordReadable, role).toBe(true);
+      expect(a.fordReadable, role).toBe(false);
       expect(a.fordWritable, role).toBe(false);
     }
   });

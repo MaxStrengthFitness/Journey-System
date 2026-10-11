@@ -25,6 +25,7 @@ import {
   pickRequestedClient,
 } from "./src/lib/mindbody-demographics-map.ts";
 import { requireStaff } from "./server/auth.ts";
+import { crossTrainLookupAllowed } from "./src/lib/staff-access.ts";
 import { idsToLookUp, parseSkipIds, skipForOwnBookings } from "./src/lib/mindbody-lookup-skip.ts";
 import { isGeminiPath, registerGeminiRoutes } from "./server/gemini-routes.ts";
 import { devFileAccess, serveBuiltApp } from "./server/served-files.ts";
@@ -154,13 +155,20 @@ async function startServer() {
   // system administrators only. See server/auth.ts.
   const staffOnly = requireStaff();
   const adminOnly = requireStaff({ requireSuper: true });
+  // The three routes that look up ONE client by id are the only ones where
+  // an approved cross-train client on another site may be reached (the
+  // franchise partition, second review): every other route serves a whole
+  // site and never reads the client id. See CROSS_TRAIN_CLIENT_PATHS.
+  const clientLookup = requireStaff({ clientLookup: true });
   // Compared the way Express matches routes — ignoring case and a trailing
   // slash — so "/Test-Webhook/" can't slip past as a staff-only path.
   const ADMIN_ONLY_MINDBODY_PATHS = new Set(["/issueusertoken", "/test-webhook"]);
   app.use("/api/mindbody", (req, res, next) =>
     ADMIN_ONLY_MINDBODY_PATHS.has(req.path.replace(/\/+$/, "").toLowerCase())
       ? adminOnly(req, res, next)
-      : staffOnly(req, res, next),
+      : crossTrainLookupAllowed(req.path)
+        ? clientLookup(req, res, next)
+        : staffOnly(req, res, next),
   );
 
   // Mindbody Sandbox Testing Endpoint — issue user token

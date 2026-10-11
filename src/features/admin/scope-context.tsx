@@ -20,7 +20,7 @@
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { Building2 } from "lucide-react";
-import type { FranchiseNetwork, Studio, Trainer } from "../../types";
+import type { Studio, Trainer } from "../../types";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
 import { AdminButton, AdminEmpty, AdminSelect } from "./primitives";
 import { operationsStudios, studiosInScope, type OperationsScope } from "./scope";
@@ -58,22 +58,22 @@ forgetOnSignOut(() => {
 export function OperationsScopeProvider({
   authTrainer,
   studios,
-  networks,
   isAdmin,
   activeStudioId,
   children,
 }: {
   authTrainer: Trainer;
   studios: Studio[];
-  networks: FranchiseNetwork[];
   isAdmin: boolean;
   activeStudioId: string | null;
   children: ReactNode;
 }) {
   const { availableStudios, setActiveStudioId } = useActiveStudio();
+  // No networks (the franchise partition, Oct 2026): ownership is
+  // `ownedStudioIds` alone, so owning a network reaches no studio.
   const readable = useMemo(
-    () => operationsStudios(authTrainer, studios, networks, isAdmin, activeStudioId),
-    [authTrainer, studios, networks, isAdmin, activeStudioId],
+    () => operationsStudios(authTrainer, studios, isAdmin, activeStudioId),
+    [authTrainer, studios, isAdmin, activeStudioId],
   );
   const switchable = useMemo(() => {
     const available = new Set(availableStudios.map((s) => s.id));

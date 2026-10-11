@@ -32,9 +32,13 @@ describe("canWriteStudioPages — mirrors the studios/{s}/wiki page rule", () =>
     expect(leadsStudioPerRules(granted, "westlake")).toBe(false);
   });
 
-  it("refuses franchise owners, whom the rule leaves out (the old button did not)", () => {
-    expect(canWriteStudioPages(t("FranchiseOwner"), "solon")).toBe(false);
-    expect(canWriteStudioPages(t("Owner"), "solon")).toBe(false);
+  // The franchise partition (Oct 2026): a franchise owner leads their home
+  // and owned studios as a studio leader does, and no other.
+  it("lets a franchise owner write their own studios' pages, and refuses another's", () => {
+    expect(canWriteStudioPages(t("FranchiseOwner", "solon", ["westlake"]), "solon")).toBe(true);
+    expect(canWriteStudioPages(t("FranchiseOwner", "solon", ["westlake"]), "westlake")).toBe(true);
+    expect(canWriteStudioPages(t("Owner", "solon"), "westlake")).toBe(false);
+    expect(canWriteStudioPages(t("FranchiseOwner", "elsewhere"), "solon")).toBe(false);
   });
 
   it("refuses trainers, a missing trainer and a missing studio", () => {
@@ -61,9 +65,10 @@ describe("writesForStudioPerRules — mirrors writesForStudio(studioId)", () => 
     expect(worksAtStudioPerRules(guest, "willoughby")).toBe(true);
   });
 
-  it("lets super admins and franchise owners write anywhere, leaders at their own studio", () => {
+  it("lets super admins write anywhere, leaders and franchise owners at their own studios", () => {
     expect(writesForStudioPerRules(t("Admin", "elsewhere"), "solon")).toBe(true);
-    expect(writesForStudioPerRules(t("FranchiseOwner", "elsewhere"), "solon")).toBe(true);
+    expect(writesForStudioPerRules(t("FranchiseOwner", "elsewhere"), "solon")).toBe(false);
+    expect(writesForStudioPerRules(t("FranchiseOwner", "elsewhere", ["solon"]), "solon")).toBe(true);
     expect(writesForStudioPerRules(t("StudioLeader"), "solon")).toBe(true);
     expect(writesForStudioPerRules(t("StudioLeader"), "westlake")).toBe(false);
     expect(writesForStudioPerRules(null, "solon")).toBe(false);

@@ -38,12 +38,24 @@ const westlake = {
 let host: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-async function mount(canEdit: boolean, studio: Studio = westlake) {
+async function mount(
+  canEdit: boolean,
+  studio: Studio = westlake,
+  extra: { canEditMindbodyLink?: boolean; onSave?: (patch: Record<string, unknown>) => Promise<void> } = {},
+) {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root!.render(<StudioDetailsForm studio={studio} studios={[studio]} onSave={async () => {}} canEdit={canEdit} />);
+    root!.render(
+      <StudioDetailsForm
+        studio={studio}
+        studios={[studio]}
+        onSave={extra.onSave ?? (async () => {})}
+        canEdit={canEdit}
+        canEditMindbodyLink={extra.canEditMindbodyLink}
+      />,
+    );
   });
   // Past the lookup's 600ms debounce, and the reply after it.
   await act(async () => {
@@ -97,5 +109,63 @@ describe("StudioDetailsForm", () => {
     expect(set.textContent).toContain(
       "From this day every session here must be logged in Journey, and each night Journey refreshes this studio's packages from Mindbody. A booking nobody logged no longer counts as a visit.",
     );
+  });
+});
+
+/*
+ * THE MINDBODY LINK IS HEAD OFFICE'S (the franchise partition, Oct 2026). The
+ * proxy scopes a leader or an owner to the Mindbody sites of the studios they
+ * run, so a leader who could repoint the site could reach any site: My Studio
+ * shows the Site ID and location locked to them, makes no lookup, and never
+ * sends the two fields.
+ */
+describe("StudioDetailsForm: the Mindbody link", () => {
+  const typeInto = async (input: HTMLInputElement, value: string) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+  const inputWith = (h: HTMLElement, value: string) => [...h.querySelectorAll("input")].find((i) => i.value === value)!;
+
+  it("shows a leader the Site ID and location locked, and asks Mindbody nothing", async () => {
+    const h = await mount(true, westlake, { canEditMindbodyLink: false });
+    expect(calls).toEqual([]);
+    expect(h.textContent).toContain("Head office sets the Mindbody link (Admins → Studios).");
+    const site = inputWith(h, "29068");
+    const location = inputWith(h, "3");
+    expect(site.closest("fieldset")?.disabled).toBe(true);
+    expect(location.closest("fieldset")?.disabled).toBe(true);
+    // The rest of the form stays the leader's.
+    expect((h.querySelector("#studio-name") as HTMLInputElement).closest("fieldset")?.disabled).toBe(false);
+  });
+
+  it("never sends the two fields from a leader's save", async () => {
+    const saved: Record<string, unknown>[] = [];
+    const h = await mount(true, westlake, { canEditMindbodyLink: false, onSave: async (p) => void saved.push(p) });
+    await typeInto(h.querySelector("#studio-name") as HTMLInputElement, "Westlake North");
+    await act(async () => {
+      [...h.querySelectorAll("button")].find((b) => /^Save/.test(b.textContent ?? ""))!.click();
+    });
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ name: "Westlake North" });
+    expect(saved[0]).not.toHaveProperty("mindbodySiteId");
+    expect(saved[0]).not.toHaveProperty("mindbodyLocationId");
+  });
+
+  it("lets an administrator change them, and looks the site up", async () => {
+    const h = await mount(true, westlake, { canEditMindbodyLink: true });
+    expect(calls).toEqual(["/api/mindbody/locations"]);
+    expect(inputWith(h, "29068").closest("fieldset")?.disabled).toBe(false);
+    expect(h.textContent).not.toContain("Head office sets the Mindbody link");
+  });
+
+  it("keeps Demo Mode's studio at offline for anyone but head office", async () => {
+    const demo = { id: "demo-studio", name: "Demo Mode", isDemo: true, timezone: "America/New_York", mindbodyMode: "offline" } as unknown as Studio;
+    const h = await mount(true, demo, { canEditMindbodyLink: false });
+    expect(h.textContent).toContain("The practice studio stays off Mindbody.");
+    const mode = [...h.querySelectorAll("select")].find((s) => [...s.options].some((o) => o.value === "offline"))!;
+    expect(mode.disabled).toBe(true);
+    expect(mode.value).toBe("offline");
   });
 });

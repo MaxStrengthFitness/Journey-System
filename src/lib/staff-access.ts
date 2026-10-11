@@ -14,12 +14,17 @@
  * about who someone is:
  *   - the caller is whoever `trainers/{uid}` describes; no document, no access
  *     (the rules' trainerDocExistsByUID);
- *   - their role is the sign-in token's `role` claim when present, else the
- *     document's `role`, else "LifeTransformer" (the rules' getRole);
- *   - Admin / Founder / Overseer and the franchise roles reach every site
- *     (the rules' roleIsSuper / roleIsFranchise);
- *   - everyone else reaches the sites of the studios they work at: home,
- *     accessible, guest and owned (trainerWorksAt + trainerLeads).
+ *   - their role is the DOCUMENT's `role`, else "LifeTransformer" (the
+ *     rules' authorityRole). Never the sign-in token's claim: a claim
+ *     outlives a demotion until the token refreshes (up to an hour), and the
+ *     proxy hands out every site on the role alone (the franchise partition,
+ *     Oct 2026, review fix). A demotion lands once the server re-reads the
+ *     document, within its 5-minute profile cache;
+ *   - Admin / Founder / Overseer reach every site (the rules' roleIsSuper);
+ *   - everyone else, a franchise owner included, reaches the sites of the
+ *     studios they work at (home, also works at, guest) or own, for a role
+ *     that runs its own studios (trainerWorksAt + trainerLeads); never the
+ *     grant alone, and never Demo Mode (the franchise partition, Oct 2026).
  *
  * No Firebase import here: server/auth.ts does the reading, this file only
  * decides, so the rules can be tested with plain objects.
@@ -33,6 +38,48 @@ export const STUDIO_LEADER_ROLES: ReadonlySet<string> = new Set([
   "StudioLeader",
 ]);
 
+/**
+ * The roles that run their OWN studios: the studio tier's three and the
+ * franchise owner, who leads their home studio and every studio an
+ * administrator marked them as owning (`ownedStudioIds`), exactly as a
+ * studio leader leads theirs, and nothing anywhere else. The rules'
+ * roleRunsOwnStudios (the franchise partition, Oct 2026; ROADMAP Gate B).
+ */
+export const LEADS_OWN_STUDIO_ROLES: ReadonlySet<string> = new Set([
+  ...STUDIO_LEADER_ROLES,
+  ...FRANCHISE_ROLES,
+]);
+
+/**
+ * Demo Mode's studio id, as a literal: this file is dependency-free because
+ * the server imports it. A test holds it equal to DEMO_STUDIO_ID
+ * (features/demo-mode/constants.ts). Everyone has the run of the practice
+ * studio, so it never vouches for a Mindbody site (second review).
+ */
+export const PRACTICE_STUDIO_ID = "demo-studio";
+
+/**
+ * The Mindbody routes on which the cross-train allowance may apply: the three
+ * that look up ONE client by id (second review, high). On every other route
+ * (/staff, /locations, /staff-appointments, /staff-image) a request carrying a
+ * readable client's id used to be approved whole, and those routes never read
+ * the client id, so they served the whole site.
+ */
+export const CROSS_TRAIN_CLIENT_PATHS: ReadonlySet<string> = new Set([
+  "/client-demographics",
+  "/client-master-sync",
+  "/client-commercial",
+]);
+
+/**
+ * Is this route (the path under /api/mindbody) one that looks up a single
+ * client? Compared the way Express matches routes, and the way server.ts's
+ * ADMIN_ONLY_MINDBODY_PATHS check is: ignoring case and trailing slashes.
+ */
+export function crossTrainLookupAllowed(path: string): boolean {
+  return CROSS_TRAIN_CLIENT_PATHS.has(String(path ?? "").replace(/\/+$/, "").toLowerCase());
+}
+
 /** The fields of a trainer document this file reads. */
 export interface TrainerAccessFields {
   role?: unknown;
@@ -45,7 +92,12 @@ export interface TrainerAccessFields {
 export interface StaffAccess {
   uid: string;
   role: string;
-  /** Reaches every Mindbody site (super and franchise roles). */
+  /**
+   * Reaches every Mindbody site: Admin / Founder / Overseer only. Everyone
+   * else, a franchise owner included, reaches the sites of the studios they
+   * work at (home, also works at, guest) or own; never the grant alone,
+   * never Demo Mode (the franchise partition, Oct 2026).
+   */
   allSites: boolean;
   isSuper: boolean;
   /** Studios the caller works at or runs. */
@@ -74,28 +126,36 @@ export function resolveRole(claimRole: unknown, trainer: TrainerAccessFields | n
 /**
  * Everything the server needs to decide a Mindbody call, from the caller's
  * trainer document and a map of studio id → Mindbody site id.
+ *
+ * The role is the document's, never a sign-in claim (the franchise
+ * partition, Oct 2026: a claim outlives a demotion). `managedStudioIds` (the
+ * grant) is not counted: a grant names a studio its holder already works at
+ * in every real case, and counting it would widen the proxy on a list
+ * leaders write (second review, decided).
  */
 export function resolveStaffAccess(params: {
   uid: string;
-  claimRole?: unknown;
   trainer: TrainerAccessFields | null;
   siteIdByStudio: Record<string, string | null | undefined>;
 }): StaffAccess | null {
-  const { uid, claimRole, trainer, siteIdByStudio } = params;
+  const { uid, trainer, siteIdByStudio } = params;
   if (!trainer) return null;
-  const role = resolveRole(claimRole, trainer);
+  const role = resolveRole(null, trainer);
   const isSuper = SUPER_ROLES.has(role);
-  const allSites = isSuper || FRANCHISE_ROLES.has(role);
+  const allSites = isSuper;
 
   const studioIds = Array.from(
     new Set([
       ...asIdList([trainer.primaryHomeStudioId]),
       ...asIdList(trainer.accessibleStudioIds),
       ...asIdList(trainer.activeGuestStudioIds),
-      // Owned studios only count for the leader roles, as in trainerLeads().
-      ...(STUDIO_LEADER_ROLES.has(role) ? asIdList(trainer.ownedStudioIds) : []),
+      // Owned studios count only for a role that runs its own studios, as in
+      // trainerLeads(): the studio tier and, since the franchise partition
+      // (Oct 2026), the franchise owner.
+      ...(LEADS_OWN_STUDIO_ROLES.has(role) ? asIdList(trainer.ownedStudioIds) : []),
     ]),
-  );
+    // Never Demo Mode: everyone has the run of it, so it vouches for no site.
+  ).filter((id) => id !== PRACTICE_STUDIO_ID);
   const siteIds = Array.from(
     new Set(
       studioIds

@@ -27,6 +27,7 @@ describe("readableStudioIds", () => {
     expect(
       readableStudioIds(
         trainer({
+          role: "FranchiseOwner",
           primaryHomeStudioId: "home",
           accessibleStudioIds: ["granted"],
           activeGuestStudioIds: ["guest"],
@@ -34,6 +35,16 @@ describe("readableStudioIds", () => {
         }),
       ),
     ).toEqual(["home", "granted", "guest", "owned"]);
+  });
+
+  // The franchise partition (Oct 2026): owned studios count only for a role
+  // that runs its own studios, as the rules' trainerLeads does.
+  it("counts owned studios for the franchise owner and the studio tier only", () => {
+    const owned = { primaryHomeStudioId: "home", ownedStudioIds: ["owned"] };
+    expect(readableStudioIds(trainer({ ...owned, role: "StudioOwner" }))).toEqual(["home", "owned"]);
+    expect(readableStudioIds(trainer({ ...owned, role: "Owner" }))).toEqual(["home", "owned"]);
+    expect(readableStudioIds(trainer({ ...owned, role: "Trainer" }))).toEqual(["home"]);
+    expect(readableStudioIds(trainer({ ...owned, role: "LifeTransformer" }))).toEqual(["home"]);
   });
 
   it("removes duplicates, so the same id is not sent twice in one `in`", () => {

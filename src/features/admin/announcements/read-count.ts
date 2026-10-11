@@ -8,7 +8,7 @@
  * could count them. A reader's answer now ALSO goes to a small record of its
  * own, `hub_announcements/{id}/acks/{uid}` (`{ at, name }`, written by the
  * reader alone, never edited by anyone else), which the poster, the studio's
- * leaders, franchise owners and administrators may read. Nobody is pinged:
+ * leaders (its franchise owner included) and administrators may read. Nobody is pinged:
  * the count is on the notice, for whoever opens it.
  *
  * WHO IS COUNTED ("of 12")
@@ -22,9 +22,17 @@
  *
  * WHO SEES IT
  * -----------
- * The poster, administrators and franchise owners, and the leaders of the
- * notice's studio (`leadsHere`) — the same people the rules let read the
+ * The poster, administrators, and the leaders of the notice's studio
+ * (`leadsHere`; since the franchise partition, Oct 2026, a franchise owner
+ * only at the studios they run) — the same people the rules let read the
  * record. Anyone else sees nothing, not a zero.
+ *
+ * A NETWORK NOTICE'S COUNT is its author's and administrators' only (the
+ * franchise partition, second review). The rules' acks read asks
+ * trainerLeads of the notice's targetId, which is never true for a network
+ * id, and noticeStudioId is null for a network notice, so the two agree. A
+ * franchise owner who runs every studio of the network, not the author, sees
+ * no count; the author already has it.
  */
 import type { HubAnnouncement, Trainer } from "../../../types";
 import { whoWorksHere } from "../../../lib/who-works-here";
@@ -74,7 +82,10 @@ export function maySeeReadCount(viewer: Trainer | null | undefined, uid: string 
   if (!viewer || !a.asksRead) return false;
   if (uid && a.authorId === uid) return true;
   if (viewer.id && a.authorId === viewer.id) return true;
+  // The company tier only (isEveryStudioRole mirrors the rules' roleIsSuper
+  // since the franchise partition, as announcementAcksReadable does).
   if (isEveryStudioRole(viewer)) return true;
+  // A network notice has no single studio: no leader's count (see header).
   const studio = noticeStudioId(a);
   return studio ? leadsHere(viewer, studio) : false;
 }

@@ -110,8 +110,14 @@ export interface FocusBoardProps {
   machines: Machine[];
   /** Every id the signed-in coach may be recorded under (Auth uid, trainer doc id). */
   viewerIds: string[];
-  /** The signed-in coach's role, for the admin/owner override the rules allow. */
+  /** The signed-in coach's role, for the administrators' override the rules allow. */
   viewerRole?: string | null;
+  /**
+   * The viewer is a franchise owner who runs the client's home studio, so the
+   * rules let them manage any coach's focus on this client (franchiseRunsClient;
+   * the franchise partition, Oct 2026). Default: no.
+   */
+  viewerRunsClientsStudio?: boolean;
   onCreate: (input: {
     category: FocusCategory;
     intent: string;
@@ -135,6 +141,7 @@ export function FocusBoard({
   machines,
   viewerIds,
   viewerRole = null,
+  viewerRunsClientsStudio = false,
   onCreate,
   onAchieve,
   onExtend,
@@ -290,7 +297,7 @@ export function FocusBoard({
               thread={threads.get(focus.id) ?? []}
               machines={machines}
               isMine={viewerIds.includes(focus.trainerId)}
-              canManage={canManageFocus(focus, viewerIds, viewerRole, auth.currentUser?.uid ?? null)}
+              canManage={canManageFocus(focus, viewerIds, viewerRole, auth.currentUser?.uid ?? null, viewerRunsClientsStudio)}
               onAchieve={onAchieve}
               onExtend={onExtend}
               onRetire={onRetire}

@@ -10,6 +10,8 @@
 import type { Trainer } from "../../types";
 import { formatStudioDate, toDate, type DateLike } from "../../lib/studio-time";
 import { isDemoStudioId } from "../demo-mode/is-demo";
+import { SUPER_ROLES } from "../../lib/staff-access";
+import { leadsStudio } from "../renewals/permissions";
 import { dayLabel, timeLabel } from "./check";
 import {
   BLANK_WEEK,
@@ -150,22 +152,29 @@ export function worksAt(
   return t.primaryHomeStudioId === studioId || (t.accessibleStudioIds ?? []).includes(studioId) || (t.activeGuestStudioIds ?? []).includes(studioId);
 }
 
-/** Roles the rules let read every studio's weeks (firestore.rules, writesForStudio). */
-const READS_EVERY_STUDIO: readonly string[] = ["Admin", "Founder", "Overseer", "Owner", "FranchiseOwner"];
-
 /**
- * The viewer may read the studio's standing weeks: they work there, or they
- * read every studio's (administrators, the founder, franchise owners). The
- * rules ask the same question (standingWeeks read: writesForStudio); a
- * colleague's card is offered only where the read will be allowed, so it
- * never says the rules refused it.
+ * The viewer may read the studio's standing weeks: they work there, they run
+ * it (a leader or, since the franchise partition of Oct 2026, its franchise
+ * owner, at their home or an owned studio, or the grant), or they read every
+ * studio's (administrators, the founder, the overseer). A franchise owner no
+ * longer reads every studio's. The rules ask the same question (standingWeeks
+ * read: writesForStudio); a colleague's card is offered only where the read
+ * will be allowed, so it never says the rules refused it.
  */
 export function mayReadWeeks(
-  viewer: (Pick<Trainer, "primaryHomeStudioId" | "accessibleStudioIds" | "activeGuestStudioIds"> & { role?: string | null }) | null | undefined,
+  viewer:
+    | (Pick<Trainer, "primaryHomeStudioId" | "accessibleStudioIds" | "activeGuestStudioIds"> &
+        Partial<Pick<Trainer, "ownedStudioIds" | "managedStudioIds">> & { role?: string | null })
+    | null
+    | undefined,
   studioId: string | null | undefined,
 ): boolean {
   if (!viewer || !studioId) return false;
-  return READS_EVERY_STUDIO.includes(viewer.role ?? "") || worksAt(viewer, studioId);
+  return (
+    SUPER_ROLES.has(viewer.role ?? "") ||
+    worksAt(viewer, studioId) ||
+    leadsStudio(viewer as Parameters<typeof leadsStudio>[0], studioId)
+  );
 }
 
 /* ------------------------------------------------------------------ *

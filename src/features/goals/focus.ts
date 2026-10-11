@@ -8,7 +8,7 @@
  *
  * Everything here reads what useClientJournal already loaded. No reads.
  */
-import { SUPER_ROLES, FRANCHISE_ROLES } from "../../lib/staff-access";
+import { SUPER_ROLES } from "../../lib/staff-access";
 import { toDate, type ClientFocus, type FocusStatus } from "../../types/journal";
 
 const DAY_MS = 86400000;
@@ -97,10 +97,12 @@ export function isWritableFocus(focus: ClientFocus): boolean {
 }
 
 /**
- * Mirrors the clientFocuses update rule: the trainer who set it, or an
- * Admin / Founder / Overseer / franchise owner. A studio leader is NOT on that
- * list, so the buttons are not offered to one — a tap the rules refuse is
- * worse than no button.
+ * Mirrors the clientFocuses update rule: the trainer who set it, an
+ * Admin / Founder / Overseer, or -- since the franchise partition (Oct 2026)
+ * -- a franchise owner of the CLIENT'S studio only (the rules'
+ * franchiseRunsClient), which the caller works out and passes in. A studio
+ * leader is NOT on that list, so the buttons are not offered to one — a tap
+ * the rules refuse is worse than no button.
  */
 export function canManageFocus(
   focus: ClientFocus,
@@ -112,8 +114,10 @@ export function canManageFocus(
    * decided on it when known.
    */
   authUid?: string | null,
+  /** The viewer is a franchise owner who runs the client's home studio. */
+  franchiseRunsClient = false,
 ): boolean {
   if (!isWritableFocus(focus)) return false;
   if (authUid ? focus.trainerId === authUid : viewerIds.includes(focus.trainerId)) return true;
-  return !!role && (SUPER_ROLES.has(role) || FRANCHISE_ROLES.has(role));
+  return (!!role && SUPER_ROLES.has(role)) || franchiseRunsClient;
 }

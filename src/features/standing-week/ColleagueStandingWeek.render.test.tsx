@@ -221,8 +221,18 @@ describe("where the trainer page puts it", () => {
     expect(card()).toBeNull();
   });
 
-  it("is there for a franchise owner, who reads every studio's weeks", async () => {
-    await render(sam, person("t-own", "Olive Owner", { role: "FranchiseOwner", primaryHomeStudioId: "westlake", accessibleStudioIds: ["westlake"] }));
+  // The franchise partition (Oct 2026): a franchise owner reads the weeks of
+  // the studios they run, not every studio's.
+  it("is there for the franchise owner of that studio", async () => {
+    await render(
+      sam,
+      person("t-own", "Olive Owner", { role: "FranchiseOwner", primaryHomeStudioId: "westlake", accessibleStudioIds: ["westlake"], ownedStudioIds: ["solon"] }),
+    );
     expect(card()).not.toBeNull();
+  });
+
+  it("is not there for a franchise owner who doesn't run that studio", async () => {
+    await render(sam, person("t-own", "Olive Owner", { role: "FranchiseOwner", primaryHomeStudioId: "westlake", accessibleStudioIds: ["westlake"] }));
+    expect(card()).toBeNull();
   });
 });

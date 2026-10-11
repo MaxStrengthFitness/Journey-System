@@ -84,7 +84,7 @@ async function mount() {
   await act(async () => {
     root!.render(
       <StrictMode>
-        <OperationsScopeProvider authTrainer={lead} studios={studios} networks={[]} isAdmin={false} activeStudioId="westlake">
+        <OperationsScopeProvider authTrainer={lead} studios={studios} isAdmin={false} activeStudioId="westlake">
           <AdminInsightsTab studios={studios} trainers={[]} activeStudioId="westlake" />
         </OperationsScopeProvider>
       </StrictMode>,

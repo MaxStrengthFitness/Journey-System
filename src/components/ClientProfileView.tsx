@@ -21,6 +21,7 @@ import { studioHour, formatStudioTime, studioTodayKey, studioDayKeyOf } from "..
 import { beforeJourneyGuess, sessionTotalOf } from "../lib/session-total";
 import { useClientLateCancels } from "../features/admin/attention/booking-marks";
 import { sessionDayKey } from "../features/client-history/model";
+import { isEveryStudioRole } from "../features/renewals/permissions";
 import {
   PRIOR_SOURCES,
   PRIOR_SOURCE_LABEL,
@@ -2273,7 +2274,10 @@ export function ClientProfileView({
               }
               progressReports={progressReports}
               onSelectReport={onSelectReport}
-              onDeleteReport={setReportToDelete}
+              // Administrators only, as firestore.rules (progressReports
+              // delete) until the privacy round pins clientId and trainerId;
+              // for anyone else the Delete only ended in a refusal.
+              onDeleteReport={isEveryStudioRole(liveAuthTrainer) ? setReportToDelete : undefined}
               onNewReport={onNewReport}
               reportsReady={progressReportsStatus === "ready"}
               onSetNoProgressReports={

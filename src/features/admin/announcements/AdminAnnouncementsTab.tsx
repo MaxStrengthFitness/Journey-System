@@ -10,6 +10,12 @@
  * admin-specific: an admin may address anyone, so the scope menu offers all
  * three, and the list shows every live notice rather than only this admin's.
  *
+ * Everyone else (a studio's leader, a franchise owner) sees only the live
+ * notices they may take down (`mayTakeDown`, the rules' take-down branch):
+ * their own, their studios', and an owner's network notices. Until the
+ * franchise partition's attack round (Oct 2026) the list was every notice in
+ * the company for them too, each with a Take down the rules refuse.
+ *
  * WHY THE LIST STREAMS RATHER THAN FETCHING ONCE
  * ----------------------------------------------
  * The old screen called getDocs in a mount effect, so taking a notice down on
@@ -34,7 +40,7 @@ import type {
 import { AdminHeader, AdminScreen } from "../primitives";
 import { AnnouncementComposer } from "./AnnouncementComposer";
 import { millis, type AnnouncementScope, type NetworkOption } from "./audience";
-import { addressedTo } from "./reach";
+import { addressedTo, mayTakeDown } from "./reach";
 
 interface Props {
   authTrainer: Trainer;
@@ -83,18 +89,6 @@ export function AdminAnnouncementsTab({
    * every trainer's bell already, so leaving it in a list headed "Live now"
    * would invite an admin to take down something that is not up.
    */
-  const live = useMemo(() => {
-    const now = Date.now();
-    return all
-      .filter((a) => a.isActive !== false)
-      .filter((a) => {
-        const expires = millis(a.expiresAt);
-        return expires === 0 || expires >= now;
-      })
-      .filter((a) => !fixedStudioId || addressedTo(a, fixedStudioId))
-      .sort((a, b) => millis(b.createdAt) - millis(a.createdAt));
-  }, [all, fixedStudioId]);
-
   const networkOptions: NetworkOption[] = useMemo(
     () =>
       networks.map((n) => ({
@@ -104,6 +98,23 @@ export function AdminAnnouncementsTab({
       })),
     [networks],
   );
+
+  // The Auth uid, as the author below: the rules compare a notice's
+  // authorId with request.auth.uid.
+  const uid = auth.currentUser?.uid ?? null;
+
+  const live = useMemo(() => {
+    const now = Date.now();
+    return all
+      .filter((a) => a.isActive !== false)
+      .filter((a) => {
+        const expires = millis(a.expiresAt);
+        return expires === 0 || expires >= now;
+      })
+      .filter((a) => !fixedStudioId || addressedTo(a, fixedStudioId))
+      .filter((a) => mayTakeDown(a, { uid, trainer: authTrainer }, networkOptions))
+      .sort((a, b) => millis(b.createdAt) - millis(a.createdAt));
+  }, [all, fixedStudioId, uid, authTrainer, networkOptions]);
 
   return (
     <AdminScreen>

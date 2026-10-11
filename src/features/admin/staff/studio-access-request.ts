@@ -42,6 +42,18 @@ export interface StudioAccessRequestFields {
 
 const text = (s: unknown): string => (typeof s === "string" ? s.trim() : "");
 
+/**
+ * Where a studio-access request lives: `access_requests/sa_{uid}_{studioId}`
+ * (the franchise partition, second review). The rules took any id for one,
+ * so anyone could create a request at a stranger's uid first and block that
+ * stranger's own sign-up at `access_requests/{uid}`. A Firebase Auth uid has
+ * no underscore, so this id is never a uid; and naming the studio means a
+ * second tap, or asking again after a denial, is the same row, never two.
+ */
+export function studioAccessRequestId(uid: string, studioId: string): string {
+  return `sa_${uid}_${studioId}`;
+}
+
 export function studioAccessRequest(input: StudioAccessRequestInput): StudioAccessRequestFields {
   const fullName = text(input.trainer?.fullName) || text(input.authUser?.displayName);
   const email = (text(input.authUser?.email) || text(input.trainer?.email)).toLowerCase();

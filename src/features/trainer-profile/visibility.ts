@@ -29,8 +29,19 @@
  * authenticated user, which is what makes a team-visible roster work at all);
  * this decides what is worth PUTTING ON SCREEN, and being pure is what lets
  * the interesting combinations be tested instead of clicked through.
+ *
+ * THE FRANCHISE PARTITION (Oct 2026). Two answers that used to be one:
+ * who SEES a colleague's contact and Mindbody link ("leadership": the
+ * company tier everywhere, and anyone who runs studios -- the studio tier and
+ * now the franchise owner too -- over someone they share a studio with,
+ * unchanged for a studio leader and a head trainer), and who gets the EDIT
+ * button, which is the rules' answer: yourself, an administrator, or someone
+ * who leads the person's HOME studio. A studio owner and a franchise owner
+ * are no longer leadership over every trainer in the company.
  */
 import type { Trainer, UserRole } from "../../types";
+import { LEADS_OWN_STUDIO_ROLES } from "../../lib/staff-access";
+import { leadsStudio } from "../renewals/permissions";
 
 export type ProfileScope = "self" | "leadership" | "peer" | "outside";
 
@@ -48,25 +59,28 @@ export interface ProfileVisibility {
   showRoster: boolean;
   showSchedule: boolean;
   showRecentlyCoached: boolean;
+  /**
+   * Whether the Recently coached card may run its own query (a trainer's
+   * sessions by trainerId). The rules answer it only for yourself and an
+   * administrator (docs/rounds/2026-09-27-openings.md:850), so on a
+   * colleague's profile the card lists what the loaded window already holds
+   * and sends no query, which raised a toast for leaders (the franchise
+   * partition, second review).
+   */
+  fetchRecentlyCoached: boolean;
 }
 
-/** Roles whose authority is company- or franchise-wide, not per studio. */
-const GLOBAL_LEADERSHIP: UserRole[] = [
-  "Admin",
-  "Founder",
-  "Overseer",
-  "Owner",
-  "FranchiseOwner",
-  "StudioOwner",
-];
+/** Roles whose authority is company-wide, not per studio: the rules' roleIsSuper. */
+const GLOBAL_LEADERSHIP: UserRole[] = ["Admin", "Founder", "Overseer"];
 
 /**
- * Roles that lead ONE studio. Leadership over a trainer only where they
- * actually share that studio -- the same distinction `isStudioOwnerOrHeadTrainer`
- * draws in firestore.rules, kept in step here so the UI never offers an
- * affordance the rules will refuse.
+ * Roles that run their OWN studios: the studio tier and (the franchise
+ * partition, Oct 2026) the franchise owner. Leadership over a trainer only
+ * where they actually share a studio -- the same distinction
+ * `isStudioOwnerOrHeadTrainer` draws in firestore.rules, kept in step here so
+ * the UI never offers an affordance the rules will refuse.
  */
-const STUDIO_LEADERSHIP: UserRole[] = ["StudioLeader", "HeadTrainer"];
+const STUDIO_LEADERSHIP: ReadonlySet<string> = LEADS_OWN_STUDIO_ROLES;
 
 /** Every studio a trainer is attached to, in any capacity. */
 export function studioIdsFor(trainer: Trainer | null | undefined): Set<string> {
@@ -98,7 +112,7 @@ export function resolveProfileScope(
   if (!viewer || !subject) return "outside";
   if (viewer.id && viewer.id === subject.id) return "self";
   if (GLOBAL_LEADERSHIP.includes(viewer.role)) return "leadership";
-  if (STUDIO_LEADERSHIP.includes(viewer.role) && sharesStudio(viewer, subject)) {
+  if (STUDIO_LEADERSHIP.has(viewer.role) && sharesStudio(viewer, subject)) {
     return "leadership";
   }
   return sharesStudio(viewer, subject) ? "peer" : "outside";
@@ -111,16 +125,24 @@ export function resolveProfileVisibility(
   const scope = resolveProfileScope(viewer, subject);
   const privileged = scope === "self" || scope === "leadership";
   const sharesFloor = privileged || scope === "peer";
+  const global = Boolean(viewer && GLOBAL_LEADERSHIP.includes(viewer.role));
 
   return {
     scope,
-    canEdit: privileged,
+    // The rules let someone else edit a trainer document only when they lead
+    // that person's home studio (the franchise partition, Oct 2026): sharing
+    // any studio is enough to SEE, not to edit.
+    canEdit:
+      scope === "self" ||
+      global ||
+      (scope === "leadership" && leadsStudio(viewer, subject?.primaryHomeStudioId ?? null)),
     showContact: privileged,
     showIntegration: privileged,
     showCoachingLoad: true,
     showRoster: sharesFloor,
     showSchedule: sharesFloor,
     showRecentlyCoached: sharesFloor,
+    fetchRecentlyCoached: scope === "self" || global,
   };
 }
 

@@ -17,7 +17,11 @@ vi.mock("firebase-admin/app", () => ({
   initializeApp: () => ({}),
 }));
 vi.mock("firebase-admin/auth", () => ({
-  getAuth: () => ({ verifyIdToken: async () => ({ uid: "trainer-1" }) }),
+  // The token names the uid (the original case's "some-token" is
+  // "trainer-1"), so each case has its own entry in the profile cache.
+  getAuth: () => ({
+    verifyIdToken: async (token: string) => ({ uid: token === "some-token" ? "trainer-1" : token }),
+  }),
 }));
 
 import { AUTH_READ_TIMEOUT_MS, requireStaff, restGet } from "../../server/auth";
@@ -94,5 +98,70 @@ describe("requireStaff when Firestore doesn't answer", () => {
     expect(res.status).toBe(503);
     expect((await res.json()).error).toMatch(/Couldn't confirm your account just now \(could not read your staff profile \(HTTP 504: Firestore didn't answer within/);
     expect(route).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The cross-train allowance only on routes that look up one client (the
+ * franchise partition, second review, high). A Solon trainer asks about a
+ * client they may open whose home is westlake, on site 29068: the route that
+ * looks up that client lets it through, a route that serves the whole site
+ * does not, and a client homed at Demo Mode's studio never vouches for a site.
+ */
+describe("requireStaff's cross-train allowance", () => {
+  const rest = (fields: Record<string, unknown>) =>
+    new Response(JSON.stringify({ fields }), { status: 200 });
+
+  function firestoreAnswers(clientHome: string) {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: any, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : String(input?.url ?? input);
+      if (!url.includes("firestore.googleapis.com")) return realFetch(input, init);
+      const path = decodeURIComponent(url.split("/documents/")[1] ?? "").split("?")[0];
+      if (path.startsWith("trainers/")) {
+        return rest({ role: { stringValue: "LifeTransformer" }, primaryHomeStudioId: { stringValue: "solon" } });
+      }
+      if (path === "studios/solon") return rest({ mindbodySiteId: { stringValue: "5746957" } });
+      if (path === "studios/westlake") return rest({ mindbodySiteId: { stringValue: "29068" } });
+      if (path === "studios/demo-studio") return rest({ mindbodySiteId: { stringValue: "29068" } });
+      if (path === "clients/100000123") return rest({ homeStudioId: { stringValue: clientHome } });
+      return new Response(JSON.stringify({ error: { message: "not found" } }), { status: 404 });
+    });
+  }
+
+  async function ask(middleware: express.RequestHandler, token: string) {
+    const route = vi.fn((_req: express.Request, res: express.Response) => res.json({ ok: true }));
+    const app = express();
+    app.use(express.json());
+    app.post("/api/mindbody/route", middleware, route);
+    const server = app.listen(0);
+    await new Promise<void>((resolve) => server.once("listening", () => resolve()));
+    servers.push(server);
+    const res = await realFetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/mindbody/route`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ siteId: "29068", mindbodyClientId: "100000123" }),
+    });
+    return { status: res.status, reached: route.mock.calls.length > 0 };
+  }
+
+  it("refuses a route that serves the whole site, even with a readable client named", async () => {
+    firestoreAnswers("westlake");
+    const r = await ask(requireStaff(), "scope-whole-site");
+    expect(r.status).toBe(403);
+    expect(r.reached).toBe(false);
+  });
+
+  it("lets a route that looks up that one client through", async () => {
+    firestoreAnswers("westlake");
+    const r = await ask(requireStaff({ clientLookup: true }), "scope-client-lookup");
+    expect(r.status).toBe(200);
+    expect(r.reached).toBe(true);
+  });
+
+  it("never lets a client homed at Demo Mode's studio vouch for a site", async () => {
+    firestoreAnswers("demo-studio");
+    const r = await ask(requireStaff({ clientLookup: true }), "scope-demo");
+    expect(r.status).toBe(403);
+    expect(r.reached).toBe(false);
   });
 });

@@ -16,6 +16,16 @@
  * no claim needs refreshing (syncTrainerClaims mirrors the role only); the
  * person's own iPad picks the change up the next time they sign in or Journey
  * reloads.
+ *
+ * OWNS (the franchise partition, Oct 2026; ROADMAP Gate B). Below "Also works
+ * at", the one control that makes a studio a franchise owner's: "Owns
+ * {studio}", held until Save with the rest and written in the same update
+ * (`ownedStudioIds`, arrayUnion or arrayRemove). Switching it on for someone
+ * who doesn't work there yet puts the studio on "Also works at" too, in that
+ * same update, because the cross-train rules count where a person works, not
+ * what they own. It is never offered at the person's home studio (they run it
+ * already) or for a role that doesn't run studios; studio-membership.ts says
+ * why in each case.
  */
 import { useEffect, useMemo, useState } from "react";
 import { arrayRemove, arrayUnion, doc, updateDoc } from "firebase/firestore";
@@ -28,10 +38,16 @@ import { logActivity } from "../activity/log-activity";
 import {
   addableStudios,
   homeStudioLine,
+  mayOwnStudios,
   membershipConsequences,
   membershipPlan,
   membershipRecords,
   memberships,
+  ownershipChange,
+  ownershipConsequences,
+  ownershipLine,
+  ownershipRecord,
+  ownsStudio,
   whyNotRemovable,
   type FieldChange,
 } from "./studio-membership";
@@ -71,9 +87,27 @@ function StudiosDialogOpen({ person, studio, studios, byName, onClose, onSaved }
 
   const name = person.fullName || "This person";
   const studioId = studio.id ?? "";
-  const plan = useMemo(() => membershipPlan(person, list), [person, list]);
-  const dirty = plan.changes.length > 0;
-  useUnsavedChanges(dirty, `${name}'s studios`, { onDiscard: () => setList(start.map((m) => m.studioId)) });
+  const home = person.primaryHomeStudioId ?? "";
+  // Owns this studio (the franchise partition, Oct 2026), held until Save.
+  const ownsBefore = ownsStudio(person, studioId);
+  const [ownsNext, setOwnsNext] = useState(ownsBefore);
+  const ownChange = useMemo(() => ownershipChange(person, studioId, ownsNext), [person, studioId, ownsNext]);
+  // Owning a studio they don't work at yet puts it on "Also works at" too,
+  // in the same save; the list above shows it.
+  const effectiveList = useMemo(
+    () => (ownChange?.alsoWorksAt && !list.includes(studioId) ? [...list, studioId] : list),
+    [ownChange, list, studioId],
+  );
+  const plan = useMemo(() => membershipPlan(person, effectiveList), [person, effectiveList]);
+  const dirty = plan.changes.length > 0 || ownChange !== null;
+  useUnsavedChanges(dirty, `${name}'s studios`, {
+    onDiscard: () => {
+      setList(start.map((m) => m.studioId));
+      setOwnsNext(ownsBefore);
+    },
+  });
+  const ownsOffered = (mayOwnStudios(person.role) && studioId !== "" && studioId !== home) || ownsBefore;
+  const otherOwned = (person.ownedStudioIds ?? []).filter((id) => id && id !== studioId);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -87,10 +121,15 @@ function StudiosDialogOpen({ person, studio, studios, byName, onClose, onSaved }
   const kindOf = (id: string) => start.find((m) => m.studioId === id)?.kind ?? "also";
   const choices = addableStudios(person, studios, list);
   const isHomeHere = whyNotRemovable(person, studioId) === "home";
-  const onThisTeam = list.includes(studioId);
+  const onThisTeam = effectiveList.includes(studioId);
   const wasOnThisTeam = start.some((m) => m.studioId === studioId);
 
-  const remove = (id: string) => setList((l) => l.filter((x) => x !== id));
+  const remove = (id: string) => {
+    setList((l) => l.filter((x) => x !== id));
+    // Taking off the studio that Owns just added takes the Owns back too:
+    // otherwise the row would come straight back.
+    if (id === studioId && ownsNext && !ownsBefore) setOwnsNext(false);
+  };
   const add = () => {
     if (!adding) return;
     setList((l) => (l.includes(adding) ? l : [...l, adding]));
@@ -104,9 +143,21 @@ function StudiosDialogOpen({ person, studio, studios, byName, onClose, onSaved }
     try {
       const patch: Record<string, unknown> = {};
       for (const c of plan.changes) patch[c.field] = fieldValue(c);
+      if (ownChange) patch.ownedStudioIds = fieldValue(ownChange.owned);
+      // Owning brings them onto "Also works at" (a guest there becomes one
+      // who also works there): folded into the one accessibleStudioIds
+      // change, so the update still writes each list once.
+      const also = ownChange?.alsoWorksAt ?? null;
+      const planned = plan.changes.find((c) => c.field === "accessibleStudioIds");
+      if (also && !planned?.add.includes(studioId)) {
+        patch.accessibleStudioIds = planned
+          ? fieldValue({ ...planned, add: [...planned.add, studioId], next: [...planned.next, studioId] })
+          : fieldValue(also);
+      }
       await updateDoc(doc(db, "trainers", person.id), patch);
       // Awaited (it never throws) so a record read straight after shows the lines.
       for (const record of membershipRecords({ person, plan, studios, byName })) await logActivity(record);
+      if (ownChange) await logActivity(ownershipRecord({ person, studioId, owns: ownsNext, studios, byName }));
       await onSaved?.();
       onClose();
     } catch (err) {
@@ -123,9 +174,9 @@ function StudiosDialogOpen({ person, studio, studios, byName, onClose, onSaved }
         if (e.target === e.currentTarget && !busy) onClose();
       }}
     >
-      <div className="adm-dialog" role="alertdialog" aria-modal="true" aria-label={`Where ${name} works`}>
+      <div className="adm-dialog" role="alertdialog" aria-modal="true" aria-label={`Where ${name} works and what they own`}>
         <div className="adm-dialog__body">
-          <h3 className="adm-dialog__title">Where {name} works</h3>
+          <h3 className="adm-dialog__title">Where {name} works and what they own</h3>
           <p className="adm-dialog__text">
             <MapPin className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
             Home studio: {person.primaryHomeStudioId ? nameOf(person.primaryHomeStudioId) : "not set"}.
@@ -133,8 +184,8 @@ function StudiosDialogOpen({ person, studio, studios, byName, onClose, onSaved }
 
           <div className="hq-studios" role="list" aria-label="Also works at">
             <p className="hq-studios__label">Also works at</p>
-            {list.length === 0 ? <p className="adm-dialog__text">Home studio only.</p> : null}
-            {list.map((id) => (
+            {effectiveList.length === 0 ? <p className="adm-dialog__text">Home studio only.</p> : null}
+            {effectiveList.map((id) => (
               <div key={id} className="hq-studios__row" role="listitem">
                 <span className="hq-studios__name">
                   {nameOf(id)}
@@ -166,6 +217,26 @@ function StudiosDialogOpen({ person, studio, studios, byName, onClose, onSaved }
             </div>
           ) : null}
 
+          <div className="hq-studios" role="group" aria-label="Owns">
+            <p className="hq-studios__label">Owns</p>
+            {otherOwned.length > 0 ? (
+              <p className="adm-dialog__text">Also owns {otherOwned.map((id) => nameOf(id)).join(", ")}.</p>
+            ) : null}
+            {ownsOffered ? (
+              <label className="hq-sheet__check">
+                <input
+                  type="checkbox"
+                  checked={ownsNext}
+                  disabled={busy}
+                  onChange={(e) => setOwnsNext(e.target.checked)}
+                />
+                <span>Owns {studio.name}</span>
+              </label>
+            ) : (
+              <p className="adm-dialog__text">{ownershipLine(person, studio)}</p>
+            )}
+          </div>
+
           {isHomeHere ? (
             <AdminNotice tone="info">{homeStudioLine(person, studios)}</AdminNotice>
           ) : wasOnThisTeam && onThisTeam ? (
@@ -176,7 +247,12 @@ function StudiosDialogOpen({ person, studio, studios, byName, onClose, onSaved }
 
           {dirty ? (
             <ul className="adm-dialog__text hq-consequences">
-              {membershipConsequences({ person, plan, studios }).map((line) => (
+              {[
+                ...membershipConsequences({ person, plan, studios }),
+                ...(ownChange
+                  ? ownershipConsequences({ person, studioId, change: ownChange, studios, alsoWorksAtAfter: effectiveList })
+                  : []),
+              ].map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ul>

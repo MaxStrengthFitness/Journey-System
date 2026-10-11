@@ -19,16 +19,13 @@
 
 import type { Trainer } from "../../types";
 import { hasRunOfDemo } from "../demo-mode/access";
+import { LEADS_OWN_STUDIO_ROLES, SUPER_ROLES } from "../../lib/staff-access";
 
 type TrainerLike =
   | (Pick<Trainer, "role" | "primaryHomeStudioId" | "ownedStudioIds"> &
       Partial<Pick<Trainer, "accessibleStudioIds" | "activeGuestStudioIds" | "managedStudioIds">>)
   | null
   | undefined;
-
-const SUPER_ROLES = new Set(["Admin", "Founder", "Overseer"]);
-const STUDIO_LEADER_ROLES = new Set(["StudioOwner", "HeadTrainer", "StudioLeader"]);
-const FRANCHISE_ROLES = new Set(["FranchiseOwner", "Owner"]);
 
 /** firestore.rules isSuperAdmin(). */
 export function isSuperRole(trainer: TrainerLike): boolean {
@@ -37,15 +34,16 @@ export function isSuperRole(trainer: TrainerLike): boolean {
 
 /**
  * firestore.rules isStudioOwnerOrHeadTrainerOnly(studioId): a studio-leader
- * role, AT that studio (home or owned), or -- My Studio round, Sep 2026 -- a
- * trainer granted `managedStudioIds` for it. Franchise owners are not in it.
+ * role or (the franchise partition, Oct 2026) a franchise owner, AT that
+ * studio (home or owned), or -- My Studio round, Sep 2026 -- a trainer
+ * granted `managedStudioIds` for it.
  */
 export function leadsStudioPerRules(trainer: TrainerLike, studioId: string | null | undefined): boolean {
   if (!trainer || !studioId) return false;
   /* Everyone has the run of Demo Mode -- features/demo-mode/access.ts. */
   if (hasRunOfDemo(trainer, studioId)) return true;
   if ((trainer.managedStudioIds ?? []).includes(studioId)) return true;
-  if (!trainer.role || !STUDIO_LEADER_ROLES.has(trainer.role)) return false;
+  if (!trainer.role || !LEADS_OWN_STUDIO_ROLES.has(trainer.role)) return false;
   return (
     trainer.primaryHomeStudioId === studioId || (trainer.ownedStudioIds ?? []).includes(studioId)
   );
@@ -67,13 +65,13 @@ export function worksAtStudioPerRules(trainer: TrainerLike, studioId: string | n
 /**
  * firestore.rules writesForStudio(studioId): machine notes, the upkeep log,
  * playbook tips, studio notes on pages, and comments. Someone who works at or
- * runs the studio, a franchise owner, or a super admin.
+ * runs the studio (its franchise owner included, and since the franchise
+ * partition of Oct 2026 no franchise owner anywhere else), or a super admin.
  */
 export function writesForStudioPerRules(trainer: TrainerLike, studioId: string | null | undefined): boolean {
   if (!trainer || !studioId) return false;
   return (
     isSuperRole(trainer) ||
-    Boolean(trainer.role && FRANCHISE_ROLES.has(trainer.role)) ||
     leadsStudioPerRules(trainer, studioId) ||
     worksAtStudioPerRules(trainer, studioId)
   );

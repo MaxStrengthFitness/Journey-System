@@ -6,6 +6,7 @@ import { ROLE_LABELS } from "../../types";
 import { AdminBadge, AdminEmpty, AdminInput, AdminNotice, AdminPanel, AdminRows } from "../admin/primitives";
 import { STATE_BADGE, STUDIO_TIER_ROLES, StaffEditor } from "../admin/staff/StaffEditor";
 import { useStaffRoster } from "../admin/staff/useStaffRoster";
+import { isEveryStudioRole } from "../renewals/permissions";
 import { ProvisionalPanel } from "../admin/provisional/ProvisionalPanel";
 import { TeamPanel } from "../relay/team/TeamPanel";
 import { StandingWeeksPanel } from "../standing-week/StandingWeeksPanel";
@@ -226,6 +227,11 @@ function StaffPanel({
           canChangeRole
           lockHomeStudio
           grantStudioId={studioId}
+          // Who is looking, so a row offers only what the rules let them
+          // save: their own role and studios are head office's (the
+          // franchise partition, Oct 2026; edit-limits.ts).
+          viewer={authTrainer ?? null}
+          viewerIsAdmin={isEveryStudioRole(authTrainer)}
           onDone={() => setSelectedKey(null)}
         />
       )}

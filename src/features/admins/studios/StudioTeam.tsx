@@ -26,6 +26,7 @@ import { UserX, Users } from "lucide-react";
 import { db } from "../../../firebase";
 import type { Client, Studio, Trainer } from "../../../types";
 import { whoWorksHere } from "../../../lib/who-works-here";
+import { FRANCHISE_ROLES } from "../../../lib/staff-access";
 import { AdminButton, AdminEmpty, AdminNotice, AdminPanel } from "../../admin/primitives";
 import { isSwitchedOff, switchedOffWhat } from "../../sign-out/account-off";
 import { logActivity } from "../activity/log-activity";
@@ -137,6 +138,11 @@ export function StudioTeam({
                     ) : (
                       <HqStatus tone="idle">Not linked to Mindbody staff</HqStatus>
                     )}
+                    {/* The franchise partition (Oct 2026): an owner runs only
+                        the studios marked as theirs, so say when none are. */}
+                    {FRANCHISE_ROLES.has(t.role) && (t.ownedStudioIds ?? []).length === 0 ? (
+                      <span>Runs only their home studio until you mark the studios they own (Studios, on their row).</span>
+                    ) : null}
                   </>
                 }
                 action={
@@ -202,6 +208,7 @@ export function StudioTeam({
         person={changing}
         studioId={studioId}
         studioName={studio.name}
+        studios={studios.length ? studios : [studio]}
         byName={authTrainer.fullName}
         onClose={() => setChanging(null)}
         onSaved={onRolesChanged}

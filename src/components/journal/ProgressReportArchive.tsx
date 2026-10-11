@@ -22,7 +22,15 @@ export function reportDay(date: string | undefined): string {
 export interface ProgressReportArchiveProps {
   reports: ProgressReport[];
   onSelect: (id: string) => void;
-  onDelete: (report: ProgressReport) => void;
+  /**
+   * Deleting a report. Left out, no Delete is drawn: firestore.rules lets
+   * only administrators delete a progress report until the privacy round
+   * pins a report's clientId and trainerId (any trainer may rewrite both on
+   * update today, so neither can decide a delete), and a button everyone
+   * else presses only ends in a refusal (the franchise partition's attack
+   * round, Oct 2026).
+   */
+  onDelete?: (report: ProgressReport) => void;
   onNew: () => void;
 }
 
@@ -116,14 +124,16 @@ export function ProgressReportArchive({
                   </span>
                 </span>
               </button>
-              <button
-                type="button"
-                onClick={() => onDelete(r)}
-                aria-label="Delete report"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-500"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(r)}
+                  aria-label="Delete report"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-500"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </li>
             );
           })}

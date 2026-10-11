@@ -38,6 +38,7 @@ import type { Studio } from "../../../types";
 import { AdminBadge, AdminField, AdminGrid, AdminInput, AdminPanel, AdminSelect, SaveBar } from "../primitives";
 import { useDirtyForm } from "../useDirtyForm";
 import { useMindbodyLocations } from "./useMindbodyLocations";
+import { isDemoStudio } from "../../demo-mode/is-demo";
 import { mindbodyLinkState, validateStudioIdentity, type MindbodyLinkState } from "./registry";
 
 /** Timezones the studios actually operate in, plus room to grow. */
@@ -113,36 +114,65 @@ export interface StudioDetailsFormProps {
   onSave: (patch: Partial<StudioForm>) => Promise<void>;
   /** False shows the form read-only with a line saying who may change it. */
   canEdit?: boolean;
+  /**
+   * May change the Mindbody Site ID and location: administrators only (the
+   * franchise partition, Oct 2026). The Mindbody proxy now scopes a leader or
+   * an owner to the Mindbody sites of the studios they run, so whoever could
+   * repoint a studio's site could reach any site; the rules refuse the two
+   * fields to everyone else. Defaults to `canEdit` (Admins → Studios).
+   */
+  canEditMindbodyLink?: boolean;
   /** The panel's subtitle — the two doors describe it differently. */
   subtitle?: string;
 }
+
+/** The fields that say which Mindbody site and location a studio is. */
+const LINK_FIELDS = ["mindbodySiteId", "mindbodyLocationId"] as const;
 
 export function StudioDetailsForm({
   studio,
   studios,
   onSave,
   canEdit = true,
+  canEditMindbodyLink,
   subtitle = "Everything Mindbody needs to file this location's bookings correctly.",
 }: StudioDetailsFormProps) {
+  const linkEditable = canEdit && (canEditMindbodyLink ?? canEdit);
+  // Demo Mode stays off Mindbody (the franchise partition, second review):
+  // for anyone but head office the rules refuse its mode anything but offline.
+  const demoLocked = !linkEditable && isDemoStudio(studio);
   const external = useMemo(() => studioToForm(studio), [studio]);
-  const form = useDirtyForm(external, (patch) => onSave(patch), {
-    label: studio.name ? `${studio.name}'s details` : "the studio's details",
-  });
+  const form = useDirtyForm(
+    external,
+    (patch) => {
+      // A locked field is never in the diff, whatever a stale form holds.
+      const send: Partial<StudioForm> = { ...patch };
+      if (!linkEditable) for (const key of LINK_FIELDS) delete send[key];
+      if (demoLocked) delete send.mindbodyMode;
+      return onSave(send);
+    },
+    {
+      label: studio.name ? `${studio.name}'s details` : "the studio's details",
+    },
+  );
 
   // The lookup asks Mindbody (through our server) every time the form opens.
   // Someone who can only read the form has nothing to verify, and since My
   // Studio → Studio opened read only to everyone who works at the studio
   // (AJ's voice review, Sep 2026), asking for them would put a Mindbody call
-  // on every trainer's visit. The saved location id still shows.
-  const locations = useMindbodyLocations(canEdit ? form.value.mindbodySiteId : "");
+  // on every trainer's visit. The saved location id still shows. Nor for a
+  // leader, who can no longer change the link (the franchise partition).
+  const locations = useMindbodyLocations(linkEditable ? form.value.mindbodySiteId : "");
 
-  const offline = form.value.mindbodyMode === "offline";
+  const mode = demoLocked ? "offline" : form.value.mindbodyMode;
+  const offline = mode === "offline";
+  const lockedLinkHint = "Head office sets the Mindbody link (Admins → Studios).";
   const problem = validateStudioIdentity({
     siteId: form.value.mindbodySiteId,
     locationId: form.value.mindbodyLocationId,
     studios,
     excludeStudioId: studio.id,
-    mode: form.value.mindbodyMode,
+    mode,
   });
 
   /*
@@ -234,10 +264,15 @@ export function StudioDetailsForm({
 
           <AdminField
             label="Mindbody"
-            hint="Offline is for a pre-launch floor, a demo area, or an account that is not provisioned yet. Everything still works; nothing syncs."
+            hint={
+              demoLocked
+                ? "The practice studio stays off Mindbody."
+                : "Offline is for a pre-launch floor, a demo area, or an account that is not provisioned yet. Everything still works; nothing syncs."
+            }
           >
             <AdminSelect
-              value={form.value.mindbodyMode}
+              value={mode}
+              disabled={demoLocked}
               onChange={(e) => form.setField("mindbodyMode", e.target.value as "linked" | "offline")}
             >
               <option value="linked">Linked — bookings arrive from Mindbody</option>
@@ -245,57 +280,68 @@ export function StudioDetailsForm({
             </AdminSelect>
           </AdminField>
 
-          <AdminField
-            label="Mindbody Site ID"
-            required={!offline}
-            error={problem?.code === "no-site" ? problem.message : null}
-            hint={
-              !canEdit
-                ? "The Mindbody site this studio's bookings come from."
-                : offline
-                  ? "Not needed while this studio runs offline. Fill it in when the account exists."
-                  : siteChanged && locations.outcome === "ok"
-                    ? `Mindbody answered: ${locations.status}`
-                    : "Locations load automatically once this is entered, and the id is saved once Mindbody answers for it."
-            }
-          >
-            <AdminInput
-              inputMode="numeric"
-              value={form.value.mindbodySiteId}
-              invalid={problem?.code === "no-site" || locations.outcome === "error"}
-              onChange={(e) => form.setField("mindbodySiteId", e.target.value)}
-              placeholder="e.g. 29068"
-            />
-          </AdminField>
-
-          <AdminField
-            label="Mindbody location"
-            error={problem && problem.code !== "no-site" ? problem.message : null}
-            hint={locations.status || "Only needed when a site holds more than one studio."}
-          >
-            {locations.locations.length > 0 ? (
-              <AdminSelect
-                value={form.value.mindbodyLocationId}
-                invalid={!!problem && problem.code !== "no-site"}
-                onChange={(e) => form.setField("mindbodyLocationId", e.target.value)}
-              >
-                <option value="">No location — this site has one studio</option>
-                {locations.locations.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name} ({l.id})
-                  </option>
-                ))}
-              </AdminSelect>
-            ) : (
+          {/* The Mindbody link is head office's (the franchise partition, Oct
+              2026): for anyone else the two fields sit in a locked fieldset of
+              their own, and the save never carries them. */}
+          <fieldset disabled={!linkEditable} className="contents">
+            <AdminField
+              label="Mindbody Site ID"
+              required={!offline}
+              error={problem?.code === "no-site" ? problem.message : null}
+              hint={
+                !canEdit
+                  ? "The Mindbody site this studio's bookings come from."
+                  : !linkEditable
+                    ? lockedLinkHint
+                    : offline
+                      ? "Not needed while this studio runs offline. Fill it in when the account exists."
+                      : siteChanged && locations.outcome === "ok"
+                        ? `Mindbody answered: ${locations.status}`
+                        : "Locations load automatically once this is entered, and the id is saved once Mindbody answers for it."
+              }
+            >
               <AdminInput
                 inputMode="numeric"
-                value={form.value.mindbodyLocationId}
-                invalid={!!problem && problem.code !== "no-site"}
-                onChange={(e) => form.setField("mindbodyLocationId", e.target.value)}
-                placeholder={locations.loading ? "Loading…" : "Location ID"}
+                value={form.value.mindbodySiteId}
+                invalid={problem?.code === "no-site" || locations.outcome === "error"}
+                onChange={(e) => form.setField("mindbodySiteId", e.target.value)}
+                placeholder="e.g. 29068"
               />
-            )}
-          </AdminField>
+            </AdminField>
+
+            <AdminField
+              label="Mindbody location"
+              error={problem && problem.code !== "no-site" ? problem.message : null}
+              hint={
+                canEdit && !linkEditable
+                  ? lockedLinkHint
+                  : locations.status || "Only needed when a site holds more than one studio."
+              }
+            >
+              {locations.locations.length > 0 ? (
+                <AdminSelect
+                  value={form.value.mindbodyLocationId}
+                  invalid={!!problem && problem.code !== "no-site"}
+                  onChange={(e) => form.setField("mindbodyLocationId", e.target.value)}
+                >
+                  <option value="">No location — this site has one studio</option>
+                  {locations.locations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.id})
+                    </option>
+                  ))}
+                </AdminSelect>
+              ) : (
+                <AdminInput
+                  inputMode="numeric"
+                  value={form.value.mindbodyLocationId}
+                  invalid={!!problem && problem.code !== "no-site"}
+                  onChange={(e) => form.setField("mindbodyLocationId", e.target.value)}
+                  placeholder={locations.loading ? "Loading…" : "Location ID"}
+                />
+              )}
+            </AdminField>
+          </fieldset>
 
           <AdminField label="Business email">
             <AdminInput

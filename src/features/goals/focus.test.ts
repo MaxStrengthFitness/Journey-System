@@ -114,7 +114,11 @@ describe("history and permissions", () => {
     // A studio leader is not in the clientFocuses update rule.
     expect(canManageFocus(f, ["t9"], "StudioLeader")).toBe(false);
     expect(canManageFocus(f, ["t9"], "Admin")).toBe(true);
-    expect(canManageFocus(f, ["t9"], "FranchiseOwner")).toBe(true);
+    // The franchise partition (Oct 2026): a franchise owner manages a focus
+    // only on a client of a studio they run (the rules' franchiseRunsClient).
+    expect(canManageFocus(f, ["t9"], "FranchiseOwner", null, true)).toBe(true);
+    expect(canManageFocus(f, ["t9"], "FranchiseOwner")).toBe(false);
+    expect(canManageFocus(f, ["t9"], "Owner", null, false)).toBe(false);
     const legacy = focus({ id: "legacy:trainerFocuses:x" });
     expect(isWritableFocus(legacy)).toBe(false);
     expect(canManageFocus(legacy, ["t1"], "Admin")).toBe(false);

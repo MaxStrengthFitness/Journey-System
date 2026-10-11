@@ -48,16 +48,16 @@ describe("focusableNetworks", () => {
   });
 
   it("gives an owner, like the company, every network that holds a studio in their scope (AJ, Sep 27 2026)", () => {
-    expect(focusableNetworks({ id: "t-own", role: "FranchiseOwner" }, NETWORKS, ["westlake", "strongsville"]).map((n) => n.id)).toEqual(["n-ohio"]);
-    expect(focusableNetworks({ id: "t-own2", role: "Owner" }, NETWORKS, all).map((n) => n.id)).toEqual(["n-east", "n-ohio", "n-west"]);
+    expect(focusableNetworks({ id: "t-own", role: "FranchiseOwner", primaryHomeStudioId: "westlake", ownedStudioIds: ["strongsville"] }, NETWORKS, ["westlake", "strongsville"]).map((n) => n.id)).toEqual(["n-ohio"]);
+    expect(focusableNetworks({ id: "t-own2", role: "Owner", primaryHomeStudioId: "solon", ownedStudioIds: ["westlake", "denver"] }, NETWORKS, all).map((n) => n.id)).toEqual(["n-east", "n-ohio", "n-west"]);
   });
 
   it("offers an owner a network that holds their studio even when the network does not list them", () => {
     // "Choose later" makes a network with no owner, and nothing lists one afterwards.
     const ownerless = [net("n-lake", "Lake", ["willoughby"])];
-    expect(focusableNetworks({ id: "t-new", role: "FranchiseOwner" }, ownerless, ["willoughby"]).map((n) => n.id)).toEqual(["n-lake"]);
+    expect(focusableNetworks({ id: "t-new", role: "FranchiseOwner", primaryHomeStudioId: "willoughby" }, ownerless, ["willoughby"]).map((n) => n.id)).toEqual(["n-lake"]);
     // ...and not a network that holds none of the studios in scope.
-    expect(focusableNetworks({ id: "t-own", role: "FranchiseOwner" }, NETWORKS, ["solon"]).map((n) => n.id)).toEqual(["n-east"]);
+    expect(focusableNetworks({ id: "t-own", role: "FranchiseOwner", primaryHomeStudioId: "solon" }, NETWORKS, ["solon"]).map((n) => n.id)).toEqual(["n-east"]);
   });
 
   it("offers nothing from inside Demo Mode, whose scope is the practice studio alone", () => {
@@ -66,6 +66,19 @@ describe("focusableNetworks", () => {
     // Even a network that somehow listed the practice studio stays out of reach from it.
     const mixed = [net("n-mixed", "Mixed", ["demo-studio", "westlake"], "t-own")];
     expect(focusableNetworks({ id: "t-own", role: "FranchiseOwner" }, mixed, ["demo-studio"])).toEqual([]);
+  });
+
+  // The franchise partition (Oct 2026): an owner's scope is the studios they
+  // run as their own (home and owned), never the grant, and never a studio
+  // they merely see in scope.
+  it("never offers an owner a network whose studios they reach only through the grant", () => {
+    const granted = { id: "t-g", role: "FranchiseOwner" as const, primaryHomeStudioId: "denver", managedStudioIds: ["solon"] };
+    expect(focusableNetworks(granted as never, NETWORKS, ["solon"])).toEqual([]);
+    expect(focusableNetworks(granted as never, NETWORKS, ["solon", "denver"]).map((n) => n.id)).toEqual(["n-west"]);
+  });
+
+  it("offers an owner nothing for a studio they don't run, even in scope", () => {
+    expect(focusableNetworks({ id: "t-x", role: "FranchiseOwner", primaryHomeStudioId: "denver" }, NETWORKS, ["solon"])).toEqual([]);
   });
 
   it("gives a studio leader none", () => {

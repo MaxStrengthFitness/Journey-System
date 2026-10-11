@@ -20,6 +20,7 @@ import { useRenewalNamesSeen, useRenewalSettings } from "../renewals/useRenewalS
 import { DEFAULT_SHIFT_HOURS, clockToMinutes, minutesToClock, shiftHoursOf } from "../relay/board/now-context";
 import { mayOpenOperations } from "../admin/operations-access";
 import { leadsHere } from "../relay/leads";
+import { isEveryStudioRole } from "../renewals/permissions";
 import { mayReadWeeks } from "../standing-week/present";
 import { StudioSettingsPanel } from "../studio-settings/StudioSettingsPanel";
 import { StartingRoutinesPanel } from "../routine-plan/ui/StartingRoutinesPanel";
@@ -129,6 +130,10 @@ export function StudioSection({ authTrainer, trainers }: StudioSectionProps) {
         studios={studios ?? NONE}
         onSave={saveDetails}
         canEdit={canEdit}
+        // The Mindbody Site ID and location are head office's (the franchise
+        // partition, Oct 2026): the proxy trusts them to decide which sites a
+        // leader reaches, so a leader sees them locked here.
+        canEditMindbodyLink={isEveryStudioRole(authTrainer)}
         subtitle="Your studio's own record. The name, the time zone, the Mindbody link and when you moved onto Journey."
       />
 

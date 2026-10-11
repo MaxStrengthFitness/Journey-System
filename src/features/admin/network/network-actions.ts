@@ -24,10 +24,20 @@
  * announcement, they belong to the network, so they have no editor on My
  * Studio to duplicate.
  *
+ * WHAT THE RULES LET THEM WRITE (the franchise partition, Oct 2026). A
+ * network is administrators' to make and change (which studios, which
+ * owners): a partition that read those lists could be rewritten by the people
+ * it fences. A franchise owner sets the network's focus, `relayFocus` and
+ * that field alone, held to FOCUS_LIMITS and signed as themselves, on a
+ * network that holds one of the studios they run (their home or one an
+ * administrator marked them as owning; the grant does not count). A launch
+ * writes per studio within scope, which the studios' own rules decide.
+ *
  * PURE MODULE.
  */
 import type { FranchiseNetwork, Trainer } from "../../../types";
-import { isEveryStudioRole } from "../../renewals/permissions";
+import { FRANCHISE_ROLES, SUPER_ROLES } from "../../../lib/staff-access";
+import { ownStudioIds } from "../../renewals/permissions";
 import { isDemoStudioId } from "../../demo-mode/is-demo";
 import { focusOf } from "../../relay/board/focus";
 import { formatStudioDate, toDate, type DateLike } from "../../../lib/studio-time";
@@ -37,21 +47,26 @@ import type { ClientTaskAction } from "../../studio-tasks/types";
 
 /**
  * Who sets a network's focus and launches across studios: franchise owners
- * and the company, the same people who saw Relay → Network. The rules let the
- * same people write a network (`networks` update).
+ * and the company, the same people who saw Relay → Network. Asked of the
+ * role directly: a franchise owner is no longer an every-studio role (the
+ * franchise partition, Oct 2026), but the focus of a network holding a
+ * studio they run is still theirs to set (AJ, Sep 27 2026).
  */
 export function mayActForNetwork(trainer: Pick<Trainer, "role"> | null | undefined): boolean {
-  return isEveryStudioRole(trainer as Trainer | null | undefined);
+  const role = trainer?.role as string | undefined;
+  return Boolean(role && (SUPER_ROLES.has(role) || FRANCHISE_ROLES.has(role)));
 }
 
 /**
  * The networks this reader may set a focus for: every network that holds a
- * studio in scope, for a franchise owner exactly as for the company. AJ, Sep
- * 27 2026: an owner may set the focus of every network that holds a studio in
- * their scope, as Relay allowed (Relay → Network edited the network holding
- * the studio the owner stood in, whether or not the network listed them, and
- * a network made with "Choose later" never lists an owner). The rules agree:
- * any franchise owner may update a network.
+ * studio in scope. AJ, Sep 27 2026: an owner may set the focus of every
+ * network that holds a studio in their scope, as Relay allowed (Relay →
+ * Network edited the network holding the studio the owner stood in, whether
+ * or not the network listed them, and a network made with "Choose later"
+ * never lists an owner). For a franchise owner the scope is narrowed to the
+ * studios they run as their own -- home and owned, never the grant -- which
+ * is what the rules' networkFocusByOwner asks (the franchise partition, Oct
+ * 2026). The company is unchanged.
  *
  * The practice studio never counts. Inside Demo Mode the scope is Demo Mode
  * alone, so no real network's focus is offered there, even if a network were
@@ -59,12 +74,26 @@ export function mayActForNetwork(trainer: Pick<Trainer, "role"> | null | undefin
  * and nothing else (demo-mode/access.ts). A studio leader gets none. By name.
  */
 export function focusableNetworks(
-  trainer: Pick<Trainer, "id" | "role"> | null | undefined,
+  trainer:
+    | (Pick<Trainer, "id" | "role"> & Partial<Pick<Trainer, "primaryHomeStudioId" | "ownedStudioIds">>)
+    | null
+    | undefined,
   networks: FranchiseNetwork[],
   studioIds: readonly string[],
 ): FranchiseNetwork[] {
   if (!trainer || !mayActForNetwork(trainer)) return [];
-  const inScope = new Set(studioIds.filter((id) => !isDemoStudioId(id)));
+  let scoped = studioIds.filter((id) => !isDemoStudioId(id));
+  if (FRANCHISE_ROLES.has(trainer.role as string)) {
+    const own = new Set(
+      ownStudioIds({
+        role: trainer.role,
+        primaryHomeStudioId: trainer.primaryHomeStudioId ?? "",
+        ownedStudioIds: trainer.ownedStudioIds ?? [],
+      }),
+    );
+    scoped = scoped.filter((id) => own.has(id));
+  }
+  const inScope = new Set(scoped);
   if (inScope.size === 0) return [];
   return networks
     .filter((n) => Boolean(n.id) && (n.studioIds ?? []).some((id) => inScope.has(id)))

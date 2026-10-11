@@ -236,7 +236,10 @@ export function AdminStaffTab({
             <StaffEditor
               key={selected.key}
               row={selected}
-              studios={studios}
+              // A franchise owner's home-studio choices are the studios they
+              // run (the franchise partition, Oct 2026): the rules refuse a
+              // home they don't lead. Administrators, every studio.
+              studios={isAdmin ? studios : ops.readable}
               activeStudioId={scopedStudioId}
               // An administrator hands out anything; a franchise owner the
               // studio and owner tiers — never an administrator (audit fix,
@@ -247,6 +250,11 @@ export function AdminStaffTab({
               // Team lets a studio's leaders do it within the studio tier; the
               // two doors differ on purpose until AJ says otherwise.
               canChangeRole={isAdmin}
+              // Who is looking (edit-limits.ts): an owner's own row, a
+              // person based at a studio they don't run, and an owner's role
+              // are locked, with one line saying why.
+              viewer={reader}
+              viewerIsAdmin={isAdmin}
               onDone={async () => {
                 setSelectedKey(null);
                 await onRefresh?.("trainers");

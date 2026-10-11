@@ -1,9 +1,30 @@
 import { describe, expect, it } from "vitest";
 import type { Trainer } from "../../../types";
 import { NAME_NOT_GIVEN, buildStaffRoster, type AccessRequest } from "./roster";
-import { studioAccessRequest } from "./studio-access-request";
+import { studioAccessRequest, studioAccessRequestId } from "./studio-access-request";
 
 const westlake = { id: "westlake", name: "Westlake" };
+
+// The franchise partition (second review): the request sits at an id that
+// names its sender and its studio, and carries neither field the approval
+// path trusts.
+describe("where a studio-access request lives", () => {
+  it("is sa_{uid}_{studioId}, never a bare uid", () => {
+    expect(studioAccessRequestId("uid17", "westlake")).toBe("sa_uid17_westlake");
+    expect(studioAccessRequestId("uid17", "westlake")).not.toBe("uid17");
+  });
+
+  it("never writes userId or requestedStudioId", () => {
+    const fields = studioAccessRequest({
+      uid: "uid-17",
+      authUser: { displayName: "Dana", email: "d@example.com" },
+      trainer: { fullName: "Dana", email: "d@example.com" },
+      studio: westlake,
+    });
+    expect(Object.keys(fields)).not.toContain("userId");
+    expect(Object.keys(fields)).not.toContain("requestedStudioId");
+  });
+});
 
 describe("studioAccessRequest — what the studio picker writes", () => {
   it("carries the person's name and email, keyed on the Auth uid", () => {

@@ -130,7 +130,6 @@ export function AdminDashboardView(props: Props) {
     <OperationsScopeProvider
       authTrainer={props.authTrainer}
       studios={realmStudios}
-      networks={props.networks}
       isAdmin={props.isAdmin}
       activeStudioId={props.activeStudioId ?? null}
     >
@@ -480,20 +479,23 @@ function OperationsShell({
             );
           case "announcements": {
             // A studio's leader addresses the studios they run; an owner adds
-            // their network; administrators everyone. Inside Demo Mode, Demo
-            // Mode alone (the realm rule, `announcements/reach.ts`).
+            // a network whose every studio they run (the franchise
+            // partition, Oct 2026); administrators everyone. Inside Demo
+            // Mode, Demo Mode alone (the realm rule, `announcements/reach.ts`).
             const reach = announcementReach({
               isAdmin,
               isOwnerTier,
+              trainer: authTrainer,
               allStudios: studios,
               readable: ops.readable,
+              allNetworks: networks,
               activeStudioId: appStudioId ?? activeStudioId ?? null,
             });
             return (
               <AdminAnnouncementsTab
                 authTrainer={authTrainer}
                 studios={reach.studios}
-                networks={reach.networks ? networks : []}
+                networks={reach.networks}
                 scopes={reach.scopes}
                 fixedStudioId={reach.fixedStudioId}
               />

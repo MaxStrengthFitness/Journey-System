@@ -8,17 +8,17 @@
  *     all of the above, plus the Operations → Renewals pipeline, stage, lead
  *     and outcome, the studio's renewal settings, and per-trainer renewal
  *     rates (AJ, Sep 10: rates are for studio leaders only).
- *   Franchise owners and administrators: everything, at every studio.
+ *   Franchise owners: as a studio's leaders, at their home and owned studios
+ *     (the franchise partition, Oct 2026; ROADMAP Gate B).
+ *   Administrators: everything, at every studio.
  *
  * See docs/business/roles-and-permissions.md.
  */
 
 import type { Trainer } from "../../types";
 import { hasRunOfDemo } from "../demo-mode/access";
-
-const SUPER = new Set(["Admin", "Founder", "Overseer"]);
-const FRANCHISE = new Set(["FranchiseOwner", "Owner"]);
-const LEADER = new Set(["StudioLeader", "HeadTrainer", "StudioOwner"]);
+import { isDemoStudioId } from "../demo-mode/is-demo";
+import { LEADS_OWN_STUDIO_ROLES, SUPER_ROLES } from "../../lib/staff-access";
 
 type TrainerLike = Pick<
   Trainer,
@@ -26,8 +26,60 @@ type TrainerLike = Pick<
 > &
   Partial<Pick<Trainer, "managedStudioIds">>;
 
-export function isEveryStudioRole(t: TrainerLike | null | undefined): boolean {
-  return Boolean(t && (SUPER.has(t.role) || FRANCHISE.has(t.role)));
+/**
+ * The company tier: administrators, the founder, the overseer. Mirrors the
+ * rules' roleIsSuper. A franchise owner is no longer an every-studio role
+ * (the franchise partition, Oct 2026): they lead the studios they run.
+ */
+export function isEveryStudioRole(t: Pick<Trainer, "role"> | null | undefined): boolean {
+  return Boolean(t && SUPER_ROLES.has(t.role));
+}
+
+/**
+ * The roles that run their OWN studios (home and owned): the studio tier's
+ * three and the franchise owner. Mirrors the rules' roleRunsOwnStudios.
+ */
+export function runsOwnStudios(role: string | null | undefined): boolean {
+  return Boolean(role && LEADS_OWN_STUDIO_ROLES.has(role));
+}
+
+/** A list of studio ids, deduplicated, never "" and never Demo Mode's id. */
+function realStudioIds(ids: readonly (string | null | undefined)[]): string[] {
+  const out: string[] = [];
+  for (const id of ids) {
+    if (typeof id !== "string" || id === "" || isDemoStudioId(id) || out.includes(id)) continue;
+    out.push(id);
+  }
+  return out;
+}
+
+/**
+ * The studios this person runs as their own: home and owned, for a role that
+ * runs its own studios; nothing for anyone else. Mirrors the rules'
+ * ownStudiosOf, minus the empty home the rules tolerate, and never the demo
+ * id (second review: an "" in an `in` list refuses the whole query).
+ */
+export function ownStudioIds(
+  t: Pick<Trainer, "role" | "primaryHomeStudioId" | "ownedStudioIds"> | null | undefined,
+): string[] {
+  if (!t || !runsOwnStudios(t.role)) return [];
+  return realStudioIds([t.primaryHomeStudioId, ...(t.ownedStudioIds ?? [])]);
+}
+
+/**
+ * Every studio this person leads: their own (ownStudioIds) and the grant
+ * (`managedStudioIds`). Mirrors the rules' ledStudios, never "" and never
+ * the demo id.
+ */
+export function ledStudioIds(
+  t:
+    | (Pick<Trainer, "role" | "primaryHomeStudioId" | "ownedStudioIds"> &
+        Partial<Pick<Trainer, "managedStudioIds">>)
+    | null
+    | undefined,
+): string[] {
+  if (!t) return [];
+  return realStudioIds([...ownStudioIds(t), ...(t.managedStudioIds ?? [])]);
 }
 
 /** Works at this studio (home, accessible or guest). Mirrors trainerWorksAt(). */
@@ -41,14 +93,15 @@ export function worksAt(t: TrainerLike | null | undefined, studioId: string | nu
 }
 
 /**
- * Runs this studio. Mirrors trainerLeads(): a studio-leader role at their
- * home or an owned studio -- or, since the My Studio round (Sep 2026), any
- * trainer the studio's leadership has granted `managedStudioIds` for it.
+ * Runs this studio. Mirrors trainerLeads(): a studio-leader role or (the
+ * franchise partition, Oct 2026) a franchise owner at their home or an owned
+ * studio -- or, since the My Studio round (Sep 2026), any trainer the
+ * studio's leadership has granted `managedStudioIds` for it.
  */
 export function leadsStudio(t: TrainerLike | null | undefined, studioId: string | null | undefined): boolean {
   if (!t || !studioId) return false;
   if ((t.managedStudioIds ?? []).includes(studioId)) return true;
-  if (!LEADER.has(t.role)) return false;
+  if (!LEADS_OWN_STUDIO_ROLES.has(t.role)) return false;
   return t.primaryHomeStudioId === studioId || (t.ownedStudioIds ?? []).includes(studioId);
 }
 

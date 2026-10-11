@@ -66,6 +66,7 @@ vi.mock("firebase/firestore", () => {
 });
 
 import { StudioTeam } from "./StudioTeam";
+import { StudiosDialog } from "./StudiosDialog";
 import type { Studio, Trainer } from "../../../types";
 
 const tz = "America/New_York";
@@ -137,7 +138,7 @@ async function choose(select: HTMLSelectElement | null, value: string) {
 }
 
 const button = (el: ParentNode, text: string) => [...el.querySelectorAll<HTMLButtonElement>("button")].find((b) => (b.textContent ?? "").trim() === text);
-const dialogFor = (name: string) => document.querySelector<HTMLElement>(`[role="alertdialog"][aria-label="Where ${name} works"]`)!;
+const dialogFor = (name: string) => document.querySelector<HTMLElement>(`[role="alertdialog"][aria-label="Where ${name} works and what they own"]`)!;
 
 const team = (onSaved = vi.fn()) => (
   <StudioTeam studio={studios[0]} studios={studios} trainers={trainers} clients={[]} authTrainer={admin} onRolesChanged={onSaved} />
@@ -180,7 +181,7 @@ describe("Studios on a studio's Team", () => {
     });
     expect(writes).toHaveLength(2);
     expect(saved).toHaveBeenCalled();
-    expect(document.querySelector('[aria-label="Where Beregond works"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Where Beregond works and what they own"]')).toBeNull();
   });
 
   it("gives someone a second studio, written as that one studio added", async () => {
@@ -212,7 +213,137 @@ describe("Studios on a studio's Team", () => {
     const dialog = dialogFor("Beregond");
     await click(dialog.querySelector('[aria-label="Take Beregond off Westlake\'s team"]'));
     await click(button(dialog, "Cancel"));
-    expect(document.querySelector('[aria-label="Where Beregond works"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Where Beregond works and what they own"]')).toBeNull();
     expect(writes).toEqual([]);
+  });
+});
+
+/*
+ * OWNS THIS STUDIO (the franchise partition, Oct 2026). The one control that
+ * makes a studio a franchise owner's: offered for a role that runs its own
+ * studios, never at their home, held until Save, and written in the same
+ * update as "Also works at" when owning brings them to work there.
+ */
+describe("Owns, in the same dialog", () => {
+  const olive = {
+    id: "oli",
+    fullName: "Olive Owner",
+    initials: "OO",
+    role: "FranchiseOwner",
+    primaryHomeStudioId: "solon",
+    accessibleStudioIds: ["solon"],
+    activeGuestStudioIds: ["westlake"],
+  } as unknown as Trainer;
+  const dialog = (person: Trainer, onSaved = vi.fn(), studio = studios[0]) => (
+    <StudiosDialog person={person} studio={studio} studios={studios} byName="Ada Admin" onClose={() => {}} onSaved={onSaved} />
+  );
+  const ownsBox = (el: ParentNode) =>
+    [...el.querySelectorAll<HTMLLabelElement>("label.hq-sheet__check")].find((l) => (l.textContent ?? "").startsWith("Owns"))?.querySelector("input") ?? null;
+
+  it("offers Owns to a franchise owner, not to a Life Transformer, and not at their home studio", async () => {
+    await mount(dialog(olive));
+    expect(dialogFor("Olive Owner").textContent).toContain("Owns Westlake");
+    expect(ownsBox(dialogFor("Olive Owner"))).not.toBeNull();
+    act(() => root?.unmount());
+    host?.remove();
+
+    await mount(dialog(beregond));
+    expect(ownsBox(dialogFor("Beregond"))).toBeNull();
+    expect(dialogFor("Beregond").textContent).toContain("Owning a studio counts for a Franchise Owner or a studio leader role");
+    act(() => root?.unmount());
+    host?.remove();
+
+    await mount(dialog(olive, vi.fn(), studios[1]));
+    expect(ownsBox(dialogFor("Olive Owner"))).toBeNull();
+    expect(dialogFor("Olive Owner").textContent).toContain("Their home studio: they run it already.");
+  });
+
+  it("writes ownedStudioIds and Also works at together, both arrayUnion, for someone not yet working there, then the record", async () => {
+    const saved = vi.fn();
+    await mount(dialog(olive, saved));
+    const d = dialogFor("Olive Owner");
+    await click(ownsBox(d));
+    expect(d.textContent).toContain("Olive Owner will run Westlake");
+    expect(d.textContent).toContain("Westlake is added to where they work, so they can see its cross-train visitors.");
+    await click(button(d, "Save studios"));
+    expect(writes[0]).toEqual({
+      op: "update",
+      path: "trainers/oli",
+      data: { accessibleStudioIds: { union: ["westlake"] }, ownedStudioIds: { union: ["westlake"] } },
+    });
+    const grant = writes.find((w) => w.path === "activity" && (w.data as { kind?: string }).kind === "admin-grant");
+    expect(grant).toMatchObject({
+      data: { studioId: "westlake", what: "Made Olive Owner an owner of Westlake: they run it as its leaders do." },
+    });
+    expect(saved).toHaveBeenCalled();
+  });
+
+  it("writes only ownedStudioIds when they already work there", async () => {
+    const working = { ...olive, accessibleStudioIds: ["solon", "westlake"], activeGuestStudioIds: [] } as unknown as Trainer;
+    await mount(dialog(working));
+    const d = dialogFor("Olive Owner");
+    await click(ownsBox(d));
+    await click(button(d, "Save studios"));
+    expect(writes[0]).toEqual({ op: "update", path: "trainers/oli", data: { ownedStudioIds: { union: ["westlake"] } } });
+  });
+
+  it("takes ownership off, leaving Also works at, and says they still work there", async () => {
+    const owning = { ...olive, accessibleStudioIds: ["solon", "westlake"], activeGuestStudioIds: [], ownedStudioIds: ["westlake", "strongsville"] } as unknown as Trainer;
+    await mount(dialog(owning));
+    const d = dialogFor("Olive Owner");
+    expect(d.textContent).toContain("Also owns Strongsville.");
+    expect(ownsBox(d)!.checked).toBe(true);
+    await click(ownsBox(d));
+    expect(d.textContent).toContain("Olive Owner no longer runs Westlake. Nothing they did there is deleted.");
+    expect(d.textContent).toContain("They still work at Westlake (Also works at, above)");
+    await click(button(d, "Save studios"));
+    expect(writes[0]).toEqual({ op: "update", path: "trainers/oli", data: { ownedStudioIds: { remove: ["westlake"] } } });
+  });
+});
+
+/*
+ * CHANGE ROLE TAKES OWNERSHIP OFF WITH A DEMOTION (the franchise partition,
+ * Oct 2026, review fix): one write, said before Save, and in the record.
+ */
+describe("Change role on an owner", () => {
+  it("clears ownedStudioIds in the same write when the new role doesn't run studios", async () => {
+    const olive = {
+      id: "oli",
+      fullName: "Olive Owner",
+      initials: "OO",
+      role: "FranchiseOwner",
+      primaryHomeStudioId: "westlake",
+      accessibleStudioIds: ["westlake"],
+      activeGuestStudioIds: [],
+      ownedStudioIds: ["solon", "strongsville"],
+    } as unknown as Trainer;
+    const el = await mount(
+      <StudioTeam studio={studios[0]} studios={studios} trainers={[admin, olive]} clients={[]} authTrainer={admin} onRolesChanged={vi.fn()} />,
+    );
+    expect(el.textContent).not.toContain("Runs only their home studio until you mark the studios they own");
+    await click(el.querySelector('[aria-label="Change role: Olive Owner"]'));
+    const d = document.querySelector<HTMLElement>('[role="alertdialog"][aria-label="Change Olive Owner\'s role"]')!;
+    await choose(d.querySelector<HTMLSelectElement>("#hq-role-choice"), "LifeTransformer");
+    expect(d.textContent).toContain("Olive Owner owns 2 studios.");
+    expect(d.textContent).toContain("so Journey takes those off: Solon, Strongsville.");
+    await click(button(d, "Save the role"));
+    expect(writes[0]).toEqual({ op: "update", path: "trainers/oli", data: { role: "LifeTransformer", ownedStudioIds: [] } });
+    expect(writes[1]).toMatchObject({ path: "activity", data: { before: { Owns: "Solon, Strongsville" }, after: { Owns: "none" } } });
+  });
+
+  it("tells an administrator when a franchise owner owns nothing yet", async () => {
+    const fresh = {
+      id: "new",
+      fullName: "Fran Fresh",
+      initials: "FF",
+      role: "FranchiseOwner",
+      primaryHomeStudioId: "westlake",
+      accessibleStudioIds: ["westlake"],
+      activeGuestStudioIds: [],
+    } as unknown as Trainer;
+    const el = await mount(
+      <StudioTeam studio={studios[0]} studios={studios} trainers={[admin, fresh]} clients={[]} authTrainer={admin} onRolesChanged={vi.fn()} />,
+    );
+    expect(el.textContent).toContain("Runs only their home studio until you mark the studios they own (Studios, on their row).");
   });
 });

@@ -13,6 +13,7 @@ import {
   PermissionContext,
 } from "../lib/permissions";
 import { isDemoStudio } from "../features/demo-mode/is-demo";
+import { readableStudioIds } from "../lib/tenancy";
 
 interface ActiveStudioContextType {
   activeStudioId: string | null;
@@ -124,26 +125,14 @@ export function ActiveStudioProvider({
 
     if (isGlobalUser) return studios;
 
-    // Union of accessible, guest, and owned studios
-    const allowedIds = new Set([
-      authTrainer.primaryHomeStudioId,
-      ...(authTrainer.accessibleStudioIds || []),
-      ...(authTrainer.activeGuestStudioIds || []),
-      ...(authTrainer.ownedStudioIds || []),
-    ]);
+    // The studios this person stands in: home, also works at, guest, and
+    // owned for a role that runs its own studios (readableStudioIds). The
+    // franchise partition (Oct 2026): a studio is owned only when an
+    // administrator marked it in `ownedStudioIds`. Owning a network, or being
+    // the studio's `ownerId` (the administrator who created it), grants
+    // nothing: the rules count neither.
+    const allowedIds = new Set(readableStudioIds(authTrainer));
 
-    // Also include studios from any networks this trainer owns
-    networks.forEach((n) => {
-      if (
-        (n.ownerIds || []).includes(authTrainer.id!) ||
-        n.ownerId === authTrainer.id
-      ) {
-        (n.studioIds || []).forEach((id) => allowedIds.add(id));
-      }
-    });
-
-    // For FranchiseOwner (Owner role) or others, only show their allowed studios plus any where they are listed as ownerId
-    //
     // Demo Mode is available to everyone, always (AJ, Sep 20 2026). It is
     // added here rather than granted per trainer so that nobody has to be
     // given access to it and nobody can lose it — the answer is derived from
@@ -151,10 +140,7 @@ export function ActiveStudioProvider({
     // If it has not been seeded yet it simply is not in `studios`, and
     // nothing anywhere mentions it.
     return studios.filter(
-      (s) =>
-        (s.id && allowedIds.has(s.id)) ||
-        s.ownerId === authTrainer.id ||
-        isDemoStudio(s),
+      (s) => Boolean(s.id) && (allowedIds.has(s.id!) || isDemoStudio(s)),
     );
   }, [authTrainer, studios, isAdmin]);
 

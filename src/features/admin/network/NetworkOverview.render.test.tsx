@@ -93,7 +93,7 @@ async function mount(reader: Trainer = owner, inScope: Studio[] = studios, at = 
   await act(async () => {
     root!.render(
       <StrictMode>
-        <OperationsScopeProvider authTrainer={reader} studios={inScope} networks={networks} isAdmin={false} activeStudioId={at}>
+        <OperationsScopeProvider authTrainer={reader} studios={inScope} isAdmin={false} activeStudioId={at}>
           <ScopeBar />
           <OverviewPage authTrainer={reader} studios={inScope} trainers={trainers} machines={[]} clients={[]} schedules={[]} activeStudioId={at} networks={networks} />
         </OperationsScopeProvider>

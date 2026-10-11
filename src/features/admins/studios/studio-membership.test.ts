@@ -5,8 +5,15 @@ import {
   homeStudioLine,
   membershipConsequences,
   membershipPlan,
+  mayOwnStudios,
   membershipRecords,
   memberships,
+  ownershipChange,
+  ownershipConsequences,
+  ownershipLine,
+  ownershipOnRoleChange,
+  ownershipRecord,
+  ownsStudio,
   takeOffPlan,
   whyNotRemovable,
 } from "./studio-membership";
@@ -121,5 +128,113 @@ describe("the record and the sentences", () => {
     );
     expect(lines).toContain("It's recorded in each studio's Activity, with your name.");
     expect(membershipConsequences({ person: beregond, plan: membershipPlan(beregond, ["westlake", "strongsville"]), studios })).toEqual([]);
+  });
+});
+
+/*
+ * OWNS THIS STUDIO (the franchise partition, Oct 2026). An administrator
+ * marks it; only a role that runs its own studios may own one; never the
+ * home; never Demo Mode; adding brings "Also works at" with it; removing is
+ * always allowed and leaves "Also works at" alone.
+ */
+describe("owning a studio", () => {
+  const olive = {
+    id: "oli",
+    fullName: "Olive Owner",
+    role: "FranchiseOwner",
+    primaryHomeStudioId: "solon",
+    accessibleStudioIds: ["solon"],
+    activeGuestStudioIds: [] as string[],
+    ownedStudioIds: [] as string[],
+  };
+
+  it("is for the roles that run their own studios", () => {
+    for (const role of ["FranchiseOwner", "Owner", "StudioOwner", "StudioLeader", "HeadTrainer"]) expect(mayOwnStudios(role), role).toBe(true);
+    for (const role of ["LifeTransformer", "Trainer", "Admin", null, undefined]) expect(mayOwnStudios(role as string | null | undefined)).toBe(false);
+  });
+
+  it("adds a studio, bringing Also works at with it, once", () => {
+    expect(ownershipChange(olive, "westlake", true)).toEqual({
+      owned: { field: "ownedStudioIds", add: ["westlake"], remove: [], next: ["westlake"] },
+      alsoWorksAt: { field: "accessibleStudioIds", add: ["westlake"], remove: [], next: ["solon", "westlake"] },
+    });
+    const already = { ...olive, accessibleStudioIds: ["solon", "westlake"] };
+    expect(ownershipChange(already, "westlake", true)?.alsoWorksAt).toBeNull();
+  });
+
+  it("is a no-op when nothing changes", () => {
+    expect(ownershipChange(olive, "westlake", false)).toBeNull();
+    expect(ownershipChange({ ...olive, ownedStudioIds: ["westlake"] }, "westlake", true)).toBeNull();
+  });
+
+  it("refuses Demo Mode, a role that doesn't run studios, and the home studio on add", () => {
+    expect(ownershipChange(olive, "demo-studio", true)).toBeNull();
+    expect(ownershipChange({ ...olive, role: "LifeTransformer" }, "westlake", true)).toBeNull();
+    expect(ownershipChange(olive, "solon", true)).toBeNull();
+  });
+
+  it("allows removal for any role, the home included, and leaves Also works at", () => {
+    const stale = { ...olive, role: "LifeTransformer", accessibleStudioIds: ["solon", "westlake"], ownedStudioIds: ["solon", "westlake"] };
+    expect(ownershipChange(stale, "solon", false)).toEqual({
+      owned: { field: "ownedStudioIds", add: [], remove: ["solon"], next: ["westlake"] },
+      alsoWorksAt: null,
+    });
+    expect(ownershipChange(stale, "westlake", false)?.alsoWorksAt).toBeNull();
+    expect(ownsStudio(stale, "westlake")).toBe(true);
+    expect(ownsStudio(olive, "westlake")).toBe(false);
+  });
+
+  it("records an admin grant at that studio, both ways", () => {
+    expect(ownershipRecord({ person: olive, studioId: "westlake", owns: true, studios, byName: "Ada Admin" })).toEqual({
+      kind: "admin-grant",
+      what: "Made Olive Owner an owner of Westlake: they run it as its leaders do.",
+      studioId: "westlake",
+      before: { Owns: "no" },
+      after: { Owns: "yes" },
+      byName: "Ada Admin",
+    });
+    expect(ownershipRecord({ person: olive, studioId: "westlake", owns: false, studios, byName: "Ada Admin" })).toMatchObject({
+      what: "Olive Owner no longer owns Westlake.",
+      before: { Owns: "yes" },
+      after: { Owns: "no" },
+    });
+  });
+
+  it("says what happens before it is saved", () => {
+    const add = ownershipChange(olive, "westlake", true)!;
+    expect(ownershipConsequences({ person: olive, studioId: "westlake", change: add, studios, alsoWorksAtAfter: ["westlake"] })).toEqual([
+      "Olive Owner will run Westlake: Operations, My Studio's leader sections, its clients and its records, as its leaders do. It reaches their iPad the next time they sign in or Journey reloads.",
+      "Westlake is added to where they work, so they can see its cross-train visitors.",
+    ]);
+    const owning = { ...olive, accessibleStudioIds: ["solon", "westlake"], ownedStudioIds: ["westlake"] };
+    const off = ownershipChange(owning, "westlake", false)!;
+    expect(ownershipConsequences({ person: owning, studioId: "westlake", change: off, studios, alsoWorksAtAfter: ["westlake"] })).toEqual([
+      "Olive Owner no longer runs Westlake. Nothing they did there is deleted.",
+      "They still work at Westlake (Also works at, above): switch that off too if they no longer do.",
+    ]);
+    expect(ownershipConsequences({ person: owning, studioId: "westlake", change: off, studios, alsoWorksAtAfter: [] })).toHaveLength(1);
+  });
+
+  it("says why there is no switch", () => {
+    expect(ownershipLine(olive, { id: "solon" })).toBe("Their home studio: they run it already.");
+    expect(ownershipLine({ ...olive, role: "LifeTransformer" }, { id: "westlake" })).toBe(
+      "Owning a studio counts for a Franchise Owner or a studio leader role. Change their role first (Change role, beside this).",
+    );
+  });
+
+  it("is never touched by Add or Remove", () => {
+    const owning = { ...olive, accessibleStudioIds: ["solon", "westlake"], ownedStudioIds: ["westlake"] };
+    const plan = membershipPlan(owning, []);
+    expect(plan.changes.map((c) => c.field)).not.toContain("ownedStudioIds");
+    expect(takeOffPlan(owning, "westlake")!.changes.map((c) => c.field)).not.toContain("ownedStudioIds");
+    expect(membershipPlan(owning, ["westlake", "strongsville"]).changes.map((c) => c.field)).not.toContain("ownedStudioIds");
+  });
+
+  it("takes every owned studio off on a demotion, and nothing on a promotion or a leader-to-leader change", () => {
+    const two = { ...olive, ownedStudioIds: ["westlake", "strongsville"] };
+    expect(ownershipOnRoleChange(two, "LifeTransformer")).toEqual({ clears: ["westlake", "strongsville"] });
+    expect(ownershipOnRoleChange(two, "Admin")).toEqual({ clears: ["westlake", "strongsville"] });
+    expect(ownershipOnRoleChange(two, "StudioLeader")).toEqual({ clears: [] });
+    expect(ownershipOnRoleChange({ ...olive, role: "LifeTransformer" }, "FranchiseOwner")).toEqual({ clears: [] });
   });
 });
