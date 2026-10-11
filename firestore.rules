@@ -69,15 +69,13 @@ service cloud.firestore {
       return isAdmin() || isFounder();
     }
 
-    // 2. FRANCHISE OWNER: Management authority of regional studio systems
-    function isFranchiseOwnerOnly() {
-      return isAuthenticated() && (
-        getRole() == 'FranchiseOwner' || 
-        getRole() == 'Owner'
-      );
-    }
+    // 2. FRANCHISE OWNER: no company-wide helper any more. The franchise
+    //    partition (Oct 2026; ROADMAP Gate B) made a franchise owner one of
+    //    a studio's leaders, at their home and owned studios only
+    //    (roleRunsOwnStudios, below), so isFranchiseOwnerOnly() and
+    //    isFranchiseOwner() were removed with every branch that called them.
 
-    // 3. STUDIO OWNER & HEAD TRAINER: Read/write strictly bounded by location parameter
+    // 3. A STUDIO'S LEADERS: the studio tier and its franchise owner, strictly bounded by location
     function isStudioOwnerOrHeadTrainerOnly(studioId) {
       return isAuthenticated() && (
         // Demo Mode: everyone leads there. See the demo helpers above.
@@ -87,7 +85,9 @@ service cloud.firestore {
         // Database Backed verification fallback
         (
           trainerDocExistsByUID() &&
-          (getRole() == 'StudioOwner' || getRole() == 'HeadTrainer' || getRole() == 'StudioLeader') &&
+          // The franchise partition (Oct 2026): a franchise owner leads their
+          // home and owned studios as a studio leader does. getRole() once.
+          roleRunsOwnStudios(getRole()) &&
           (
             getTrainerData().primaryHomeStudioId == studioId || 
             ('ownedStudioIds' in getTrainerData() && getTrainerData().ownedStudioIds != null && getTrainerData().ownedStudioIds.hasAny([studioId]))
@@ -106,10 +106,6 @@ service cloud.firestore {
 
     function isStudioOwnerOrHeadTrainer(studioId) {
       return isStudioOwnerOrHeadTrainerOnly(studioId);
-    }
-
-    function isFranchiseOwner() {
-      return isFranchiseOwnerOnly();
     }
 
     // 4. TRAINER: Any authenticated trainer at a studio — checks primary home, accessible, and guest studios
@@ -196,6 +192,20 @@ service cloud.firestore {
              (clientData.get('approvedCrossTrainStudioIds', []).hasAny(trainerGuest));
     }
 
+    /* A CLIENT RECORD MADE FROM AN IPAD (the franchise partition, second
+       review): never pre-approved for another studio, and never a
+       Mindbody-numbered record in the practice studio. A Mindbody record's
+       id is digits, or {site}-{digits} (lib/mindbody-site.ts). Otherwise a
+       trainer could file a real person at demo-studio, where everyone reads
+       them, before the webhook first sees them (it merges into the existing
+       document and, on site 29068, leaves homeStudioId alone), or hand a new
+       record a cross-train list the webhook never clears. */
+    function clientCreateHonest(clientId, d) {
+      return d.get('approvedCrossTrainStudioIds', []).size() == 0
+          && (!isDemoStudioId(getStudioIdFromData(d))
+              || !clientId.matches('^[0-9]+(-[0-9]+)?$'));
+    }
+
     function isTrainerOfClient(clientId) {
       return exists(/databases/$(database)/documents/clients/$(clientId)) && 
              isTrainerOfClientData(
@@ -243,7 +253,7 @@ service cloud.firestore {
        re-derives what the last one just computed:
          getRole()                      -> up to 3 getTrainerData() call sites
          isSuperAdmin()                 -> up to 3 getRole()  = ~9 more
-         isFranchiseOwnerOnly()         -> 2 getRole()        = ~6 more
+         isFranchiseOwnerOnly()         -> (removed, the franchise partition)
          isTrainerOfStudio(studioId)    -> ~15 (two helpers, each re-reading)
          namedClientIsReadable(...)     -> all of the above AGAIN, per client
        The document reads were cached; the expression count was not.
@@ -270,9 +280,47 @@ service cloud.firestore {
       return r == 'StudioOwner' || r == 'HeadTrainer' || r == 'StudioLeader';
     }
 
+    /* The roles that run their OWN studios: the studio tier's three, and
+       (the franchise partition, Oct 2026; ROADMAP Gate B) the franchise
+       owner, who leads their home studio and every studio an administrator
+       marked them as owning (trainers/{uid}.ownedStudioIds), exactly as a
+       studio leader leads theirs -- and nothing anywhere else. */
+    function roleRunsOwnStudios(r) {
+      return roleIsStudioLeader(r) || roleIsFranchise(r);
+    }
+
     /** The caller's trainer document, or null. One read, one call site. */
     function callerTrainer() {
       return trainerDocExistsByUID() ? getTrainerData() : null;
+    }
+
+    /* THE ROLE ON A TRAINER DOCUMENT, read the way getRole() reads it when
+       there is no claim: missing or null is 'LifeTransformer'; no document
+       is 'none'. Pure map work. */
+    function recordRoleOf(d) {
+      return d == null ? 'none'
+          : (d.get('role', null) == null ? 'LifeTransformer' : d.get('role', null));
+    }
+
+    /* THE CALLER'S ROLE ON A WRITE THAT HANDS OUT AUTHORITY (the franchise
+       partition, Oct 2026; review fix). getRole() trusts the token's role
+       claim first, and a claim outlives a demotion until the ID token
+       refreshes (up to an hour; syncTrainerClaims only changes the next
+       token). On the writes that decide who may do what -- a trainer
+       document, a studio's create and identity, a network, a notice -- the
+       caller's own trainer document, already read here as `t`, wins. With
+       no document at trainers/{uid} (an account keyed elsewhere) the claim
+       still answers, as getRole() would. Everywhere else getRole()'s
+       claim-first order is unchanged: reading the document there would add
+       a read the cost round (Sep 2026) took away. */
+    function authorityRole(t) {
+      return t != null ? recordRoleOf(t) : getRole();
+    }
+
+    /** An administrator by their own document (authorityRole), or by the
+     *  claim when there is no document. For authority writes only. */
+    function superOnRecord() {
+      return isAuthenticated() && roleIsSuper(authorityRole(callerTrainer()));
     }
 
     /** Works here, as a trainer. Pure map lookups against an already-read doc. */
@@ -285,7 +333,7 @@ service cloud.firestore {
       );
     }
 
-    /** Runs this location. Mirrors isStudioOwnerOrHeadTrainerOnly's DB branch. */
+    /** Runs this location: a leader role or a franchise owner at the home or an owned studio, the grant, or Demo Mode. Mirrors isStudioOwnerOrHeadTrainerOnly's DB branch. */
     function trainerLeads(r, t, studioId) {
       return studioId != null && studioId != '' && (
         (t != null && isDemoStudioId(studioId)) ||
@@ -297,7 +345,7 @@ service cloud.firestore {
         ('studioId' in request.auth.token &&
           request.auth.token.studioId != null &&
           request.auth.token.studioId == studioId) ||
-        (t != null && roleIsStudioLeader(r) && (
+        (t != null && roleRunsOwnStudios(r) && (
           t.get('primaryHomeStudioId', '') == studioId ||
           t.get('ownedStudioIds', []).hasAny([studioId])
         )) ||
@@ -306,15 +354,12 @@ service cloud.firestore {
       );
     }
 
-    /** Runs SOME studio: a studio-leader role, or the grant anywhere. */
-    function leadsAnyStudio(r, t) {
-      return roleIsStudioLeader(r) || (t != null && t.get('managedStudioIds', []).size() > 0);
-    }
-
     /* WHAT A CALLER MAY HAND OUT (My Studio round, Sep 2026). AJ, Sep 18:
        a studio's leaders hand out trainer, head trainer and studio leader --
        "never owner and admin". A franchise owner may hand out the owner
-       tier too. Administrators, anything. A null role is "not set yet". */
+       tier too, AT THE STUDIOS THEY RUN (the update and create rules ask
+       that first; the franchise partition, Oct 2026). Administrators,
+       anything. A null role is "not set yet". */
     function studioTierRole(role) {
       return role == null || role == 'LifeTransformer' || role == 'Trainer'
           || role == 'HeadTrainer' || role == 'StudioLeader';
@@ -395,10 +440,11 @@ service cloud.firestore {
      * SESSIONS ARE SCOPED BY CLIENT, NOT BY STUDIO -- unchanged policy, see the
      * comment above match /sessions. A session is never more visible than the
      * person it is about, and a legacy session with no studio and no client
-     * stays readable by its own trainer rather than by nobody.
+     * stays readable by its own trainer rather than by nobody. A franchise
+     * owner walks the leader's branches (the franchise partition, Oct 2026).
      */
     function sessionIsReadable(s, r, t) {
-      return roleIsSuper(r) || roleIsFranchise(r) || (t != null && (
+      return roleIsSuper(r) || (t != null && (
         s.get('trainerId', '') == request.auth.uid ||
         trainerWorksAt(t, s.get('hostedAtStudioId', '')) ||
         trainerLeads(r, t, s.get('hostedAtStudioId', '')) ||
@@ -413,20 +459,22 @@ service cloud.firestore {
        rule and the role string and trainer map are passed in, so these cost
        map lookups, not document reads.
 
-         readable   - works at or runs this studio, or reaches every studio
-         manageable - runs this studio (a studio leader of it), or reaches
-                      every studio. Per-trainer renewal rates, the pipeline's
-                      stage / lead / outcome and the studio's renewal
-                      settings are for leaders only (AJ, Sep 10 2026).
+         readable   - works at or runs this studio, or an administrator
+         manageable - runs this studio (a studio leader of it, its franchise
+                      owner included), or an administrator. Per-trainer
+                      renewal rates, the pipeline's stage / lead / outcome
+                      and the studio's renewal settings are for leaders only
+                      (AJ, Sep 10 2026). The franchise partition (Oct 2026):
+                      a franchise owner no longer reaches every studio.
        ==================================================================== */
 
     function renewalsReadable(studioId, r, t) {
-      return roleIsSuper(r) || roleIsFranchise(r) ||
+      return roleIsSuper(r) ||
              trainerWorksAt(t, studioId) || trainerLeads(r, t, studioId);
     }
 
     function renewalsManageable(studioId, r, t) {
-      return roleIsSuper(r) || roleIsFranchise(r) || trainerLeads(r, t, studioId);
+      return roleIsSuper(r) || trainerLeads(r, t, studioId);
     }
 
     /* WAVE 2 OPERATIONS: who may, with the caller resolved ONCE (Sep 28
@@ -434,9 +482,9 @@ service cloud.firestore {
        asked once here, everything below them is a map lookup, so the wave's
        rules stay far inside the 1,000-expression budget. The same answers as
        the renewals' (renewalsManageable: the studio's leaders, the grant
-       included, franchise owners and administrators; renewalsReadable: also
-       everyone who works there), which the app mirrors with
-       canManageRenewals / canTakePartInRenewals. */
+       and its franchise owner included, and administrators;
+       renewalsReadable: also everyone who works there), which the app
+       mirrors with canManageRenewals / canTakePartInRenewals. */
     function wave2Leads(studioId) {
       let r = getRole();
       let t = callerTrainer();
@@ -447,6 +495,36 @@ service cloud.firestore {
       let r = getRole();
       let t = callerTrainer();
       return renewalsReadable(studioId, r, t);
+    }
+
+    /* A FRANCHISE OWNER OF THIS STUDIO (the franchise partition, Oct 2026).
+       For the rules that only administrators and franchise owners could pass
+       (a FORD detail's delete): the franchise owner keeps it, at the studios
+       they run, and nobody else gains it. */
+    function franchiseRunsStudio(studioId) {
+      let r = getRole();
+      return roleIsFranchise(r) && trainerLeads(r, callerTrainer(), studioId);
+    }
+
+    /* ...and OF THIS CLIENT'S HOME STUDIO, for the deletes on collections
+       keyed by client whose clientId nobody can rewrite: journalEntries
+       (its update pins clientId) and clientFocuses (its update needs the
+       author, an administrator or this same test on the stored client).
+       NEVER on a collection whose update lets any trainer change clientId
+       (routines, sessionNotes, trainerFocuses, progressReports,
+       focusRecords): there the stored clientId is whatever the last writer
+       said, so a B client's document could be re-pointed at an A client and
+       deleted by A's owner (second review). Those deletes are
+       administrators' until the privacy round pins clientId. One read (the
+       client), on a single-document write. A document with no clientId, or
+       a client that is gone, is refused. */
+    function franchiseRunsClient(clientId) {
+      let r = getRole();
+      return roleIsFranchise(r)
+          && clientId is string && clientId != ''
+          && exists(/databases/$(database)/documents/clients/$(clientId))
+          && trainerLeads(r, callerTrainer(),
+               studioIdOf(get(/databases/$(database)/documents/clients/$(clientId)).data));
     }
 
     /** Absent, or a number inside [lo, hi]. */
@@ -698,18 +776,9 @@ service cloud.firestore {
     function inbodyWritable(clientId, r, t) {
       return t != null
           && exists(/databases/$(database)/documents/clients/$(clientId))
-          && (roleIsSuper(r) || roleIsFranchise(r)
+          && (roleIsSuper(r)
               || trainerWorksAt(t, inbodyClientStudio(clientId))
               || trainerLeads(r, t, inbodyClientStudio(clientId)));
-    }
-
-    function isTrainerOfStudioOrClient(studioId, clientId) {
-      return isSuperAdmin() || isFranchiseOwnerOnly() || (
-        isAuthenticated() && (
-          (studioId != null && isTrainerOfStudio(studioId)) ||
-          (clientId != null && isTrainerOfClient(clientId))
-        )
-      );
     }
 
     function hasRequiredFields(fields) {
@@ -825,6 +894,80 @@ service cloud.firestore {
                data);
     }
 
+    /* AN APPROVAL (My Studio -> Team, Operations -> Setup -> People &
+       access): an administrator anywhere, or someone who runs the studio
+       the new person joins -- a studio's leaders, the grant, or (the
+       franchise partition, Oct 2026) its franchise owner. The role comes
+       from the approver's own document (authorityRole). What it may hand
+       out follows the approver (mayHandOut, My Studio round, Sep 2026: a
+       leader the studio tier, a franchise owner the owner tier too, never
+       an administrator), and the new person belongs to that studio and no
+       other (newTrainerStaysHome).
+       Demo Mode (Sep 20 2026): demo-studio is NOT a door here.
+       hasRunOfDemo() makes trainerLeads true for EVERYBODY inside
+       demo-studio, and an approval never constrained accessibleStudioIds or
+       ownedStudioIds -- so without this guard any signed-in trainer could
+       mint a trainer document claiming access to a REAL studio, at any id,
+       including a colleague's uid before they first sign in. Demo trainers
+       are created by the isDemoTrainerPayload clause of the create rule and
+       nowhere else. */
+    function approverCreateAllowed(trainerId, d) {
+      let t = callerTrainer();
+      let r = authorityRole(t);
+      return roleIsSuper(r)
+          || (!isDemoStudioId(d.primaryHomeStudioId)
+              && trainerLeads(r, t, d.primaryHomeStudioId)
+              && mayHandOut(r, d.get('role', null))
+              && newTrainerStaysHome(d)
+              && (madeAsPlaceholder(trainerId, d)
+                  || approvesAPendingSignUp(r, t, trainerId, d)));
+    }
+
+    /* WHERE A NON-ADMINISTRATOR'S NEW TRAINER DOCUMENT MAY SIT (the
+       franchise partition, second review). authorityRole reads the caller's
+       document when there is one, so a document planted at someone's uid
+       decides their authority: a leader who wrote trainers/{an
+       administrator's uid} with role LifeTransformer would switch that
+       administrator's studio and network writes off. So a non-administrator
+       makes exactly the two documents the app makes:
+         - a placeholder (ProvisionalPanel, provisional.ts, addDoc): an
+           auto-id (20 characters; a Firebase Auth uid is 28), pendingClaim
+           true, no authUid -- it is never anyone's uid, and it becomes a
+           person only through the claim, which writes the claimer's OWN uid;
+         - an approval (StaffEditor approve, setDoc at req.userId): the uid
+           of a Pending sign-up that the person sent themselves (Type 1 sits
+           at their own uid, with userId their own uid), naming a studio the
+           caller runs, and authUid, if written, that same uid. An approval
+           writes the trainer document BEFORE it marks the request Approved
+           (StaffEditor.tsx), so the request is still Pending here. */
+    function madeAsPlaceholder(trainerId, d) {
+      return d.get('pendingClaim', false) == true
+          && trainerId.size() == 20
+          && !('authUid' in d);
+    }
+
+    function approvesAPendingSignUp(r, t, trainerId, d) {
+      return d.get('pendingClaim', false) != true
+          && d.get('authUid', trainerId) == trainerId
+          && exists(/databases/$(database)/documents/access_requests/$(trainerId))
+          && get(/databases/$(database)/documents/access_requests/$(trainerId)).data.get('userId', '') == trainerId
+          && get(/databases/$(database)/documents/access_requests/$(trainerId)).data.get('status', '') == 'Pending'
+          && trainerLeads(r, t, get(/databases/$(database)/documents/access_requests/$(trainerId)).data.get('requestedStudioId', ''));
+    }
+
+    /* A trainer document made by an approver who is not an administrator
+       (the franchise partition, Oct 2026): it names its home studio and
+       nothing more -- no other studio to work at or be a guest at, the grant
+       only for that home, and nothing owned. What the app writes
+       (StaffEditor approval, provisional.ts) is exactly this. */
+    function newTrainerStaysHome(d) {
+      let home = d.primaryHomeStudioId;
+      return d.get('managedStudioIds', []).hasOnly([home])
+          && (d.get('accessibleStudioIds', null) == null || d.accessibleStudioIds.hasOnly([home]))
+          && (d.get('activeGuestStudioIds', null) == null || d.activeGuestStudioIds.size() == 0)
+          && d.get('ownedStudioIds', []).size() == 0;
+    }
+
     function isValidTrainer(data) {
       // Trainer PINs were removed in Sep 2026 and `pinHash` is no longer a
       // field anywhere in the app. The refusal stays as a belt: a client that
@@ -932,13 +1075,6 @@ service cloud.firestore {
       return hasRequiredFields(['clientName', 'trainerName', 'startTime', 'endTime', 'status', 'serviceName', 'source']);
     }
 
-    function isValidNetwork(data) {
-      return hasRequiredFields(['name', 'ownerId', 'studioIds']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.ownerId is string &&
-             data.studioIds is list;
-    }
-
     function isValidHubAnnouncement(data) {
       return hasRequiredFields(['title', 'shortContent', 'longContent', 'authorId', 'authorName', 'studioId', 'isActive', 'priority']);
     }
@@ -953,19 +1089,6 @@ service cloud.firestore {
                         'academy-glossary', 'studio-page']
           && (!('id' in l) || (l.id is string && l.id.size() > 0 && l.id.size() <= 200))
           && (!('title' in l) || (l.title is string && l.title.size() <= 160));
-    }
-
-    /* Who the app offers the announcement composer to: the Operations
-       Announcements tab (administrators, founders, franchise owners) and the
-       Franchise hub (those, and studio owners). */
-    function canPostAnnouncements() {
-      return isSuperAdmin() || isFranchiseOwnerOnly() || getRole() == 'StudioOwner';
-    }
-
-    /* Everyone at every studio. Only the Operations tab offers it, so only
-       its people may send one; the Franchise hub never offers it. */
-    function reachesEveryStudio(d) {
-      return d.get('targetScope', '') == 'universal' || d.get('studioId', '') == 'all';
     }
 
     /* catalogSubmissions (My Studio round, Sep 2026). Mirrors
@@ -994,23 +1117,50 @@ service cloud.firestore {
     }
 
     /**
-     * The update rule for hub_announcements, extracted so getRole() is called
-     * once (via let) instead of 7+ times through canPostAnnouncements /
-     * isSuperAdmin / isFranchiseOwnerOnly — each of those calls getRole(),
-     * and stacking them blows Firestore's 1000-expression budget.
+     * The update rule for hub_announcements, extracted so the role is
+     * resolved once (via let) instead of 7+ times through the old
+     * canPostAnnouncements / isSuperAdmin / isFranchiseOwnerOnly -- each of
+     * those called getRole(), and stacking them blew Firestore's
+     * 1000-expression budget.
      * let statements are valid inside function bodies but not in allow conditions.
      */
     /* A studio's own notice (My Studio round, Sep 2026): scoped to one studio,
-       and the caller runs that studio (trainerLeads -- a role there, or the
-       grant). Never "all", never a network. */
+       and the caller runs that studio (trainerLeads -- a role there, its
+       franchise owner, or the grant). Never "all", never a network. */
     function studioNoticeOfMine(r, d) {
       return d.get('targetScope', '') == 'studio'
           && d.get('studioId', '') != '' && d.get('studioId', '') != 'all'
+          // The franchise partition (Oct 2026): it reaches that studio only
+          // (the bell delivers by targetStudioIds, then targetId).
+          && d.get('targetId', d.studioId) == d.studioId
+          && d.get('targetStudioIds', [d.studioId]).hasOnly([d.studioId])
           && trainerLeads(r, callerTrainer(), d.studioId);
     }
 
+    /* A network's notice by its franchise owner (the franchise partition,
+       Oct 2026): the network named (targetId) is one whose every studio
+       they run, and the studios it reaches (targetStudioIds, what the bell
+       reads) are all theirs. Written by audience.ts resolveAudience:
+       targetScope 'network', targetId the network, studioId '', the
+       network's studioIds. One read (the network). */
+    function networkNoticeOfMine(r, d) {
+      let own = ownStudiosOf(r, callerTrainer());
+      return roleIsFranchise(r)
+          && d.get('targetScope', '') == 'network'
+          && d.get('studioId', '') == ''
+          && d.get('targetId', '') is string && d.get('targetId', '') != ''
+          && d.get('targetStudioIds', []).size() > 0
+          && own.hasAll(d.get('targetStudioIds', []))
+          && exists(/databases/$(database)/documents/networks/$(d.targetId))
+          && get(/databases/$(database)/documents/networks/$(d.targetId)).data.get('studioIds', []).size() > 0
+          && own.hasAll(get(/databases/$(database)/documents/networks/$(d.targetId)).data.get('studioIds', []));
+    }
+
     function hubAnnouncementUpdateAllowed() {
-      let r = getRole();
+      // The role from the caller's own document (authorityRole; second
+      // review): a demoted administrator's claim no longer reaches every
+      // notice.
+      let r = authorityRole(callerTrainer());
       return (
         (
           // Everyone who was there is still there, and the
@@ -1023,24 +1173,29 @@ service cloud.firestore {
                .difference(resource.data.get('readBy', []).toSet())
                .hasOnly([request.auth.uid])
         ) || (
-          // Lengths are checked on create only, so a notice written before
-          // the limits can still be taken down. A studio owner changes only
-          // their own notices; the Operations tab's people, any; a studio's
-          // leaders, their studio's own (My Studio round). The author and
-          // the reach stay what they were allowed to be.
-          // Same narrowing as create: a studio owner takes down notices at
-          // the studio they run, not at any studio.
-          (roleIsSuper(r) || roleIsFranchise(r)
-              || studioNoticeOfMine(r, resource.data))
-          && (resource.data.get('authorId', '') == request.auth.uid
-              || roleIsSuper(r) || roleIsFranchise(r)
-              || studioNoticeOfMine(r, resource.data))
+          // Administrators change a notice's words (lengths are checked on
+          // create only, so a notice written before the limits can still be
+          // changed). The author stays who they were.
+          roleIsSuper(r)
           && request.resource.data.get('authorId', '') == resource.data.get('authorId', '')
-          && (roleIsSuper(r) || roleIsFranchise(r)
-              || !reachesEveryStudio(request.resource.data))
           && isValidHubAnnouncement(request.resource.data)
           && (!('learningLink' in request.resource.data)
               || learningLinkValid(request.resource.data.learningLink))
+        ) || (
+          // Everyone else TAKES A NOTICE DOWN and does nothing else (the
+          // franchise partition, second review: the app never edits a
+          // notice's words -- AnnouncementComposer's only update is
+          // { isActive: false } -- and an edit by someone who is not the
+          // author left the author's name on words they never wrote). The
+          // author always may, whatever has happened to the network since
+          // (an administrator adding a studio they don't own); otherwise the
+          // notice must be one the caller could send: their studio's, or a
+          // network's whose every studio they run.
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])
+          && request.resource.data.isActive == false
+          && (resource.data.get('authorId', '') == request.auth.uid
+              || studioNoticeOfMine(r, resource.data)
+              || networkNoticeOfMine(r, resource.data))
         )
       );
     }
@@ -1052,25 +1207,33 @@ service cloud.firestore {
      * times between them, and every getRole() re-reads the trainer document,
      * which exhausted Firestore's 1000-expression evaluation budget.
      *
-     * Permissions are unchanged: for an authenticated caller roleIsSuper(r) is
-     * isSuperAdmin(), roleIsFranchise(r) is isFranchiseOwnerOnly(), and the
-     * three together are exactly canPostAnnouncements().
+     * Oct 2026: franchise owners as their studios' and networks' (no
+     * company-wide branch; the franchise partition).
      */
     function hubAnnouncementCreateAllowed() {
-      let r = getRole();
+      let t = callerTrainer();
+      // The role from the caller's own document (authorityRole; second
+      // review): a demoted administrator's claim never posts to everyone.
+      let r = authorityRole(t);
+      let d = request.resource.data;
       // StudioOwner is NOT here on its own. It used to be, from when it was
       // a company-tier role; the My Studio round (Sep 18 2026) made it a
       // STUDIO-tier role -- one studio -- and this line kept the old blanket,
       // so an owner at studio A could post a notice into studio B. They reach
       // their own studio through studioNoticeOfMine, which is what a studio's
       // leaders use: My Studio -> Studio -> Announcements.
-      return (roleIsSuper(r) || roleIsFranchise(r)
-              || studioNoticeOfMine(r, request.resource.data))
-          // Posted as yourself (review fix: the author was free text).
-          && request.resource.data.authorId == request.auth.uid
-          && (roleIsSuper(r) || roleIsFranchise(r)
-              || !reachesEveryStudio(request.resource.data))
-          && announcementShapeValid(request.resource.data);
+      // Posted as yourself (review fix: the author was free text), and
+      // under your own name unless you are head office (second review: a
+      // leader could sign a notice "Max Strength Head Office"; the bell and
+      // StudioSection show authorName). Cheap shape first. Everyone
+      // ("universal", studioId 'all') is administrators' alone: neither of
+      // the other two can reach it.
+      return d.authorId == request.auth.uid
+          && announcementShapeValid(d)
+          && d.authorName is string && d.authorName.size() <= 120
+          && (roleIsSuper(r)
+              || (d.authorName == t.get('fullName', '')
+                  && (studioNoticeOfMine(r, d) || networkNoticeOfMine(r, d))));
     }
 
     // ===============================================================
@@ -1126,23 +1289,97 @@ service cloud.firestore {
           || mayHandOut(r, request.resource.data.role);
     }
 
-    /* THE GRANT, changed after the fact (My Studio round, Sep 2026). A
-       studio's leaders hand out the grant FOR THEIR STUDIO: only studios the
-       caller runs may enter or leave managedStudioIds. Administrators and
-       franchise owners, any. The studios a caller runs are the home studio
-       (with a leader role there), the owned ones and their own grants. */
-    function ledStudios(r, t) {
-      return (roleIsStudioLeader(r) ? [t.get('primaryHomeStudioId', '')] : [])
-          .concat(t.get('ownedStudioIds', []))
-          .concat(t.get('managedStudioIds', []));
+    /* THE STUDIOS A CALLER RUNS, as lists (the franchise partition, Oct 2026).
+       ownStudiosOf: their home and owned studios, for the roles that run
+       their own (roleRunsOwnStudios) -- trainerLeads's role branch as a list.
+       ledStudios: those, and the grant. ownedStudioIds no longer counts for
+       a role that does not run its own studios, so the list and trainerLeads
+       give one answer. */
+    function ownStudiosOf(r, t) {
+      return (t != null && roleRunsOwnStudios(r))
+          ? [t.get('primaryHomeStudioId', '')].concat(t.get('ownedStudioIds', []))
+          : [];
     }
 
-    function grantChangeAllowed(r, t) {
-      let before = resource.data.get('managedStudioIds', []).toSet();
-      let after = request.resource.data.get('managedStudioIds', []).toSet();
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['managedStudioIds'])
-          || roleIsSuper(r) || roleIsFranchise(r)
-          || (t != null && after.difference(before).union(before.difference(after)).hasOnly(ledStudios(r, t)));
+    function ledStudios(r, t) {
+      return ownStudiosOf(r, t).concat(t.get('managedStudioIds', []));
+    }
+
+    /* A STUDIO LIST, AS A LIST (the franchise partition, Oct 2026): a stored
+       null reads as empty, so a document written with null lists can still
+       be edited. */
+    function idListOf(d, key) {
+      return d.get(key, null) == null ? [] : d.get(key, null);
+    }
+
+    /* Every studio entering or leaving this list is one the caller runs. */
+    function listChangeWithin(before, after, key, led) {
+      let b = idListOf(before, key).toSet();
+      let a = idListOf(after, key).toSet();
+      return a.difference(b).union(b.difference(a)).hasOnly(led);
+    }
+
+    /* Every studio this person works at, as a guest or by the grant, is one
+       the caller runs (their home is, by the leader branch's own test). */
+    function worksOnlyWhereILead(d, led) {
+      return idListOf(d, 'accessibleStudioIds').hasOnly(led)
+          && idListOf(d, 'activeGuestStudioIds').hasOnly(led)
+          && idListOf(d, 'managedStudioIds').hasOnly(led);
+    }
+
+    /* SOMEONE ELSE'S DOCUMENT, changed by someone who is not an
+       administrator (the franchise partition, Oct 2026; generalises the
+       grant's rule of the My Studio round; tightened after review).
+         - ownedStudioIds, and switching an account off or on (isActive,
+           switchedOffAt, switchedOffBy): administrators only. AJ, Oct 2
+           2026: an administrator switches a former trainer's account off.
+         - role and email: only for a person within the caller's reach --
+           their CURRENT role is one the caller could hand out (a leader
+           never demotes an administrator, an owner or a studio owner), and
+           they own no studio (so a leftover ownedStudioIds can never be
+           brought back to life by a promotion, and an owner's role is head
+           office's). The new role is one the caller may hand out
+           (roleChangeAllowed). An email is who signs in as the document
+           (ownsTrainerDoc, the claim), so it changes only for someone who
+           works nowhere the caller doesn't run.
+         - the studio lists: only studios the caller runs (ledStudios: their
+           home and owned studios for a role that runs its own, and their
+           grants) may enter or leave accessibleStudioIds,
+           activeGuestStudioIds or managedStudioIds, or become the home. (A
+           second studio is an administrator's act: AJ, Oct 1 2026, Admins
+           -> a studio's Team -> Studios.)
+       Only what this write changes is checked, so an ordinary edit (the
+       calendar switch, initials) pays for almost none of it. */
+    function othersDocChangeAllowed(r, t) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let led = ledStudios(r, t);
+      return t != null
+          && !changed.hasAny(['ownedStudioIds', 'isActive', 'switchedOffAt', 'switchedOffBy'])
+          && (!changed.hasAny(['role', 'email'])
+              || (mayHandOut(r, recordRoleOf(resource.data))
+                  && idListOf(resource.data, 'ownedStudioIds').size() == 0))
+          && (!changed.hasAny(['role']) || roleChangeAllowed(r))
+          && (!changed.hasAny(['email']) || worksOnlyWhereILead(resource.data, led))
+          && (!changed.hasAny(['primaryHomeStudioId'])
+              || led.hasAny([request.resource.data.get('primaryHomeStudioId', '')]))
+          && (!changed.hasAny(['accessibleStudioIds'])
+              || listChangeWithin(resource.data, request.resource.data, 'accessibleStudioIds', led))
+          && (!changed.hasAny(['activeGuestStudioIds'])
+              || listChangeWithin(resource.data, request.resource.data, 'activeGuestStudioIds', led))
+          && (!changed.hasAny(['managedStudioIds'])
+              || listChangeWithin(resource.data, request.resource.data, 'managedStudioIds', led));
+    }
+
+    /* A PLACEHOLDER IS MADE, NEVER OPENED (review fix, Oct 2026). A document
+       with pendingClaim true can be claimed by whoever signs in with its
+       email (selfCreateIsAClaim), and the claim copies its role and every
+       studio list, ownedStudioIds included. Only an approver's create and
+       an administrator make one; an update by anyone else never turns
+       pendingClaim on. The claim's own tombstone (claim.ts tombstone())
+       writes supersededByUid, never pendingClaim. */
+    function opensAClaim() {
+      return request.resource.data.get('pendingClaim', false) == true
+          && resource.data.get('pendingClaim', false) != true;
     }
 
     // ---------------------------------------------------------------
@@ -1204,9 +1441,19 @@ service cloud.firestore {
      * DB branch exactly, including the demo studio and the grant. `let` is
      * legal in a function body and not in an `allow` condition, which is why
      * this is a function. See docs/KNOWN-TRAPS.md.
+     *
+     * Oct 2026 (the franchise partition): the role comes from the caller's
+     * own document (authorityRole); grantChangeAllowed became
+     * othersDocChangeAllowed, asked only on the someone-else branch; the
+     * self branch never reaches it.
      */
-    function trainerUpdateAllowed(trainerId, r, t) {
+    function trainerUpdateAllowed(trainerId, t) {
       let derived = writesDerivedTrainerFields();
+      // The caller's role from their own document (authorityRole): a stale
+      // claim never edits a trainer document.
+      let r = authorityRole(t);
+      // Asked once: both branches below turn on it (the budget).
+      let own = ownsTrainerDoc(trainerId);
       return
         // Demo Mode: re-seeding rewrites the three demo trainers whole. Both
         // the stored document and the incoming one have to be demo documents,
@@ -1221,11 +1468,18 @@ service cloud.firestore {
         (roleIsSuper(r) && !derived) ||
         ( !derived &&
           !writesForeignRoster(trainerId) &&
-          ( roleIsFranchise(r) ||
-            trainerLeads(r, t, resource.data.get('primaryHomeStudioId', null)) ||
-            (ownsTrainerDoc(trainerId) && !writesAccessFields())
-          ) &&
-          roleChangeAllowed(r) && grantChangeAllowed(r, t)
+          !opensAClaim() &&
+          // Your own document: never its access fields, whatever your role
+          // (only an administrator changes their own -- the clause above).
+          // Someone else's: you lead their home studio, and the change is
+          // within your reach (othersDocChangeAllowed; the franchise
+          // partition, Oct 2026). A franchise owner is no longer a
+          // company-wide editor of every trainer.
+          ( (own && !writesAccessFields()) ||
+            (!own &&
+             trainerLeads(r, t, resource.data.get('primaryHomeStudioId', null)) &&
+             othersDocChangeAllowed(r, t))
+          )
         );
     }
 
@@ -1325,10 +1579,12 @@ service cloud.firestore {
 
        trainerLeads() is also the RIGHT question: it is the one app-side answer
        to "runs this studio" (features/relay/leads.ts mirrors it), and it counts
-       Trainer.managedStudioIds -- the grant the My Studio round added. */
+       Trainer.managedStudioIds -- the grant the My Studio round added -- and,
+       since the franchise partition (Oct 2026), the studio's franchise owner
+       at the studios they run, who no longer pass by role alone. */
     function teamJobLeaderAllowed(studioId) {
       let r = getRole();
-      return roleIsSuper(r) || roleIsFranchise(r)
+      return roleIsSuper(r)
           || trainerLeads(r, callerTrainer(), studioId);
     }
 
@@ -1422,8 +1678,9 @@ service cloud.firestore {
        the list to hold only those (a "2026-10-31" in September, or anything
        that isn't a day, refuses the write), with no day twice. */
     /* Who may add to it: the same people as writesForStudio (administrators,
-       franchise owners, the studio's leaders with the grant, and everyone
-       who works there), with the role and the trainer document resolved
+       the studio's leaders with the grant -- a franchise owner of the studio
+       counts (the franchise partition, Oct 2026) -- and everyone who works
+       there), with the role and the trainer document resolved
        ONCE and passed down, as teamJobLeaderAllowed does. writesForStudio
        itself asks getRole() up to eight times: with it, a guest trainer's
        write ran out of the 1,000-expression budget in the emulator, and
@@ -1436,7 +1693,7 @@ service cloud.firestore {
     function coverageWriterAllowed(studioId) {
       let r = getRole();
       let t = callerTrainer();
-      return roleIsSuper(r) || roleIsFranchise(r)
+      return roleIsSuper(r)
           || trainerWorksAt(t, studioId) || trainerLeads(r, t, studioId);
     }
 
@@ -1529,13 +1786,14 @@ service cloud.firestore {
     }
 
     /* STUDIO CONTENT WRITES (Learning + Planner round, Sep 2026).
-       Someone who works at, or runs, this studio -- or an administrator or a
-       franchise owner. Before this round the machine notes, upkeep log,
+       Someone who works at, or runs, this studio (its franchise owner
+       included, the franchise partition, Oct 2026) -- or an administrator.
+       Before this round the machine notes, upkeep log,
        playbook and wiki blocks below accepted any signed-in trainer at ANY
        studio (their comments said the path enforced tenancy; nothing checked
        the path). Now the path does. */
     function writesForStudio(studioId) {
-      return isSuperAdmin() || isFranchiseOwnerOnly() || isTrainerOfStudio(studioId);
+      return isSuperAdmin() || isTrainerOfStudio(studioId);
     }
 
     /* The "Share with all MSF studios" fields on a playbook tip or a machine
@@ -1714,26 +1972,11 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
                     request.resource.data.primaryHomeStudioId != null &&
                     isValidTrainer(request.resource.data) &&
-                    (isSuperAdmin() ||
-                     // My Studio round (Sep 2026): what an approval may hand
-                     // out follows the approver -- a franchise owner never
-                     // mints an administrator, a studio's leaders never mint
-                     // an owner (mayHandOut), and a studio leader's grant can
-                     // only name the studio the new person is joining.
-                     (isFranchiseOwner() && !roleIsSuper(request.resource.data.get('role', null))) ||
-                     // Demo Mode (Sep 20 2026): demo-studio is NOT a door here.
-                     // hasRunOfDemo() makes isStudioOwnerOrHeadTrainer true for
-                     // EVERYBODY inside demo-studio, and this clause never
-                     // constrains accessibleStudioIds or ownedStudioIds -- so
-                     // without this guard any signed-in trainer could mint a
-                     // trainer document claiming access to a REAL studio, at
-                     // any id, including a colleague's uid before they first
-                     // sign in. Demo trainers are created by the
-                     // isDemoTrainerPayload clause below and nowhere else.
-                     (!isDemoStudioId(request.resource.data.primaryHomeStudioId) &&
-                      isStudioOwnerOrHeadTrainer(request.resource.data.primaryHomeStudioId) &&
-                      studioTierRole(request.resource.data.get('role', null)) &&
-                      request.resource.data.get('managedStudioIds', []).hasOnly([request.resource.data.primaryHomeStudioId])) ||
+                    (// An administrator, or an approval by someone who runs
+                     // the new person's studio (approverCreateAllowed: the
+                     // role resolved once, from the approver's own document;
+                     // the franchise partition, Oct 2026).
+                     approverCreateAllowed(trainerId, request.resource.data) ||
                      // Bootstrap / claim: a person may own trainers/{their uid},
                      // but may not hand themselves Admin, Founder or Overseer
                      // (selfCreatedRoleIsAllowed), and since Oct 3 2026 only
@@ -1750,7 +1993,7 @@ service cloud.firestore {
                      (isAnyAuthenticatedTrainer() &&
                       isDemoTrainerPayload(trainerId, request.resource.data)));
       allow update: if isAuthenticated() &&
-                       trainerUpdateAllowed(trainerId, getRole(), callerTrainer());
+                       trainerUpdateAllowed(trainerId, callerTrainer());
       allow delete: if isSuperAdmin();
 
       match /secrets/account {
@@ -1963,7 +2206,6 @@ service cloud.firestore {
     // section of ADMIN-OVERHAUL-ROUND2.md.
     match /clients/{clientId} {
       allow read: if isSuperAdmin()
-                  || isFranchiseOwnerOnly()
                   || (isAnyAuthenticatedTrainer()
                       && isTrainerOfClientData(
                            clientId,
@@ -1981,7 +2223,8 @@ service cloud.firestore {
                     && (isSuperAdmin()
                         || (isAnyAuthenticatedTrainer()
                             && isTrainerOfStudio(
-                                 getStudioIdFromData(request.resource.data))));
+                                 getStudioIdFromData(request.resource.data))
+                            && clientCreateHonest(clientId, request.resource.data)));
 
       // `resource.data` is the EXISTING document: a trainer may only edit a
       // client their own studio holds, whatever the incoming payload claims.
@@ -2025,7 +2268,7 @@ service cloud.firestore {
     // whoever entered it or by the studio's leaders.
     match /clients/{clientId}/inbodyScans/{scanId} {
       allow read: if isAuthenticated() && (
-                    roleIsSuper(getRole()) || roleIsFranchise(getRole()) ||
+                    roleIsSuper(getRole()) ||
                     sessionClientIsReadable(clientId, getRole(), callerTrainer()));
 
       allow create: if isAuthenticated()
@@ -2069,7 +2312,7 @@ service cloud.firestore {
     // batch as the note itself, without the whole batch being refused.
     match /clients/{clientId}/sharedNotes/{noteId} {
       allow read: if isAuthenticated() && (
-                    roleIsSuper(getRole()) || roleIsFranchise(getRole()) ||
+                    roleIsSuper(getRole()) ||
                     sessionClientIsReadable(clientId, getRole(), callerTrainer()));
 
       allow create: if isAuthenticated()
@@ -2131,7 +2374,6 @@ service cloud.firestore {
     match /clients/{clientId}/machineTotals/{docId} {
       allow read: if docId == 'current' && (
                     isSuperAdmin()
-                    || isFranchiseOwnerOnly()
                     || (isAnyAuthenticatedTrainer()
                         && exists(/databases/$(database)/documents/clients/$(clientId))
                         && isTrainerOfClientData(
@@ -2263,7 +2505,11 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
-      allow delete: if isSuperAdmin() || isFranchiseOwner();
+      // Administrators only (the franchise partition, second review): any
+      // trainer may rewrite a routine's clientId on update, so the stored
+      // client can't decide a delete. No app path deletes a routine. The
+      // privacy round pins clientId and brings a franchise owner's back.
+      allow delete: if isSuperAdmin();
 
       // A ROUTINE'S PLAN'S CHANGES (Oct 7 2026, src/features/routine-plan).
       // The plan itself is `plan` on the routine, written by the update rule
@@ -2445,7 +2691,6 @@ service cloud.firestore {
          History tab's Delete button failed halfway through its batch. Same
          three tests as `update`, read off the STORED document. */
       allow delete: if isSuperAdmin()
-                    || isFranchiseOwner()
                     || (isAnyAuthenticatedTrainer()
                         && (resource.data.get('trainerId', '') == request.auth.uid
                             || isTrainerOfStudio(
@@ -2481,7 +2726,7 @@ service cloud.firestore {
          floor. The update rule above already lets any signed-in trainer blank
          any log, so delete grants no reach update did not; it just stops
          leaving an empty row behind where a machine used to be. */
-      allow delete: if isSuperAdmin() || isFranchiseOwner()
+      allow delete: if isSuperAdmin()
                     || (isAuthenticated() && isAnyAuthenticatedTrainer());
     }
 
@@ -2489,11 +2734,10 @@ service cloud.firestore {
     match /schedules/{scheduleId} {
       allow read: if isAuthenticated();
       allow create, update: if isAuthenticated() && (
-        isFranchiseOwner() || 
         isSuperAdmin() ||
         isAnyAuthenticatedTrainer()
       ) && isValidSchedule(request.resource.data);
-      allow delete: if isSuperAdmin() || isFranchiseOwner() || isAnyAuthenticatedTrainer();
+      allow delete: if isSuperAdmin() || isAnyAuthenticatedTrainer();
     }
     
     // CLINICAL NOTES
@@ -2501,7 +2745,9 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
-      allow delete: if isSuperAdmin() || isFranchiseOwner();
+      // Administrators only, as routines (the franchise partition): any
+      // trainer may rewrite clientId on update.
+      allow delete: if isSuperAdmin();
     }
 
     match /users/{userId} {
@@ -2511,11 +2757,11 @@ service cloud.firestore {
     
     // AUDIT LOGS
     match /auditLogs/{logId} {
-      allow read: if isSuperAdmin() || isFranchiseOwner();
+      allow read: if isSuperAdmin();
       allow create: if isAuthenticated();
       allow update, delete: if isSuperAdmin();
     }
-  
+
     // Written by the weekly machine-trends job (server/machine-trends-job.ts,
     // service account, bypasses these rules). Aggregates only - never a
     // client row - so it is readable like exerciseLogs, by any signed-in user.
@@ -2543,25 +2789,29 @@ service cloud.firestore {
     }
 
     // SPECIAL ATHLETE FOCUS PATTERNS
+    // The three deletes below are administrators' (the franchise partition,
+    // second review): any trainer may rewrite clientId on update, so the
+    // stored client can't decide a delete. The privacy round pins clientId
+    // and brings a franchise owner's back.
     match /trainerFocuses/{focusId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
-      allow delete: if isSuperAdmin() || isFranchiseOwner();
+      allow delete: if isSuperAdmin();
     }
 
     match /progressReports/{reportId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
-      allow delete: if isSuperAdmin() || isFranchiseOwner();
+      allow delete: if isSuperAdmin();
     }
 
     match /focusRecords/{focusId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
-      allow delete: if isSuperAdmin() || isFranchiseOwner();
+      allow delete: if isSuperAdmin();
     }
 
     // ================================================================
@@ -2602,7 +2852,11 @@ service cloud.firestore {
                     && request.resource.data.clientId == resource.data.clientId
                     && request.resource.data.body.size() <= 5000;
 
-      allow delete: if isSuperAdmin() || isFranchiseOwner();
+      // Administrators, and the franchise owner of the client's studio (the
+      // franchise partition, Oct 2026): clientId is pinned by the update
+      // rule above, so the stored client is the true one.
+      allow delete: if isSuperAdmin()
+                    || (isAuthenticated() && franchiseRunsClient(resource.data.get('clientId', '')));
     }
 
     // NOTE DISMISSALS — "no need to remind me", one document per trainer.
@@ -2644,7 +2898,8 @@ service cloud.firestore {
                   && isAnyAuthenticatedTrainer()
                   && (
                        isSuperAdmin()
-                       || isFranchiseOwner()
+                       // A franchise owner reads the studios they run through
+                       // isTrainerOfStudio (the franchise partition, Oct 2026).
                        || isTrainerOfStudio(resource.data.studioId)
                      );
 
@@ -2670,15 +2925,16 @@ service cloud.firestore {
                     && request.resource.data.body.size() <= 2000
                     && (
                          isSuperAdmin()
-                         || isFranchiseOwner()
                          || isTrainerOfStudio(resource.data.studioId)
                        );
 
       // Details are archived, not deleted — see ford-write.ts. The one
       // exception is a capture discarded before it was ever filed, which is
-      // why the author keeps a delete on an untagged entry of their own.
+      // why the author keeps a delete on an untagged entry of their own. A
+      // franchise owner deletes at the studios they run (the franchise
+      // partition, Oct 2026).
       allow delete: if isSuperAdmin()
-                    || isFranchiseOwner()
+                    || (isAuthenticated() && franchiseRunsStudio(resource.data.get('studioId', '')))
                     || (
                          isAnyAuthenticatedTrainer()
                          && resource.data.authorId == request.auth.uid
@@ -2705,11 +2961,14 @@ service cloud.firestore {
                     && (
                          resource.data.trainerId == request.auth.uid
                          || isSuperAdmin()
-                         || isFranchiseOwner()
-                         || isAdmin()
+                         // The franchise owner of the STORED client's studio
+                         // (the franchise partition, Oct 2026): a non-author
+                         // can't re-point clientId first.
+                         || franchiseRunsClient(resource.data.get('clientId', ''))
                        );
 
-      allow delete: if isSuperAdmin() || isFranchiseOwner();
+      allow delete: if isSuperAdmin()
+                    || (isAuthenticated() && franchiseRunsClient(resource.data.get('clientId', '')));
     }
 
     // STUDIOS: Territory configurations
@@ -2717,8 +2976,9 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       // My Studio round (Sep 2026) closes the hole CLAUDE.md carried as
       // "any trainer can edit any studios/{id} document": a studio is written
-      // by administrators, franchise owners and ITS OWN leaders (head trainer,
-      // studio leader, studio owner, or the grant) -- AJ, Sep 18. The one
+      // by administrators and ITS OWN leaders: head trainer, studio leader,
+      // studio owner, the grant, or its franchise owner -- AJ, Sep 18; the
+      // franchise partition, Oct 2026. The one
       // thing every iPad still writes is the schedule sync's lease
       // (features/admin/useAutoSync: lastScheduleSyncAt, scheduleSyncFailures,
       // and since the lean sync of Sep 25 2026 lastDeepScheduleSyncAt, when
@@ -2734,15 +2994,52 @@ service cloud.firestore {
       // "yes" to administrators only): it is a cost lever, and it had no
       // editor on My Studio -> Studio, so Operations -> Mindbody was a second
       // editor of the studio's own record.
-      allow create: if isSuperAdmin() || isFranchiseOwner() || hasRunOfDemo(studioId);
-      allow update: if isSuperAdmin() ||
-                       ((isFranchiseOwner() || isStudioOwnerOrHeadTrainer(studioId)) &&
+      // Only administrators create a studio, and only they change what a
+      // studio IS (the franchise partition, Oct 2026): its network, its
+      // owner record, its Mindbody site and location -- the Mindbody proxy
+      // scopes a leader or an owner to the sites of the studios they run,
+      // and the webhook files a client by the studio that claims its site,
+      // so whoever could repoint a site could reach any site -- and the
+      // practice flag. Demo Mode: anyone may lay demo-studio down and change
+      // it (its seeder writes ownerId and the rest on every reset, by
+      // whoever presses it), but never with a Mindbody link or a network,
+      // never as a real studio, never out of offline (demoStudioStaysDemo;
+      // second review: the old exemption let any trainer give demo-studio
+      // Solon's site, which parks Solon's location-less webhook events as
+      // ambiguous and can file new real clients at demo-studio).
+      // superOnRecord: the administrator's role from their own document, so
+      // a stale claim neither makes a studio nor repoints one.
+      // The old lease fields: only the people who work at the studio
+      // (writesForStudio; second review -- any trainer could park any
+      // studio's schedule sync by stamping a far-future time).
+      allow create: if superOnRecord() || (hasRunOfDemo(studioId) && demoStudioStaysDemo());
+      allow update: if superOnRecord() ||
+                       (isStudioOwnerOrHeadTrainer(studioId) &&
                         !request.resource.data.diff(resource.data).affectedKeys()
-                          .hasAny(['autoSyncEnabled', 'syncIntervalMinutes'])) ||
-                       (isAnyAuthenticatedTrainer() &&
+                          .hasAny(['autoSyncEnabled', 'syncIntervalMinutes']) &&
+                        ((isDemoStudioId(studioId) && demoStudioStaysDemo()) ||
+                         (!isDemoStudioId(studioId) &&
+                          !request.resource.data.diff(resource.data).affectedKeys()
+                            .hasAny(['networkId', 'ownerId', 'mindbodySiteId', 'mindbodyLocationId', 'isDemo'])))) ||
+                       (isAnyAuthenticatedTrainer() && writesForStudio(studioId) &&
                         request.resource.data.diff(resource.data).affectedKeys()
                           .hasOnly(['lastScheduleSyncAt', 'scheduleSyncFailures', 'lastDeepScheduleSyncAt']));
       allow delete: if isSuperAdmin();
+
+      /* THE PRACTICE STUDIO STAYS A PRACTICE STUDIO (the franchise
+         partition, second review). What the seeder writes
+         (demo-mode/seed-core.ts buildStudio, a whole-document set): name,
+         address, timezone, mindbodyMode "offline", locationType,
+         journeyCutoverDate, sessionMinutes, ownerId, isDemo true,
+         demoSeedVersion, demoSeededAt, demoSeededBy, createdAt -- and never
+         a Mindbody site, location or network. Checked on the whole document
+         after the write, so an update can't add them either. */
+      function demoStudioStaysDemo() {
+        let d = request.resource.data;
+        return !d.keys().hasAny(['mindbodySiteId', 'mindbodyLocationId', 'networkId'])
+            && d.get('isDemo', false) == true
+            && d.get('mindbodyMode', 'offline') == 'offline';
+      }
 
       // THE SCHEDULE SYNC'S LEASE (the cost plan, Sep 26 2026, D3b).
       // The three fields above moved to their own document,
@@ -2750,12 +3047,15 @@ service cloud.firestore {
       // in the company watches every studio document, so each stamp on the
       // studio was read by all of them; a subcollection is outside that
       // listener, so a stamp here reaches only that studio's iPads. Any
-      // trainer's iPad claims it, as it could the old fields, and it holds
-      // those three numbers and nothing else. The old-field allowance above
-      // stays until every iPad has reloaded onto this build.
+      // trainer's iPad AT THAT STUDIO claims it (writesForStudio; the
+      // franchise partition, second review: any trainer could stamp a
+      // far-future time on another studio's lease and park its sync), and it
+      // holds those three numbers and nothing else. The old-field allowance
+      // above stays until every iPad has reloaded onto this build.
       match /sync/{docId} {
         allow read: if isAuthenticated();
         allow create, update: if isAnyAuthenticatedTrainer()
+                    && writesForStudio(studioId)
                     && docId == 'lease'
                     && request.resource.data.keys()
                          .hasOnly(['lastScheduleSyncAt', 'scheduleSyncFailures', 'lastDeepScheduleSyncAt'])
@@ -2771,8 +3071,9 @@ service cloud.firestore {
       // answered in full read on the day before, the day, or after. The iPad
       // that pulled adds them (features/openings/coverage-record.ts) with an
       // add-to-list merge, so two iPads never overwrite each other; anyone
-      // who works at the studio may, administrators and franchise owners
-      // too (a back-read from Operations -> Mindbody). ADD-ONLY: an update
+      // who works at the studio may, its leaders (its franchise owner
+      // included) and administrators too (a back-read from Operations ->
+      // Mindbody). ADD-ONLY: an update
       // keeps every day already there, and the app never deletes a month
       // (a wrong record is mended by hand, never from an iPad). Read by the
       // studio's people, as the standing weeks are; its readers to come are
@@ -3055,11 +3356,12 @@ service cloud.firestore {
        * THE VAULT (Relay, Sep 2026) -- leadership notes: incidents and
        * partners. Its own collection because rules apply to whole
        * documents: nothing the floor may read sits beside these. Read and
-       * written by the studio's leaders, franchise owners and administrators.
+       * written by the studio's leaders (its franchise owner included, the
+       * franchise partition, Oct 2026) and administrators.
        */
       match /vault/{entryId} {
         allow read, create, update, delete:
-          if isSuperAdmin() || isFranchiseOwnerOnly() || isStudioOwnerOrHeadTrainer(studioId);
+          if isSuperAdmin() || isStudioOwnerOrHeadTrainer(studioId);
       }
 
       /*
@@ -3205,7 +3507,7 @@ service cloud.firestore {
        */
       match /watchlist/{clientId} {
         allow read: if isAuthenticated() && writesForStudio(studioId);
-        allow create, update, delete: if isSuperAdmin() || isFranchiseOwner()
+        allow create, update, delete: if isSuperAdmin()
                                       || isStudioOwnerOrHeadTrainer(studioId);
       }
 
@@ -3859,11 +4161,48 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (resource.data.shared == true || isSuperAdmin());
     }
 
-    // NETWORKS: Regional Franchise Groupings
+    // NETWORKS: Regional Franchise Groupings. Administrators make and change
+    // them (which studios, which owners). A franchise owner sets the
+    // network's focus (relayFocus, Operations -> All my studios) on a network
+    // that holds one of the studios they run -- AJ, Sep 27 2026, "every
+    // network that holds a studio in their scope", including one made with
+    // "Choose later" that lists no owner -- and that field alone (the
+    // franchise partition, Oct 2026). Never studioIds or ownerIds: a
+    // partition that read them could be rewritten by the people it fences.
+    // superOnRecord: the administrator's role from their own document.
     match /networks/{networkId} {
+      function networkFocusByOwner() {
+        let t = callerTrainer();
+        let r = authorityRole(t);
+        return roleIsFranchise(r)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['relayFocus'])
+            && relayFocusValid(request.resource.data.relayFocus, t)
+            && resource.data.get('studioIds', []).hasAny(ownStudiosOf(r, t));
+      }
+
+      /* THE FOCUS'S SHAPE (second review): the three lines within
+         FOCUS_LIMITS (admin/network/network-actions.ts: 120, 120, 500),
+         signed by the writer as themselves, stamped with the server's time.
+         What focusWrite sends (dot paths: relayFocus.{line}, setBy {id: the
+         Auth uid, name: trainer.fullName ?? ""}, setAt serverTimestamp()),
+         checked on the merged map, so a line nobody touched keeps its value
+         but the signature is always the last writer's. */
+      function relayFocusValid(f, t) {
+        return f is map
+            && f.keys().hasOnly(['mastery', 'machine', 'note', 'setBy', 'setAt'])
+            && (!('mastery' in f) || (f.mastery is string && f.mastery.size() <= 120))
+            && (!('machine' in f) || (f.machine is string && f.machine.size() <= 120))
+            && (!('note' in f) || (f.note is string && f.note.size() <= 500))
+            && f.setBy is map && f.setBy.keys().hasOnly(['id', 'name'])
+            && f.setBy.id == request.auth.uid
+            && f.setBy.name == t.get('fullName', '')
+            && f.setAt == request.time;
+      }
+
       allow read: if isAuthenticated();
-      allow create, update: if isSuperAdmin() || isFranchiseOwner();
-      allow delete: if isSuperAdmin();
+      allow create: if superOnRecord();
+      allow update: if superOnRecord() || (isAuthenticated() && networkFocusByOwner());
+      allow delete: if superOnRecord();
     }
 
     match /aggregations/{aggId} {
@@ -3881,26 +4220,54 @@ service cloud.firestore {
     // Privacy (Oct 10 2026). A request holds a stranger's name, email and
     // phone, and anyone with a Google account can sign in, so "any signed-in
     // user" was everyone. Now:
-    //   - reading: the person who sent it (Type 1 sits at their uid; Type 2
-    //     names them in trainerId), and the people who let people in:
-    //     anyone who runs a studio (a studio-leader role or the grant),
-    //     owners and administrators. Not "leaders of the REQUESTED studio":
-    //     My Studio -> Team and Operations -> Staff & Roles list every
-    //     Pending request with one query on status alone, and a rule is not
-    //     a filter, so a per-studio rule would refuse that query. Narrowing
-    //     it means a query that names the studios, and a new index.
-    //     features/admin/staff/request-readers.ts is the app's mirror, so a
-    //     trainer's iPad never opens a listener this refuses.
+    //   - reading: the sender (Type 1 sits at their uid; Type 2 names them
+    //     in trainerId), administrators, and whoever runs the studio the
+    //     request names -- requestedStudioId for a new person
+    //     (front-door/my-request.ts), studioId for a studio-access request
+    //     (admin/staff/roster.ts). A leader's or owner's list query names
+    //     those studios (useStaffRoster.ts, two `in` queries, each with its
+    //     index), and a request that names no studio is administrators'
+    //     alone. Never Demo Mode's id: everyone has the run of it, and a
+    //     stranger's name and phone are not a practice record (the franchise
+    //     partition, Oct 2026). features/admin/staff/request-readers.ts is
+    //     the app's mirror, so a trainer's iPad never opens a listener this
+    //     refuses.
     //   - creating a Type 1 request: signed in, at the doc id of their own
     //     uid, with userId their own uid (approval writes trainers/{userId}).
     //     The front door writes exactly that (front-door/my-request.ts).
     match /access_requests/{requestId} {
+      function requestStudioLed(r, t, s) {
+        return s is string && s != '' && !isDemoStudioId(s) && trainerLeads(r, t, s);
+      }
+      function requestNamesStudioILead(d) {
+        let r = getRole();
+        let t = callerTrainer();
+        return requestStudioLed(r, t, d.get('requestedStudioId', ''))
+            || requestStudioLed(r, t, d.get('studioId', ''));
+      }
+
+      /* A STUDIO-ACCESS REQUEST (Type 2) names one real studio, in
+         studioId only, and sits at sa_{uid}_{studioId} (second review: it
+         took any document id, so anyone could create one at a stranger's
+         uid first and block that stranger's own sign-up at
+         access_requests/{uid}; and it could carry userId and
+         requestedStudioId, the fields the approval path trusts). A
+         Firebase Auth uid has no underscore, so this id is never a uid. */
+      function studioAccessShape(d) {
+        return d.type == 'studio_access'
+            && d.trainerId == request.auth.uid
+            && !d.keys().hasAny(['userId', 'requestedStudioId'])
+            && d.get('studioId', '') is string && d.get('studioId', '') != ''
+            && !isDemoStudioId(d.get('studioId', ''))
+            && requestId == 'sa_' + request.auth.uid + '_' + d.get('studioId', '');
+      }
+
       allow read: if isAuthenticated() && (
                     requestId == request.auth.uid ||
-                    resource.data.trainerId == request.auth.uid ||
+                    resource.data.get('trainerId', '') == request.auth.uid ||
                     resource.data.get('userId', '') == request.auth.uid ||
-                    isSuperAdmin() || isFranchiseOwner() ||
-                    leadsAnyStudio(getRole(), callerTrainer())
+                    isSuperAdmin() ||
+                    requestNamesStudioILead(resource.data)
                   );
       allow create: if (
                       // Type 1: Initial System Access
@@ -3915,23 +4282,30 @@ service cloud.firestore {
                         (!('reason' in request.resource.data) || (request.resource.data.reason is string && request.resource.data.reason.size() < 1000)) &&
                         request.resource.data.status == 'Pending'
                       ) ||
-                      // Type 2: Studio Access
-                      (
-                        isAuthenticated() &&
-                        request.resource.data.type == 'studio_access' &&
-                        request.resource.data.trainerId == request.auth.uid &&
-                        request.resource.data.status == 'Pending'
-                      )
+                      // Type 2: Studio Access, at its own id (studioAccessShape)
+                      (isAuthenticated()
+                       && studioAccessShape(request.resource.data)
+                       && request.resource.data.status == 'Pending')
                     );
       // A studio's leaders let people in from My Studio -> Team (My Studio
       // round, Sep 2026): marking the request Approved is theirs too.
-      // The requester's own clause also asks that the request was already
-      // theirs (Oct 10 2026): it used to check only the new data, so anyone
-      // could rewrite another person's studio request by naming themselves.
-      allow update, delete: if isSuperAdmin() || isFranchiseOwner() ||
-                            (isAuthenticated() && leadsAnyStudio(getRole(), callerTrainer())) ||
-                            (isAuthenticated() && resource.data.get('trainerId', '') == request.auth.uid &&
-                              request.resource.data.type == 'studio_access' && request.resource.data.trainerId == request.auth.uid);
+      // Approving or denying: an administrator, or someone who runs the
+      // studio it names. They change the status and its stamps and nothing
+      // else (the franchise partition, second review: a leader could rewrite
+      // userId, and the approval then wrote trainers/{that uid}). The
+      // requester's own clause asks that the request was already theirs
+      // (Oct 10 2026), and since the partition that they re-ask for the
+      // same studio only (the id names it).
+      allow update: if isSuperAdmin() ||
+                    (isAuthenticated() && requestNamesStudioILead(resource.data)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['status', 'approvedTrainerId', 'updatedAt'])
+                      && request.resource.data.status in ['Approved', 'Denied']) ||
+                    (isAuthenticated() && resource.data.get('trainerId', '') == request.auth.uid
+                      && studioAccessShape(request.resource.data)
+                      && request.resource.data.studioId == resource.data.get('studioId', ''));
+      allow delete: if isSuperAdmin() ||
+                    (isAuthenticated() && requestNamesStudioILead(resource.data));
     }
 
     // BUG REPORTS
@@ -4091,9 +4465,13 @@ service cloud.firestore {
     // Learning + Planner round, Sep 2026: posting and editing were open to
     // any signed-in user with the right field names -- anyone could post to
     // every studio, or rewrite someone else's notice. Now they follow the
-    // app: only the people it offers the composer to (canPostAnnouncements)
-    // post or change a notice. Everyone else may do the one thing the bell
-    // does: add THEMSELVES, by sign-in id, to readBy, and nothing more.
+    // app (the franchise partition, Oct 2026): administrators post anywhere
+    // and change any notice; a studio's leaders and franchise owner post to
+    // that studio, a franchise owner to a network whose every studio they
+    // run, under their own name; after that, anyone but an administrator
+    // only takes a notice down; only administrators delete one. Everyone
+    // else may do the one thing the bell does: add THEMSELVES, by sign-in
+    // id, to readBy, and nothing more.
     // ANNOUNCEMENT READ-MARKS (the cost plan, Sep 26 2026, D5). The bell
     // marks what a person opened in ONE document of their own, not in each
     // announcement's readBy: every iPad in the company watches every
@@ -4115,22 +4493,28 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && hubAnnouncementCreateAllowed();
       allow update: if isAuthenticated() && hubAnnouncementUpdateAllowed();
-      allow delete: if isSuperAdmin() || isFranchiseOwner() || 
-                    (resource.data.studioId != null && isStudioOwnerOrHeadTrainer(resource.data.studioId));
+      // Nothing in the app deletes a notice (AnnouncementComposer and
+      // StudioSection take one down with isActive: false). Only an
+      // administrator deletes, so a notice's id is never freed for someone
+      // else to re-create as its author and read its acks, which outlive
+      // it (acks: delete false). The franchise partition, second review.
+      allow delete: if superOnRecord();
     }
 
     /* WHO HAS READ A NOTICE (the Atlas answers, Oct 2 2026). A person's "I've
        read it" on a notice that asks is ALSO written here, by that person
        alone, so the poster and the studio's leaders can see "9 of 12 have
        read it" (src/features/admin/announcements/read-count.ts). Nobody is
-       pinged. The poster, administrators, franchise owners and the leaders
-       of the notice's studio read it; the reader writes only their own,
-       stamped with the server's time; nobody deletes one. The caller is
-       resolved once (getRole, callerTrainer) to stay inside the budget. */
+       pinged. The poster, administrators and the leaders of the notice's
+       studio (its franchise owner included; the franchise partition, Oct
+       2026) read it -- a network notice's count is its author's and
+       administrators' only; the reader writes only their own, stamped with
+       the server's time; nobody deletes one. The caller is resolved once
+       (getRole, callerTrainer) to stay inside the budget. */
     function announcementAcksReadable(announcementId) {
       let r = getRole();
       let a = get(/databases/$(database)/documents/hub_announcements/$(announcementId)).data;
-      return roleIsSuper(r) || roleIsFranchise(r)
+      return roleIsSuper(r)
           || a.get('authorId', '') == request.auth.uid
           || trainerLeads(r, callerTrainer(), a.get('targetId', a.get('studioId', '')));
     }
@@ -4174,7 +4558,7 @@ service cloud.firestore {
 
     // NOTIFICATION QUEUE (for email/SMS triggers)
     match /notificationQueue/{notifId} {
-      allow read: if isSuperAdmin() || isFranchiseOwner();
+      allow read: if isSuperAdmin();
       allow create: if isAuthenticated();
       allow update, delete: if isSuperAdmin();
     }
@@ -4183,7 +4567,10 @@ service cloud.firestore {
     // MINDBODY INTEGRATION
     // ===============================================================
 
-    // Permanent cross-train access record
+    // Permanent cross-train access record. Grants nothing: no rule or
+    // reader may ever treat this as access (the franchise partition, second
+    // review; reconcile.ts calls it "unwritten by the app"). The one thing
+    // that grants a cross-train read is clients/{id}.approvedCrossTrainStudioIds.
     match /clients/{clientId}/crossTrainAccess/{studioId} {
       allow read: if isAuthenticated();
       allow create, update: if isSuperAdmin() || (
@@ -4195,7 +4582,8 @@ service cloud.firestore {
       allow delete: if isAdmin() || isFounder();
     }
 
-    // Cross-train request submissions
+    // Cross-train request submissions. Grants nothing: no rule or reader
+    // may ever treat this as access (the franchise partition, second review).
     match /crossTrainRequests/{requestId} {
       allow create: if isAuthenticated() &&
         request.resource.data.requestingTrainerId == request.auth.uid &&

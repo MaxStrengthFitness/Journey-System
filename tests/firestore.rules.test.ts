@@ -179,7 +179,8 @@ describe("Firestore Security Rules", () => {
           status: "Pending",
         });
         await setDoc(doc(db, "trainers", "adminX"), { fullName: "Ada Admin", initials: "AA", role: "Admin", primaryHomeStudioId: "studioB" });
-        await setDoc(doc(db, "trainers", "franchiseX"), { fullName: "Fran Owner", initials: "FO", role: "FranchiseOwner", primaryHomeStudioId: "studioB" });
+        // The franchise partition (Oct 2026): a franchise owner OF studioA.
+        await setDoc(doc(db, "trainers", "franchiseX"), { fullName: "Fran Owner", initials: "FO", role: "FranchiseOwner", primaryHomeStudioId: "studioB", ownedStudioIds: ["studioA"] });
         await setDoc(doc(db, "trainers", "grantX"), {
           fullName: "Gus Grant",
           initials: "GG",
@@ -190,6 +191,11 @@ describe("Firestore Security Rules", () => {
       });
     const as = (uid: string) => testEnv.authenticatedContext(uid, { email: `${uid}@test.com` }).firestore();
     const pending = (db: ReturnType<typeof as>) => getDocs(query(collection(db, "access_requests"), where("status", "==", "Pending")));
+    // The query a leader's or owner's list makes (useStaffRoster.ts, the
+    // franchise partition): the status, and the studios they run. A helper
+    // over the field name lives here only; the app names each field literally.
+    const pendingFor = (db: ReturnType<typeof as>, field: string, ids: string[]) =>
+      getDocs(query(collection(db, "access_requests"), where("status", "==", "Pending"), where(field, "in", ids)));
 
     it("refuses a request from someone who isn't signed in", async () => {
       const anon = testEnv.unauthenticatedContext().firestore();
@@ -224,12 +230,22 @@ describe("Firestore Security Rules", () => {
       await assertFails(pending(as("raj")));
     });
 
-    it("lets the people who let people in read every pending request: a studio's leader, the grant, an owner, an administrator", async () => {
+    it("lets the people who run the studio a request names read it, through a query that names the studio", async () => {
       await seed();
-      for (const uid of ["ownerA", "grantX", "franchiseX", "adminX"]) {
+      // studioA's leader and its franchise owner: nia names studioA.
+      for (const uid of ["ownerA", "franchiseX"]) {
         await assertSucceeds(getDoc(doc(as(uid), "access_requests", "nia")));
-        await assertSucceeds(pending(as(uid)));
+        await assertSucceeds(pendingFor(as(uid), "requestedStudioId", ["studioA"]));
+        // The status-only list is administrators' now (the franchise partition).
+        await assertFails(pending(as(uid)));
       }
+      // The grant at studioB: the studio-access request naming B, not nia.
+      await assertSucceeds(getDoc(doc(as("grantX"), "access_requests", "picker1")));
+      await assertFails(getDoc(doc(as("grantX"), "access_requests", "nia")));
+      await assertSucceeds(pendingFor(as("grantX"), "studioId", ["studioB"]));
+      // An administrator reads every one.
+      await assertSucceeds(getDoc(doc(as("adminX"), "access_requests", "nia")));
+      await assertSucceeds(pending(as("adminX")));
     });
 
     it("keeps the studio picker's own query working, for the person it names only", async () => {
@@ -245,7 +261,12 @@ describe("Firestore Security Rules", () => {
         );
       await assertSucceeds(mine(as("trainerA"), "trainerA"));
       await assertFails(mine(as("trainerB"), "trainerA"));
+      // The franchise partition (second review): a studio-access request
+      // sits at sa_{uid}_{studioId}, never at an auto-id.
       await assertSucceeds(
+        setDoc(doc(as("trainerA"), "access_requests", "sa_trainerA_studioB"), { type: "studio_access", trainerId: "trainerA", studioId: "studioB", status: "Pending" }),
+      );
+      await assertFails(
         addDoc(collection(as("trainerA"), "access_requests"), { type: "studio_access", trainerId: "trainerA", studioId: "studioB", status: "Pending" }),
       );
     });
@@ -2551,15 +2572,17 @@ describe("Firestore Security Rules", () => {
     await assertSucceeds(updateDoc(doc(owner, "hub_announcements", "o1"), { isActive: false }));
   });
 
-  it("posts announcements as their author, and keeps every-studio notices to the Operations tab's people", async () => {
+  it("posts announcements as their author, and keeps every-studio notices to administrators", async () => {
     await seedAnnouncements();
     await testEnv.withSecurityRulesDisabled(async (context) => {
+      // The franchise partition (Oct 2026): a franchise owner OF studioA.
       await setDoc(doc(context.firestore(), "trainers", "franchiseX"), {
         fullName: "Franchise X",
         initials: "FX",
         role: "FranchiseOwner",
         primaryHomeStudioId: "studioA",
         accessibleStudioIds: ["studioA", "studioB"],
+        ownedStudioIds: ["studioA"],
       });
     });
     const admin = testEnv.authenticatedContext("adminX", { email: "adminx@test.com" }).firestore();
@@ -2569,8 +2592,23 @@ describe("Firestore Security Rules", () => {
     );
 
     const franchise = testEnv.authenticatedContext("franchiseX", { email: "franchisex@test.com" }).firestore();
-    await assertSucceeds(
+    // A franchise owner no longer posts to everyone (the franchise partition)...
+    await assertFails(
       setDoc(doc(franchise, "hub_announcements", "f1"), announcement({ authorId: "franchiseX", authorName: "Franchise X" })),
+    );
+    // ...but posts to a studio they run.
+    await assertSucceeds(
+      setDoc(
+        doc(franchise, "hub_announcements", "f2"),
+        announcement({
+          authorId: "franchiseX",
+          authorName: "Franchise X",
+          targetScope: "studio",
+          targetId: "studioA",
+          studioId: "studioA",
+          targetStudioIds: ["studioA"],
+        }),
+      ),
     );
 
     const owner = testEnv.authenticatedContext("ownerA", { email: "ownera@test.com" }).firestore();
@@ -2580,8 +2618,9 @@ describe("Firestore Security Rules", () => {
     );
     // And a studio owner changes only their own notices.
     await assertFails(updateDoc(doc(owner, "hub_announcements", "a1"), { isActive: false }));
-    // The Operations tab's people can take any notice down.
-    await assertSucceeds(updateDoc(doc(franchise, "hub_announcements", "a1"), { isActive: false }));
+    // An administrator's every-studio notice is taken down by administrators only.
+    await assertFails(updateDoc(doc(franchise, "hub_announcements", "a1"), { isActive: false }));
+    await assertSucceeds(updateDoc(doc(admin, "hub_announcements", "a1"), { isActive: false }));
   });
 
   it("marks a notice read even when it was written without a readBy list", async () => {
@@ -2648,11 +2687,15 @@ describe("Firestore Security Rules", () => {
     await assertFails(updateDoc(doc(a, "trainers", "trainerA"), { ownedStudioIds: ["studioB"] }));
     await assertFails(updateDoc(doc(a, "trainers", "trainerA"), { activeGuestStudioIds: ["studioB"] }));
     await assertFails(updateDoc(doc(a, "trainers", "trainerA"), { primaryHomeStudioId: "studioB" }));
-    // Their studio's leader still can.
+    // Their studio's leader can't hand them another studio either: a second
+    // studio is an administrator's (Admins → a studio's Team → Studios; the
+    // franchise partition, Oct 2026).
     const owner = testEnv.authenticatedContext("ownerA", { email: "ownera@test.com" }).firestore();
-    await assertSucceeds(updateDoc(doc(owner, "trainers", "trainerA"), { accessibleStudioIds: ["studioA", "studioB"] }));
+    await assertFails(updateDoc(doc(owner, "trainers", "trainerA"), { accessibleStudioIds: ["studioA", "studioB"] }));
+    // Their role, within the leader's reach, still can.
+    await assertSucceeds(updateDoc(doc(owner, "trainers", "trainerA"), { role: "HeadTrainer" }));
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await updateDoc(doc(ctx.firestore(), "trainers", "trainerA"), { accessibleStudioIds: ["studioA"] });
+      await updateDoc(doc(ctx.firestore(), "trainers", "trainerA"), { accessibleStudioIds: ["studioA"], role: "LifeTransformer" });
     });
   });
 
@@ -2687,7 +2730,7 @@ describe("Firestore Security Rules", () => {
     // The administrator can.
     await assertSucceeds(updateDoc(trainerA, { accessibleStudioIds: arrayUnion("studioB") }));
     // Studio B's leader, whose studio it is, still can't take a person whose home is A off it:
-    // that stays with administrators, owners and the person's home-studio leaders.
+    // that stays with administrators.
     await assertFails(updateDoc(doc(leaderB, "trainers", "trainerA"), { accessibleStudioIds: arrayRemove("studioB") }));
     // The administrator takes them off, the grant with it; the home studio and the record stay.
     await assertSucceeds(updateDoc(trainerA, { accessibleStudioIds: arrayRemove("studioB"), managedStudioIds: arrayRemove("studioB") }));
@@ -2805,6 +2848,11 @@ describe("Firestore Security Rules", () => {
   it("refuses the sync lease to someone signed in who is not a trainer", async () => {
     const stranger = testEnv.authenticatedContext("stranger", { email: "stranger@test.com" }).firestore();
     await assertFails(setDoc(doc(stranger, "studios", "studioA", "sync", "lease"), { lastScheduleSyncAt: 1 }));
+    // The franchise partition (second review): a trainer at another studio
+    // can't park this studio's sync either, on the lease or the old fields.
+    const b = testEnv.authenticatedContext("trainerB", { email: "trainerb@test.com" }).firestore();
+    await assertFails(setDoc(doc(b, "studios", "studioA", "sync", "lease"), { lastScheduleSyncAt: 9e15 }));
+    await assertFails(updateDoc(doc(b, "studios", "studioA"), { lastScheduleSyncAt: 9e15 }));
   });
 
   it("lets anyone signed in read a trainer's counters, and nobody write them from the app (the cost plan, D3c)", async () => {
@@ -2876,6 +2924,20 @@ describe("Firestore Security Rules", () => {
   });
 
   it("caps what an approval hands out: a studio's leader mints a trainer or a leader, never an owner or an administrator", async () => {
+    // The franchise partition (second review): a non-administrator's create
+    // approves a real, pending sign-up at that uid naming their studio, so
+    // each hire has one -- every refusal below is for the reason it names.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      for (const id of ["hire1", "hire2", "hire3", "hire4", "hire5"]) {
+        await setDoc(doc(ctx.firestore(), "access_requests", id), {
+          status: "Pending",
+          userId: id,
+          requestedStudioId: "studioA",
+          email: "new@test.com",
+          fullName: "New Hire",
+        });
+      }
+    });
     const owner = testEnv.authenticatedContext("ownerA", { email: "ownera@test.com" }).firestore();
     const fresh = (role: string, extra: Record<string, unknown> = {}) => ({
       fullName: "New Hire",
@@ -2909,10 +2971,23 @@ describe("Firestore Security Rules", () => {
         email: "new@test.com",
         status: "Pending",
         userId: "hire1",
+        requestedStudioId: "studioA",
+      });
+      await setDoc(doc(ctx.firestore(), "access_requests", "req2"), {
+        fullName: "Other Hire",
+        email: "other@test.com",
+        status: "Pending",
+        userId: "hire2",
+        requestedStudioId: "studioB",
       });
     });
     const owner = testEnv.authenticatedContext("ownerA", { email: "ownera@test.com" }).firestore();
+    // An approval changes the status and its stamps, and nothing else (the
+    // franchise partition, second review).
+    await assertFails(updateDoc(doc(owner, "access_requests", "req1"), { userId: "adminX" }));
     await assertSucceeds(updateDoc(doc(owner, "access_requests", "req1"), { status: "Approved", approvedTrainerId: "hire1" }));
+    // A request naming another studio is that studio's.
+    await assertFails(updateDoc(doc(owner, "access_requests", "req2"), { status: "Approved", approvedTrainerId: "hire2" }));
     const trainer = testEnv.authenticatedContext("trainerB", { email: "trainerb@test.com" }).firestore();
     await assertFails(updateDoc(doc(trainer, "access_requests", "req1"), { status: "Approved" }));
   });
@@ -3440,7 +3515,10 @@ describe("Firestore Security Rules", () => {
           doc(db, "trainers", "guest"),
           person("LifeTransformer", "studioC", { activeGuestStudioIds: ["studioA"] }),
         );
-        await setDoc(doc(db, "trainers", "franchise"), person("FranchiseOwner", "studioC"));
+        // The franchise partition (Oct 2026): the franchise owner OF studio A,
+        // and one who owns nothing.
+        await setDoc(doc(db, "trainers", "franchise"), person("FranchiseOwner", "studioC", { ownedStudioIds: ["studioA"] }));
+        await setDoc(doc(db, "trainers", "franchiseElsewhere"), person("FranchiseOwner", "studioC"));
         await setDoc(doc(db, "trainers", "admin"), person("Admin", "studioC"));
         // A Demo Mode client: every signed-in trainer has the run of it.
         await setDoc(doc(db, "clients", "demo-client-x"), {
@@ -3486,12 +3564,16 @@ describe("Firestore Security Rules", () => {
       }
     });
 
-    it("lets a franchise owner and an administrator read it too", async () => {
+    it("lets the franchise owner of her studio and an administrator read it too", async () => {
       for (const uid of ["franchise", "admin"]) {
         const db = as(uid);
         await assertSucceeds(getDoc(doc(db, "clients", "clientA", "ford", "f1")));
         await assertSucceeds(getDocs(appQuery(db)));
       }
+      // A franchise owner of no studio of hers reads none of it (the franchise partition).
+      const elsewhere = as("franchiseElsewhere");
+      await assertFails(getDoc(doc(elsewhere, "clients", "clientA", "ford", "f1")));
+      await assertFails(getDocs(appQuery(elsewhere)));
     });
 
     it("refuses a cross-train visitor her FORD, although they can read her client record", async () => {
@@ -3792,7 +3874,10 @@ describe("Firestore Security Rules", () => {
           ...extra,
         });
         await setDoc(doc(db, "trainers", "granted"), person("LifeTransformer", "studioB", { managedStudioIds: ["studioA"] }));
-        await setDoc(doc(db, "trainers", "franchise"), person("FranchiseOwner", "studioB"));
+        // The franchise partition (Oct 2026): the franchise owner OF studio A,
+        // and one who owns nothing.
+        await setDoc(doc(db, "trainers", "franchise"), person("FranchiseOwner", "studioB", { ownedStudioIds: ["studioA"] }));
+        await setDoc(doc(db, "trainers", "franchiseBare"), person("FranchiseOwner", "studioB"));
         await setDoc(doc(db, "trainers", "admin"), person("Admin", "studioB"));
       });
     });
@@ -3807,6 +3892,8 @@ describe("Firestore Security Rules", () => {
       for (const uid of ["granted", "franchise", "admin"]) {
         await assertSucceeds(updateDoc(doc(as(uid), "studios", "studioA"), ownNumbers(uid)));
       }
+      // A franchise owner who doesn't own studio A doesn't run it (the franchise partition).
+      await assertFails(updateDoc(doc(as("franchiseBare"), "studios", "studioA"), ownNumbers("franchiseBare")));
     });
 
     it("refuses a trainer, and a leader on another studio", async () => {
@@ -4217,9 +4304,10 @@ describe("the standing week", () => {
   async function seedPeople() {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
-      const person = (id: string, role: string, home: string) =>
-        setDoc(doc(db, "trainers", id), { fullName: id, initials: "XX", role, primaryHomeStudioId: home, accessibleStudioIds: [home] });
-      await person("franchiseX", "FranchiseOwner", "studioB");
+      const person = (id: string, role: string, home: string, over: Record<string, unknown> = {}) =>
+        setDoc(doc(db, "trainers", id), { fullName: id, initials: "XX", role, primaryHomeStudioId: home, accessibleStudioIds: [home], ...over });
+      // The franchise partition (Oct 2026): the franchise owner OF studio A.
+      await person("franchiseX", "FranchiseOwner", "studioB", { ownedStudioIds: ["studioA"] });
       await person("adminX", "Admin", "studioB");
       await person("headA", "HeadTrainer", "studioA");
       await person("leaderA", "StudioLeader", "studioA");
@@ -4464,7 +4552,8 @@ describe("the whole-read record", () => {
       const db = ctx.firestore();
       const person = (id: string, role: string, home: string, over: Record<string, unknown> = {}) =>
         setDoc(doc(db, "trainers", id), { fullName: id, initials: "XX", role, primaryHomeStudioId: home, accessibleStudioIds: [home], ...over });
-      await person("franchiseX", "FranchiseOwner", "studioB");
+      // The franchise partition (Oct 2026): the franchise owner OF studio A.
+      await person("franchiseX", "FranchiseOwner", "studioB", { ownedStudioIds: ["studioA"] });
       await person("adminX", "Admin", "studioB");
       await person("guestA", "LifeTransformer", "studioB", { activeGuestStudioIds: ["studioA"] });
       await person("grantA", "LifeTransformer", "studioB", { managedStudioIds: ["studioA"] });
@@ -4643,7 +4732,8 @@ describe("marks on a time", () => {
       const db = ctx.firestore();
       const person = (id: string, role: string, home: string, over: Record<string, unknown> = {}) =>
         setDoc(doc(db, "trainers", id), { fullName: id, initials: "XX", role, primaryHomeStudioId: home, accessibleStudioIds: [home], ...over });
-      await person("franchiseX", "FranchiseOwner", "studioB");
+      // The franchise partition (Oct 2026): the franchise owner OF studio A.
+      await person("franchiseX", "FranchiseOwner", "studioB", { ownedStudioIds: ["studioA"] });
       await person("adminX", "Admin", "studioB");
       await person("headA", "HeadTrainer", "studioA");
       await person("leaderA", "StudioLeader", "studioA");
@@ -5081,10 +5171,13 @@ describe("marks on a time", () => {
         await assertFails(getDocs(query(collection(db, "activity"), where("studioId", "==", "studioB"), orderBy("at", "desc"), limit(50))));
         await assertFails(getDocs(query(collection(db, "activity"), where("kind", "in", ["admin-grant"]), orderBy("at", "desc"), limit(100))));
       }
-      // A trainer who works there, and a franchise owner, read none of it.
+      // A trainer who works there reads none of it.
       await assertFails(getDoc(doc(ctx("trainerA"), "activity", "atA")));
       await assertFails(getDocs(query(collection(ctx("trainerA"), "activity"), where("studioId", "==", "studioA"), orderBy("at", "desc"), limit(50))));
-      await assertFails(getDoc(doc(ctx("franchiseW"), "activity", "atB")));
+      // A franchise owner reads their own studio's Activity, as its leaders
+      // do (the franchise partition): franchiseW's home is B.
+      await assertSucceeds(getDoc(doc(ctx("franchiseW"), "activity", "atB")));
+      await assertFails(getDoc(doc(ctx("franchiseW"), "activity", "atA")));
     });
 
     // ---- Opening a studio: its stage, its opening day, studios/{s}/setupItems
@@ -5251,7 +5344,8 @@ describe("marks on a time", () => {
         const db = ctx.firestore();
         const person = (id: string, role: string, home: string, over: Record<string, unknown> = {}) =>
           setDoc(doc(db, "trainers", id), { fullName: id, initials: "XX", role, primaryHomeStudioId: home, accessibleStudioIds: [home], ...over });
-        await person("franchiseX", "FranchiseOwner", "studioB");
+        // The franchise partition (Oct 2026): the franchise owner OF studio A.
+        await person("franchiseX", "FranchiseOwner", "studioB", { ownedStudioIds: ["studioA"] });
         await person("adminX", "Admin", "studioB");
         await person("headA", "HeadTrainer", "studioA");
         await person("leaderA", "StudioLeader", "studioA");
@@ -6511,6 +6605,17 @@ describe("oct 2: switching a former trainer's account off", () => {
     await assertFails(updateDoc(own, { isActive: true }));
     await assertFails(updateDoc(own, { switchedOffAt: deleteField() }));
   });
+
+  it("never lets a studio's leader switch a colleague off: administrators only (the franchise partition)", async () => {
+    await seed();
+    await assertFails(
+      updateDoc(doc(as("ownerA"), "trainers", "trainerA"), {
+        isActive: false,
+        switchedOffAt: "2026-10-02T15:00:00.000Z",
+        switchedOffBy: { uid: "ownerA", name: "Owner A" },
+      }),
+    );
+  });
 });
 
 // ── SPEED ROUND, PROFILE AND LEADER SCREENS GROUP (Oct 5 2026) ─────────────
@@ -6788,8 +6893,14 @@ describe("a client's machine totals document", () => {
         primaryHomeStudioId: "studioC", accessibleStudioIds: ["studioC"],
       });
       await setDoc(doc(db, "trainers", "adminTotals"), { fullName: "Admin", initials: "AD", role: "Admin" });
+      // The franchise partition (Oct 2026): the franchise owner OF the home
+      // client's studio, and one who owns nothing.
       await setDoc(doc(db, "trainers", "ownerTotals"), {
         fullName: "Franchise", initials: "FO", role: "FranchiseOwner", primaryHomeStudioId: "studioB",
+        ownedStudioIds: ["studioA"],
+      });
+      await setDoc(doc(db, "trainers", "ownerElsewhere"), {
+        fullName: "Franchise Elsewhere", initials: "FE", role: "FranchiseOwner", primaryHomeStudioId: "studioB",
       });
     });
   });
@@ -6799,6 +6910,7 @@ describe("a client's machine totals document", () => {
     await assertSucceeds(getDoc(totalsDoc(as("ownerA"), HOME)));
     await assertSucceeds(getDoc(totalsDoc(as("adminTotals"), HOME)));
     await assertSucceeds(getDoc(totalsDoc(as("ownerTotals"), HOME)));
+    await assertFails(getDoc(totalsDoc(as("ownerElsewhere"), HOME)));
     await assertFails(getDoc(totalsDoc(as("trainerB"), HOME)));
     await assertFails(getDoc(totalsDoc(as("trainerC"), HOME)));
     // A cross-train visitor reads the client, so reads its totals (missing or not).
@@ -6847,8 +6959,11 @@ describe("a client's machine totals document", () => {
   it("refuses a write from a studio the client isn't at", async () => {
     await assertFails(setDoc(totalsDoc(as("trainerB"), HOME), finishWrite("s1"), { mergeFields: finishFields }));
     await assertFails(setDoc(totalsDoc(as("trainerC"), VISITING), finishWrite("s1"), { mergeFields: finishFields }));
-    // A franchise owner reads the client but cannot update it, so not this either.
-    await assertFails(setDoc(totalsDoc(as("ownerTotals"), HOME), finishWrite("s1"), { mergeFields: finishFields }));
+    // The franchise owner of the client's studio leads it, so writes its
+    // totals as its leaders do (the franchise partition); one of another
+    // studio does not.
+    await assertSucceeds(setDoc(totalsDoc(as("ownerTotals"), HOME), finishWrite("s1"), { mergeFields: finishFields }));
+    await assertFails(setDoc(totalsDoc(as("ownerElsewhere"), HOME), finishWrite("s1"), { mergeFields: finishFields }));
   });
 
   it("lets an approved cross-train visitor move the two maps, and nothing else", async () => {
@@ -7596,5 +7711,1013 @@ describe("open session: Who's this? gives the session and its sets one client", 
     );
     // Its other writes go on as before (a heartbeat).
     await assertSucceeds(updateDoc(doc(as("trainerA"), "sessions", OPEN), { lastHeartbeatAt: serverTimestamp() }));
+  });
+});
+
+// ── THE FRANCHISE PARTITION (Gate B, Oct 2026) ──────────────────────────
+// A franchise owner leads their home and owned studios (trainers/{uid}.
+// ownedStudioIds, written by administrators only) exactly as a studio leader
+// leads theirs, and nothing anywhere else. ROADMAP.md Gate B.
+// Kept in its own block so other branches' rules edits merge cleanly.
+describe("the franchise partition: an owner runs their own studios and no other", () => {
+  const A = "studioA";
+  const B = "studioB";
+  const C = "studioC";
+  const DEMO = "demo-studio";
+  /** Contexts carry no role claim unless a test passes one: the costliest path. */
+  const ctx = (uid: string, claims: Record<string, unknown> = {}) =>
+    testEnv.authenticatedContext(uid, { email: `${uid}@test.com`, ...claims }).firestore();
+  type Db = ReturnType<typeof ctx>;
+  const nameOf = (id: string) => `Person ${id}`;
+  const person = (id: string, role: string, home: string, over: Record<string, unknown> = {}) => ({
+    fullName: nameOf(id),
+    initials: "XX",
+    role,
+    primaryHomeStudioId: home,
+    accessibleStudioIds: [home],
+    email: `${id}@test.com`,
+    ...over,
+  });
+  const client = (home: string, over: Record<string, unknown> = {}) => ({
+    firstName: "Carol",
+    lastName: `At ${home}`,
+    isActive: true,
+    remainingSessions: 10,
+    homeStudioId: home,
+    ...over,
+  });
+  const scan = (uid: string, studioId: string) => ({
+    testedAt: "2026-09-02",
+    device: "InBody 270S",
+    source: "manual",
+    studioId,
+    enteredBy: uid,
+    enteredByName: nameOf(uid),
+    createdAt: serverTimestamp(),
+    weightLb: 172.4,
+    skeletalMuscleMassLb: 68.1,
+    bodyFatMassLb: 53.8,
+    percentBodyFat: 31.2,
+    bmi: 27.8,
+    totalBodyWaterLb: null,
+    dryLeanMassLb: null,
+    fatFreeMassLb: null,
+    basalMetabolicRateKcal: null,
+    smi: null,
+    phaseAngle: null,
+    segmentalLean: null,
+  });
+  const notice = (over: Record<string, unknown> = {}) => ({
+    title: "Deep clean Friday",
+    shortContent: "Floor closes at 3.",
+    longContent: "",
+    authorId: "adminP",
+    authorName: "Head Office",
+    studioId: "all",
+    targetScope: "universal",
+    targetId: "",
+    isActive: true,
+    priority: "low",
+    readBy: [],
+    ...over,
+  });
+  const studioNotice = (uid: string, studioId: string, over: Record<string, unknown> = {}) =>
+    notice({ authorId: uid, authorName: nameOf(uid), studioId, targetScope: "studio", targetId: studioId, targetStudioIds: [studioId], ...over });
+  const networkNotice = (uid: string, networkId: string, studioIds: string[], over: Record<string, unknown> = {}) =>
+    notice({ authorId: uid, authorName: nameOf(uid), studioId: "", targetScope: "network", targetId: networkId, targetStudioIds: studioIds, ...over });
+  const signUp = (id: string, studioId: string, over: Record<string, unknown> = {}) => ({
+    fullName: "New Hire",
+    email: `${id}@example.com`,
+    status: "Pending",
+    userId: id,
+    requestedStudioId: studioId,
+    ...over,
+  });
+  const hire = (role: string, home: string, over: Record<string, unknown> = {}) => ({
+    fullName: "New Hire",
+    initials: "NH",
+    role,
+    primaryHomeStudioId: home,
+    accessibleStudioIds: [home],
+    activeGuestStudioIds: [],
+    email: "new@test.com",
+    ...over,
+  });
+  const week = { hours: [{ weekday: 1, from: "07:00", to: "13:00" }], regulars: [] };
+  const renewalSettings = (uid: string) => ({
+    conversationAtSessionsLeft: 12,
+    breakDays: 14,
+    payAsYouGoCountsAs: "retained",
+    packages: [{ key: "committed", label: "Committed", sessions: 96, payments: 12 }],
+    updatedBy: uid,
+  });
+  /** What focusWrite sends (admin/network/network-actions.ts): dot paths, signed, the server's time. */
+  const focus = (uid: string, over: Record<string, unknown> = {}) => ({
+    "relayFocus.note": "Slow turnarounds this quarter",
+    "relayFocus.setBy": { id: uid, name: nameOf(uid) },
+    "relayFocus.setAt": serverTimestamp(),
+    ...over,
+  });
+  const pendingFor = (db: Db, field: string, ids: string[]) =>
+    getDocs(query(collection(db, "access_requests"), where("status", "==", "Pending"), where(field, "in", ids)));
+  const pendingAll = (db: Db) => getDocs(query(collection(db, "access_requests"), where("status", "==", "Pending")));
+
+  // The budget (§A.8 of the design): set RULES_BUDGET_REPORT to a file path
+  // to have each budget case's evaluations appended there, read off the
+  // emulator's rule-coverage report before and after the one request (the
+  // sum of every values[].count, children included: docs/KNOWN-TRAPS.md,
+  // "writesForStudio is itself most of the budget"). The tests assert
+  // success either way: a blown budget is PERMISSION_DENIED.
+  const REPORT_FILE = process.env.RULES_BUDGET_REPORT ?? "";
+  const REPORT = REPORT_FILE !== "";
+  // The report carries the whole rules file and every count so far, so a
+  // measured test reads it twice per case: time for that.
+  const BUDGET_TIMEOUT = 120_000;
+  async function coverageCount(): Promise<number> {
+    const host = process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8080";
+    const res = await fetch(`http://${host}/emulator/v1/projects/demo-ai-studio:ruleCoverage`);
+    const body = (await res.json()) as { report?: unknown };
+    let total = 0;
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      if (node && typeof node === "object") {
+        for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+          if (key === "values" && Array.isArray(value)) {
+            for (const item of value) {
+              const count = (item as { count?: unknown } | null)?.count;
+              if (typeof count === "number") total += count;
+            }
+          }
+          walk(value);
+        }
+      }
+    };
+    walk(body.report ?? []);
+    return total;
+  }
+  async function measured<T>(label: string, run: () => Promise<T>): Promise<T> {
+    if (!REPORT) return run();
+    const before = await coverageCount();
+    const out = await run();
+    const after = await coverageCount();
+    fs.appendFileSync(REPORT_FILE, `[rules budget] ${label}: ${after - before}\n`);
+    return out;
+  }
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      const batch = writeBatch(db);
+      const put = (path: string, data: Record<string, unknown>) => batch.set(doc(db, path), data);
+
+      // Studios and networks (a studio has one network in real data; netAB is a fixture).
+      put(`studios/${A}`, { name: "Studio A", networkId: "netA" });
+      put(`studios/${B}`, { name: "Studio B", networkId: "netB" });
+      put(`studios/${C}`, { name: "Studio C" });
+      put(`studios/${DEMO}`, { name: "Practice", isDemo: true, mindbodyMode: "offline" });
+      put("networks/netA", { name: "Net A", ownerIds: [], studioIds: [A] });
+      put("networks/netB", { name: "Net B", ownerIds: [], studioIds: [B] });
+      put("networks/netAB", { name: "Net AB", ownerIds: [], studioIds: [A, B] });
+
+      // People.
+      put("trainers/franchiseA", person("franchiseA", "FranchiseOwner", A, { ownedStudioIds: [A] }));
+      put("trainers/franchiseB", person("franchiseB", "FranchiseOwner", B, { ownedStudioIds: [B] }));
+      put("trainers/franchiseAB", person("franchiseAB", "FranchiseOwner", A, { ownedStudioIds: [A, B] }));
+      put("trainers/legacyOwner", person("legacyOwner", "Owner", C, { ownedStudioIds: [B] }));
+      put("trainers/franchiseBare", person("franchiseBare", "FranchiseOwner", C));
+      put("trainers/grantA2", person("grantA2", "LifeTransformer", C, { managedStudioIds: [A] }));
+      put("trainers/adminP", person("adminP", "Admin", C));
+      put("trainers/leaderA", person("leaderA", "StudioLeader", A));
+      put("trainers/demotedAdmin", person("demotedAdmin", "LifeTransformer", A));
+      put("trainers/demotedLeader", person("demotedLeader", "LifeTransformer", A));
+      put("trainers/promotedAdmin", person("promotedAdmin", "Admin", A));
+      put("trainers/multiA", person("multiA", "LifeTransformer", A, { accessibleStudioIds: [A, B] }));
+      put("trainers/adminAtA", person("adminAtA", "Admin", A));
+      put("trainers/ownerAtA", person("ownerAtA", "StudioOwner", A));
+      put("trainers/heldOwner", person("heldOwner", "LifeTransformer", A, { ownedStudioIds: [B] }));
+      put("trainers/trainerC", person("trainerC", "LifeTransformer", C));
+      // What the administrator's Owns control writes (design §C.24): owned B, and B under "also works at".
+      put("trainers/ownerX", person("ownerX", "FranchiseOwner", C, { ownedStudioIds: [B], accessibleStudioIds: [C, B] }));
+      put("trainers/ownerXBare", person("ownerXBare", "FranchiseOwner", C, { ownedStudioIds: [B] }));
+      // claim-admin has NO trainer document: an account answered by its claim alone.
+
+      // Clients, and what hangs off them.
+      for (const [id, home] of [["clientA", A], ["clientB", B]] as const) {
+        put(`clients/${id}`, client(home));
+        put(`clients/${id}/ford/f1`, { clientId: id, studioId: home, pillar: "family", body: "Wife is Karen.", authorId: "trainerA", isArchived: false });
+        put(`clients/${id}/inbodyScans/s1`, { ...scan("trainerA", home), createdAt: new Date() });
+        put(`clients/${id}/sharedNotes/n1`, { clientId: id, title: "Plan", body: "Hips first", kind: "plan", authorId: "trainerA", authorName: "Trainer A", updatedAt: new Date() });
+        put(`clients/${id}/machineTotals/current`, { machineStats: { "m-leg-press": { timesPerformed: 4 } } });
+      }
+      put("clients/clientCross", client(A, { approvedCrossTrainStudioIds: [B] }));
+      put("clients/clientCross/machineTotals/current", { machineStats: { "m-leg-press": { timesPerformed: 2 } } });
+      put("sessions/sA", { hostedAtStudioId: A, clientId: "clientA" });
+      put("sessions/sB", { hostedAtStudioId: B, clientId: "clientB" });
+      put("sessions/sCross", { hostedAtStudioId: C, clientId: "clientA" });
+      for (const [suffix, clientId] of [["A", "clientA"], ["B", "clientB"]] as const) {
+        put(`journalEntries/j${suffix}`, { clientId, body: "Knee better", authorId: "trainerA" });
+        put(`routines/r${suffix}`, { clientId, name: "Routine A" });
+        put(`progressReports/p${suffix}`, { clientId, trainerId: "trainerA" });
+        put(`clientFocuses/cf${suffix}`, { clientId, trainerId: "trainerA", category: "Posture" });
+      }
+
+      // Each studio's own records.
+      for (const s of [A, B]) {
+        put(`studios/${s}/config/renewals`, { ...renewalSettings("ownerA"), updatedAt: new Date() });
+        put(`studios/${s}/roster/m1`, { source: "catalog", basedOn: "m-leg-press" });
+        put(`studios/${s}/vault/v1`, { studioId: s, kind: "incident", title: "Slip", status: "open" });
+        put(`studios/${s}/clientStates/clientX`, { state: "drifting" });
+        put(`studios/${s}/watch/journey`, { v: 1 });
+      }
+      put(`studios/${C}/config/renewals`, { ...renewalSettings("ownerA"), updatedAt: new Date() });
+      for (const [s, uid] of [[A, "trainerA"], [B, "trainerB"]] as const) {
+        put(`studios/${s}/standingWeeks/${uid}`, {
+          studioId: s,
+          trainerUid: uid,
+          trainerId: uid,
+          trainerName: nameOf(uid),
+          proposed: week,
+          proposedAt: new Date("2026-09-20T12:00:00Z"),
+          proposedBy: { id: uid, name: nameOf(uid) },
+        });
+      }
+
+      // Notices.
+      put("hub_announcements/univ", notice());
+      put("hub_announcements/noteA", studioNotice("adminP", A, { authorName: "Head Office" }));
+      put("hub_announcements/noteB", studioNotice("franchiseB", B));
+      put("hub_announcements/noteNet", networkNotice("franchiseA", "netA", [A], { asksRead: true }));
+      put("hub_announcements/noteNetAB", networkNotice("adminP", "netAB", [A, B], { authorName: "Head Office" }));
+
+      // Access requests, and a Pending sign-up for every new trainer
+      // document a non-administrator creates below, so each refusal is for
+      // the reason its line names (design §A.3.3).
+      put("access_requests/reqA", signUp("reqA", A));
+      put("access_requests/reqB", signUp("reqB", B));
+      put("access_requests/reqNone", { fullName: "No Studio", email: "none@example.com", status: "Pending", userId: "reqNone" });
+      put("access_requests/reqDemo", signUp("reqDemo", DEMO));
+      put("access_requests/saA", { type: "studio_access", trainerId: "trainerB", fullName: "Trainer B", studioId: A, status: "Pending" });
+      put("access_requests/saB", { type: "studio_access", trainerId: "trainerA", fullName: "Trainer A", studioId: B, status: "Pending" });
+      for (const id of ["hireA", "hireA2", "hireA3", "hireA4", "hireA5", "hireA6", "hireA7", "hireA8", "hireOA1", "hireOA2", "hireOA3", "hireL1", "hireL2"]) {
+        put(`access_requests/${id}`, signUp(id, A));
+      }
+      put("access_requests/hireB1", signUp("hireB1", B));
+      put("access_requests/hireZ", signUp("hireZ", B));
+      await batch.commit();
+    });
+  });
+
+  // 1.
+  it("lets a franchise owner read their own studio's client records, through the app's queries", async () => {
+    const db = ctx("franchiseA");
+    await assertSucceeds(getDoc(doc(db, "clients", "clientA")));
+    await assertSucceeds(getDocs(query(collection(db, "clients"), where("homeStudioId", "==", A))));
+    await assertSucceeds(getDocs(query(collection(db, "clients"), where("homeStudioId", "in", [A]))));
+    await assertSucceeds(getDoc(doc(db, "clients", "clientA", "ford", "f1")));
+    await assertSucceeds(getDocs(query(collectionGroup(db, "ford"), where("studioId", "==", A))));
+    await assertSucceeds(getDoc(doc(db, "clients", "clientA", "inbodyScans", "s1")));
+    await assertSucceeds(getDoc(doc(db, "clients", "clientA", "sharedNotes", "n1")));
+    await assertSucceeds(getDoc(doc(db, "clients", "clientA", "machineTotals", "current")));
+    await assertSucceeds(getDoc(doc(db, "sessions", "sA")));
+    await assertSucceeds(getDocs(query(collection(db, "sessions"), where("clientId", "==", "clientA"))));
+    await assertSucceeds(getDocs(query(collection(db, "sessions"), where("hostedAtStudioId", "==", A))));
+  });
+
+  // 2.
+  it("refuses a franchise owner another studio's client records, both ways round", async () => {
+    for (const [uid, other, otherClient] of [["franchiseA", B, "clientB"], ["franchiseB", A, "clientA"]] as const) {
+      const db = ctx(uid);
+      const otherSession = other === B ? "sB" : "sA";
+      await assertFails(getDoc(doc(db, "clients", otherClient)));
+      await assertFails(getDocs(query(collection(db, "clients"), where("homeStudioId", "==", other))));
+      await assertFails(getDocs(query(collection(db, "clients"), where("homeStudioId", "in", [other]))));
+      await assertFails(getDoc(doc(db, "clients", otherClient, "ford", "f1")));
+      await assertFails(getDocs(query(collectionGroup(db, "ford"), where("studioId", "==", other))));
+      await assertFails(getDoc(doc(db, "clients", otherClient, "inbodyScans", "s1")));
+      await assertFails(getDoc(doc(db, "clients", otherClient, "sharedNotes", "n1")));
+      await assertFails(getDoc(doc(db, "clients", otherClient, "machineTotals", "current")));
+      await assertFails(getDoc(doc(db, "sessions", otherSession)));
+      await assertFails(getDocs(query(collection(db, "sessions"), where("clientId", "==", otherClient))));
+      await assertFails(getDocs(query(collection(db, "sessions"), where("hostedAtStudioId", "==", other))));
+      // Nor the whole collection, nor every FORD detail.
+      await assertFails(getDocs(collection(db, "clients")));
+      await assertFails(getDocs(collectionGroup(db, "ford")));
+    }
+  });
+
+  // 3.
+  it("answers the same with the production token's role claim", async () => {
+    const db = ctx("franchiseA", { role: "FranchiseOwner" });
+    await assertSucceeds(getDoc(doc(db, "clients", "clientA")));
+    await assertFails(getDoc(doc(db, "clients", "clientB")));
+    await assertFails(updateDoc(doc(db, "studios", B), { name: "Not mine" }));
+  });
+
+  // 4.
+  it("counts the legacy role 'Owner' as a franchise owner of their owned studios", async () => {
+    const db = ctx("legacyOwner");
+    await assertSucceeds(getDoc(doc(db, "clients", "clientB")));
+    await assertFails(getDoc(doc(db, "clients", "clientA")));
+  });
+
+  // 5.
+  it("gives a franchise owner who owns nothing their home studio only", async () => {
+    const db = ctx("franchiseBare");
+    await assertFails(getDoc(doc(db, "clients", "clientA")));
+    await assertFails(getDoc(doc(db, "clients", "clientB")));
+    await assertSucceeds(getDoc(doc(db, "studios", C, "config", "renewals")));
+    await assertFails(getDoc(doc(db, "studios", A, "config", "renewals")));
+  });
+
+  // 6.
+  it("lets a franchise owner write their own studio's records as its leaders do, and no other studio's", async () => {
+    const db = ctx("franchiseA");
+    const uid = "franchiseA";
+    const writes = (s: string, clientId: string, weekOf: string): (() => Promise<unknown>)[] => [
+      () => updateDoc(doc(db, "clients", clientId), { phone: "555-0101" }),
+      () => setDoc(doc(db, "clients", clientId, "inbodyScans", "new1"), scan(uid, s)),
+      () => updateDoc(doc(db, "clients", clientId, "ford", "f1"), { body: "Wife is Karen; two boys." }),
+      // The floor.
+      () => updateDoc(doc(db, "studios", s, "roster", "m1"), { status: "inactive" }),
+      () => setDoc(doc(db, "studios", s, "config", "renewals"), renewalSettings(uid)),
+      () => setDoc(doc(db, "studios", s, "vault", "v2"), { studioId: s, kind: "incident", title: "Wet floor", status: "open", createdBy: { id: uid, name: nameOf(uid) }, createdAt: serverTimestamp() }),
+      () => getDocs(collection(db, "studios", s, "vault")),
+      () =>
+        setDoc(doc(db, "studios", s, "watchlist", "clientX"), {
+          clientId: "clientX", snoozedUntil: "2026-11-01", dismissedAt: null, dismissedBy: null, dismissedByName: null,
+          lastVisitAtDismissal: null, nextBookingAtDismissal: null, updatedAt: serverTimestamp(),
+        }),
+      () =>
+        setDoc(doc(db, "studios", s, "inactiveMarks", "eowyn"), {
+          clientId: "eowyn", reason: "moved", note: "Moved to Denver", day: "2026-10-01",
+          markedBy: { id: uid, name: nameOf(uid) }, markedAt: serverTimestamp(),
+        }),
+      () =>
+        setDoc(doc(db, "studios", s, "bookingMarks", "bk1"), {
+          noShow: true, clientId: "eowyn", day: "2026-09-28", markedBy: { id: uid, name: nameOf(uid) }, markedAt: serverTimestamp(),
+        }),
+      () =>
+        setDoc(doc(db, "studios", s, "cases", "eowyn"), {
+          clientId: "eowyn", clientName: "Eowyn Rohan", owner: { id: "trainerA", name: "Trainer A" },
+          nextStep: "Phone her after Thursday.", dueOn: "2026-10-01", outcome: "open",
+          openedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid,
+        }),
+      () =>
+        setDoc(
+          doc(db, "studios", s, "standingWeeks", weekOf),
+          { final: week, finalAt: serverTimestamp(), finalBy: { id: uid, name: uid } },
+          { merge: true },
+        ),
+      () =>
+        setDoc(doc(db, "studios", s, "teamJobs", "j1"), {
+          studioId: s, title: "Deep clean", createdBy: { id: uid, name: nameOf(uid) }, createdAt: serverTimestamp(),
+          status: "open", parts: { p1: { label: "Leg press", order: 1 } }, assignees: [], assigneeIds: [],
+        }),
+      () => setDoc(doc(db, "studios", s, "scheduleCoverage", "2026-10"), { days: arrayUnion("2026-10-01", "2026-10-02") }, { merge: true }),
+      () =>
+        setDoc(doc(db, "studios", s, "openingsMarks", "1-0800"), {
+          weekday: 1, time: "08:00", mark: "full", note: "The rotation's regulars", by: { id: uid, name: nameOf(uid) }, at: serverTimestamp(),
+        }),
+    ];
+    for (const write of writes(A, "clientA", "trainerA")) await assertSucceeds(write());
+    for (const write of writes(B, "clientB", "trainerB")) await assertFails(write());
+    // The leaders' reads of the night's states.
+    await assertSucceeds(getDocs(collection(db, "studios", A, "clientStates")));
+    await assertSucceeds(getDoc(doc(db, "studios", A, "watch", "journey")));
+    await assertFails(getDocs(collection(db, "studios", B, "clientStates")));
+    await assertFails(getDoc(doc(db, "studios", B, "watch", "journey")));
+  });
+
+  // 7.
+  it("keeps the deletes only owners and administrators could make to an owner's own studio, and never decides one from a clientId anyone can rewrite", async () => {
+    // A studio leader gains nothing here: still refused.
+    await assertFails(deleteDoc(doc(ctx("ownerA"), "journalEntries", "jA")));
+    const db = ctx("franchiseA");
+    await assertFails(deleteDoc(doc(db, "journalEntries", "jB")));
+    await assertFails(deleteDoc(doc(db, "clientFocuses", "cfB")));
+    await assertFails(deleteDoc(doc(db, "clients", "clientB", "ford", "f1")));
+    await assertSucceeds(deleteDoc(doc(db, "journalEntries", "jA")));
+    await assertSucceeds(deleteDoc(doc(db, "clientFocuses", "cfA")));
+    await assertSucceeds(deleteDoc(doc(db, "clients", "clientA", "ford", "f1")));
+    // Routines and progress reports: administrators only now (any trainer can rewrite their clientId).
+    await assertFails(deleteDoc(doc(db, "routines", "rA")));
+    await assertFails(deleteDoc(doc(db, "progressReports", "pA")));
+    // The re-point: a B routine pointed at an A client is still not A's owner's to delete.
+    const b = ctx("trainerB");
+    await assertSucceeds(updateDoc(doc(b, "routines", "rB"), { clientId: "clientA" }));
+    await assertFails(updateDoc(doc(b, "clientFocuses", "cfB"), { clientId: "clientA" }));
+    await assertFails(deleteDoc(doc(db, "routines", "rB")));
+    await assertSucceeds(deleteDoc(doc(ctx("adminP"), "routines", "rB")));
+  });
+
+  // 8.
+  it("never lets a franchise owner change their own access fields", async () => {
+    const db = ctx("franchiseA");
+    const own = doc(db, "trainers", "franchiseA");
+    await assertFails(updateDoc(own, { ownedStudioIds: arrayUnion(B) }));
+    await assertFails(updateDoc(own, { accessibleStudioIds: arrayUnion(B) }));
+    await assertFails(updateDoc(own, { primaryHomeStudioId: B }));
+    await assertFails(updateDoc(own, { role: "Admin" }));
+    await assertFails(updateDoc(own, { role: "StudioLeader" }));
+    await assertFails(updateDoc(own, { managedStudioIds: [B] }));
+    await assertSucceeds(updateDoc(own, { bio: "Runs Studio A" }));
+  });
+
+  // 9.
+  it("never lets anyone but an administrator change anyone's ownedStudioIds", async () => {
+    await assertFails(updateDoc(doc(ctx("franchiseAB"), "trainers", "trainerA"), { ownedStudioIds: [A] }));
+    await assertFails(updateDoc(doc(ctx("ownerA"), "trainers", "trainerA"), { ownedStudioIds: [A] }));
+  });
+
+  // 10.
+  it("lets a franchise owner change the people of their own studios, within them", async () => {
+    const db = ctx("franchiseA");
+    const ta = doc(db, "trainers", "trainerA");
+    await assertSucceeds(updateDoc(ta, { role: "HeadTrainer" }));
+    await assertSucceeds(updateDoc(ta, { role: "Owner" }));
+    await assertFails(updateDoc(ta, { role: "Admin" }));
+    await assertSucceeds(updateDoc(ta, { managedStudioIds: arrayUnion(A) }));
+    await assertFails(updateDoc(ta, { accessibleStudioIds: arrayUnion(B) }));
+    await assertFails(updateDoc(ta, { primaryHomeStudioId: B }));
+    // Someone based at another studio: nothing.
+    await assertFails(updateDoc(doc(db, "trainers", "trainerB"), { initials: "BB" }));
+    await assertFails(updateDoc(doc(db, "trainers", "trainerB"), { role: "HeadTrainer" }));
+    // An owner of A and B moves a person from one to the other.
+    await assertSucceeds(updateDoc(doc(ctx("franchiseAB"), "trainers", "trainerA"), { primaryHomeStudioId: B, accessibleStudioIds: [B] }));
+  });
+
+  // 11.
+  it("lets a franchise owner approve a new person into their studio, with the owner tier's ceiling and nothing beyond it", async () => {
+    const db = ctx("franchiseA");
+    const make = (id: string, data: Record<string, unknown>) => setDoc(doc(db, "trainers", id), data);
+    await assertSucceeds(make("hireA", hire("LifeTransformer", A)));
+    await assertSucceeds(make("hireA2", hire("Owner", A)));
+    await assertFails(make("hireA3", hire("Admin", A)));
+    await assertFails(make("hireA4", hire("LifeTransformer", A, { accessibleStudioIds: [A, B] })));
+    await assertFails(make("hireA5", hire("LifeTransformer", A, { activeGuestStudioIds: [B] })));
+    await assertFails(make("hireA6", hire("LifeTransformer", A, { ownedStudioIds: [A] })));
+    await assertFails(make("hireA7", hire("LifeTransformer", A, { managedStudioIds: [B] })));
+    await assertFails(make("hireB1", hire("LifeTransformer", B)));
+  });
+
+  // 12.
+  it("closes a studio leader's own climb: their access fields, the grant's, and a hire's", async () => {
+    const db = ctx("ownerA");
+    const own = doc(db, "trainers", "ownerA");
+    await assertFails(updateDoc(own, { ownedStudioIds: [B] }));
+    await assertFails(updateDoc(own, { primaryHomeStudioId: B }));
+    await assertFails(updateDoc(own, { accessibleStudioIds: [A, B] }));
+    await assertFails(updateDoc(own, { managedStudioIds: [B] }));
+    await assertSucceeds(updateDoc(own, { bio: "Runs the floor" }));
+    await assertFails(updateDoc(doc(ctx("grantA2"), "trainers", "grantA2"), { managedStudioIds: arrayUnion(B) }));
+    await assertFails(setDoc(doc(db, "trainers", "hireOA1"), hire("LifeTransformer", A, { ownedStudioIds: [B] })));
+    await assertFails(setDoc(doc(db, "trainers", "hireOA2"), hire("LifeTransformer", A, { accessibleStudioIds: [A, B] })));
+    await assertFails(updateDoc(doc(db, "trainers", "trainerA"), { accessibleStudioIds: arrayUnion(B) }));
+  });
+
+  // 13.
+  it("keeps what a studio IS to administrators: its network, owner record, Mindbody link and practice flag", async () => {
+    const f = ctx("franchiseA");
+    await assertSucceeds(updateDoc(doc(f, "studios", A), { name: "Studio A (West)" }));
+    await assertFails(updateDoc(doc(f, "studios", B), { name: "Not mine" }));
+    for (const identity of [{ networkId: "netB" }, { mindbodySiteId: "999" }, { mindbodyLocationId: "9" }, { ownerId: "franchiseA" }, { isDemo: true }]) {
+      await assertFails(updateDoc(doc(f, "studios", A), identity));
+    }
+    await assertFails(setDoc(doc(f, "studios", "studioZ"), { name: "Studio Z" }));
+    const owner = ctx("ownerA");
+    await assertFails(updateDoc(doc(owner, "studios", A), { mindbodySiteId: "999" }));
+    await assertSucceeds(updateDoc(doc(owner, "studios", A), { journeyCutoverDate: "2026-10-01" }));
+    const admin = ctx("adminP");
+    for (const identity of [{ networkId: "netB" }, { mindbodySiteId: "999" }, { mindbodyLocationId: "9" }, { ownerId: "franchiseA" }, { isDemo: true }, { name: "Studio B" }]) {
+      await assertSucceeds(updateDoc(doc(admin, "studios", B), identity));
+    }
+    await assertSucceeds(setDoc(doc(admin, "studios", "studioZ"), { name: "Studio Z" }));
+  });
+
+  it("lets anyone re-seed the practice studio, never with a Mindbody link, a network, or off offline", async () => {
+    // What the seeder writes (demo-mode/seed-core.ts buildStudio), whole, by whoever presses Reset.
+    const seeded = (by: string) => ({
+      name: "Demo Studio",
+      address: "Practice floor",
+      timezone: "America/New_York",
+      mindbodyMode: "offline",
+      locationType: "corporate",
+      journeyCutoverDate: "2025-09-05",
+      sessionMinutes: 30,
+      ownerId: by,
+      isDemo: true,
+      demoSeedVersion: 7,
+      demoSeededAt: new Date("2026-10-10T12:00:00Z"),
+      demoSeededBy: nameOf(by),
+      createdAt: new Date("2025-09-05T12:00:00Z"),
+    });
+    await assertSucceeds(setDoc(doc(ctx("trainerA"), "studios", DEMO), seeded("trainerA")));
+    const c = ctx("trainerC");
+    for (const change of [
+      { mindbodySiteId: "5746957" },
+      { mindbodyLocationId: "1" },
+      { networkId: "netAB" },
+      { isDemo: false },
+      { mindbodyMode: "linked" },
+    ]) {
+      await assertFails(updateDoc(doc(c, "studios", DEMO), change));
+    }
+    await assertFails(setDoc(doc(c, "studios", DEMO), { ...seeded("trainerC"), mindbodySiteId: "5746957" }));
+    await assertSucceeds(updateDoc(doc(c, "studios", DEMO), { name: "Practice 2" }));
+    // Laid down from nothing.
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await deleteDoc(doc(context.firestore(), "studios", DEMO));
+    });
+    await assertFails(setDoc(doc(c, "studios", DEMO), { ...seeded("trainerC"), mindbodySiteId: "5746957" }));
+    await assertSucceeds(setDoc(doc(c, "studios", DEMO), seeded("trainerC")));
+    // An administrator may.
+    await assertSucceeds(updateDoc(doc(ctx("adminP"), "studios", DEMO), { mindbodySiteId: "5746957" }));
+  });
+
+  // 14.
+  it("lets a franchise owner set the focus of a network holding their studio, that field alone, signed and in shape", async () => {
+    const f = ctx("franchiseA");
+    await assertSucceeds(updateDoc(doc(f, "networks", "netA"), focus("franchiseA")));
+    await assertFails(updateDoc(doc(f, "networks", "netB"), focus("franchiseA")));
+    await assertFails(updateDoc(doc(f, "networks", "netA"), { studioIds: [A, B] }));
+    await assertFails(updateDoc(doc(f, "networks", "netA"), { ownerIds: ["franchiseA"] }));
+    await assertFails(updateDoc(doc(f, "networks", "netA"), { ...focus("franchiseA"), name: "y" }));
+    await assertFails(setDoc(doc(f, "networks", "netNew"), { name: "Mine", studioIds: [A], ownerIds: ["franchiseA"] }));
+    // The focus's shape. Unsigned, on a network with no focus yet.
+    await assertFails(updateDoc(doc(f, "networks", "netAB"), { "relayFocus.note": "x" }));
+    await assertFails(updateDoc(doc(f, "networks", "netA"), focus("franchiseA", { "relayFocus.setBy": { id: "adminX", name: nameOf("franchiseA") } })));
+    await assertFails(updateDoc(doc(f, "networks", "netA"), focus("franchiseA", { "relayFocus.setBy": { id: "franchiseA", name: "Head Office" } })));
+    await assertFails(updateDoc(doc(f, "networks", "netA"), focus("franchiseA", { "relayFocus.setAt": 0 })));
+    await assertFails(updateDoc(doc(f, "networks", "netA"), focus("franchiseA", { "relayFocus.note": "n".repeat(501) })));
+    await assertFails(updateDoc(doc(f, "networks", "netA"), focus("franchiseA", { "relayFocus.extra": 1 })));
+    // AJ, Sep 27 2026: every network that holds a studio in their scope.
+    await assertSucceeds(updateDoc(doc(f, "networks", "netAB"), focus("franchiseA")));
+    // A studio leader is not a franchise owner.
+    await assertFails(updateDoc(doc(ctx("ownerA"), "networks", "netA"), focus("ownerA", { "relayFocus.setBy": { id: "ownerA", name: "Owner A" } })));
+    const admin = ctx("adminP");
+    await assertSucceeds(setDoc(doc(admin, "networks", "netNew"), { name: "New", studioIds: [A], ownerIds: [] }));
+    await assertSucceeds(updateDoc(doc(admin, "networks", "netA"), { studioIds: [A, C] }));
+  });
+
+  // 15.
+  it("lets a franchise owner post to their studios and their whole networks, under their own name, and afterwards only take a notice down", async () => {
+    const f = ctx("franchiseA");
+    const put = (db: Db, id: string, data: Record<string, unknown>) => setDoc(doc(db, "hub_announcements", id), data);
+    await assertSucceeds(put(f, "fA1", studioNotice("franchiseA", A)));
+    await assertFails(put(f, "fB1", studioNotice("franchiseA", B)));
+    await assertFails(put(f, "fAll", notice({ authorId: "franchiseA", authorName: nameOf("franchiseA") })));
+    await assertSucceeds(put(f, "fN1", networkNotice("franchiseA", "netA", [A])));
+    await assertFails(put(f, "fN2", networkNotice("franchiseA", "netAB", [A, B])));
+    await assertFails(put(f, "fN3", networkNotice("franchiseA", "netA", [A, B])));
+    // A studio notice reaches its studio only.
+    await assertFails(put(f, "fA2", studioNotice("franchiseA", A, { targetStudioIds: [A, B] })));
+    await assertFails(put(ctx("ownerA"), "oA2", studioNotice("ownerA", A, { authorName: "Owner A", targetStudioIds: [A, B] })));
+    // Afterwards: only taken down.
+    const fA1 = doc(f, "hub_announcements", "fA1");
+    await assertFails(updateDoc(fA1, { targetStudioIds: [A, B] }));
+    await assertFails(updateDoc(fA1, { title: "Rewritten" }));
+    await assertFails(updateDoc(fA1, { isActive: false, title: "x" }));
+    await assertSucceeds(updateDoc(fA1, { isActive: false }));
+    await assertFails(updateDoc(doc(f, "hub_announcements", "univ"), { isActive: false }));
+    // Only administrators delete.
+    await assertFails(deleteDoc(doc(f, "hub_announcements", "noteB")));
+    await assertFails(deleteDoc(fA1));
+    await assertSucceeds(deleteDoc(doc(ctx("adminP"), "hub_announcements", "fN1")));
+    // The read count.
+    await assertFails(getDocs(collection(f, "hub_announcements", "noteB", "acks")));
+    await assertSucceeds(getDocs(collection(f, "hub_announcements", "fA1", "acks")));
+    // An owner of A and B reaches the network of both.
+    await assertSucceeds(put(ctx("franchiseAB"), "fAB1", networkNotice("franchiseAB", "netAB", [A, B])));
+    // Administrators: everyone, and the words.
+    const admin = ctx("adminP");
+    await assertSucceeds(put(admin, "aAll", notice({ authorName: nameOf("adminP") })));
+    await assertSucceeds(updateDoc(doc(admin, "hub_announcements", "noteA"), { title: "Deep clean Saturday" }));
+  });
+
+  it("signs a leader's notice with their own name, and leaves head office's words to head office", async () => {
+    const owner = ctx("ownerA");
+    const put = (id: string, data: Record<string, unknown>) => setDoc(doc(owner, "hub_announcements", id), data);
+    await assertFails(put("oA1", studioNotice("ownerA", A, { authorName: "Max Strength Head Office" })));
+    await assertSucceeds(put("oA2", studioNotice("ownerA", A, { authorName: "Owner A" })));
+    await assertFails(updateDoc(doc(owner, "hub_announcements", "noteA"), { title: "Rewritten" }));
+    await assertFails(updateDoc(doc(owner, "hub_announcements", "noteA"), { longContent: "Rewritten" }));
+    // A leader takes a notice off their own studio.
+    await assertSucceeds(updateDoc(doc(owner, "hub_announcements", "noteA"), { isActive: false }));
+  });
+
+  it("lets a notice's author take it down after the network grows, and nobody else who doesn't run all of it", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "networks", "netA"), { studioIds: [A, B] });
+    });
+    await assertFails(updateDoc(doc(ctx("franchiseB"), "hub_announcements", "noteNet"), { isActive: false }));
+    await assertSucceeds(updateDoc(doc(ctx("franchiseA"), "hub_announcements", "noteNet"), { isActive: false }));
+  });
+
+  it("never frees a notice's id for someone else to re-create, or its acks to be read", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "hub_announcements", "noteB", "acks", "trainerB"), { at: new Date(), name: "Trainer B" });
+    });
+    await assertFails(deleteDoc(doc(ctx("franchiseB"), "hub_announcements", "noteB")));
+    const c = ctx("trainerC");
+    await assertFails(setDoc(doc(c, "hub_announcements", "noteB"), studioNotice("trainerC", DEMO)));
+    await assertFails(getDocs(collection(c, "hub_announcements", "noteB", "acks")));
+  });
+
+  // The attack round (Oct 2026): two app buttons the partition's rules
+  // refuse. The rules are right under the model; the fix was in the app,
+  // which no longer offers them (ProgressReportArchive's Delete and the
+  // Pulse draft's Discard to administrators only; AdminAnnouncementsTab's
+  // live list through reach.ts mayTakeDown). These hold the rules where
+  // the app now stands, with and without the role claim.
+  it("REGRESSION (attack round): a franchise owner deletes no progress report, not even a Pulse draft they started on a client at a studio they run; an administrator does", async () => {
+    for (const claims of [{}, { role: "FranchiseOwner" }]) {
+      const db = ctx("franchiseAB", claims);
+      // OWNER-1: the Pulse draft's Discard (checkin-draft.ts discardCheckInDraft).
+      const draft = await addDoc(collection(db, "progressReports"), {
+        clientId: "clientB",
+        trainerId: "franchiseAB",
+        status: "Draft",
+        isCheckInOnly: true,
+        createdAt: serverTimestamp(),
+      });
+      await assertFails(deleteDoc(doc(db, "progressReports", draft.id)));
+      // OWNER-2: the profile archive's Delete (ClientProfileView performReportDelete).
+      await assertFails(deleteDoc(doc(db, "progressReports", "pB")));
+      await assertSucceeds(deleteDoc(doc(ctx("adminP"), "progressReports", draft.id)));
+    }
+    await assertSucceeds(deleteDoc(doc(ctx("adminP"), "progressReports", "pB")));
+  });
+
+  it("REGRESSION (attack round): a franchise owner takes down only the notices of the studios and networks they run, never head office's to everyone or to a studio they don't run", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "hub_announcements", "noteC"), studioNotice("adminP", C, { authorName: "Head Office" }));
+    });
+    for (const claims of [{}, { role: "FranchiseOwner" }]) {
+      const db = ctx("franchiseAB", claims);
+      // OWNER-3: head office's notice to everyone.
+      await assertFails(updateDoc(doc(db, "hub_announcements", "univ"), { isActive: false }));
+      // Head office's notice to studio C, which they don't run.
+      await assertFails(updateDoc(doc(db, "hub_announcements", "noteC"), { isActive: false }));
+    }
+    const db = ctx("franchiseAB", { role: "FranchiseOwner" });
+    // A notice to B (owned), by someone else; and head office's to netAB, every studio theirs.
+    await assertSucceeds(updateDoc(doc(db, "hub_announcements", "noteB"), { isActive: false }));
+    await assertSucceeds(updateDoc(doc(db, "hub_announcements", "noteNetAB"), { isActive: false }));
+    // A studio's leader: their own studio's, never another's or everyone's.
+    const leader = ctx("leaderA");
+    await assertFails(updateDoc(doc(leader, "hub_announcements", "univ"), { isActive: false }));
+    await assertFails(updateDoc(doc(leader, "hub_announcements", "noteC"), { isActive: false }));
+    await assertSucceeds(updateDoc(doc(leader, "hub_announcements", "noteA"), { isActive: false }));
+  });
+
+  // 16.
+  it("lets whoever runs the studio a request names read and approve it, through queries that name the studio", async () => {
+    for (const uid of ["ownerA", "franchiseA"]) {
+      const db = ctx(uid);
+      await assertSucceeds(getDoc(doc(db, "access_requests", "reqA")));
+      await assertFails(getDoc(doc(db, "access_requests", "reqB")));
+      await assertFails(getDoc(doc(db, "access_requests", "reqNone")));
+      await assertSucceeds(pendingFor(db, "requestedStudioId", [A]));
+      await assertSucceeds(pendingFor(db, "studioId", [A]));
+      await assertFails(pendingAll(db));
+    }
+    await assertSucceeds(getDoc(doc(ctx("franchiseA"), "access_requests", "saA")));
+    await assertFails(getDoc(doc(ctx("franchiseA"), "access_requests", "saB")));
+    await assertSucceeds(pendingFor(ctx("franchiseAB"), "requestedStudioId", [A, B]));
+    await assertSucceeds(getDoc(doc(ctx("grantA2"), "access_requests", "reqA")));
+    // Never Demo Mode's id: everyone has the run of it.
+    await assertFails(getDoc(doc(ctx("trainerA"), "access_requests", "reqDemo")));
+    // Approving.
+    const owner = ctx("ownerA");
+    await assertFails(updateDoc(doc(owner, "access_requests", "reqB"), { status: "Approved" }));
+    await assertFails(updateDoc(doc(owner, "access_requests", "reqA"), { status: "Approved", requestedStudioId: B }));
+    await assertSucceeds(updateDoc(doc(owner, "access_requests", "reqA"), { status: "Approved" }));
+    // Administrators: every request.
+    const admin = ctx("adminP");
+    await assertSucceeds(pendingAll(admin));
+    await assertSucceeds(getDoc(doc(admin, "access_requests", "reqNone")));
+    await assertSucceeds(deleteDoc(doc(admin, "access_requests", "reqB")));
+  });
+
+  it("lets an approval change the status and its stamps, and nothing else", async () => {
+    const owner = ctx("ownerA");
+    const reqA = doc(owner, "access_requests", "reqA");
+    for (const change of [{ userId: "adminP" }, { trainerId: "x" }, { type: "studio_access" }, { email: "x@test.com" }]) {
+      await assertFails(updateDoc(reqA, change));
+    }
+    await assertSucceeds(updateDoc(reqA, { status: "Approved", approvedTrainerId: "reqA", updatedAt: "2026-10-10T15:00:00.000Z" }));
+  });
+
+  it("keeps a studio-access request at its own id, naming one real studio, so nobody squats a stranger's sign-up", async () => {
+    const a = ctx("trainerA");
+    const ask = (studioId: string, over: Record<string, unknown> = {}) => ({ type: "studio_access", trainerId: "trainerA", studioId, status: "Pending", ...over });
+    await assertFails(setDoc(doc(a, "access_requests", "trainerC"), ask(B)));
+    await assertFails(setDoc(doc(a, "access_requests", "sa_trainerA_studioC"), ask(B)));
+    await assertFails(setDoc(doc(a, "access_requests", "sa_trainerA_studioC"), ask(C, { userId: "trainerA" })));
+    await assertFails(setDoc(doc(a, "access_requests", "sa_trainerA_studioC"), ask(C, { requestedStudioId: A })));
+    await assertFails(setDoc(doc(a, "access_requests", `sa_trainerA_${DEMO}`), ask(DEMO)));
+    const mine = doc(a, "access_requests", "sa_trainerA_studioB");
+    await assertSucceeds(setDoc(mine, ask(B)));
+    await assertFails(updateDoc(mine, { studioId: A }));
+    await assertSucceeds(setDoc(mine, ask(B)));
+    // The stranger's own sign-up still goes through.
+    await assertSucceeds(
+      setDoc(doc(ctx("trainerC"), "access_requests", "trainerC"), { fullName: "Trainer C", email: "trainerC@test.com", status: "Pending", userId: "trainerC" }),
+    );
+  });
+
+  // 17.
+  it("leaves a trainer's own studio work as it was", async () => {
+    const a = ctx("trainerA");
+    await assertSucceeds(getDoc(doc(a, "clients", "clientA")));
+    await assertSucceeds(updateDoc(doc(a, "clients", "clientA"), { phone: "555-0102" }));
+    await assertSucceeds(setDoc(doc(a, "sessions", "sNew"), { hostedAtStudioId: A, clientId: "clientA", trainerId: "trainerA" }));
+    await assertSucceeds(
+      setDoc(doc(a, "clients", "clientA", "ford", "f2"), { clientId: "clientA", studioId: A, pillar: null, body: "Off to Italy in May", authorId: "trainerA", isArchived: false }),
+    );
+    await assertSucceeds(setDoc(doc(a, "studios", A, "scheduleCoverage", "2026-10"), { days: arrayUnion("2026-10-03") }, { merge: true }));
+    await assertFails(getDoc(doc(a, "clients", "clientB")));
+  });
+
+  // 18.
+  it("leaves an administrator every studio, and ownership theirs to write", async () => {
+    const admin = ctx("adminP");
+    await assertSucceeds(getDoc(doc(admin, "clients", "clientB")));
+    await assertSucceeds(getDoc(doc(admin, "sessions", "sB")));
+    await assertSucceeds(getDocs(collection(admin, "studios", B, "vault")));
+    await assertSucceeds(updateDoc(doc(admin, "studios", B, "roster", "m1"), { status: "inactive" }));
+    await assertSucceeds(deleteDoc(doc(admin, "journalEntries", "jB")));
+    await assertSucceeds(updateDoc(doc(admin, "trainers", "franchiseA"), { ownedStudioIds: arrayUnion(B) }));
+    await assertSucceeds(updateDoc(doc(admin, "trainers", "adminP"), { ownedStudioIds: [C] }));
+  });
+
+  // 19.
+  it("hands out nothing on a stale claim: the trainer document's role decides an authority write", async () => {
+    const demoted = ctx("demotedAdmin", { role: "Admin" });
+    await assertFails(updateDoc(doc(demoted, "trainers", "trainerB"), { role: "HeadTrainer" }));
+    await assertFails(updateDoc(doc(demoted, "trainers", "franchiseA"), { ownedStudioIds: [B] }));
+    await assertFails(setDoc(doc(demoted, "studios", "studioZ"), { name: "Studio Z" }));
+    await assertFails(updateDoc(doc(demoted, "studios", A), { mindbodySiteId: "999" }));
+    await assertFails(setDoc(doc(demoted, "networks", "netNew"), { name: "New", studioIds: [A], ownerIds: [] }));
+    await assertFails(setDoc(doc(demoted, "trainers", "hireZ"), hire("LifeTransformer", B)));
+    await assertFails(setDoc(doc(demoted, "hub_announcements", "dAll"), notice({ authorId: "demotedAdmin", authorName: nameOf("demotedAdmin") })));
+    await assertFails(updateDoc(doc(demoted, "hub_announcements", "univ"), { isActive: false }));
+    // Not an authority write: the claim answers, as it always has.
+    await assertSucceeds(setDoc(doc(demoted, "machineTrends", "x"), { machineId: "x" }));
+    // Promoted, with the old claim: the document wins.
+    await assertSucceeds(updateDoc(doc(ctx("promotedAdmin", { role: "LifeTransformer" }), "trainers", "trainerB"), { role: "HeadTrainer" }));
+    // No trainer document at all: the claim still answers.
+    const claimOnly = ctx("claim-admin", { role: "Admin" });
+    await assertSucceeds(updateDoc(doc(claimOnly, "trainers", "trainerB"), { initials: "TB" }));
+    await assertSucceeds(setDoc(doc(claimOnly, "hub_announcements", "cAll"), notice({ authorId: "claim-admin", authorName: "Head Office" })));
+    // A demoted leader.
+    await assertFails(updateDoc(doc(ctx("demotedLeader", { role: "StudioLeader" }), "trainers", "trainerA"), { role: "HeadTrainer" }));
+  });
+
+  // 20.
+  it("changes a person's role or email only when they are within the caller's reach", async () => {
+    const owner = ctx("ownerA");
+    await assertSucceeds(updateDoc(doc(owner, "trainers", "multiA"), { role: "HeadTrainer" }));
+    await assertFails(updateDoc(doc(owner, "trainers", "multiA"), { email: "x@test.com" }));
+    await assertSucceeds(updateDoc(doc(owner, "trainers", "multiA"), { initials: "MA" }));
+    const leader = ctx("leaderA");
+    await assertFails(updateDoc(doc(leader, "trainers", "adminAtA"), { role: "LifeTransformer" }));
+    await assertFails(updateDoc(doc(leader, "trainers", "adminAtA"), { email: "x@test.com" }));
+    await assertSucceeds(updateDoc(doc(leader, "trainers", "adminAtA"), { isVisibleOnCalendar: false }));
+    await assertFails(updateDoc(doc(leader, "trainers", "ownerAtA"), { role: "LifeTransformer" }));
+    const ab = ctx("franchiseAB");
+    await assertFails(updateDoc(doc(ab, "trainers", "franchiseA"), { role: "LifeTransformer" }));
+    await assertFails(updateDoc(doc(ab, "trainers", "franchiseA"), { email: "x@test.com" }));
+    await assertSucceeds(updateDoc(doc(owner, "trainers", "trainerA"), { email: "new@test.com" }));
+  });
+
+  // 21.
+  it("never brings a leftover ownership back to life", async () => {
+    const leader = ctx("leaderA");
+    await assertFails(updateDoc(doc(leader, "trainers", "heldOwner"), { role: "HeadTrainer" }));
+    await assertFails(updateDoc(doc(leader, "trainers", "heldOwner"), { role: "StudioLeader" }));
+    await assertSucceeds(updateDoc(doc(ctx("adminP"), "trainers", "heldOwner"), { ownedStudioIds: [] }));
+    await assertSucceeds(updateDoc(doc(leader, "trainers", "heldOwner"), { role: "HeadTrainer" }));
+    await assertFails(getDoc(doc(ctx("heldOwner"), "studios", B, "config", "renewals")));
+  });
+
+  // 22.
+  it("never opens a claim through an update", async () => {
+    const owner = ctx("ownerA");
+    await assertFails(updateDoc(doc(owner, "trainers", "trainerA"), { pendingClaim: true }));
+    await assertFails(updateDoc(doc(owner, "trainers", "trainerA"), { pendingClaim: true, email: "accomplice@test.com" }));
+    await assertFails(updateDoc(doc(ctx("trainerA"), "trainers", "trainerA"), { pendingClaim: true }));
+    // The claim's own tombstone on the placeholder it claimed (claim.ts tombstone()).
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "trainers", "placeholderOfA"), {
+        fullName: "Trainer A", initials: "TA", role: "LifeTransformer", primaryHomeStudioId: A,
+        accessibleStudioIds: [A], pendingClaim: true, email: "trainerA@test.com",
+      });
+    });
+    await assertSucceeds(updateDoc(doc(ctx("trainerA"), "trainers", "placeholderOfA"), tombstone("trainerA", "2026-10-10T15:00:00.000Z")));
+    await assertSucceeds(updateDoc(doc(ctx("adminP"), "trainers", "trainerA"), { pendingClaim: true }));
+  });
+
+  // 23.
+  it("keeps switching an account off or on to administrators", async () => {
+    const off = { isActive: false, switchedOffAt: "2026-10-10T15:00:00.000Z", switchedOffBy: { uid: "x", name: "X" } };
+    for (const uid of ["ownerA", "franchiseA", "grantA2"]) {
+      await assertFails(updateDoc(doc(ctx(uid), "trainers", "trainerA"), { ...off, switchedOffBy: { uid, name: nameOf(uid) } }));
+    }
+    await assertSucceeds(updateDoc(doc(ctx("adminP"), "trainers", "trainerA"), { ...off, switchedOffBy: { uid: "adminP", name: nameOf("adminP") } }));
+  });
+
+  // 24.
+  it("keeps a studio's schedule-sync lease to the people who work there", async () => {
+    const c = ctx("trainerC");
+    await assertFails(setDoc(doc(c, "studios", B, "sync", "lease"), { lastScheduleSyncAt: 9e15, scheduleSyncFailures: 99 }));
+    await assertFails(updateDoc(doc(c, "studios", B), { lastScheduleSyncAt: 9e15 }));
+    const b = ctx("trainerB");
+    await assertSucceeds(setDoc(doc(b, "studios", B, "sync", "lease"), { lastScheduleSyncAt: 1, scheduleSyncFailures: 0 }));
+    await assertSucceeds(updateDoc(doc(b, "studios", B), { lastScheduleSyncAt: 2 }));
+    await assertSucceeds(setDoc(doc(c, "studios", DEMO, "sync", "lease"), { lastScheduleSyncAt: 3 }));
+    await assertSucceeds(setDoc(doc(ctx("adminP"), "studios", B, "sync", "lease"), { lastScheduleSyncAt: 4 }));
+  });
+
+  // 25.
+  it("never lets a non-administrator plant a trainer document at someone's uid", async () => {
+    const leader = ctx("leaderA");
+    const plant = hire("LifeTransformer", A);
+    const asked = (data: Record<string, unknown>) =>
+      testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "access_requests", "claim-admin"), data);
+      });
+    await assertFails(setDoc(doc(leader, "trainers", "claim-admin"), plant));
+    await assertSucceeds(updateDoc(doc(ctx("claim-admin", { role: "Admin" }), "studios", B), { mindbodySiteId: "999" }));
+    await asked(signUp("someone-else", A));
+    await assertFails(setDoc(doc(leader, "trainers", "claim-admin"), plant));
+    await asked(signUp("claim-admin", B));
+    await assertFails(setDoc(doc(leader, "trainers", "claim-admin"), plant));
+    await asked(signUp("claim-admin", A, { status: "Approved" }));
+    await assertFails(setDoc(doc(leader, "trainers", "claim-admin"), plant));
+    // The app's two documents: an approval of a real sign-up, and a placeholder at an auto-id.
+    await assertSucceeds(setDoc(doc(leader, "trainers", "hireL1"), hire("LifeTransformer", A, { authUid: "hireL1" })));
+    await assertFails(setDoc(doc(leader, "trainers", "hireL2"), hire("LifeTransformer", A, { authUid: "someone-else" })));
+    await assertSucceeds(setDoc(doc(leader, "trainers", "p".repeat(20)), hire("LifeTransformer", A, { pendingClaim: true })));
+    await assertFails(setDoc(doc(leader, "trainers", "q".repeat(28)), hire("LifeTransformer", A, { pendingClaim: true })));
+    await assertFails(setDoc(doc(leader, "trainers", "r".repeat(20)), hire("LifeTransformer", A, { pendingClaim: true, authUid: "r".repeat(20) })));
+  });
+
+  // 26.
+  it("keeps a client record made from an iPad honest: no cross-train list, no Mindbody number in the practice studio", async () => {
+    const c = ctx("trainerC");
+    await assertFails(setDoc(doc(c, "clients", "100000123"), client(DEMO)));
+    await assertFails(setDoc(doc(c, "clients", "29068-100000123"), client(DEMO)));
+    await assertSucceeds(setDoc(doc(c, "clients", "demo-client-zz"), client(DEMO)));
+    await assertSucceeds(addDoc(collection(c, "clients"), client(DEMO)));
+    const a = ctx("trainerA");
+    await assertFails(setDoc(doc(a, "clients", "newA"), client(A, { approvedCrossTrainStudioIds: [B] })));
+    await assertSucceeds(setDoc(doc(a, "clients", "newA"), client(A)));
+    await assertSucceeds(setDoc(doc(ctx("adminP"), "clients", "newA2"), client(A, { approvedCrossTrainStudioIds: [B] })));
+  });
+
+  // 27.
+  it("lets an owner read and finish a cross-train visitor at a studio they own and work at", async () => {
+    const x = ctx("ownerX");
+    await assertSucceeds(getDoc(doc(x, "clients", "clientCross")));
+    const finish = writeBatch(x);
+    finish.update(doc(x, "clients", "clientCross"), { completedSessions: increment(1), lastSessionDate: "2026-10-10", updatedAt: serverTimestamp() });
+    finish.set(
+      doc(x, "clients", "clientCross", "machineTotals", "current"),
+      {
+        currentMachineMetrics: { "m-leg-press": { weight: "180", reps: "9", settings: {}, lastSessionId: "s1" } },
+        machineStats: { "m-leg-press": { timesPerformed: increment(1), lastPerformedDate: "2026-10-10", lastWeight: 180 } },
+        updatedAt: serverTimestamp(),
+      },
+      { mergeFields: ["currentMachineMetrics.m-leg-press", "machineStats.m-leg-press.timesPerformed", "machineStats.m-leg-press.lastPerformedDate", "machineStats.m-leg-press.lastWeight", "updatedAt"] },
+    );
+    await assertSucceeds(measured("cross-train Finish by an owner (client + totals batch)", () => finish.commit()));
+    // Owned, but not on "Also works at": fails closed for the visitor (the Owns control keeps them in step).
+    await assertFails(getDoc(doc(ctx("ownerXBare"), "clients", "clientCross")));
+  }, BUDGET_TIMEOUT);
+
+  // 28.
+  it("keeps a network notice's read count to its author and administrators", async () => {
+    await assertSucceeds(setDoc(doc(ctx("trainerA"), "hub_announcements", "noteNet", "acks", "trainerA"), { at: serverTimestamp(), name: "Trainer A" }));
+    await assertFails(getDocs(collection(ctx("franchiseAB"), "hub_announcements", "noteNet", "acks")));
+    await assertSucceeds(getDocs(collection(ctx("franchiseA"), "hub_announcements", "noteNet", "acks")));
+    await assertSucceeds(getDocs(collection(ctx("adminP"), "hub_announcements", "noteNet", "acks")));
+  });
+
+  // ── The budget (design §B.3): the costliest real writes, each asserting success.
+  describe("inside the rules' budget", () => {
+    it("fits an owner's every-field change of a colleague: home, three lists, role and email in one write", async () => {
+      const everything = {
+        primaryHomeStudioId: B,
+        accessibleStudioIds: [B],
+        activeGuestStudioIds: [],
+        managedStudioIds: [B],
+        role: "HeadTrainer",
+        email: "moved@test.com",
+      };
+      await assertSucceeds(measured("trainers update: owner's every-field change", () => updateDoc(doc(ctx("franchiseAB"), "trainers", "trainerA"), everything)));
+      // The same by an administrator holding a claim, on the document's path (authorityRole).
+      await assertSucceeds(
+        measured("trainers update: administrator with a claim", () =>
+          updateDoc(doc(ctx("adminP", { role: "Admin" }), "trainers", "trainerB"), { ...everything, primaryHomeStudioId: A, accessibleStudioIds: [A], managedStudioIds: [A] }),
+        ),
+      );
+    }, BUDGET_TIMEOUT);
+
+    it("fits an owner's approval with every list present, and a leader's, through the sign-up", async () => {
+      await assertSucceeds(
+        measured("trainers create: owner's approval, every list", () =>
+          setDoc(doc(ctx("franchiseA"), "trainers", "hireA8"), hire("HeadTrainer", A, { managedStudioIds: [A], ownedStudioIds: [] })),
+        ),
+      );
+      await assertSucceeds(measured("trainers create: leader's approval", () => setDoc(doc(ctx("leaderA"), "trainers", "hireA"), hire("LifeTransformer", A))));
+    }, BUDGET_TIMEOUT);
+
+    it("fits an owner's network notice, created and taken down, and a take-down of head office's network notice", async () => {
+      const ab = ctx("franchiseAB");
+      await assertSucceeds(measured("hub_announcements create: network notice", () => setDoc(doc(ab, "hub_announcements", "nAB"), networkNotice("franchiseAB", "netAB", [A, B]))));
+      await assertSucceeds(measured("hub_announcements update: author's take-down", () => updateDoc(doc(ab, "hub_announcements", "nAB"), { isActive: false })));
+      await assertSucceeds(measured("hub_announcements update: non-author network take-down", () => updateDoc(doc(ab, "hub_announcements", "noteNetAB"), { isActive: false })));
+      await assertSucceeds(measured("hub_announcements update: leader's studio take-down", () => updateDoc(doc(ctx("ownerA"), "hub_announcements", "noteA"), { isActive: false })));
+    }, BUDGET_TIMEOUT);
+
+    it("fits an owner's read of a client's sessions, one hosted at another studio among them", async () => {
+      await assertSucceeds(
+        measured("sessions list: owner by clientId with a cross-studio session", () =>
+          getDocs(query(collection(ctx("franchiseA"), "sessions"), where("clientId", "==", "clientA"))),
+        ),
+      );
+      await assertSucceeds(measured("sessions get: owner, cross-studio session", () => getDoc(doc(ctx("franchiseA"), "sessions", "sCross"))));
+    }, BUDGET_TIMEOUT);
+
+    it("fits an owner's full focus, the three lines at their limits", async () => {
+      await assertSucceeds(
+        measured("networks update: owner's full focus", () =>
+          updateDoc(
+            doc(ctx("franchiseA"), "networks", "netA"),
+            focus("franchiseA", { "relayFocus.mastery": "m".repeat(120), "relayFocus.machine": "c".repeat(120), "relayFocus.note": "n".repeat(500) }),
+          ),
+        ),
+      );
+    }, BUDGET_TIMEOUT);
+
+    it("fits the access-request lists and a studio rename by an owner", async () => {
+      await assertSucceeds(measured("access_requests list: owner of two, requestedStudioId in", () => pendingFor(ctx("franchiseAB"), "requestedStudioId", [A, B])));
+      await assertSucceeds(measured("access_requests list: owner of two, studioId in", () => pendingFor(ctx("franchiseAB"), "studioId", [A, B])));
+      await assertSucceeds(measured("studios update: owner's rename", () => updateDoc(doc(ctx("franchiseAB"), "studios", B), { name: "Studio B (East)" })));
+    }, BUDGET_TIMEOUT);
+
+    // The whole-read record's costliest write, measured at 907 before the
+    // partition (the grant adding a month's 31st day; firestore.rules,
+    // coverageWriterAllowed): the same scale, and a franchise owner beside it.
+    it("fits the 31st day added to a month, by the grant and by an owner", async () => {
+      const days = Array.from({ length: 30 }, (_, i) => `2026-12-${String(i + 1).padStart(2, "0")}`);
+      for (const uid of ["grantA2", "franchiseA"]) {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(doc(context.firestore(), "studios", A, "scheduleCoverage", "2026-12"), { days });
+        });
+        await assertSucceeds(
+          measured(`scheduleCoverage update: ${uid} adds the 31st day`, () =>
+            setDoc(doc(ctx(uid), "studios", A, "scheduleCoverage", "2026-12"), { days: arrayUnion("2026-12-31") }, { merge: true }),
+          ),
+        );
+      }
+    }, BUDGET_TIMEOUT);
+
+    // The standing week's fullest agreement (it ran out at ten days away
+    // before; firestore.rules, standingWeekAwayValid), by a franchise owner.
+    it("fits an owner's agreement of the fullest week, six days away", async () => {
+      const full = {
+        hours: Array.from({ length: 21 }, (_, i) => ({
+          weekday: i % 7,
+          from: ["06:00", "10:00", "15:00"][Math.floor(i / 7)],
+          to: ["09:00", "13:00", "20:00"][Math.floor(i / 7)],
+        })),
+        regulars: Array.from({ length: 80 }, (_, i) => ({ id: `r${i}`, weekday: (i % 6) + 1, start: "08:00", clientId: `c${i}`, clientName: `Client ${i}` })),
+        note: "Mornings, and two evenings",
+      };
+      const six = Array.from({ length: 6 }, (_, i) => ({ id: `a${i}`, from: `2026-1${i % 3}-0${i + 1}`, to: `2026-1${i % 3}-2${i}`, note: "Vacation" }));
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "studios", A, "standingWeeks", "trainerA"), {
+          studioId: A, trainerUid: "trainerA", trainerId: "trainerA", trainerName: "Trainer A",
+          proposed: full, proposedAt: new Date("2026-09-20T12:00:00Z"), proposedBy: { id: "trainerA", name: "Trainer A" },
+          final: full, finalAt: new Date("2026-09-21T12:00:00Z"), finalBy: { id: "ownerA", name: "Owner A" },
+          away: six,
+        });
+      });
+      const changed = { ...full, note: "Agreed: mornings" };
+      await assertSucceeds(
+        measured("standingWeeks update: owner agrees the fullest week", () =>
+          setDoc(
+            doc(ctx("franchiseA"), "studios", A, "standingWeeks", "trainerA"),
+            { proposed: changed, final: changed, finalAt: serverTimestamp(), finalBy: { id: "franchiseA", name: nameOf("franchiseA") } },
+            { merge: true },
+          ),
+        ),
+      );
+    }, BUDGET_TIMEOUT);
   });
 });
