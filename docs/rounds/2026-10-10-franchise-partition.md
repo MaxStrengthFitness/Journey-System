@@ -340,3 +340,21 @@ Pulse and notes privacy lock lands "Before franchises, Jan 1".
 
 Ship it the same way: the app first, the rules last, each newly scoped read
 measured against the budget and each query with its index.
+
+**Two limits the studio map's review found (Oct 10 2026), carried there:**
+
+- **The rules file is near Firebase's size cap.** `firestore.rules` is
+  255,229 bytes on this branch, against the 256 KiB a ruleset may be. This
+  round deploys under it. The studio map round starts by moving long comment
+  blocks into `docs/ops/RULES-NOTES.md` (checked so no rule changes), before
+  it adds anything, and the privacy lock needs that room too.
+- **A roster write can run out of expressions on a heavily changed machine.**
+  On a catalog copy carrying 8 or more removed safety lines, the roster rule's
+  two separate role lookups push an Out of service write past the 1,000
+  budget: a leader at 10 lines, an owner at a studio they own (not their home)
+  from 8, and a grant holder from 8 (measured on the emulator by the map's
+  red team). The refusal reads as a permission error. The map round rewrites
+  that rule to resolve the caller once (`rosterLeaderOnce`), which the red
+  team measured passing every real roster write at 0 to 10 lines for every
+  role. Removing 8 safety lines from one machine is rare; this is recorded so
+  nobody is surprised before the map round ships.
