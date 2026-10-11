@@ -208,14 +208,24 @@ The document is good and worth keeping true.
 This is **Gate B** (`docs/ARCHITECTURE.md` §5.3). Nothing here is optional;
 it is the list that separates "AJ's app" from "an app other people use".
 
-- **The franchise partition in the rules.** `isFranchiseOwnerOnly()` is
-  company-wide, not scoped to a network, so a franchisee could technically
-  reach another network's client data. The fix is `networkIds` and
-  `ownedStudioIds` cached on the trainer document, with every franchise grant
-  scoped to *this* studio. **Needed before the first franchise, Jan 1 2027,
-  not for the corporate launch** (AJ, Oct 10 2026: the three corporate studios
-  start in November; franchisees from Jan 1). Still the most important item
-  for January.
+- ~~**The franchise partition in the rules.**~~ **Built Oct 10 2026**
+  (`docs/rounds/2026-10-10-franchise-partition.md`; AJ: "take it away i like
+  your ideas"): a franchise owner leads their home studio and the studios an
+  administrator marked them as owning (`ownedStudioIds` alone, no
+  `networkIds`), exactly as a studio leader leads theirs, and nothing anywhere
+  else. Ships with `scripts/ship/ship-partition.ps1`, the app first and the
+  rules last. Five questions for AJ in the round's §6, each built with its
+  default.
+- **Next: the privacy lock** (AJ's answer of Oct 2 2026: "Before franchises,
+  Jan 1"). The reads still open to any signed-in account or any trainer
+  (`journalEntries`, `progressReports`, `exerciseLogs`, `sessionNotes`,
+  `clinicalIncidents`, routines and their plan changes, the focus collections,
+  machine settings, `schedules`, studio tasks and requests) scoped to the
+  client's studio, the matching writes closed, and what a signed-in stranger
+  may read of `trainers` and `studios` decided. The list is the partition
+  round's §8. **Needed before the first franchise, Jan 1 2027, not for the
+  corporate launch** (AJ, Oct 10 2026: the three corporate studios start in
+  November; franchisees from Jan 1).
 - **A Wi-Fi drop in the middle of a set, on an iPad.** Offline saving is on
   (`persistentLocalCache` in `src/firebase.ts`) and the session record says
   what is still sending, but nobody has dropped the Wi-Fi mid-set on a real

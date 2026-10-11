@@ -52,6 +52,19 @@ The round's ship script (`scripts/ship/ship-<round>.ps1 -Stage prepare`, then
 `-Stage golive`) does steps 1 to 5 in this order and stops on the first
 failure.
 
+**When a round takes access away, the order turns round: the app first, the
+rules last** (the franchise partition, Oct 10 2026). Step 3's test fails
+there: the OLD app's queries and writes are refused under the narrowed rules,
+while the NEW app's are narrower and the old rules allow them. So: indexes,
+the restore tag and the push, Render's three presses, then wait until the
+iPads that would be refused have loaded the new version (the person's boot
+report in Render's logs names the build, or one trip to the Hub; Render
+serving it is not enough), and only then the rules tests and the rules.
+`scripts/ship/ship-partition.ps1` is the model: three stages, `prepare`,
+`golive` (no rules) and `rules` (which checks `version.json` names the pushed
+commit and asks for LOADED). Undo it in the reverse order too: the rules back
+first, then the app.
+
 ## Rolling back
 
 Undo the smallest thing that fixes it. Every ship leaves a restore tag:

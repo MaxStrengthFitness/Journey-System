@@ -101,8 +101,13 @@ anywhere (no studio or head-office numbers are set).
 
 - **Solon**: its contracts sync (about a week of nightly runs), its renewals
   setup, a leader, then its own five-days-out to the day before.
-- **The franchise partition** in the rules (today a franchise owner's access is
-  company-wide).
+- ~~**The franchise partition** in the rules~~: built Oct 10 2026
+  (`docs/rounds/2026-10-10-franchise-partition.md`), shipped with
+  `scripts/ship/ship-partition.ps1`. When the first franchisee joins, an
+  administrator marks the studios they own: Admins → Studios → the studio →
+  Team → their row → Studios → **Owns {studio}**.
+- **The privacy lock**: the reads still open to any signed-in account scoped
+  to the client's studio (the partition round's §8).
 - **CI as a required check** on `master` (needs the repo owner, or the move
   into an organization).
 
