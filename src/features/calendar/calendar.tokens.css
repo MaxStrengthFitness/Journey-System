@@ -10,18 +10,28 @@
    keyed by a hash of the trainer id (trainer-tone.ts) and defined once, here,
    so one trainer is one colour in every view.
 
-   Each tone carries four values because they do four different jobs:
-     --t-solid  avatar fill, bar fill, session chip      (non-text, >= 3:1)
-     --t-text   small text in that trainer's colour      (>= 4.5:1)
-     --t-fill   soft background behind a chip            (surface tint)
-     --t-edge   1px border / left edge bar               (>= 3:1)
+   Each tone is ONE value, --t-solid: an avatar's fill (its initials in
+   --cal-tone-ink, 4.5:1 or more), a trainer-load bar, History's row edge
+   (3:1 or more on the card). Its text, fill and edge values had no reader
+   and went in the review of Oct 10 2026.
 
    THE NAVY FRAME (Oct 4 2026): the surfaces, ink, hero and live are
    equipment.tokens.css's values (palette-copies.test.ts holds them there),
-   and their dark fills are opaque at the accent's own hue. The trainer
-   tones are identity colours and did not move. The heat ramp's dark steps
-   climb from the navy card rather than the old near-black, and its words
-   change ink at step 4, where each step passes 4.5:1 in both modes.
+   and their dark fills are opaque at the accent's own hue. The heat ramp's
+   dark steps climb from the navy card rather than the old near-black, and
+   its words change ink at step 4, where each step passes 4.5:1 in both
+   modes.
+
+   THE ROOMS ROUND (Oct 10 2026): no trainer tone wears a colour that has a
+   job, and each can be told from the others. The eight are gold, olive,
+   green, teal, cyan, slate, umber and spruce: every one 30 degrees of OKLCH
+   hue or more from the blue, the orange, the crimson, the plum and the
+   Calendar's room hue (slate and umber are greys), and every two at least
+   0.08 apart in OKLab, by hue or by lightness, in both modes
+   (trainer-tones.test.ts). They were the orange of now, the logo blue (read
+   as yours), the plum of caution, a violet beside the room's own hue, and an
+   ochre and a taupe 7 degrees apart. --cal-mine (your bookings' blue cast)
+   and --cal-warn (the plum of a day not read) are the Hub's.
    ========================================================================== */
 
 :root {
@@ -45,6 +55,10 @@
   --cal-live-text:     #064f89;
   --cal-live-fill:     #dbeefe;
   --cal-live-on:       #ffffff;
+  /* Yours and caution, the Hub's (the rooms round, Oct 10 2026): the blue
+     cast under your bookings on the Week, and the plum of a day not read. */
+  --cal-mine:          #d3e2f1;
+  --cal-warn:          #a2457e;
 
   /* Heatmap ramp. Single hue, ascending lightness -> saturation, so it reads
      as one scale rather than a rainbow. Step 0 is the empty surface. Step 4
@@ -61,18 +75,20 @@
 
   --cal-radius:        14px;
   --cal-shadow:        rgba(25, 45, 65, 0.10);
-  /* Day view: width of one 30-minute slot. */
-  --cal-slot-w:        38px;
-  --cal-lane-label:    148px;
 
-  --t0-solid: #ef5302; --t0-text: #bc2c00; --t0-fill: #fdeade; --t0-edge: #ef5302;
-  --t1-solid: #0a548b; --t1-text: #034a84; --t1-fill: #e4edf4; --t1-edge: #0a548b;
-  --t2-solid: #0f766e; --t2-text: #0b5f59; --t2-fill: #e0f0ee; --t2-edge: #0f766e;
-  --t3-solid: #7c3aed; --t3-text: #6d28d9; --t3-fill: #eee7fd; --t3-edge: #7c3aed;
-  --t4-solid: #a16207; --t4-text: #895306; --t4-fill: #f6ecd9; --t4-edge: #a16207;
-  --t5-solid: #a2457e; --t5-text: #8e336c; --t5-fill: #f6e9f1; --t5-edge: #a2457e;
-  --t6-solid: #15803d; --t6-text: #136c34; --t6-fill: #e2f1e7; --t6-edge: #15803d;
-  --t7-solid: #0e7490; --t7-text: #0b6079; --t7-fill: #e0f0f4; --t7-edge: #0e7490;
+  /* The initials on a tone's solid: white in light (4.9:1 or more on every
+     solid), the navy in dark (the rooms round, Oct 10 2026; it was a raw
+     #fff and #06101a in calendar.css). */
+  --cal-tone-ink: #ffffff;
+
+  --t0-solid: #896600;  /* gold */
+  --t1-solid: #4e5916;  /* olive */
+  --t2-solid: #2f8543;  /* green */
+  --t3-solid: #006061;  /* teal */
+  --t4-solid: #0d7f95;  /* cyan */
+  --t5-solid: #586475;  /* slate */
+  --t6-solid: #574336;  /* umber */
+  --t7-solid: #1c3e24;  /* spruce */
 
   /* Depth (type and depth, phase 3, Oct 4 2026), value for value as
      equipment.tokens.css. */
@@ -120,6 +136,8 @@
   --cal-live-text:     #98caf9;
   --cal-live-fill:     #23405c;
   --cal-live-on:       #071727;
+  --cal-mine:          #0e243a;
+  --cal-warn:          #d98cbd;
 
   /* Dark is not a flip: the ramp climbs INTO the surface rather than out of
      white, or the low steps glow brighter than the page they sit on. Step 0
@@ -136,14 +154,15 @@
 
   --cal-shadow:        rgba(2, 10, 20, 0.45);
 
-  --t0-solid: #f36d21; --t0-text: #ff9455; --t0-fill: rgba(243,109,33,.16);  --t0-edge: #f36d21;
-  --t1-solid: #4a9fd8; --t1-text: #7cc0ee; --t1-fill: rgba(74,159,216,.16);  --t1-edge: #4a9fd8;
-  --t2-solid: #2dd4bf; --t2-text: #5eead4; --t2-fill: rgba(45,212,191,.15);  --t2-edge: #2dd4bf;
-  --t3-solid: #a78bfa; --t3-text: #c4b5fd; --t3-fill: rgba(167,139,250,.16); --t3-edge: #a78bfa;
-  --t4-solid: #f59e0b; --t4-text: #fbbf24; --t4-fill: rgba(245,158,11,.15);  --t4-edge: #f59e0b;
-  --t5-solid: #d98cbd; --t5-text: #edb8d8; --t5-fill: rgba(217,140,189,.16); --t5-edge: #d98cbd;
-  --t6-solid: #4ade80; --t6-text: #86efac; --t6-fill: rgba(74,222,128,.14);  --t6-edge: #4ade80;
-  --t7-solid: #22d3ee; --t7-text: #67e8f9; --t7-fill: rgba(34,211,238,.14);  --t7-edge: #22d3ee;
+  --cal-tone-ink: #071727;
+  --t0-solid: #e7bf57;  /* gold */
+  --t1-solid: #9eaf52;  /* olive */
+  --t2-solid: #82ec9c;  /* green */
+  --t3-solid: #47b5af;  /* teal */
+  --t4-solid: #68def4;  /* cyan */
+  --t5-solid: #a4b3c4;  /* slate */
+  --t6-solid: #ab9380;  /* umber */
+  --t7-solid: #69945f;  /* spruce */
 
   --cal-raised:          #203549;
   --cal-tray:            #081725;
@@ -174,19 +193,20 @@
     --cal-ink: #dfe7ef; --cal-ink-2: #b8c6d3; --cal-ink-muted: #9dadbe; --cal-ink-faint: #697b8d;
     --cal-hero: #f36d21; --cal-hero-text: #ff9455; --cal-hero-fill: #4b2915;
     --cal-live: #65abe9; --cal-live-text: #98caf9; --cal-live-fill: #23405c;
-    --cal-live-on: #071727;
+    --cal-live-on: #071727; --cal-mine: #0e243a; --cal-warn: #d98cbd;
     --cal-heat-0: #0d2235; --cal-heat-1: #1a3a57; --cal-heat-2: #295074;
     --cal-heat-3: #386792; --cal-heat-4: #5089bf; --cal-heat-5: #65abe9;
     --cal-heat-ink-lo: #dfe7ef; --cal-heat-ink-hi: #071727;
     --cal-shadow: rgba(2, 10, 20, 0.45);
-    --t0-solid: #f36d21; --t0-text: #ff9455; --t0-fill: rgba(243,109,33,.16);  --t0-edge: #f36d21;
-    --t1-solid: #4a9fd8; --t1-text: #7cc0ee; --t1-fill: rgba(74,159,216,.16);  --t1-edge: #4a9fd8;
-    --t2-solid: #2dd4bf; --t2-text: #5eead4; --t2-fill: rgba(45,212,191,.15);  --t2-edge: #2dd4bf;
-    --t3-solid: #a78bfa; --t3-text: #c4b5fd; --t3-fill: rgba(167,139,250,.16); --t3-edge: #a78bfa;
-    --t4-solid: #f59e0b; --t4-text: #fbbf24; --t4-fill: rgba(245,158,11,.15);  --t4-edge: #f59e0b;
-    --t5-solid: #d98cbd; --t5-text: #edb8d8; --t5-fill: rgba(217,140,189,.16); --t5-edge: #d98cbd;
-    --t6-solid: #4ade80; --t6-text: #86efac; --t6-fill: rgba(74,222,128,.14);  --t6-edge: #4ade80;
-    --t7-solid: #22d3ee; --t7-text: #67e8f9; --t7-fill: rgba(34,211,238,.14);  --t7-edge: #22d3ee;
+    --cal-tone-ink: #071727;
+    --t0-solid: #e7bf57;  /* gold */
+    --t1-solid: #9eaf52;  /* olive */
+    --t2-solid: #82ec9c;  /* green */
+    --t3-solid: #47b5af;  /* teal */
+    --t4-solid: #68def4;  /* cyan */
+    --t5-solid: #a4b3c4;  /* slate */
+    --t6-solid: #ab9380;  /* umber */
+    --t7-solid: #69945f;  /* spruce */
     --cal-raised:          #203549;
     --cal-tray:            #081725;
     --cal-edge:            rgba(150, 180, 210, 0.11);
@@ -210,13 +230,13 @@
   }
 }
 
-/* Each tone class republishes its four values under generic names, so every
+/* Each tone class republishes its solid under a generic name, so every
    component writes `var(--t-solid)` and never knows which tone it is in. */
-.cal-tone-0 { --t-solid: var(--t0-solid); --t-text: var(--t0-text); --t-fill: var(--t0-fill); --t-edge: var(--t0-edge); }
-.cal-tone-1 { --t-solid: var(--t1-solid); --t-text: var(--t1-text); --t-fill: var(--t1-fill); --t-edge: var(--t1-edge); }
-.cal-tone-2 { --t-solid: var(--t2-solid); --t-text: var(--t2-text); --t-fill: var(--t2-fill); --t-edge: var(--t2-edge); }
-.cal-tone-3 { --t-solid: var(--t3-solid); --t-text: var(--t3-text); --t-fill: var(--t3-fill); --t-edge: var(--t3-edge); }
-.cal-tone-4 { --t-solid: var(--t4-solid); --t-text: var(--t4-text); --t-fill: var(--t4-fill); --t-edge: var(--t4-edge); }
-.cal-tone-5 { --t-solid: var(--t5-solid); --t-text: var(--t5-text); --t-fill: var(--t5-fill); --t-edge: var(--t5-edge); }
-.cal-tone-6 { --t-solid: var(--t6-solid); --t-text: var(--t6-text); --t-fill: var(--t6-fill); --t-edge: var(--t6-edge); }
-.cal-tone-7 { --t-solid: var(--t7-solid); --t-text: var(--t7-text); --t-fill: var(--t7-fill); --t-edge: var(--t7-edge); }
+.cal-tone-0 { --t-solid: var(--t0-solid); }
+.cal-tone-1 { --t-solid: var(--t1-solid); }
+.cal-tone-2 { --t-solid: var(--t2-solid); }
+.cal-tone-3 { --t-solid: var(--t3-solid); }
+.cal-tone-4 { --t-solid: var(--t4-solid); }
+.cal-tone-5 { --t-solid: var(--t5-solid); }
+.cal-tone-6 { --t-solid: var(--t6-solid); }
+.cal-tone-7 { --t-solid: var(--t7-solid); }

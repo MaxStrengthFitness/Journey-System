@@ -123,6 +123,19 @@ export interface HubCardProps {
   /** Its peek is open. */
   open?: boolean;
   /**
+   * A tap opens a peek (the Hub), so the card says it opens a dialog. False
+   * where a tap goes straight to the profile instead (the Calendar's Day,
+   * the rooms round, Oct 10 2026). The card looks the same either way.
+   */
+  opensPeek?: boolean;
+  /**
+   * False on a day the sessions Journey holds don't cover (`cardDayReadable`,
+   * lib/hub-card-state): the card is "unread", neither fading nor saying a
+   * word, so it never reads as done. The Hub draws only its own window and
+   * leaves it true.
+   */
+  readable?: boolean;
+  /**
    * The grid block it is drawn in, handed back to `onOpen`, so the grid can
    * pass every card ONE handler and a card with nothing new skips drawing
    * (speed round, Oct 5 2026, R7).
@@ -148,6 +161,8 @@ function HubCardView({
   dimmed = false,
   wordy = false,
   open = false,
+  opensPeek = true,
+  readable = true,
   blockKey,
   onOpen,
 }: HubCardProps) {
@@ -171,7 +186,7 @@ function HubCardView({
     );
   }
 
-  const cardState = stateOfCard({ booking, client, logged, now, workoutSession, noShows });
+  const cardState = stateOfCard({ booking, client, logged, now, workoutSession, noShows, readable });
   const recedes = hubCardRecedes(cardState);
   const isUnlinked = !client;
   const isPending = isUnlinked && rosterLoading && Boolean(booking?.clientId);
@@ -209,7 +224,7 @@ function HubCardView({
       data-open={open ? "true" : undefined}
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : -1}
-      aria-haspopup={interactive ? "dialog" : undefined}
+      aria-haspopup={interactive && opensPeek ? "dialog" : undefined}
       title={
         isUnknown
           ? `${booking?.clientName || "Reservation"} — couldn't check this client's profile just now.`
@@ -342,7 +357,7 @@ function HubCardView({
 }
 
 /** What happened to the booking, by the card's own rule (lib/hub-card-state). */
-function stateOfCard(p: Pick<HubCardProps, "booking" | "client" | "logged" | "now" | "workoutSession" | "noShows">) {
+function stateOfCard(p: Pick<HubCardProps, "booking" | "client" | "logged" | "now" | "workoutSession" | "noShows" | "readable">) {
   const booking = p.booking;
   return hubCardState(
     {
@@ -354,7 +369,7 @@ function stateOfCard(p: Pick<HubCardProps, "booking" | "client" | "logged" | "no
     },
     p.logged ?? null,
     p.now ?? new Date(),
-    { session: p.workoutSession ?? null, marks: p.noShows ?? null },
+    { session: p.workoutSession ?? null, marks: p.noShows ?? null, readable: p.readable ?? true },
   );
 }
 

@@ -70,8 +70,7 @@ export interface DayCell {
   inCurrentMonth: boolean;
   isToday: boolean;
   total: number;
-  /** Descending by count. The month view shows the top few. */
-  byTrainer: TrainerCount[];
+  /** Clients' life events that day (the cell marks them; their words are on the Day). */
   events: CalendarEvent[];
 }
 
@@ -100,6 +99,33 @@ export interface TimeBand {
   endHour: number;
 }
 
+/** One half hour (or whatever minute bookings start on) of a day in the Week's agenda. */
+export interface WeekAgendaSlot {
+  /** Minutes since the studio's midnight. */
+  min: number;
+  /** "9 AM", "9:30 AM". */
+  label: string;
+  items: CalendarSession[];
+}
+
+/** One day of the Week's agenda (the rooms round, Oct 10 2026). */
+export interface WeekAgendaDay {
+  date: Date;
+  /** yyyy-mm-dd in studio time. */
+  key: string;
+  /** "Saturday". */
+  weekday: string;
+  /** "Sat". */
+  short: string;
+  /** "Oct 10". */
+  monthDay: string;
+  dayOfMonth: number;
+  isToday: boolean;
+  /** Bookings, never Mindbody's "Unavailable". */
+  count: number;
+  slots: WeekAgendaSlot[];
+}
+
 export interface WeekSummary {
   days: DayBar[];
   total: number;
@@ -111,21 +137,4 @@ export interface WeekSummary {
   /** Busiest single cell, so the heatmap legend can name a real number. */
   peak: number;
   busiestDay: DayBar | null;
-}
-
-/** One trainer's row in the day view. */
-export interface DayLane {
-  trainer: TrainerRef;
-  sessions: CalendarSession[];
-  count: number;
-}
-
-export interface DayPlan {
-  lanes: DayLane[];
-  /** Whole hours the axis spans, inclusive of start, exclusive of end. */
-  startHour: number;
-  endHour: number;
-  total: number;
-  /** Sessions whose trainer could not be resolved. Surfaced, never dropped. */
-  unassigned: CalendarSession[];
 }

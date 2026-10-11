@@ -1,10 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Calendar as CalendarIcon, RefreshCw, Users } from "lucide-react";
-import { ScheduleEntry, Trainer } from "../types";
-import { studioDateKey } from "../lib/studio-time";
-import { freshnessLabel } from "../lib/schedule-window";
+import { CalendarDays, RefreshCw } from "lucide-react";
+import { Client, ScheduleEntry, Trainer, WorkoutSession } from "../types";
+import { studioDateKey, studioDayBoundsForKey } from "../lib/studio-time";
+import { FETCH_RETRY_MS, dayKeysBetween, freshnessLabel, liveWindow, type DayReadState } from "../lib/schedule-window";
+import { cardDayReadable } from "../lib/hub-card-state";
+import { hubWindow } from "../features/hub-schedule/hub-window";
 import { LoadingMark } from "./LoadingMark";
 import { RelayStrip } from "../features/relay/board/RelayStrip";
+import { RoomBar, RoomSwitch, type RoomSwitchOption } from "../features/rooms";
+import { HubNotice } from "../features/hub-schedule/HubGrid";
+import { UNASSIGNED_ID, columnIdOf, worksHereOnCalendar } from "../features/hub-schedule/columns";
+import { trainerDayFrame, weeksByTrainer } from "../features/hub-schedule/off-hours";
+import type { Span } from "../features/hub-schedule/grid-model";
+import { staffIdsAt } from "../features/standing-week/check";
+import { mayReadWeeks } from "../features/standing-week/present";
+import { useStandingWeeks } from "../features/standing-week/useStandingWeeks";
+import { weekdayOf } from "../features/client-history/model";
+import { usePhone } from "../features/phone/device";
 import {
   DateNavigator,
   DayView,
@@ -17,7 +29,9 @@ import {
   type CalendarSession,
   type TrainerRef,
 } from "../features/calendar";
-import { fordCalendarEvents, type CalendarClient } from "../features/calendar/ford-events";
+import { ENTIRE_TEAM, TeamPicker } from "../features/calendar/TeamPicker";
+import { DayLife, eventsOnDay } from "../features/calendar/DayLife";
+import { dayToDate, fordCalendarEvents, type CalendarClient } from "../features/calendar/ford-events";
 import { useCalendarFord } from "../features/calendar/useCalendarFord";
 import "../features/calendar/calendar.css";
 
@@ -27,26 +41,29 @@ function localDayKey(d: Date): string {
 }
 
 /**
- * CALENDAR — shell.
+ * CALENDAR — the first room (the rooms round, Oct 10 2026).
  *
- * Round: Calendar redesign, Sep 2026.
+ * AJ: "i feel like im in the learning area or the active session area or
+ * the client area so i can instantly know what im looking at when i pull up
+ * the app ... i think ill calendar would be the easiest to improve". His
+ * picks on "Journey Rooms": 1b (the room bar and a room hue), 2a (Day is the
+ * Hub's grid), 3b (Week is the bookings, the charts folded).
  *
- * This file used to be 1,630 lines: three inline renderers, a hard-coded
- * colour array, and the Mindbody trainer-matching heuristics all in one scope.
- * The rendering now lives in src/features/calendar/ and this keeps only the
- * two jobs that genuinely belong to a container:
- *
- *   1. RESOLVE. Turn ScheduleEntry — whose trainer may be identified by id, by
- *      `trainerName`, or by a Mindbody spelling of a first name — into the
- *      view model the views consume. That fuzzy matching is a real liability
- *      and it stays in exactly one place.
- *   2. FILTER. Trainer selection and the sessions/events toggle.
- *
- * The views are pure: give them sessions and they draw.
+ * The container keeps two jobs: it RESOLVES the schedule into what the views
+ * draw, and it holds the room's state (which view, which day, whose
+ * bookings). The room bar (features/rooms) carries the mark, the name, the
+ * one switch Month · Week · Day, the team filter, and under them the date
+ * stepper, Today and Refresh. The views are pure: give them bookings and
+ * they draw.
  */
 
 type ViewMode = "month" | "week" | "day";
-type FilterMode = "all" | "sessions" | "events";
+
+const VIEWS: ReadonlyArray<RoomSwitchOption<ViewMode>> = [
+  { id: "month", label: "Month" },
+  { id: "week", label: "Week" },
+  { id: "day", label: "Day" },
+];
 
 /**
  * The schedule window (cost clean-up round, Sep 2026). Only today and its
@@ -67,9 +84,22 @@ export interface ScheduleWindowControls {
   pullFromMindbody?(from: Date, to: Date): Promise<void>;
   lastFetchedAt: number | null;
   isFetching: boolean;
+  /**
+   * What is known about a studio day's bookings (useLiveSchedule's dayState,
+   * the Hub's own): a day is drawn as quiet only when it was read; a read
+   * that failed is said in place, never an empty day (the rooms round, Oct
+   * 10 2026). Absent: read.
+   */
+  dayState?(dayKey: string): DayReadState;
+  /** "Try again" on a failed read (useLiveSchedule's retry). */
+  retry?(): void;
 }
 
 const MS_PER_MIN = 60000;
+
+/** One empty list, so the Day's bookings don't look new on every render while another view is up. */
+const NO_BOOKINGS: any[] = [];
+const NO_SESSIONS: ReadonlyArray<WorkoutSession> = [];
 
 /** How often the "Updated N min ago" caption re-reads the clock. */
 const FRESHNESS_TICK_MS = 30_000;
@@ -86,17 +116,41 @@ function safeToDate(value: any): Date | null {
   return null;
 }
 
-/**
- * "2026-09-08" must not become Sep 7 for anyone west of the studio.
- * Parsed at local noon, which no timezone offset can push across a day line.
- */
-function parseDayString(value: any): Date | null {
-  if (!value) return null;
-  if (typeof value === "string") {
-    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
+/** The studio day keys of a range the calendar built at local noon, inclusive. */
+export function dayKeysOfRange(from: Date, to: Date): string[] {
+  const out: string[] = [];
+  const cursor = new Date(from);
+  let guard = 0;
+  while (cursor.getTime() <= to.getTime() && guard < 60) {
+    const key = studioDateKey(cursor);
+    if (key) out.push(key);
+    cursor.setDate(cursor.getDate() + 1);
+    guard += 1;
   }
-  return safeToDate(value);
+  return out;
+}
+
+/**
+ * The next or previous month, week or day. A month steps from its 1st (the
+ * review, Oct 10 2026): Oct 31 plus a month is "Nov 31", which a Date rolls
+ * on to Dec 1, so Next skipped November; Mar 31 back a month landed on Mar 3.
+ */
+export function stepDate(cur: Date, viewMode: ViewMode, direction: 1 | -1): Date {
+  const next = new Date(cur);
+  if (viewMode === "month") {
+    next.setDate(1);
+    next.setMonth(cur.getMonth() + direction);
+  } else if (viewMode === "week") next.setDate(cur.getDate() + 7 * direction);
+  else next.setDate(cur.getDate() + direction);
+  return next;
+}
+
+/** The words of the one notice above a view whose days weren't all read. */
+export function unreadWords(viewMode: ViewMode, failed: number): string {
+  if (viewMode === "day") return "Couldn’t read this day’s bookings, so it may look emptier than it is. Trying again.";
+  return failed === 1
+    ? "Couldn’t read one of these days’ bookings, so it may look emptier than it is. Trying again."
+    : `Couldn’t read ${failed} of these days’ bookings, so they may look emptier than they are. Trying again.`;
 }
 
 export function CalendarView({
@@ -108,8 +162,13 @@ export function CalendarView({
   setView,
   clients,
   scheduleWindow,
+  mindbodySiteId = null,
+  rosterStatus,
+  sessions: workoutSessions = NO_SESSIONS,
+  sessionsKnown = false,
 }: {
   schedules: ScheduleEntry[];
+  /** The trainers, in the studio's order (AppContent's sortedTrainers). */
   trainers: Trainer[];
   authTrainer: Trainer | null;
   /** No longer narrows anything: everyone sees the whole team (Oct 2 2026). Kept for the call site. */
@@ -120,15 +179,28 @@ export function CalendarView({
   setView?: (view: any) => void;
   clients?: any[];
   scheduleWindow?: ScheduleWindowControls;
+  /** This studio's Mindbody site: staff ids are numbered per site (the Hub's column rule). */
+  mindbodySiteId?: string | number | null;
+  /** The studio's client list ("loading", "ready", "error"): a card says nothing about sync off a list nobody read. */
+  rosterStatus?: string;
+  /**
+   * The app's session stream (useSessions: the studio's last 24 hours) and
+   * whether its server has answered: the Day's cards say what happened from
+   * it, as the Hub's do, on the days it covers (`cardDayReadable`).
+   */
+  sessions?: ReadonlyArray<WorkoutSession>;
+  sessionsKnown?: boolean;
 }) {
+  const isPhone = usePhone();
   const [viewMode, setViewMode] = useState<ViewMode>("month");
-  const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   // Everyone sees the whole team (the Atlas answers, Oct 2 2026): the
   // calendar opens on the entire team and anyone may pick any trainer.
-  const [selectedTrainerId, setSelectedTrainerId] = useState<string>("all");
+  const [selectedTrainerId, setSelectedTrainerId] = useState<string>(ENTIRE_TEAM);
 
   /* ---------------- the schedule window ---------------- */
+
+  const range = useMemo(() => visibleRange(viewMode, selectedDate), [viewMode, selectedDate]);
 
   /**
    * Ask the hook for whatever is on screen. The prop object is rebuilt on
@@ -139,9 +211,8 @@ export function CalendarView({
   const ensureRange = scheduleWindow?.ensureRange;
   useEffect(() => {
     if (!ensureRange) return;
-    const { from, to } = visibleRange(viewMode, selectedDate);
-    ensureRange(from, to);
-  }, [ensureRange, viewMode, selectedDate]);
+    ensureRange(range.from, range.to);
+  }, [ensureRange, range]);
 
   /**
    * Refresh asks Mindbody for the days on screen - the month in Month, the
@@ -156,7 +227,7 @@ export function CalendarView({
   latestWindow.current = scheduleWindow;
   const refreshSchedules = async () => {
     if (!scheduleWindow) return;
-    const { from, to } = visibleRange(viewMode, selectedDate);
+    const { from, to } = range;
     // The pull reports its own trouble; the re-read below runs either way,
     // since a failed pull still leaves Journey's copy worth showing.
     if (scheduleWindow.pullFromMindbody) {
@@ -184,69 +255,108 @@ export function CalendarView({
     [lastFetchedAt, now],
   );
 
+  /*
+   * WHAT IS KNOWN ABOUT THE DAYS ON SCREEN (the rooms round, Oct 10 2026;
+   * the Hub's rule since Oct 1): a failed read is unknown, never a quiet
+   * day. The views draw a day as empty only when it was read, and one plum
+   * line above them says when a read failed, with Try again.
+   *
+   * Each day's state is asked once a render, into one map the views read
+   * (the review, Oct 10 2026: the Month and the Week asked the hook about
+   * eighty times a render).
+   */
+  const dayStateFn = scheduleWindow?.dayState;
+  const stateOf = React.useCallback(
+    (key: string): DayReadState => (dayStateFn ? dayStateFn(key) : "ready"),
+    [dayStateFn],
+  );
+  const rangeKeys = useMemo(() => dayKeysOfRange(range.from, range.to), [range]);
+  const dayStates = useMemo(() => {
+    const out = new Map<string, DayReadState>();
+    for (const key of rangeKeys) out.set(key, stateOf(key));
+    return out;
+  }, [rangeKeys, stateOf]);
+  const stateOfDay = React.useCallback((key: string): DayReadState => dayStates.get(key) ?? stateOf(key), [dayStates, stateOf]);
+  const failedKeys = useMemo(() => rangeKeys.filter((key) => dayStates.get(key) === "failed"), [rangeKeys, dayStates]);
+  const failedDays = failedKeys.length;
+  /*
+   * Which failed days are whose. The live days (yesterday to tomorrow) are the
+   * listener's, which reopens itself after a failure; the others were fetched,
+   * and a retry reads only their span, from the first to the last, never the
+   * whole range on screen.
+   */
+  const { liveFailed, fetchedSpan } = useMemo(() => {
+    const live = liveWindow(new Date());
+    const liveKeys = new Set(dayKeysBetween(live.from, live.to));
+    const fetched = failedKeys.filter((key) => !liveKeys.has(key));
+    return {
+      liveFailed: failedKeys.some((key) => liveKeys.has(key)),
+      fetchedSpan: fetched.length > 0 ? `${fetched[0]}|${fetched[fetched.length - 1]}` : "",
+    };
+  }, [failedKeys]);
+  const readFetchedSpan = React.useCallback(() => {
+    const current = latestWindow.current;
+    if (!current || !fetchedSpan) return;
+    const [first, last] = fetchedSpan.split("|");
+    // Forced: a day whose earlier read landed keeps that read's stamp, and an
+    // unforced ask would find it fresh and skip it.
+    current.ensureRange(dayToDate(first), dayToDate(last), true);
+  }, [fetchedSpan]);
+
+  /*
+   * A failed day is asked for again while it is on screen and the page is
+   * visible, every FETCH_RETRY_MS, until none remain (the review, Oct 10 2026:
+   * it was asked once, keyed on how many days had failed).
+   */
+  useEffect(() => {
+    if (!fetchedSpan) return;
+    const t = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      readFetchedSpan();
+    }, FETCH_RETRY_MS);
+    return () => clearInterval(t);
+  }, [fetchedSpan, readFetchedSpan]);
+
+  /* Try again: the listener reopened when a live day failed, and the fetched failed days read again. */
+  const retryUnread = () => {
+    if (liveFailed) latestWindow.current?.retry?.();
+    readFetchedSpan();
+  };
+
   /* ---------------- trainers ---------------- */
 
-  const visibleTrainers = useMemo(() => {
-    return trainers.filter((t) => {
-      if (t.isVisibleOnCalendar === false) return false;
-
-      const isAssigned =
-        !activeStudioId ||
-        t.primaryHomeStudioId === activeStudioId ||
-        t.accessibleStudioIds?.includes(activeStudioId) ||
-        t.activeGuestStudioIds?.includes(activeStudioId);
-      if (isAssigned) return true;
-
-      // A guest trainer with sessions in this studio still belongs on its
-      // calendar even when no assignment field says so.
-      return schedules.some((s) => {
-        if (s.status === "Cancelled") return false;
-        if (activeStudioId && s.studioId && s.studioId !== activeStudioId) return false;
-        if (s.trainerId && t.id && String(s.trainerId) === String(t.id)) return true;
-        return Boolean(
-          s.trainerName &&
-            t.fullName &&
-            s.trainerName.toLowerCase() === t.fullName.toLowerCase(),
-        );
-      });
-    });
-  }, [trainers, activeStudioId, schedules]);
-
-  /**
-   * Mindbody names a trainer three different ways depending on the endpoint,
-   * so this tries id, then full name, then first name, then a prefix match.
-   * Unchanged from the previous implementation on purpose — it is load-bearing
-   * for real studio data and this round is a UI round.
+  /*
+   * WHOSE BOOKING (the rooms round, Oct 10 2026): the Hub's rule
+   * (hub-schedule/columns.ts) — the booking's trainer id, else the Mindbody
+   * staff id at this studio's site, else Unassigned. Never a name. The
+   * Calendar matched a name down to a first name or its first letters, so two
+   * Chrises could swap and a "Chris" took Christine's bookings; the Hub
+   * retired that on Oct 1 2026 and the Calendar follows it now.
    */
-  const resolveTrainerId = React.useCallback(
-    (s: any): string | null => {
-      if (!s) return null;
-      const sId = s.trainerId || s.staffId || s.StaffId;
-      if (sId) {
-        const found = trainers.find((t) => String(t.id) === String(sId));
-        if (found) return found.id ?? null;
-      }
-      const sName = (s.trainerName || s.staffName || s.StaffFirstName || "")
-        .trim()
-        .toLowerCase();
-      if (sName) {
-        const found = trainers.find((t) => {
-          if (!t.fullName) return false;
-          const tFull = t.fullName.trim().toLowerCase();
-          const tFirst = ((t as any).firstName || t.fullName).split(" ")[0].trim().toLowerCase();
-          return (
-            sName === tFull ||
-            sName === tFirst ||
-            sName.startsWith(tFirst) ||
-            tFirst.startsWith(sName)
-          );
-        });
-        if (found) return found.id ?? null;
-      }
-      return null;
-    },
+  const trainerIdSet = useMemo(
+    () => new Set(trainers.map((t) => (t.id ? String(t.id) : "")).filter(Boolean)),
     [trainers],
   );
+  const staffIds = useMemo(() => staffIdsAt(trainers as any, mindbodySiteId ?? null), [trainers, mindbodySiteId]);
+  const whoseBooking = React.useCallback(
+    (s: any): string | null => {
+      const column = columnIdOf(s, trainerIdSet, staffIds);
+      return column === null || column === UNASSIGNED_ID ? null : column;
+    },
+    [trainerIdSet, staffIds],
+  );
+
+  /* The team at this studio, and a guest whose bookings here are theirs by id. */
+  const visibleTrainers = useMemo(() => {
+    const guests = new Set<string>();
+    for (const s of schedules as any[]) {
+      if (s.status === "Cancelled") continue;
+      if (activeStudioId && s.studioId && s.studioId !== activeStudioId) continue;
+      const id = whoseBooking(s);
+      if (id) guests.add(id);
+    }
+    return trainers.filter((t) => worksHereOnCalendar(t, activeStudioId ?? null) || (t.id ? guests.has(String(t.id)) : false));
+  }, [trainers, activeStudioId, schedules, whoseBooking]);
 
   const trainerRefs = useMemo(() => {
     const map = new Map<string, TrainerRef>();
@@ -257,6 +367,14 @@ export function CalendarView({
     return map;
   }, [visibleTrainers]);
 
+  /* The studio's order (the trainers arrive sorted): who comes first in a Week slot after you. */
+  const trainerOrder = useMemo(() => trainers.map((t) => String(t.id ?? "")).filter(Boolean), [trainers]);
+
+  const pickerTrainers = useMemo(
+    () => visibleTrainers.filter((t) => t.id).map((t) => ({ id: String(t.id), name: (t.fullName || "").trim() || "Trainer" })),
+    [visibleTrainers],
+  );
+
   /* ---------------- sessions ---------------- */
 
   const sessions = useMemo<CalendarSession[]>(() => {
@@ -264,8 +382,8 @@ export function CalendarView({
     schedules.forEach((s: any, i) => {
       if (s.status === "Cancelled") return;
 
-      const trainerId = resolveTrainerId(s);
-      if (selectedTrainerId !== "all" && trainerId !== selectedTrainerId) return;
+      const trainerId = whoseBooking(s);
+      if (selectedTrainerId !== ENTIRE_TEAM && trainerId !== selectedTrainerId) return;
 
       const start = safeToDate(s.startTime || s.StartDateTime || s.date || s.start);
       if (!start) return;
@@ -294,20 +412,20 @@ export function CalendarView({
       });
     });
     return out;
-  }, [schedules, resolveTrainerId, selectedTrainerId]);
+  }, [schedules, whoseBooking, selectedTrainerId]);
 
   /**
-   * Events are clients' FORD dates (the Atlas answers, Oct 2 2026): every
-   * client's birthday, every year, and each dated FORD detail on the days on
-   * screen (features/calendar/ford-events.ts). The frozen `client.events`
-   * list is no longer read. One read of the studio's FORD per month on
-   * screen, only while Month shows events.
+   * Life events are clients' FORD dates (the Atlas answers, Oct 2 2026):
+   * every client's birthday, every year, and each dated FORD detail on the
+   * days on screen (features/calendar/ford-events.ts). One read of the
+   * studio's FORD per month on screen, while Month or Day shows them. Month
+   * marks the day; Day says them.
    */
   const monthRange = useMemo(() => {
     const r = visibleRange("month", selectedDate);
     return { from: localDayKey(r.from), to: localDayKey(r.to) };
   }, [selectedDate]);
-  const ford = useCalendarFord(activeStudioId ?? null, monthRange.from, monthRange.to, viewMode === "month" && filterMode !== "sessions");
+  const ford = useCalendarFord(activeStudioId ?? null, monthRange.from, monthRange.to, viewMode !== "week");
   const events = useMemo<CalendarEvent[]>(
     () =>
       fordCalendarEvents({
@@ -320,19 +438,10 @@ export function CalendarView({
     [ford.details, clients, activeStudioId, monthRange.from, monthRange.to],
   );
 
-  const shownSessions = filterMode === "events" ? [] : sessions;
-  const shownEvents = filterMode === "sessions" ? [] : events;
-
   /* ---------------- navigation ---------------- */
 
   const step = (direction: 1 | -1) => {
-    setSelectedDate((cur) => {
-      const next = new Date(cur);
-      if (viewMode === "month") next.setMonth(cur.getMonth() + direction);
-      else if (viewMode === "week") next.setDate(cur.getDate() + 7 * direction);
-      else next.setDate(cur.getDate() + direction);
-      return next;
-    });
+    setSelectedDate((cur) => stepDate(cur, viewMode, direction));
   };
 
   const navLabels = useMemo(() => {
@@ -366,108 +475,147 @@ export function CalendarView({
    * resolve simply does not navigate — it never writes a link as a side effect
    * of a tap, which is what the previous version did.
    */
-  const openClient = (clientId: string) => {
-    if (!onSelectClient || !setView) return;
-    const target = String(clientId).trim();
-    const match = (clients || []).find((c) => c?.id && String(c.id).trim() === target);
+  const clientsById = useMemo(() => {
+    const map = new Map<string, Client>();
+    for (const c of clients ?? []) if (c?.id) map.set(String(c.id).trim(), c as Client);
+    return map;
+  }, [clients]);
+  /*
+   * Has a booking's client a profile to open? A Week booking with none says
+   * so (the Hub card's "Not synced yet"), never a tap that does nothing; while
+   * the client list loads or after it failed, it is unknown and says nothing.
+   */
+  const profileOf = React.useCallback(
+    (clientId: string | null | undefined): "linked" | "unlinked" | "unknown" => {
+      const id = clientId ? String(clientId).trim() : "";
+      if (!id) return "unlinked";
+      if (clientsById.has(id)) return "linked";
+      return rosterStatus === "loading" || rosterStatus === "error" ? "unknown" : "unlinked";
+    },
+    [clientsById, rosterStatus],
+  );
+  /*
+   * ONE handler for every booking, kept across renders (the review, Oct 10
+   * 2026): a new one each render redrew every memoised card and booking on a
+   * 30-second tick. It reads the latest clients and doors through a ref.
+   */
+  const latestDoors = useRef({ clientsById, onSelectClient, setView });
+  latestDoors.current = { clientsById, onSelectClient, setView };
+  const openClient = React.useCallback((clientId: string) => {
+    const { clientsById: byId, onSelectClient: select, setView: go } = latestDoors.current;
+    if (!select || !go) return;
+    const match = byId.get(String(clientId).trim());
     if (!match?.id) return;
-    onSelectClient(match.id);
-    setView("profile");
-  };
+    select(match.id);
+    go("profile");
+  }, []);
 
-  const openDay = (date: Date) => {
+  const openDay = React.useCallback((date: Date) => {
     setSelectedDate(date);
     setViewMode("day");
-  };
+  }, []);
 
   const todayKey = studioDateKey(new Date());
-  const viewingToday = studioDateKey(selectedDate) === todayKey;
+  const pickedToday = studioDateKey(selectedDate) === todayKey;
+
+  /* ---------------- the Day: the Hub's grid ---------------- */
+
+  const dayKey = studioDateKey(selectedDate) ?? localDayKey(selectedDate);
+  /* The day's bookings at this studio, in time order (the Hub's own filter). */
+  const dayBookings = useMemo(() => {
+    if (viewMode !== "day") return NO_BOOKINGS;
+    const { start, end } = studioDayBoundsForKey(dayKey);
+    return (schedules as any[])
+      .filter((s) => {
+        if (s.status === "Cancelled") return false;
+        const at = safeToDate(s.startTime || s.StartDateTime || s.date);
+        return !!at && at >= start && at <= end;
+      })
+      .sort((a, b) => {
+        const x = safeToDate(a.startTime || a.StartDateTime || a.date)?.getTime() ?? 0;
+        const y = safeToDate(b.startTime || b.StartDateTime || b.date)?.getTime() ?? 0;
+        return x - y;
+      });
+  }, [viewMode, schedules, dayKey]);
+  const nowDate = useMemo(() => new Date(now), [now]);
+
+  /*
+   * May the Day's cards say what happened? Only on the days the session
+   * stream covers (lib/hub-card-state `cardDayReadable`: the studio's today
+   * once its server has answered, and the days ahead in the Hub's window);
+   * elsewhere a card is "unread", no fade and no word (AJ's Sep 24 rule).
+   */
+  const studioToday = todayKey ?? dayKey;
+  const dayReadable = cardDayReadable(dayKey, {
+    today: studioToday,
+    lastDay: hubWindow(studioToday, studioToday).to,
+    sessionsKnown,
+  });
+  const readsStudio = mayReadWeeks(authTrainer, activeStudioId ?? null);
+
+  /* The team filter's trainer, by name ("you" when it's yours): an empty day says whose it is. */
+  const filterName =
+    selectedTrainerId === ENTIRE_TEAM
+      ? null
+      : authTrainer?.id && selectedTrainerId === String(authTrainer.id)
+        ? "you"
+        : pickerTrainers.find((t) => t.id === selectedTrainerId)?.name ?? null;
+
+  /*
+   * Who's on (the Hub's hatching): the AGREED standing weeks, one listener on
+   * the studio's, only while the Day is on an iPad and only for someone who
+   * may read them (mayReadWeeks, the rule the Hub asks), so no refused
+   * listener is opened. It is the Hub's own read, and the Hub is not mounted
+   * while the Calendar is. No agreed week, or no answer, hatches nothing.
+   */
+  const readsWeeks = viewMode === "day" && !isPhone && readsStudio;
+  const standingWeeks = useStandingWeeks(readsWeeks ? activeStudioId : null);
+  const weeks = useMemo(() => weeksByTrainer(standingWeeks.docs), [standingWeeks.docs]);
+  const weekday = weekdayOf(dayKey);
+  const frameOf = React.useCallback(
+    (columnId: string, span: Span) => trainerDayFrame(weeks.get(columnId), dayKey, weekday, span),
+    [weeks, dayKey, weekday],
+  );
+  const dayEvents = useMemo(() => (viewMode === "day" ? eventsOnDay(events, selectedDate) : []), [viewMode, events, selectedDate]);
 
   return (
-    <div className="cal cal-shell">
-      <header className="cal-header">
-        <div className="cal-header__title">
-          <span className="cal-header__icon">
-            <CalendarIcon size={20} strokeWidth={2.2} aria-hidden />
-          </span>
-          <div>
-            <h2 className="cal-header__name">
-              {viewMode === "month" ? "Month" : viewMode === "week" ? "Week" : "Day"}
-            </h2>
-            <div className="cal-header__sub">
-              {viewingToday ? "Today" : "Schedule overview"}
-            </div>
-          </div>
-        </div>
-
-        <DateNavigator
-          primary={navLabels.primary}
-          secondary={navLabels.secondary}
-          onPrev={() => step(-1)}
-          onNext={() => step(1)}
-          onToday={() => setSelectedDate(new Date())}
-          prevLabel={`Previous ${viewMode}`}
-          nextLabel={`Next ${viewMode}`}
-        />
-
-        <div className="cal-seg" role="group" aria-label="View">
-          {(["month", "week", "day"] as ViewMode[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              className="cal-seg__btn"
-              aria-pressed={viewMode === m}
-              onClick={() => setViewMode(m)}
-            >
-              {m === "month" ? "Month" : m === "week" ? "Week" : "Day"}
-            </button>
-          ))}
-        </div>
-
-        {viewMode === "month" && (
-          <div className="cal-seg" role="group" aria-label="Show">
-            {(
-              [
-                ["all", "All"],
-                ["sessions", "Sessions"],
-                ["events", "Events"],
-              ] as [FilterMode, string][]
-            ).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                className="cal-seg__btn"
-                aria-pressed={filterMode === mode}
-                onClick={() => setFilterMode(mode)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <label className="cal-picker">
-          <Users size={15} strokeWidth={2.4} aria-hidden />
-          <span className="sr-only">Filter by trainer</span>
-          <select
+    <div className="cal cal-room">
+      <RoomBar
+        room="calendar"
+        name="Calendar"
+        icon={CalendarDays}
+        switcher={<RoomSwitch<ViewMode> label="View" options={VIEWS} value={viewMode} onChange={(next) => setViewMode(next)} />}
+        tools={
+          <TeamPicker
+            trainers={pickerTrainers}
             value={selectedTrainerId}
-            onChange={(e) => setSelectedTrainerId(e.target.value)}
-          >
-            <option value="all">Entire team</option>
-            {visibleTrainers
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.fullName}
-                </option>
-              ))}
-          </select>
-        </label>
+            onChange={setSelectedTrainerId}
+            selfId={authTrainer?.id ?? null}
+          />
+        }
+      >
+        <div className="cal-when">
+          <DateNavigator
+            primary={navLabels.primary}
+            secondary={navLabels.secondary}
+            onPrev={() => step(-1)}
+            onNext={() => step(1)}
+            onToday={() => setSelectedDate(new Date())}
+            prevLabel={`Previous ${viewMode}`}
+            nextLabel={`Next ${viewMode}`}
+          />
+          {!pickedToday && (
+            <button type="button" className="rm-tool" onClick={() => setSelectedDate(new Date())}>
+              Today
+            </button>
+          )}
+        </div>
 
         {scheduleWindow && (
           <div className="cal-refresh">
             <button
               type="button"
-              className="cal-refresh__btn"
+              className="rm-tool cal-refresh__btn"
               onClick={() => void refreshSchedules()}
               disabled={scheduleWindow.isFetching}
               aria-label="Refresh the schedule"
@@ -475,61 +623,111 @@ export function CalendarView({
               {scheduleWindow.isFetching ? (
                 <LoadingMark label="" size="sm" />
               ) : (
-                <RefreshCw size={15} strokeWidth={2.4} aria-hidden />
+                <RefreshCw size={16} strokeWidth={2.4} aria-hidden />
               )}
-              Refresh
+              <span className="cal-refresh__word">Refresh</span>
             </button>
             <span className="cal-refresh__note" role="status" aria-live="polite">
               {scheduleWindow.isFetching ? "Updating…" : freshness}
             </span>
           </div>
         )}
-      </header>
+      </RoomBar>
 
-      {/* The Relay layer: reminders, timed studio tasks, jobs, initiatives
-          and hand-offs on the days on screen (Relay, Sep 2026; was the
-          reminders strip of the Planner rework). */}
-      <RelayStrip
-        studioId={activeStudioId ?? null}
-        trainerId={authTrainer?.id ?? null}
-        from={visibleRange(viewMode, selectedDate).from}
-        to={visibleRange(viewMode, selectedDate).to}
-        onOpenPlanner={setView ? () => setView("studio-tasks") : undefined}
-      />
+      {failedDays > 0 && <HubNotice words={unreadWords(viewMode, failedDays)} onRetry={retryUnread} />}
 
-      {viewMode === "month" && filterMode !== "sessions" && ford.status === "failed" && (
-        <p className="cal-refresh__note" role="status">
-          {"Couldn\u2019t read the studio\u2019s FORD dates just now, so only birthdays show."}
-        </p>
-      )}
-
-      {viewMode === "month" && (
-        <MonthView
-          anchor={selectedDate}
-          sessions={shownSessions}
-          events={shownEvents}
-          trainerRefs={trainerRefs}
-          selectedDate={selectedDate}
-          onSelectDate={openDay}
+      {viewMode === "day" ? (
+        /* The Day is the Hub's grid, which is its own scroller for both axes
+           (its names row sticks to the top, its rail to the left), so it
+           takes the room under the bar rather than sitting in the body's. */
+        <div className="cal-daybody">
+          <div className="cal-daytop">
+            <RelayStrip
+              studioId={activeStudioId ?? null}
+              trainerId={authTrainer?.id ?? null}
+              from={range.from}
+              to={range.to}
+              onOpenPlanner={setView ? () => setView("studio-tasks") : undefined}
+            />
+            <DayLife events={dayEvents} onOpenClient={openClient} />
+          </div>
+          <DayView
+            dayKey={dayKey}
+            bookings={dayBookings}
+            trainers={trainers}
+            studioId={activeStudioId ?? null}
+            staffIds={staffIds}
+            selfId={authTrainer?.id ?? null}
+            onlyTrainerId={selectedTrainerId === ENTIRE_TEAM ? null : selectedTrainerId}
+            clientsById={clientsById}
+            rosterLoading={rosterStatus === "loading"}
+            rosterFailed={rosterStatus === "error"}
+            now={nowDate}
+            readState={stateOfDay(dayKey)}
+            sessions={workoutSessions}
+            sessionsKnown={sessionsKnown}
+            readable={dayReadable}
+            readsStudio={readsStudio}
+            frameOf={readsWeeks ? frameOf : undefined}
+            phone={isPhone}
+            onOpenClient={openClient}
+          />
+        </div>
+      ) : (
+      <div className="cal-body" data-view={viewMode}>
+        {/* The Relay layer: reminders, timed studio tasks, jobs, initiatives
+            and hand-offs on the days on screen (Relay, Sep 2026; was the
+            reminders strip of the Planner rework). */}
+        <RelayStrip
+          studioId={activeStudioId ?? null}
+          trainerId={authTrainer?.id ?? null}
+          from={range.from}
+          to={range.to}
+          onOpenPlanner={setView ? () => setView("studio-tasks") : undefined}
         />
-      )}
 
-      {viewMode === "week" && (
-        <WeekView
-          anchor={selectedDate}
-          sessions={sessions}
-          trainerRefs={trainerRefs}
-          onSelectDate={openDay}
-        />
-      )}
+        {viewMode === "month" && ford.status === "failed" && (
+          <p className="cal-note" role="status">
+            {"Couldn’t read the studio’s FORD dates just now, so only birthdays are marked."}
+          </p>
+        )}
 
-      {viewMode === "day" && (
-        <DayView
-          date={selectedDate}
-          sessions={sessions}
-          trainerRefs={trainerRefs}
-          onSelectClient={openClient}
-        />
+        {/* Narrowed to one trainer, the page says whose bookings these are (the review, Oct 10 2026). */}
+        {filterName && (
+          <p className="cal-note" role="status">
+            {`Showing ${filterName === "you" ? "your" : `${filterName}’s`} bookings only.`}
+          </p>
+        )}
+
+        {viewMode === "month" && (
+          <MonthView
+            anchor={selectedDate}
+            sessions={sessions}
+            events={events}
+            selectedDate={selectedDate}
+            onSelectDate={openDay}
+            stateOf={stateOfDay}
+            filterName={filterName}
+          />
+        )}
+
+        {viewMode === "week" && (
+          <WeekView
+            anchor={selectedDate}
+            sessions={sessions}
+            trainerRefs={trainerRefs}
+            trainerOrder={trainerOrder}
+            selfId={authTrainer?.id ?? null}
+            selectedDate={selectedDate}
+            onSelectDate={openDay}
+            onSelectClient={openClient}
+            stateOf={stateOfDay}
+            priorStateOf={stateOf}
+            filterName={filterName}
+            profileOf={profileOf}
+          />
+        )}
+      </div>
       )}
     </div>
   );

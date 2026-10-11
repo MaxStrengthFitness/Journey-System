@@ -11,7 +11,8 @@
  * looking at the calendar from another timezone.
  */
 
-import { studioDateKey, zonedHM } from "../../lib/studio-time";
+import { formatDateWords, studioDateKey, zonedHM } from "../../lib/studio-time";
+import { clockWords } from "../hub-schedule/grid-model";
 import type { Trainer } from "../../types";
 import { initialsOf, shortNameOf, toneFor } from "./trainer-tone";
 import type {
@@ -19,14 +20,18 @@ import type {
   CalendarSession,
   DayBar,
   DayCell,
-  DayLane,
-  DayPlan,
   HeatCell,
   TimeBand,
   TrainerCount,
   TrainerRef,
+  WeekAgendaDay,
   WeekSummary,
 } from "./types";
+
+/** Constant option objects, so each formatter is built once (the iPad round's Intl trap). */
+const WEEKDAY_SHORT: Intl.DateTimeFormatOptions = { weekday: "short" };
+const WEEKDAY_LONG: Intl.DateTimeFormatOptions = { weekday: "long" };
+const MONTH_DAY: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
 
 /* ------------------------------------------------------------------ *
  * Trainers
@@ -111,7 +116,6 @@ export function buildMonthCells(
   monthAnchor: Date,
   sessions: CalendarSession[],
   events: CalendarEvent[],
-  refs: Map<string, TrainerRef>,
   today: Date = new Date(),
 ): DayCell[] {
   const year = monthAnchor.getFullYear();
@@ -155,7 +159,6 @@ export function buildMonthCells(
       inCurrentMonth: date.getMonth() === month,
       isToday: key === todayKey,
       total: daySessions.filter((s) => !s.isUnavailability).length,
-      byTrainer: countByTrainer(daySessions, refs),
       events: eventsByDay.get(key) || [],
     });
   }
@@ -251,6 +254,8 @@ export function buildWeekSummary(
   sessions: CalendarSession[],
   refs: Map<string, TrainerRef>,
   today: Date = new Date(),
+  /** Was this studio day's bookings read? The comparison with last week needs all seven. */
+  priorRead?: (dayKey: string) => boolean,
 ): WeekSummary {
   const days = weekDays(anchor);
   const byDay = bucketByDay(sessions.filter((s) => !s.isUnavailability));
@@ -261,7 +266,7 @@ export function buildWeekSummary(
     return {
       date,
       key,
-      label: date.toLocaleDateString(undefined, { weekday: "short" }),
+      label: formatDateWords(date, WEEKDAY_SHORT),
       dayOfMonth: date.getDate(),
       isToday: key === todayKey,
       count: (byDay.get(key) || []).length,
@@ -272,7 +277,11 @@ export function buildWeekSummary(
   for (const d of days) inWeek.push(...(byDay.get(dayKey(d)) || []));
 
   // Previous week, from the same already-loaded set. Null rather than 0 when
-  // nothing is loaded back there, so the delta never claims a fake -100%.
+  // it isn't all known, so the delta never claims a fake -100%. With
+  // `priorRead` (the schedule window's word for each studio day; the review,
+  // Oct 10 2026) the comparison needs all seven prior days read: a week only
+  // partly cached made a fall out of days nobody had read. Without it, the
+  // old rule: something loaded back there.
   const prevDays = weekDays(new Date(days[0].getTime() - 7 * 86400000));
   let previousTotal: number | null = 0;
   let sawAny = false;
@@ -281,7 +290,7 @@ export function buildWeekSummary(
     if (n > 0) sawAny = true;
     previousTotal = (previousTotal || 0) + n;
   }
-  if (!sawAny) previousTotal = null;
+  if (priorRead ? !prevDays.every((d) => priorRead(dayKey(d))) : !sawAny) previousTotal = null;
 
   const heat: HeatCell[] = [];
   const counts = new Map<string, number>();
@@ -325,73 +334,68 @@ export function buildWeekSummary(
 }
 
 /* ------------------------------------------------------------------ *
+ * Week: the bookings, day by day (the rooms round, Oct 10 2026)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The week's bookings as an agenda (AJ's answer 3b on "Journey Rooms": the
+ * Week shows who is booked when, the charts folded under it). Seven days,
+ * each its bookings grouped by their start in studio time, a Mindbody
+ * "Unavailable" never a booking. In a slot, the bookings run in the order
+ * `rankOf` gives (yours first, then the studio's order, Unassigned last),
+ * then by name.
+ */
+export function buildWeekAgenda(
+  anchor: Date,
+  sessions: CalendarSession[],
+  rankOf: (trainerId: string | null) => number,
+  today: Date = new Date(),
+): WeekAgendaDay[] {
+  const todayKey = dayKey(today);
+  const byDay = bucketByDay(sessions.filter((s) => !s.isUnavailability));
+  return weekDays(anchor).map((date) => {
+    const key = dayKey(date);
+    const own = byDay.get(key) || [];
+    const bySlot = new Map<number, CalendarSession[]>();
+    for (const s of own) {
+      const min = studioMinutes(s.start);
+      const list = bySlot.get(min);
+      if (list) list.push(s);
+      else bySlot.set(min, [s]);
+    }
+    const slots = [...bySlot.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([min, items]) => ({
+        min,
+        label: clockWords(min),
+        items: [...items].sort(
+          (a, b) => rankOf(a.trainerId) - rankOf(b.trainerId) || a.clientName.localeCompare(b.clientName),
+        ),
+      }));
+    return {
+      date,
+      key,
+      weekday: formatDateWords(date, WEEKDAY_LONG),
+      short: formatDateWords(date, WEEKDAY_SHORT),
+      monthDay: formatDateWords(date, MONTH_DAY),
+      dayOfMonth: date.getDate(),
+      isToday: key === todayKey,
+      count: own.length,
+      slots,
+    };
+  });
+}
+
+/* ------------------------------------------------------------------ *
  * Day
  * ------------------------------------------------------------------ */
 
-/** Minutes from midnight, in STUDIO time. */
+/**
+ * Minutes from midnight, in STUDIO time: where a booking sits on the Day's
+ * grid (the Hub's grid since the rooms round, Oct 10 2026; the swimlanes'
+ * buildDayPlan went with them).
+ */
 export function studioMinutes(date: Date): number {
   const hm = zonedHM(date);
   return hm ? hm.hour * 60 + hm.minute : date.getHours() * 60 + date.getMinutes();
-}
-
-/**
- * One row per trainer, sessions laid along a shared time axis.
- *
- * The axis is derived from the day's real bookings rather than a fixed
- * 6 AM – 8 PM, so a quiet Saturday that runs 8–11 draws three hours wide
- * instead of fourteen mostly-empty ones. Padded to whole hours and floored at
- * a two-hour span so a single booking still gets a readable axis.
- */
-export function buildDayPlan(
-  date: Date,
-  sessions: CalendarSession[],
-  refs: Map<string, TrainerRef>,
-): DayPlan {
-  const key = dayKey(date);
-  const today = sessions.filter((s) => dayKey(s.start) === key);
-
-  const laneMap = new Map<string, DayLane>();
-  const unassigned: CalendarSession[] = [];
-
-  for (const s of today) {
-    const id = s.trainerId;
-    if (!id) {
-      unassigned.push(s);
-      continue;
-    }
-    const trainer = refs.get(id) || unknownTrainerRef(s.trainerName);
-    const lane = laneMap.get(id);
-    if (lane) lane.sessions.push(s);
-    else laneMap.set(id, { trainer, sessions: [s], count: 0 });
-  }
-
-  const lanes = Array.from(laneMap.values());
-  for (const lane of lanes) {
-    lane.sessions.sort((a, b) => a.start.getTime() - b.start.getTime());
-    lane.count = lane.sessions.filter((s) => !s.isUnavailability).length;
-  }
-  lanes.sort((a, b) => b.count - a.count || a.trainer.name.localeCompare(b.trainer.name));
-
-  let min = Infinity;
-  let max = -Infinity;
-  for (const s of today) {
-    min = Math.min(min, studioMinutes(s.start));
-    max = Math.max(max, studioMinutes(s.start) + Math.max(s.durationMin, 30));
-  }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    min = 6 * 60;
-    max = 20 * 60;
-  }
-
-  let startHour = Math.max(0, Math.floor(min / 60));
-  let endHour = Math.min(24, Math.ceil(max / 60));
-  if (endHour - startHour < 2) endHour = Math.min(24, startHour + 2);
-
-  return {
-    lanes,
-    startHour,
-    endHour,
-    total: today.filter((s) => !s.isUnavailability).length,
-    unassigned,
-  };
 }
