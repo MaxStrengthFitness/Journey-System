@@ -8,7 +8,7 @@
  studio and the studios an administrator marked them as owning
  (trainers/{uid}.ownedStudioIds), exactly as a studio leader leads theirs, and
  nothing anywhere else. Built on master as it is on GitHub (c11151dc, the
- reset script's re-review). In it:
+ rooms round's ship). In it:
 
    - firestore.rules: every company-wide franchise branch gone; the owner
      beside the leaders in the two leader helpers; identity (a studio's
@@ -107,9 +107,9 @@ New-Item -ItemType Directory -Force -Path (Split-Path -Parent $LogFile) | Out-Nu
 $Branch = 'oct10/franchise-partition'
 $Folder = '.claude\worktrees\partition'
 $RestoreTag = 'restore/2026-10-10-before-partition'
-# master on GitHub when this round began (Oct 10 2026): the reset script's
-# re-review merged. If anything else lands on master first, the branch takes
-# it in and this line moves with it (ask Claude).
+# master on GitHub once the rooms round shipped (Oct 10 2026), merged into
+# this branch. If anything else lands on master first, the branch takes it in
+# and this line moves with it (ask Claude).
 $MasterBase = 'c11151dc'
 # 2 since the Hub fixes (Oct 1): clinical-review/charts.tsx and
 # EditTrainerModal.tsx. This round keeps the same two. More is new.
