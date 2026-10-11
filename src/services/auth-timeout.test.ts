@@ -112,7 +112,7 @@ describe("requireStaff's cross-train allowance", () => {
   const rest = (fields: Record<string, unknown>) =>
     new Response(JSON.stringify({ fields }), { status: 200 });
 
-  function firestoreAnswers(clientHome: string) {
+  function firestoreAnswers(clientHome: string, clientMbId: string = "100000123") {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input: any, init?: RequestInit) => {
       const url = typeof input === "string" ? input : String(input?.url ?? input);
       if (!url.includes("firestore.googleapis.com")) return realFetch(input, init);
@@ -123,7 +123,9 @@ describe("requireStaff's cross-train allowance", () => {
       if (path === "studios/solon") return rest({ mindbodySiteId: { stringValue: "5746957" } });
       if (path === "studios/westlake") return rest({ mindbodySiteId: { stringValue: "29068" } });
       if (path === "studios/demo-studio") return rest({ mindbodySiteId: { stringValue: "29068" } });
-      if (path === "clients/100000123") return rest({ homeStudioId: { stringValue: clientHome } });
+      if (path === "clients/100000123") {
+        return rest({ homeStudioId: { stringValue: clientHome }, mindbodyClientId: { stringValue: clientMbId } });
+      }
       return new Response(JSON.stringify({ error: { message: "not found" } }), { status: 404 });
     });
   }
@@ -156,6 +158,13 @@ describe("requireStaff's cross-train allowance", () => {
     const r = await ask(requireStaff({ clientLookup: true }), "scope-client-lookup");
     expect(r.status).toBe(200);
     expect(r.reached).toBe(true);
+  });
+
+  it("never lets a record whose mindbodyClientId names someone else vouch for the client asked about (attack review, Oct 10 2026)", async () => {
+    firestoreAnswers("westlake", "100000999");
+    const r = await ask(requireStaff({ clientLookup: true }), "scope-other-person");
+    expect(r.status).toBe(403);
+    expect(r.reached).toBe(false);
   });
 
   it("never lets a client homed at Demo Mode's studio vouch for a site", async () => {

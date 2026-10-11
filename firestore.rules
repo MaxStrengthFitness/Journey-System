@@ -2247,6 +2247,18 @@ service cloud.firestore {
       // counts, doubling every times-performed. Refusing the marker refuses
       // that one write whole; deleting it (the new app's replace) and every
       // other client write are unaffected. Scripts use the admin SDK.
+      //
+      // THE HOME STUDIO IS AN ADMINISTRATOR'S TO MOVE (the franchise
+      // partition's attack review, Oct 10 2026). This rule asks about the
+      // home already STORED, so a trainer at A could create a record homed at
+      // A, then re-home it to B with A on its cross-train list and keep
+      // reading it. The record then vouched, with B's home, for B's Mindbody
+      // site in the proxy's cross-train check (server/auth.ts,
+      // readableClientSite): one B client's contact details and contracts per
+      // planted record. No screen moves a client's home; only Limbo's release
+      // (Admins, an administrator) and the sync's create set one. Compared as
+      // getStudioIdFromData reads it, so neither field can stand in for the
+      // other. The visitor's totals path above already excludes both.
       allow update: if isValidClient(request.resource.data)
                     && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['renewal'])
                     && !(request.resource.data.diff(resource.data).affectedKeys().hasAny(['machineStatsBackfilledAt'])
@@ -2254,6 +2266,7 @@ service cloud.firestore {
                     && (isSuperAdmin()
                         || crossTrainSessionTotals(resource.data, callerTrainer())
                         || (isAnyAuthenticatedTrainer()
+                            && getStudioIdFromData(request.resource.data) == getStudioIdFromData(resource.data)
                             && isTrainerOfStudio(
                                  getStudioIdFromData(resource.data))));
 

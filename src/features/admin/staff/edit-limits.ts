@@ -33,6 +33,7 @@
 import type { Trainer } from "../../../types";
 import { SUPER_ROLES, FRANCHISE_ROLES } from "../../../lib/staff-access";
 import { hasRunOfDemo } from "../../demo-mode/access";
+import { isDemoStudioId } from "../../demo-mode/is-demo";
 import { leadsStudio, ledStudioIds } from "../../renewals/permissions";
 
 export interface EditLimits {
@@ -146,6 +147,14 @@ export function staffEditLimits(input: {
 
   const limits: EditLimits = { ...OPEN };
   const reasons: string[] = [];
+  // A Demo Mode trainer never carries the grant (the franchise partition's
+  // attack review, Oct 10 2026). The rules pin a demo trainer's document to
+  // an empty managedStudioIds (isDemoTrainerPayload), and the grant a leader
+  // may hand out is limited to the studios they lead by role or grant
+  // (ledStudios), which never includes 'demo-studio' -- so My Studio → Team
+  // in Demo Mode offered a switch whose every save was refused. Everyone
+  // already has the run of the practice studio; there is nothing to grant.
+  if (isDemoStudioId(home)) limits.grantHidden = true;
   if (ownsAStudio) {
     limits.roleLocked = true;
     limits.emailLocked = true;

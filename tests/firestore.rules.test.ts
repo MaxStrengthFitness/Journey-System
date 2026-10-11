@@ -8607,6 +8607,79 @@ describe("the franchise partition: an owner runs their own studios and no other"
     await assertSucceeds(getDocs(collection(ctx("adminP"), "hub_announcements", "noteNet", "acks")));
   });
 
+  // 29. The attack review (Oct 10 2026), finding 1: a trainer at A made a
+  // record homed at A, re-homed it to B with A on its cross-train list, and
+  // kept reading it -- a record that then vouched for B's Mindbody site in
+  // the proxy's cross-train check (server/auth.ts readableClientSite). A
+  // client's home is an administrator's to move: nobody else changes it,
+  // through either field getStudioIdFromData reads, even someone who runs
+  // both studios.
+  it("REGRESSION (attack review): a client's home studio is an administrator's to move, never re-homed by the studio that made the record", async () => {
+    const callers = [
+      ["trainerA", {}],
+      ["trainerA", { role: "LifeTransformer" }],
+      ["leaderA", {}],
+      ["grantA2", {}],
+      ["franchiseAB", {}],
+      ["franchiseAB", { role: "FranchiseOwner" }],
+    ] as const;
+    for (const [i, [uid, claims]] of callers.entries()) {
+      const db = ctx(uid, claims);
+      // The shared-number form the attack used: B's site, any Mindbody id.
+      const id = `222-10000005${i}`;
+      await assertSucceeds(setDoc(doc(db, "clients", id), client(A)));
+      // The attack's own write, and each half of it.
+      await assertFails(updateDoc(doc(db, "clients", id), { homeStudioId: B, approvedCrossTrainStudioIds: [A] }));
+      await assertFails(updateDoc(doc(db, "clients", id), { homeStudioId: B }));
+      await assertFails(updateDoc(doc(db, "clients", id), { homeStudioId: deleteField(), studioId: B }));
+      await assertFails(updateDoc(doc(db, "clients", id), { homeStudioId: "" }));
+      // The record stays A's, and the studio's ordinary edits still save.
+      await assertSucceeds(updateDoc(doc(db, "clients", id), { phone: "555-0109" }));
+      let home: unknown = null;
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        home = (await getDoc(doc(context.firestore(), "clients", id))).data()?.homeStudioId;
+      });
+      expect(home).toBe(A);
+    }
+    // The older field: a record with only studioId at A is not given a home elsewhere.
+    const a = ctx("trainerA");
+    await assertSucceeds(setDoc(doc(a, "clients", "legacyHomeA"), { ...client(A), homeStudioId: deleteField(), studioId: A }, { merge: true }));
+    await assertFails(updateDoc(doc(a, "clients", "legacyHomeA"), { homeStudioId: B }));
+    // Writing the home it already has is no change, and saves.
+    await assertSucceeds(updateDoc(doc(a, "clients", "legacyHomeA"), { homeStudioId: A }));
+    // An administrator moves a home (Admins → Limbo's release).
+    await assertSucceeds(updateDoc(doc(ctx("adminP"), "clients", "clientA"), { homeStudioId: B }));
+  });
+
+  // 30. The attack review (Oct 10 2026), finding 2: in Demo Mode, My Studio
+  // → Team offered a demo trainer the grant ("helps run the studio"), and
+  // every such save is refused below administrator: a demo trainer's
+  // managedStudioIds is pinned empty (isDemoTrainerPayload) and no one's led
+  // studios include 'demo-studio'. The rules are right; the app no longer
+  // offers it (admin/staff/edit-limits.ts hides the grant on a demo
+  // trainer). This holds the rules where the app now stands.
+  it("REGRESSION (attack review): nobody below administrator gives a Demo Mode trainer the grant; their other fields still save", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "trainers", "demo-trainer-lt"), {
+        ...person("demo-trainer-lt", "LifeTransformer", DEMO),
+        isDemo: true,
+        managedStudioIds: [],
+        ownedStudioIds: [],
+      });
+    });
+    for (const [uid, claims] of [
+      ["franchiseAB", {}],
+      ["franchiseAB", { role: "FranchiseOwner" }],
+      ["leaderA", {}],
+      ["trainerA", {}],
+    ] as const) {
+      const db = ctx(uid, claims);
+      const demo = doc(db, "trainers", "demo-trainer-lt");
+      await assertFails(updateDoc(demo, { isVisibleOnCalendar: false, initials: "ZZ", managedStudioIds: arrayUnion(DEMO) }));
+      await assertSucceeds(updateDoc(demo, { isVisibleOnCalendar: false, initials: "ZZ" }));
+    }
+  });
+
   // ── The budget (design §B.3): the costliest real writes, each asserting success.
   describe("inside the rules' budget", () => {
     it("fits an owner's every-field change of a colleague: home, three lists, role and email in one write", async () => {
@@ -8651,6 +8724,16 @@ describe("the franchise partition: an owner runs their own studios and no other"
         ),
       );
       await assertSucceeds(measured("sessions get: owner, cross-studio session", () => getDoc(doc(ctx("franchiseA"), "sessions", "sCross"))));
+    }, BUDGET_TIMEOUT);
+
+    // The client update's home branch, with the home-unchanged check the
+    // attack review added (Oct 10 2026), by an owner of the second studio.
+    it("fits an owner's edit of a client at the second studio they own, writing the home it already has", async () => {
+      await assertSucceeds(
+        measured("clients update: owner of two, home branch, home restated", () =>
+          updateDoc(doc(ctx("franchiseAB"), "clients", "clientB"), { phone: "555-0110", homeStudioId: B }),
+        ),
+      );
     }, BUDGET_TIMEOUT);
 
     it("fits an owner's full focus, the three lines at their limits", async () => {

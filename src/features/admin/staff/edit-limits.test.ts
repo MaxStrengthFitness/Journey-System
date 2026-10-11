@@ -120,4 +120,13 @@ describe("staffEditLimits", () => {
     const viewer = person({ id: "v", role: "LifeTransformer" });
     expect(staffEditLimits({ viewer, target: demoTrainer, viewerIsAdmin: false }).readOnly).toBe(false);
   });
+
+  it("hides the grant on a Demo Mode trainer for everyone below administrator (the rules pin it empty)", () => {
+    const demoTrainer = person({ id: "demo-trainer-1", primaryHomeStudioId: "demo-studio", accessibleStudioIds: ["demo-studio"] });
+    for (const viewer of [ownerA, leaderA, person({ id: "v", role: "LifeTransformer" })]) {
+      const l = staffEditLimits({ viewer, target: demoTrainer, viewerIsAdmin: false });
+      expect(l.grantHidden).toBe(true);
+      expect(l.readOnly).toBe(false);
+    }
+  });
 });

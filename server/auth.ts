@@ -269,11 +269,25 @@ async function readableClientSite(
       : [mindbodyClientId];
   for (const docId of candidates) {
     const { status, body } = await restGet(
-      `${documentsBase()}/clients/${encodeURIComponent(docId)}?mask.fieldPaths=homeStudioId`,
+      `${documentsBase()}/clients/${encodeURIComponent(docId)}?mask.fieldPaths=homeStudioId&mask.fieldPaths=mindbodyClientId`,
       idToken,
     );
     if (status !== 200) continue;
-    const home = decodeRestFields(body?.fields).homeStudioId;
+    const fields = decodeRestFields(body?.fields);
+    // The record must say it IS the client asked about (the franchise
+    // partition's attack review, Oct 10 2026): a record's Mindbody id is its
+    // mindbodyClientId field, never its document id (lib/mindbody-site.ts),
+    // so a record filed at an id that names someone else vouches for no one.
+    // The rules keep a record's home where it was made (clients/{id} update,
+    // an administrator's to move); this is the second lock, not the first.
+    const recordMbId = fields.mindbodyClientId;
+    if (
+      (typeof recordMbId !== "string" && typeof recordMbId !== "number") ||
+      String(recordMbId).trim() !== mindbodyClientId
+    ) {
+      continue;
+    }
+    const home = fields.homeStudioId;
     if (typeof home !== "string" || !home) continue;
     if (home === PRACTICE_STUDIO_ID) return null;
     return studioSiteOf(home, idToken);

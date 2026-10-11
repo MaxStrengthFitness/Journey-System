@@ -258,4 +258,38 @@ describe("StaffEditor offers only what the viewer may save", () => {
     expect(buttons(el).some((b) => b.includes("Approve and create the account"))).toBe(true);
     expect(select(el, "Role")!.disabled).toBe(false);
   });
+
+  // The attack review (Oct 10 2026): in Demo Mode, My Studio → Team offered
+  // a demo trainer the grant, and the rules refuse every such save (a demo
+  // trainer's managedStudioIds is pinned empty, and no one's led studios
+  // include 'demo-studio'). A franchise owner was newly refused under the
+  // partition; leaders and trainers already were.
+  for (const viewer of [
+    trainer({ id: "uid-own", fullName: "Olive Owner", role: "FranchiseOwner", ownedStudioIds: ["solon"] }),
+    trainer({ id: "uid-lee2", fullName: "Lee Leader", role: "StudioLeader" }),
+    trainer({ id: "uid-tia", fullName: "Tia Trainer", role: "LifeTransformer" }),
+  ]) {
+    it(`in Demo Mode on My Studio → Team (${(viewer as { role: string }).role}): a demo trainer's row draws no grant, and Save sends none`, async () => {
+      const demo = trainer({
+        id: "demo-trainer-lt",
+        fullName: "Dee Demo",
+        isDemo: true,
+        primaryHomeStudioId: "demo-studio",
+        accessibleStudioIds: ["demo-studio"],
+      });
+      const el = await mount(rowOf(demo), { viewer, viewerIsAdmin: false, activeStudioId: "demo-studio", grantStudioId: "demo-studio" });
+      expect(el.textContent).not.toContain("Can manage My Studio");
+      await act(async () => {
+        const i = input(el, "Initials")!;
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(i, "ZZ");
+        i.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(async () => {
+        [...el.querySelectorAll("button")].find((b) => b.textContent?.includes("Save access"))!.click();
+      });
+      expect(writes).toHaveLength(1);
+      expect(writes[0].data).toMatchObject({ initials: "ZZ" });
+      expect(writes[0].data).not.toHaveProperty("managedStudioIds");
+    });
+  }
 });
