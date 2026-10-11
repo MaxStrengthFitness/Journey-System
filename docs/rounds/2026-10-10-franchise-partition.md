@@ -343,11 +343,15 @@ measured against the budget and each query with its index.
 
 **Two limits the studio map's review found (Oct 10 2026), carried there:**
 
-- **The rules file is near Firebase's size cap.** `firestore.rules` is
-  255,229 bytes on this branch, against the 256 KiB a ruleset may be. This
-  round deploys under it. The studio map round starts by moving long comment
-  blocks into `docs/ops/RULES-NOTES.md` (checked so no rule changes), before
-  it adds anything, and the privacy lock needs that room too.
+- **The rules file was over what the rules service would take.** At
+  255,229 bytes it compiled, but its upload was refused twice (HTTP 503,
+  Oct 11 2026 at 01:19 and 01:22 ET, with no Firebase incident posted); the
+  last rules that deployed were 230,933 bytes. So the partition's rules ship
+  with the studio map's phase 0 taken onto master first (`oct11/rules-trim`):
+  the long comment blocks moved into `docs/ops/RULES-NOTES.md`, the file
+  167,911 bytes, the rule code identical (an independent comment-stripping
+  comparison against `c712bec3`, the 404 rules tests, and the lint test's
+  new size guards).
 - **A roster write can run out of expressions on a heavily changed machine.**
   On a catalog copy carrying 8 or more removed safety lines, the roster rule's
   two separate role lookups push an Out of service write past the 1,000
