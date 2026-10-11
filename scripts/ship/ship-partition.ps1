@@ -7,7 +7,7 @@
  page's 1a 2a 3a; 3a: the partition first). A franchise owner leads their home
  studio and the studios an administrator marked them as owning
  (trainers/{uid}.ownedStudioIds), exactly as a studio leader leads theirs, and
- nothing anywhere else. Built on master as it is on GitHub (609c2977, the
+ nothing anywhere else. Built on master as it is on GitHub (c11151dc, the
  reset script's re-review). In it:
 
    - firestore.rules: every company-wide franchise branch gone; the owner
@@ -34,13 +34,13 @@
    prepare  changes nothing in production and nothing in git (it reads GitHub
             with git ls-remote and the live rules with the key, and writes
             only logs\, dist\ and build\): the branch, a clean tree, that
-            master on GitHub is 609c2977 or already the branch's head, that
-            the branch fast-forwards 609c2977, that functions\ and
+            master on GitHub is c11151dc or already the branch's head, that
+            the branch fast-forwards c11151dc, that functions\ and
             render.yaml did NOT change while firestore.rules,
             firestore.indexes.json, src\lib\staff-access.ts, server\auth.ts
             and server.ts DID, the round's rules in the file, the new index
             in the file and no field overrides, the Firebase login, the
-            restore tag free or already 609c2977, the live rules (609c2977's
+            restore tag free or already c11151dc, the live rules (c11151dc's
             or this branch's), package.json and its lock unchanged, no
             Windows line ends, the case check, the typecheck COUNT (2), the
             suite in Eastern time, the functions typecheck and tests, the
@@ -50,14 +50,14 @@
             PREPARE PASSED.
 
    golive   refuses unless the branch is exactly what prepare tested and
-            master is 609c2977 or the branch's head, asks for GO, then:
+            master is c11151dc or the branch's head, asks for GO, then:
               1. the index (npx firebase deploy --only firestore:indexes
                  --project prod --non-interactive; never --force);
               2. the restore tag restore/2026-10-10-before-partition =
-                 609c2977, pushed if it is not there yet;
+                 c11151dc, pushed if it is not there yet;
               3. git push origin oct10/franchise-partition:master,
                  fast-forward only, ONLY while master on GitHub is still
-                 609c2977 (asked again just before).
+                 c11151dc (asked again just before).
             IT DOES NOT DEPLOY THE RULES. It prints Render's three presses.
 
    rules    refuses unless master on GitHub is the branch's head and Render
@@ -110,7 +110,7 @@ $RestoreTag = 'restore/2026-10-10-before-partition'
 # master on GitHub when this round began (Oct 10 2026): the reset script's
 # re-review merged. If anything else lands on master first, the branch takes
 # it in and this line moves with it (ask Claude).
-$MasterBase = '609c2977'
+$MasterBase = 'c11151dc'
 # 2 since the Hub fixes (Oct 1): clinical-review/charts.tsx and
 # EditTrainerModal.tsx. This round keeps the same two. More is new.
 $TscBaseline = 2

@@ -1,6 +1,6 @@
 # The franchise partition (Oct 10 2026)
 
-*Branch `oct10/franchise-partition`, on master `609c2977`. ROADMAP Gate B.
+*Branch `oct10/franchise-partition`, merged with master `c11151dc` (the rooms round). ROADMAP Gate B.
 Ships with `scripts/ship/ship-partition.ps1` in three stages (prepare,
 golive, rules): the app goes live first and the rules last (§7). Nothing
 changes for anyone live but the one Studio Leader (§5).*
@@ -263,7 +263,7 @@ because every new query is narrower and the old rules allow all of it.
 `scripts/ship/ship-partition.ps1`, from `.claude\worktrees\partition`:
 
 1. `-Stage prepare` changes nothing in production or git: the branch, a clean
-   tree, master on GitHub at `609c2977` (or already the branch's head), that
+   tree, master on GitHub at `c11151dc` (or already the branch's head), that
    `functions\` and `render.yaml` did NOT change while the rules, the indexes
    and the server's three files DID, the Firebase login, the restore tag, the
    live rules, the lock, line ends and case, the typecheck count (2), the suite,
@@ -271,7 +271,7 @@ because every new query is narrower and the old rules allow all of it.
    lab's markers, the rules lint test and the rules tests. Ends PREPARE PASSED.
 2. `-Stage golive` (type GO): the index (`access_requests (status,
    studioId)`; an unindexed query scans meanwhile, nothing breaks), the restore
-   tag `restore/2026-10-10-before-partition` at `609c2977`, then the push. **It
+   tag `restore/2026-10-10-before-partition` at `c11151dc`, then the push. **It
    does not deploy the rules.**
 3. In the project folder: `git pull --ff-only`.
 4. **Render, by AJ:** Manual Deploy on the web service; `curl.exe -s
