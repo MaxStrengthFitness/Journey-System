@@ -126,7 +126,16 @@ export interface ModelSizeDraft {
   height: string;
   source: string;
   note: string;
+  /**
+   * The whole mm each length was stored at, when the draft came from a
+   * stored model. Inches with one decimal can't hold every mm (1594 mm reads
+   * 62.8 in, which is 1595 mm), so a length left as it was loaded keeps its
+   * stored mm (`draftLengthMm`) and re-saving a model never moves its size.
+   */
+  stored?: { length: number | null; width: number | null; height: number | null };
 }
+
+export type SizePart = "length" | "width" | "height";
 
 const emptySizeDraft = (): ModelSizeDraft => ({ length: "", width: "", height: "", source: "", note: "" });
 
@@ -154,13 +163,28 @@ export function draftOf(raw: Partial<MachineModel> | null | undefined): ModelDra
 function sizeDraftOf(raw: unknown): ModelSizeDraft {
   if (!raw || typeof raw !== "object") return emptySizeDraft();
   const s = raw as { lengthMm?: unknown; widthMm?: unknown; heightMm?: unknown; source?: unknown; note?: unknown };
+  const whole = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : null);
   return {
     length: mmToInchesText(s.lengthMm),
     width: mmToInchesText(s.widthMm),
     height: mmToInchesText(s.heightMm),
     source: typeof s.source === "string" ? s.source : "",
     note: typeof s.note === "string" ? s.note : "",
+    stored: { length: whole(s.lengthMm), width: whole(s.widthMm), height: whole(s.heightMm) },
   };
+}
+
+/**
+ * One of the draft's lengths in whole mm, or null when it is empty or not a
+ * length: the stored mm while the text still reads as it was loaded, else
+ * the typed inches. The document and the editor's mm line both ask it.
+ */
+export function draftLengthMm(z: ModelSizeDraft, part: SizePart): number | null {
+  const text = z[part].trim();
+  if (!text) return null;
+  const stored = z.stored?.[part] ?? null;
+  if (stored !== null && text === mmToInchesText(stored)) return stored;
+  return inchesToMm(text);
 }
 
 /** What the draft's size says, worked out once for the checks and the document. */
@@ -242,11 +266,12 @@ export function modelDocument(d: ModelDraft): Omit<MachineModel, "updatedAt" | "
   // The size only when both the length and the width are given: the whole
   // `size` key is never written empty, null or undefined.
   const z = sizeOfDraft(d.size);
-  const lengthMm = z.length ? inchesToMm(z.length) : null;
-  const widthMm = z.width ? inchesToMm(z.width) : null;
+  const raw = d.size ?? emptySizeDraft();
+  const lengthMm = draftLengthMm(raw, "length");
+  const widthMm = draftLengthMm(raw, "width");
   if (lengthMm !== null && widthMm !== null) {
     const size: ModelSize = { lengthMm, widthMm, source: z.source };
-    const heightMm = z.height ? inchesToMm(z.height) : null;
+    const heightMm = draftLengthMm(raw, "height");
     if (heightMm !== null) size.heightMm = heightMm;
     if (z.note) size.note = z.note;
     doc.size = size;

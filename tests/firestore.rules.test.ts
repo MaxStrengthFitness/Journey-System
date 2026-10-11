@@ -8977,6 +8977,16 @@ describe("the franchise partition: an owner runs their own studios and no other"
         await assertSucceeds(undo.commit());
       });
 
+      it("U13: still takes a write to an entry whose stored unit is not a map (legacy data)", async () => {
+        for (const unit of [null, "IS-0042"]) {
+          await testEnv.withSecurityRulesDisabled(async (context) => {
+            await updateDoc(roster(context.firestore(), A), { unit });
+          });
+          await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { status: "maintenance" }));
+          await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { status: "active" }));
+        }
+      });
+
       it("U12: takes a model id no record carries (the app, not the rules, refuses a wrong model)", async () => {
         await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { modelId: "mm-does-not-exist" }));
       });
@@ -9006,14 +9016,20 @@ describe("the franchise partition: an owner runs their own studios and no other"
         ["franchiseAB", B, "an owner at a studio they own, not their home"],
         ["grantA2", A, "the grant"],
         ["guestGrantA", A, "a guest holding the grant"],
-      ] as const)("B1: fits each roster write by %s at %s (%s), ten removed safety lines, no role claim", async (uid, studioId) => {
+      ] as const)("B1: fits each roster write by %s at %s (%s), ten removed safety lines, no role claim", async (uid, studioId, _who) => {
         for (const [label, data] of writes(uid)) {
           await assertSucceeds(measured(`roster update, ${label}: ${uid} at ${studioId}, 10 removed lines`, () => updateDoc(roster(ctx(uid), studioId), data)));
         }
-        // The walking order, as saveOrder sends it: a merge set of the order and the stamp.
+        // The walking order, as saveOrder sends it: an update of the order and the stamp.
         await assertSucceeds(
           measured(`roster update, order: ${uid} at ${studioId}, 10 removed lines`, () =>
-            setDoc(roster(ctx(uid), studioId), { order: 7, updatedAt: serverTimestamp(), updatedBy: uid }, { merge: true }),
+            updateDoc(roster(ctx(uid), studioId), { order: 7, updatedAt: serverTimestamp(), updatedBy: uid }),
+          ),
+        );
+        // And resetOrder: an update that deletes the order.
+        await assertSucceeds(
+          measured(`roster update, order reset: ${uid} at ${studioId}, 10 removed lines`, () =>
+            updateDoc(roster(ctx(uid), studioId), { order: deleteField(), updatedAt: serverTimestamp() }),
           ),
         );
       }, BUDGET_TIMEOUT);
@@ -9021,7 +9037,7 @@ describe("the franchise partition: an owner runs their own studios and no other"
       it("B2: fits the walking-order drag by an owner at an owned studio that isn't their home", async () => {
         const db = ctx("franchiseAB");
         const order = writeBatch(db);
-        order.set(roster(db, B), { order: 2, updatedAt: serverTimestamp(), updatedBy: "franchiseAB" }, { merge: true });
+        order.update(roster(db, B), { order: 2, updatedAt: serverTimestamp(), updatedBy: "franchiseAB" });
         await assertSucceeds(measured("roster batch, order only: franchiseAB at B, 10 removed lines", () => order.commit()));
       }, BUDGET_TIMEOUT);
 

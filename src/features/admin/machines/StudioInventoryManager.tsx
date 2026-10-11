@@ -222,7 +222,6 @@ export function StudioInventoryManager({
   // A walking order being put together is unsaved work: switching to the
   // Layout, another section or another screen asks first (the studio map).
   useUnsavedChanges(reorderIds !== null, "the walking order", { onDiscard: () => setReorderIds(null) });
-  const [savingOrder, setSavingOrder] = useState(false);
   /** The machine whose reason for being out of service is being asked for. */
   const [askingOut, setAskingOut] = useState<{ machineId: string; name: string } | null>(null);
   /** Add from MSF is open (wave 2). */
@@ -401,17 +400,20 @@ export function StudioInventoryManager({
     // would not resolve until the iPad is back. The roster listener already
     // shows the new order; a refusal comes back as a toast, and the listener
     // then shows the order the studio really has.
+    //
+    // An update, not a merge set: every id here comes from the roster
+    // listener (`onFloor` keeps only rostered machines), and the rules check
+    // an update for fewer expressions than a set (about 1,320 a document
+    // against about 1,990, with ten removed safety lines; the round document's
+    // budget table), which keeps the order well inside the roster rule's
+    // budget for an owner at an owned studio and for the grant.
     const batch = writeBatch(db);
     reorderIds.forEach((machineId, i) => {
-      batch.set(
-        doc(db, "studios", studioId, "roster", machineId),
-        {
-          order: i + 1,
-          updatedAt: serverTimestamp(),
-          updatedBy: auth.currentUser?.uid ?? null,
-        },
-        { merge: true },
-      );
+      batch.update(doc(db, "studios", studioId, "roster", machineId), {
+        order: i + 1,
+        updatedAt: serverTimestamp(),
+        updatedBy: auth.currentUser?.uid ?? null,
+      });
     });
     batch.commit().catch((e: unknown) => {
       console.error("[walking order] save refused", e);
@@ -430,29 +432,25 @@ export function StudioInventoryManager({
    * already falls back to DEFAULT_MACHINE_DISPLAY_ORDER when `order` is
    * absent, so removing the field means this studio automatically follows any
    * future change to the standard instead of being pinned to today's copy.
+   *
+   * Sent and never awaited, like Save: offline the commit would not resolve,
+   * and the order would stay "unsaved" after the leader had reset it.
    */
-  const resetOrder = async () => {
+  const resetOrder = () => {
     if (!studioId) return;
-    setSavingOrder(true);
-    try {
-      const batch = writeBatch(db);
-      for (const entry of rosterEntries) {
-        batch.set(
-          doc(db, "studios", studioId, "roster", entry.machineId),
-          { order: deleteField(), updatedAt: serverTimestamp() },
-          { merge: true },
-        );
-      }
-      await batch.commit();
-      toastSuccess("Back to the MSF standard order.");
-      setReorderIds(null);
-    } catch (e: unknown) {
-      toastError(
-        `Could not reset the order: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    } finally {
-      setSavingOrder(false);
+    const batch = writeBatch(db);
+    for (const entry of rosterEntries) {
+      batch.update(doc(db, "studios", studioId, "roster", entry.machineId), {
+        order: deleteField(),
+        updatedAt: serverTimestamp(),
+      });
     }
+    batch.commit().catch((e: unknown) => {
+      console.error("[walking order] reset refused", e);
+      toastError("The order wasn't put back to the MSF standard.");
+    });
+    toastSuccess("Back to the MSF standard order.");
+    setReorderIds(null);
   };
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -544,18 +542,14 @@ export function StudioInventoryManager({
         <div className="flex flex-wrap gap-2">
           {reorderIds ? (
             <>
-              <AdminButton variant="ghost" onClick={resetOrder} disabled={savingOrder}>
+              <AdminButton variant="ghost" onClick={resetOrder}>
                 <RotateCcw className="h-4 w-4" aria-hidden /> MSF standard
               </AdminButton>
-              <AdminButton
-                variant="quiet"
-                onClick={() => setReorderIds(null)}
-                disabled={savingOrder}
-              >
+              <AdminButton variant="quiet" onClick={() => setReorderIds(null)}>
                 <X className="h-4 w-4" aria-hidden /> Cancel
               </AdminButton>
-              <AdminButton variant="primary" onClick={saveOrder} busy={savingOrder}>
-                {!savingOrder && <Check className="h-4 w-4" aria-hidden />}
+              <AdminButton variant="primary" onClick={saveOrder}>
+                <Check className="h-4 w-4" aria-hidden />
                 Save order
               </AdminButton>
             </>

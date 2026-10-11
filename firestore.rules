@@ -1445,9 +1445,9 @@ service cloud.firestore {
     // STUDIO MAP (Oct 2026): a unit's tape-measured size, signed and timed by the writer.
     // Unchanged or removed passes on that alone. Field checks only, no get().
     function rosterUnitSizeOk() {
-      let n = request.resource.data.get('unit', {}).get('size', null);
+      let n = request.resource.data.get(['unit', 'size'], null);
       return n == null
-          || (resource != null && n == resource.data.get('unit', {}).get('size', null))
+          || (resource != null && n == resource.data.get(['unit', 'size'], null))
           || (n is map
               && n.keys().hasOnly(['lengthMm', 'widthMm', 'heightMm', 'by', 'at'])
               && n.keys().hasAll(['lengthMm', 'widthMm', 'by', 'at'])

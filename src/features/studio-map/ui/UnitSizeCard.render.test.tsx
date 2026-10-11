@@ -151,7 +151,9 @@ describe("its size, in each state", () => {
   it("unknown, with what can be done: pick a model, measure, or ask head office", async () => {
     models.docs = [HOIST_LP];
     let el = await mount({ ...base, modelId: HOIST_LP.id });
-    expect(el.textContent).toContain("Size not known. Pick its model or measure it.");
+    // A model is picked: the sentence says why it has no size, never "pick its model".
+    expect(el.textContent).toContain("Size not known: head office hasn't recorded this model's size. Measure it, or pick another model.");
+    expect(el.textContent).not.toContain("Pick its model");
     const select = el.querySelector("select") as HTMLSelectElement;
     expect([...select.options].map((o) => o.textContent)).toEqual(["Not recorded", "Hoist ROC-IT Leg Press"]);
     await act(async () => {
@@ -189,7 +191,9 @@ describe("its size, in each state", () => {
   it("is read only for a trainer", async () => {
     models.docs = [HOIST_LP];
     const el = await mount({ ...base }, false);
-    expect(el.textContent).toContain("Size not known. Pick its model or measure it.");
+    // Never told to do what only a leader can.
+    expect(el.textContent).toContain("Size not known yet.");
+    expect(el.textContent).not.toMatch(/Pick its model|Measure it/);
     expect(el.querySelector("select")).toBeNull();
     expect(el.querySelectorAll("button").length).toBe(1); // the test door's own Close
   });
@@ -218,7 +222,14 @@ describe("measuring it", () => {
     await act(async () => byText(el, "Measure it")!.click());
     await type(el.querySelector("#smap-size-m-leg-press-length-in") as HTMLInputElement, "83 1/0");
     await act(async () => byText(el, "Save")!.click());
-    expect(el.textContent).toContain("Length: Feet are whole numbers; inches can be 83, 83.5 or 83 1/2.");
+    expect(el.textContent).toContain("Length: feet are whole numbers; inches can be 83, 83.5 or 83 1/2.");
+    // An empty width is a width, and so is one out of range.
+    await type(el.querySelector("#smap-size-m-leg-press-length-in") as HTMLInputElement, "83");
+    await act(async () => byText(el, "Save")!.click());
+    expect(el.querySelector(".smap-form__problem")?.textContent).toBe("Type the width.");
+    await type(el.querySelector("#smap-size-m-leg-press-width-ft") as HTMLInputElement, "30");
+    await act(async () => byText(el, "Save")!.click());
+    expect(el.querySelector(".smap-form__problem")?.textContent).toBe("The width is between 1 ft and 20 ft.");
     expect(writes).toEqual([]);
   });
 

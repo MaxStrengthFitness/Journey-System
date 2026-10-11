@@ -118,8 +118,14 @@ export function knownSizeOf(r: UnitSizeRead): KnownSize | null {
 
 const SHORT_DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
 
-/** Where a unit's size came from, or why it has none, in one sentence. */
-export function sizeSourceWords(r: UnitSizeRead, nameOf: (uid: string) => string | null): string {
+/**
+ * Where a unit's size came from, or why it has none, in one sentence.
+ *
+ * `canAct` is whether the reader may measure the unit or name its model (the
+ * studio's leaders). A reader who can't is never told to do either: an
+ * unknown size is simply "Size not known yet." for them.
+ */
+export function sizeSourceWords(r: UnitSizeRead, nameOf: (uid: string) => string | null, canAct = true): string {
   switch (r.state) {
     case "known": {
       if (r.from === "measured") {
@@ -130,10 +136,12 @@ export function sizeSourceWords(r: UnitSizeRead, nameOf: (uid: string) => string
       return `${r.model} · ${r.source} · frame at rest`;
     }
     case "unknown":
+      if (!canAct) return "Size not known yet.";
       switch (r.why) {
         case "no-model":
-        case "model-has-no-size":
           return "Size not known. Pick its model or measure it.";
+        case "model-has-no-size":
+          return "Size not known: head office hasn't recorded this model's size. Measure it, or pick another model.";
         case "no-model-for-movement":
           return r.noMovement
             ? "Size not known. Measure it."

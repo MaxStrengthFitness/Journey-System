@@ -255,7 +255,7 @@ describe("the unit's model (Codex R2)", () => {
     });
     expect(el.querySelector("#machine-model")).toBeNull();
     expect(el.textContent).toContain("Hoist ROC-IT Leg Press");
-    expect(el.textContent).toContain("Set on the floor's Sizes, or the machine's Its size.");
+    expect(el.textContent).toContain("Set under Its size, on this machine's page in My Studio → Machines.");
   });
 
   it("never writes the model when a studio saves its copy", async () => {

@@ -42,7 +42,7 @@ export interface SeedModel {
 
 const SAME_ARMS =
   "The brochure prints the same size for the Bicep and the Tricep. Measure yours to be sure.";
-const HIPS = "The brochure's names for the two hip machines are muddled. Check the machine's plate.";
+const HIPS = "The brochure mixes up the names of the two hip machines. Check the plate on the machine.";
 const HIPS_DRY =
   "The brochure gives both hip machines 1880 x 1300 x 1700 mm; Triumph Fitness lists both as a thigh adductor.";
 
@@ -57,7 +57,7 @@ export const IMAGINE_STRENGTH_MODELS: readonly SeedModel[] = [
     lengthMm: 1130,
     widthMm: 1180,
     heightMm: 1920,
-    note: "That this is the Rowing Back is a guess from the movement. Check the machine's plate.",
+    note: "Head office matched this model by its movement. Check the plate on the machine.",
     flags: ["match-inferred"],
   },
   {

@@ -254,7 +254,7 @@ function AtTheMachine(p: CodexSectionProps) {
           hint={
             p.scope === "catalog"
               ? "The unit the standard's numbers were written on, if there is one. A studio's copy names its own unit's model."
-              : "Set on the floor's Sizes, or the machine's Its size."
+              : "Set under Its size, on this machine's page in My Studio → Machines."
           }
           locked={modelLocked}
         >

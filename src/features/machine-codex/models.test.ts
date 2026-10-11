@@ -3,6 +3,7 @@ import { MACHINE_DEFINITIONS } from "../../data/machine-definitions";
 import {
   dialSummary,
   dialsFromMovement,
+  draftLengthMm,
   draftOf,
   emptyModelDraft,
   modelDocument,
@@ -119,8 +120,28 @@ describe("a model's size (the studio map)", () => {
       note: "Measure yours.",
     });
     const back = draftOf({ ...hoist, size: { lengthMm: 1594, widthMm: 1227, heightMm: 1850, source: "Brochure" } });
-    expect(back.size).toEqual({ length: "62.8", width: "48.3", height: "72.8", source: "Brochure", note: "" });
+    expect(back.size).toEqual({
+      length: "62.8",
+      width: "48.3",
+      height: "72.8",
+      source: "Brochure",
+      note: "",
+      stored: { length: 1594, width: 1227, height: 1850 },
+    });
     expect(modelProblems(back)).toEqual([]);
+  });
+
+  it("keeps a stored length's whole mm when its text is left as loaded, and reads a changed one afresh", () => {
+    const back = draftOf({ ...hoist, size: { lengthMm: 1594, widthMm: 2120, heightMm: 1177, source: "Brochure" } });
+    // Saved again untouched: not one mm moves (62.8 in alone would be 1595).
+    expect(modelDocument(back).size).toEqual({ lengthMm: 1594, widthMm: 2120, heightMm: 1177, source: "Brochure" });
+    expect(draftLengthMm(back.size, "length")).toBe(1594);
+    // A length typed again is the typed inches.
+    const changed = { ...back, size: { ...back.size, length: "63" } };
+    expect(modelDocument(changed).size?.lengthMm).toBe(1600);
+    // Typed back to what was loaded, it is the stored mm again.
+    expect(draftLengthMm({ ...back.size, length: " 62.8 " }, "length")).toBe(1594);
+    expect(draftLengthMm({ ...back.size, height: "" }, "height")).toBeNull();
   });
 
   it("writes no size key at all without both the length and the width, and no height or note when empty", () => {

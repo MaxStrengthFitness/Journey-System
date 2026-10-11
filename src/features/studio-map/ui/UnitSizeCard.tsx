@@ -58,7 +58,7 @@ export function UnitSizeCard({
     if (!authUid) return;
     setUnitSize(studioId, entry.machineId, size, authUid).catch((e: unknown) => {
       console.error("[studio map] the unit's size wasn't saved", e);
-      toastError(`${machineName}'s size couldn't be saved. You may not change this studio's machines.`);
+      toastError(`The size of ${machineName} wasn't saved.`);
     });
     setEditing(null);
     toastSuccess(done);
@@ -66,13 +66,21 @@ export function UnitSizeCard({
 
   const picker =
     movementId && movementModels.length > 0 ? (
-      <UnitModelField studioId={studioId} machineId={entry.machineId} movementId={movementId} value={modelId} models={movementModels} id={fieldId} />
+      <UnitModelField
+        studioId={studioId}
+        machineId={entry.machineId}
+        machineName={machineName}
+        movementId={movementId}
+        value={modelId}
+        models={movementModels}
+        id={fieldId}
+      />
     ) : null;
 
   return (
     <div className="smap-size">
       {read.state === "known" && <p className="smap-size__line">{sizeLine(read.size)}</p>}
-      <p className="smap-size__src">{sizeSourceWords(read, nameOf)}</p>
+      <p className="smap-size__src">{sizeSourceWords(read, nameOf, leader)}</p>
       {read.state === "known" && read.from === "model" && read.note && <AdminNotice tone="info">{read.note}</AdminNotice>}
 
       {leader && editing === "measure" && (

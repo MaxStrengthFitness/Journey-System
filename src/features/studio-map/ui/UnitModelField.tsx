@@ -20,6 +20,7 @@ import "../studio-map.css";
 export function UnitModelField({
   studioId,
   machineId,
+  machineName,
   movementId,
   value,
   models,
@@ -28,6 +29,8 @@ export function UnitModelField({
 }: {
   studioId: string;
   machineId: string;
+  /** The studio's name for the unit, for the sentence when a pick isn't saved. */
+  machineName: string;
   /** The unit's MSF movement. Without one, no model can be named, and the caller shows Measure alone. */
   movementId: string;
   value: string | null;
@@ -47,7 +50,7 @@ export function UnitModelField({
       toastError(
         e instanceof AnotherMachinesModel
           ? "That model is for another machine, so it wasn't named."
-          : "The model couldn't be saved. You may not change this studio's machines.",
+          : `The model of ${machineName} wasn't saved.`,
       );
     });
   };

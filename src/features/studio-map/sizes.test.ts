@@ -117,7 +117,7 @@ describe("where a size came from, in words", () => {
   it("says what can be done about an unknown size", () => {
     expect(all.slice(2).map((r) => sizeSourceWords(r, names))).toEqual([
       "Size not known. Pick its model or measure it.",
-      "Size not known. Pick its model or measure it.",
+      "Size not known: head office hasn't recorded this model's size. Measure it, or pick another model.",
       "Size not known: head office hasn't recorded its model. Measure it, or pick another.",
       "Size not known: the model named is for another machine. Pick its model or measure it.",
       "Size not known. Measure it, or ask head office to record its model.",
@@ -125,6 +125,13 @@ describe("where a size came from, in words", () => {
       "Checking the model's size…",
       "The model's size couldn't be read.",
     ]);
+  });
+
+  it("never tells a reader who can't measure or pick a model to do either", () => {
+    expect(all.slice(2, 8).map((r) => sizeSourceWords(r, names, false))).toEqual(Array(6).fill("Size not known yet."));
+    // Where it came from is the same for everyone.
+    expect(sizeSourceWords(all[0], names, false)).toBe("Measured by AJ Jurgens on Oct 12");
+    expect(sizeSourceWords(all[8], names, false)).toBe("Checking the model's size…");
   });
 
   it("never says mm", () => {

@@ -52,7 +52,8 @@ vi.mock("firebase/firestore", () => ({
   writeBatch: () => {
     const staged: Write[] = [];
     return {
-      set: (t: { path: string }, data: Record<string, unknown>) => staged.push({ kind: "batch", path: t.path, data }),
+      set: (t: { path: string }, data: Record<string, unknown>) => staged.push({ kind: "batch-set", path: t.path, data }),
+      update: (t: { path: string }, data: Record<string, unknown>) => staged.push({ kind: "batch", path: t.path, data }),
       commit: async () => {
         if (gate.batch) await gate.batch;
         writes.push(...staged);
@@ -581,6 +582,45 @@ describe("the walking order", () => {
       await new Promise((r) => setTimeout(r, 5));
     });
     expect(writes.map((w) => w.data?.order)).toEqual([1, 2, 3]);
+  });
+
+  // An update, never a merge set (the studio map's review): the rules check
+  // an update in fewer expressions, and every id comes from the roster.
+  it("puts the order back to the MSF standard without waiting on the network, and says so if it is refused", async () => {
+    const { UnsavedChangesProvider, useUnsavedStatus } = await import("../../unsaved-changes");
+    let status: { anyDirty: () => boolean } | null = null;
+    const Probe = () => {
+      status = useUnsavedStatus();
+      return null;
+    };
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(
+        <UnsavedChangesProvider>
+          <Probe />
+          <StudioInventoryManager studioId="solon" studioName="Solon" hideHeading />
+        </UnsavedChangesProvider>,
+      );
+    });
+    const el = host!;
+    await act(async () => byText(el, /Walking order/)!.click());
+    await act(async () => byLabel(el, "Move Lumbar Extension up")!.click());
+    expect(status!.anyDirty()).toBe(true);
+    let refuse!: (e: Error) => void;
+    gate.batch = new Promise<void>((_, rej) => (refuse = rej));
+    await act(async () => byText(el, "MSF standard")!.click());
+    // Still on its way: the list is back and nothing is unsaved.
+    expect(writes).toEqual([]);
+    expect(status!.anyDirty()).toBe(false);
+    expect(el.querySelector(".adm-rows")).not.toBeNull();
+    expect(toasts).toEqual(["Back to the MSF standard order."]);
+    await act(async () => {
+      refuse(new Error("permission-denied"));
+      await new Promise((r) => setTimeout(r, 5));
+    });
+    expect(toasts).toContain("The order wasn't put back to the MSF standard.");
   });
 
   it("says so when the walking order is refused", async () => {

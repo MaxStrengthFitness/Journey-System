@@ -50,10 +50,17 @@ export function SizeForm({
     setProblem(null);
   };
 
+  // One sentence per part, written here rather than a prefix on parseFtIn's
+  // own words, so a width is never called a length.
   const read = (part: Part): { mm: number } | { problem: string } => {
-    const r = parseFtIn(fields[part].ft, fields[part].in);
-    if ("problem" in r) return { problem: `${PART_WORDS[part]}: ${r.problem}` };
-    if (r.mm < MIN_MM || r.mm > MAX_MM) return { problem: `${PART_WORDS[part]}: a length is 1 to 20 ft.` };
+    const { ft, in: inches } = fields[part];
+    const word = PART_WORDS[part].toLowerCase();
+    if (ft.trim() === "" && inches.trim() === "") {
+      return { problem: part === "height" ? "Type the height, or leave both boxes empty." : `Type the ${word}.` };
+    }
+    const r = parseFtIn(ft, inches);
+    if ("problem" in r) return { problem: `${PART_WORDS[part]}: feet are whole numbers; inches can be 83, 83.5 or 83 1/2.` };
+    if (r.mm < MIN_MM || r.mm > MAX_MM) return { problem: `The ${word} is between 1 ft and 20 ft.` };
     return r;
   };
 

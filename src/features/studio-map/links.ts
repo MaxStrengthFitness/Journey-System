@@ -34,8 +34,8 @@ export interface SizeRow {
   size: UnitSizeRead;
   /** The movement's recorded models, any brand ([] with no movement, or while the models aren't read). */
   models: MachineModel[];
-  /** The one Imagine Strength model a tick would name, or null. */
-  isOffer: { modelId: string; model: string } | null;
+  /** The one Imagine Strength model a tick would name, with the model's OWN movement (for the store's check), or null. */
+  isOffer: { modelId: string; model: string; movementId: string } | null;
 }
 
 /** One link a tick makes: which model a unit is, with both movements so the store can refuse a mismatch. */
@@ -66,7 +66,7 @@ export function sizeRows(floor: readonly FloorMachine[], units: Readonly<Record<
       movementId,
       size,
       models: mine,
-      isOffer: offered ? { modelId: imagine[0].id, model: imagine[0].model } : null,
+      isOffer: offered ? { modelId: imagine[0].id, model: imagine[0].model, movementId: imagine[0].movementId } : null,
     };
   });
 }
@@ -85,7 +85,13 @@ export function sizesHeading(rows: readonly SizeRow[]): string {
 export function linksFor(rows: readonly SizeRow[], ticked: ReadonlySet<string>): ModelLink[] {
   return rows
     .filter((r) => r.isOffer && ticked.has(r.machineId))
-    .map((r) => ({ machineId: r.machineId, modelId: r.isOffer!.modelId, unitMovementId: r.movementId, modelMovementId: r.movementId! }));
+    .map((r) => ({
+      machineId: r.machineId,
+      modelId: r.isOffer!.modelId,
+      unitMovementId: r.movementId,
+      // The model's own movement, never the row's: the store's check compares something real.
+      modelMovementId: r.isOffer!.movementId,
+    }));
 }
 
 /** A link whose model is for another movement than its unit's: the store drops it. */

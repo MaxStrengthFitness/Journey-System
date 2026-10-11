@@ -224,8 +224,9 @@ describe("the machine's size on its door (the studio map, Oct 2026)", () => {
     await click("Open Leg Press");
     const heads = [...(door()?.querySelectorAll(".ms__door-h") ?? [])].map((h) => h.textContent?.trim());
     expect(heads.slice(0, 3)).toEqual(["This studio's standard settings", "Its size", "The floor's notes"]);
-    // The models are still being read (the listener never answers here): the size waits, and a trainer gets no controls.
-    expect(door()?.textContent).toContain("Size not known. Pick its model or measure it.");
+    // No size on file: a trainer is told so, never told to do what only a leader can, and gets no controls.
+    expect(door()?.textContent).toContain("Size not known yet.");
+    expect(door()?.textContent).not.toContain("Pick its model");
     const buttons = [...(door()?.querySelectorAll("button") ?? [])].map((x) => x.textContent?.trim());
     expect(buttons).not.toContain("Measure it");
   });

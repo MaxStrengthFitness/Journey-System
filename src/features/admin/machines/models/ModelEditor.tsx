@@ -23,7 +23,7 @@ import {
   dialsFromMovement,
   draftOf,
   emptyModelDraft,
-  inchesToMm,
+  draftLengthMm,
   modelIdFor,
   modelLabel,
   modelProblems,
@@ -125,8 +125,8 @@ export function ModelEditor({
 
       <AdminNotice tone="info">
         Settings pool per model in the weekly count: a seat 4 on one maker&apos;s unit is not a seat
-        4 on another&apos;s. Weights keep pooling per movement. A studio says which model its unit
-        is on the machine&apos;s Its size, or on the floor&apos;s Sizes.
+        4 on another&apos;s. Weights keep pooling per movement. A studio names its unit&apos;s model
+        under Its size, on the machine&apos;s page in My Studio → Machines.
       </AdminNotice>
 
       <AdminPanel title="The model">
@@ -259,19 +259,21 @@ export function ModelEditor({
           {(["length", "width", "height"] as const).map((part) => {
             const label = part === "length" ? "Length" : part === "width" ? "Width" : "Height";
             const typed = d.size[part];
-            const mm = typed.trim() ? inchesToMm(typed) : null;
+            // The stored mm while the text is as loaded, so the line says what is on file.
+            const mm = draftLengthMm(d.size, part);
+            // No number in an empty box: an example there reads as a size on file.
+            const example = part === "height" ? "Optional." : `For example ${part === "length" ? "62.8" : "48.3"}.`;
             return (
               <AdminField
                 key={part}
                 label={`${label}, inches`}
                 htmlFor={`model-size-${part}`}
-                hint={mm !== null ? `${mm} mm` : part === "height" ? "Optional." : undefined}
+                hint={mm !== null ? `${mm} mm` : example}
               >
                 <AdminInput
                   id={`model-size-${part}`}
                   inputMode="decimal"
                   value={typed}
-                  placeholder={part === "length" ? "62.8" : part === "width" ? "48.3" : "72.8"}
                   onChange={(e) => form.setField("size", { ...d.size, [part]: e.target.value })}
                 />
               </AdminField>
@@ -280,6 +282,7 @@ export function ModelEditor({
           <AdminField
             label="Where the size came from"
             htmlFor="model-size-source"
+            wide
             required={!!(d.size.length.trim() || d.size.width.trim())}
           >
             <AdminInput

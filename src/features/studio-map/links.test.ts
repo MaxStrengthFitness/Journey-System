@@ -73,6 +73,15 @@ describe("the Sizes sheet's rows", () => {
     expect(linkMismatched({ machineId: "x", modelId: "y", unitMovementId: "m-pulldown", modelMovementId: "m-leg-press" })).toBe(true);
   });
 
+  it("carries the model's own movement on each link, so the store's check is a real one", () => {
+    const rows = sizeRows(floorOf(TWENTY), unitsOf(TWENTY), isModels);
+    const [link] = linksFor(rows, new Set([TWENTY[0]]));
+    expect(link.modelMovementId).toBe(IMAGINE_STRENGTH_MODELS.find((m) => m.id === link.modelId)!.movementId);
+    // A row offering a model of another movement: the link says so, and the store drops it.
+    const wrong = rows.map((r) => (r.machineId === TWENTY[0] ? { ...r, isOffer: { ...r.isOffer!, movementId: "m-some-other" } } : r));
+    expect(linksFor(wrong, new Set([TWENTY[0]])).map(linkMismatched)).toEqual([true]);
+  });
+
   it("heads the sheet with how many have a size", () => {
     const none = sizeRows(floorOf(TWENTY), unitsOf(TWENTY), isModels);
     expect(sizesHeading(none)).toBe("20 machines have no size yet");
