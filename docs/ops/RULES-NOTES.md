@@ -2,12 +2,12 @@
 
 The long comments that used to sit in `firestore.rules`, moved here word for word in the studio map round's phase 0 (Oct 10 2026). The rules file was 255,229 bytes and Firebase refuses a rules source over 262,144 bytes (256 KiB), so every comment block of 8 or more lines came here and left a one-line pointer in its place: `// Why: docs/ops/RULES-NOTES.md#<anchor>`. Only comments moved; the rules' code did not change by a byte (the proof is `rulesCodeOf` in `tests/rules-source.ts`, and its output is in the commit message).
 
-Each note is headed by the function or match path it sat above (or, for a note inside a condition, the rule it sat in). The text is the comment as it was written, its `//` and `*` markers taken off. Short comments that explain a single line stay in the rules file.
+Each note is headed by the function or match path it sat above, written as in the rules file (or, for a note inside a condition, the rule it sat in). A note that opens a whole section of the rules (Demo Mode, the expression-budget helpers, Renewals, InBody scans, the unified coaching journal) is headed by its section first and its first function or match path second. The text is the comment as it was written, its `//` and `*` markers taken off. Short comments that explain a single line stay in the rules file.
 
-**Adding a rule:** keep a comment in the rules file to a few lines. A longer explanation goes here under its own heading, with the pointer in the rules file. `tests/firestore.rules.lint.test.ts` fails when the rules file passes 240 KiB.
+**Adding a rule:** keep a comment in the rules file under 8 lines. A longer one goes here, under a heading named after the function or match path it explains, with an `<a id="…">` anchor, and the rules file keeps `// Why: docs/ops/RULES-NOTES.md#<anchor>` in its place. `tests/firestore.rules.lint.test.ts` fails when the rules file passes 240 KiB, when its code passes 150,000 bytes, or when a pointer names a note that isn't here.
 
 <a id="isdemostudioid"></a>
-### function isDemoStudioId
+### Demo Mode (the section that opens with `function isDemoStudioId`)
 
 ```text
 ===============================================================
@@ -31,7 +31,7 @@ flag on the studio document would spend a read on every rule that asks.
 ```
 
 <a id="isdemotrainerpayload"></a>
-### function isDemoTrainerPayload
+### `function isDemoTrainerPayload`
 
 ```text
 A trainer document the seeder lays down for the demo studio.
@@ -44,7 +44,7 @@ never answer getRole() for anybody.
 ```
 
 <a id="clientcreatehonest"></a>
-### function clientCreateHonest
+### `function clientCreateHonest`
 
 ```text
 A CLIENT RECORD MADE FROM AN IPAD (the franchise partition, second
@@ -58,7 +58,7 @@ record a cross-train list the webhook never clears.
 ```
 
 <a id="roleissuper"></a>
-### function roleIsSuper
+### Expression-budget helpers (the section that opens with `function roleIsSuper`)
 
 ```text
 ====================================================================
@@ -92,7 +92,7 @@ it was written for.
 ```
 
 <a id="authorityrole"></a>
-### function authorityRole
+### `function authorityRole`
 
 ```text
 THE CALLER'S ROLE ON A WRITE THAT HANDS OUT AUTHORITY (the franchise
@@ -109,7 +109,7 @@ a read the cost round (Sep 2026) took away.
 ```
 
 <a id="clientisreadableby"></a>
-### function clientIsReadableBy
+### `function clientIsReadableBy`
 
 ```text
 Can this caller read this ALREADY-READ client document?
@@ -122,7 +122,7 @@ that was going to say yes.
 ```
 
 <a id="crosstrainsessiontotals"></a>
-### function crossTrainSessionTotals
+### `function crossTrainSessionTotals`
 
 ```text
 A cross-train visitor's session moving the client's totals (Sep 24
@@ -142,7 +142,7 @@ Pure map work on the already-read trainer: no document read.
 ```
 
 <a id="renewalsreadable"></a>
-### function renewalsReadable
+### Renewals (the section that opens with `function renewalsReadable`)
 
 ```text
 ====================================================================
@@ -163,7 +163,7 @@ map lookups, not document reads.
 ```
 
 <a id="wave2leads"></a>
-### function wave2Leads
+### `function wave2Leads`
 
 ```text
 WAVE 2 OPERATIONS: who may, with the caller resolved ONCE (Sep 28
@@ -177,7 +177,7 @@ mirrors with canManageRenewals / canTakePartInRenewals.
 ```
 
 <a id="franchiserunsclient"></a>
-### function franchiseRunsClient
+### `function franchiseRunsClient`
 
 ```text
 ...and OF THIS CLIENT'S HOME STUDIO, for the deletes on collections
@@ -195,7 +195,7 @@ a client that is gone, is refused.
 ```
 
 <a id="startingchoicevalid"></a>
-### function startingChoiceValid
+### `function startingChoiceValid`
 
 ```text
 A STUDIO'S STARTING ROUTINES (Oct 8 2026, AJ: "studios will chose
@@ -210,7 +210,7 @@ server's time. The routines themselves are routinePresets with a
 ```
 
 <a id="renewalsettingsvalid"></a>
-### function renewalSettingsValid
+### `function renewalSettingsValid`
 
 ```text
 studios/{s}/config/renewals. The app cleans every value again when it
@@ -225,7 +225,7 @@ key needs this rule deployed first.
 ```
 
 <a id="inbodynumber"></a>
-### function inbodyNumber
+### InBody scans (the section that opens with `function inbodyNumber`)
 
 ```text
 ====================================================================
@@ -246,7 +246,7 @@ the app catches typos; these only keep out shapes that are never right.
 ```
 
 <a id="selfcreatedroleisallowed"></a>
-### function selfCreatedRoleIsAllowed
+### `function selfCreatedRoleIsAllowed`
 
 ```text
 A trainer document someone is creating FOR THEMSELVES may not hand
@@ -275,7 +275,7 @@ super admin sets the role, which the update rule permits.
 ```
 
 <a id="isownerbootstrap"></a>
-### function isOwnerBootstrap
+### `function isOwnerBootstrap`
 
 ```text
 WHO A SELF-MADE TRAINER DOCUMENT MAY BE (Oct 3 2026).
@@ -316,7 +316,7 @@ Round: docs/rounds/2026-10-03-trainer-self-create.md.
 ```
 
 <a id="approvercreateallowed"></a>
-### function approverCreateAllowed
+### `function approverCreateAllowed`
 
 ```text
 AN APPROVAL (My Studio -> Team, Operations -> Setup -> People &
@@ -339,7 +339,7 @@ nowhere else.
 ```
 
 <a id="madeasplaceholder"></a>
-### function madeAsPlaceholder
+### `function madeAsPlaceholder`
 
 ```text
 WHERE A NON-ADMINISTRATOR'S NEW TRAINER DOCUMENT MAY SIT (the
@@ -362,7 +362,7 @@ makes exactly the two documents the app makes:
 ```
 
 <a id="logtakesitssessionsclient"></a>
-### function logTakesItsSessionsClient
+### `function logTakesItsSessionsClient`
 
 ```text
 WHO'S THIS? (the open session round, Oct 9 2026). An open session is
@@ -384,7 +384,7 @@ Who's this? is that write.
 ```
 
 <a id="logleavesitsopensessionsclient"></a>
-### function logLeavesItsOpenSessionsClient
+### `function logLeavesItsOpenSessionsClient`
 
 ```text
 ...and back (the whole-branch review, Oct 9 2026). Once Who's this? is
@@ -399,7 +399,7 @@ no client on it.
 ```
 
 <a id="opensessionwriteok"></a>
-### function openSessionWriteOk
+### `function openSessionWriteOk`
 
 ```text
 THE OPEN SESSION'S OWN FIELDS (the whole-branch review, Oct 9 2026).
@@ -414,7 +414,7 @@ its sets would name a client that doesn't exist.
 ```
 
 <a id="studionoticeofmine"></a>
-### function studioNoticeOfMine
+### `function studioNoticeOfMine`
 
 ```text
 The update rule for hub_announcements, extracted so the role is
@@ -430,7 +430,7 @@ franchise owner, or the grant). Never "all", never a network.
 ```
 
 <a id="hubannouncementupdateallowed-body"></a>
-### function hubAnnouncementUpdateAllowed (inside its body)
+### `function hubAnnouncementUpdateAllowed` (inside its body)
 
 ```text
 Everyone else TAKES A NOTICE DOWN and does nothing else (the
@@ -445,7 +445,7 @@ network's whose every studio they run.
 ```
 
 <a id="hubannouncementcreateallowed"></a>
-### function hubAnnouncementCreateAllowed
+### `function hubAnnouncementCreateAllowed`
 
 ```text
 The hub_announcements create rule, in a function for the same reason as
@@ -459,7 +459,7 @@ company-wide branch; the franchise partition).
 ```
 
 <a id="hubannouncementcreateallowed-body"></a>
-### function hubAnnouncementCreateAllowed (inside its body)
+### `function hubAnnouncementCreateAllowed` (inside its body)
 
 ```text
 StudioOwner is NOT here on its own. It used to be, from when it was
@@ -477,7 +477,7 @@ the other two can reach it.
 ```
 
 <a id="writesderivedtrainerfields"></a>
-### function writesDerivedTrainerFields
+### `function writesDerivedTrainerFields`
 
 ```text
 TRAINERS: Directory search, auth checks, and creation permissions
@@ -501,7 +501,7 @@ legible; `diff().affectedKeys()` is the only way rules can express
 ```
 
 <a id="othersdocchangeallowed"></a>
-### function othersDocChangeAllowed
+### `function othersDocChangeAllowed`
 
 ```text
 SOMEONE ELSE'S DOCUMENT, changed by someone who is not an
@@ -530,7 +530,7 @@ calendar switch, initials) pays for almost none of it.
 ```
 
 <a id="ownstrainerdoc"></a>
-### function ownsTrainerDoc
+### `function ownsTrainerDoc`
 
 ```text
 ---------------------------------------------------------------
@@ -561,7 +561,7 @@ would then be self-asserted, and this rule would trust it.
 ```
 
 <a id="trainerupdateallowed"></a>
-### function trainerUpdateAllowed
+### `function trainerUpdateAllowed`
 
 ```text
 THE TRAINER UPDATE RULE, RESOLVED ONCE (Sep 20 2026).
@@ -590,7 +590,7 @@ self branch never reaches it.
 ```
 
 <a id="teamjobleaderallowed"></a>
-### function teamJobLeaderAllowed
+### `function teamJobLeaderAllowed`
 
 ```text
 WHO MAY POST, EDIT OR CALL OFF A TEAM JOB.
@@ -614,7 +614,7 @@ at the studios they run, who no longer pass by role alone.
 ```
 
 <a id="standingweekshapevalid"></a>
-### function standingWeekShapeValid
+### `function standingWeekShapeValid`
 
 ```text
 THE STANDING WEEK (voice-review round, Sep 27 2026) -- a trainer's
@@ -635,7 +635,7 @@ week" writes 21 for every leader it measures).
 ```
 
 <a id="standingweekawayrangevalid"></a>
-### function standingWeekAwayRangeValid
+### `function standingWeekAwayRangeValid`
 
 ```text
 AWAY (voice review follow-up, Sep 27 2026) -- the days a trainer is
@@ -653,7 +653,7 @@ Six ranges still to come is plenty: past ones drop off as it saves.
 ```
 
 <a id="coveragewriterallowed"></a>
-### function coverageWriterAllowed
+### `function coverageWriterAllowed`
 
 ```text
 THE WHOLE-READ RECORD (Sep 27 2026) -- which studio days a pull that
@@ -680,7 +680,7 @@ tests hold a full month, and two in one batch, for every writer.
 ```
 
 <a id="sharedecisionok"></a>
-### function shareDecisionOk
+### `function shareDecisionOk`
 
 ```text
 SHARING WAITS FOR AN ADMINISTRATOR (AJ, Sep 28 2026: sharing with all
@@ -700,7 +700,7 @@ of Firestore's 1000-expression budget (the rules tests, Sep 28 2026).
 ```
 
 <a id="removedsafetyvalid"></a>
-### function removedSafetyValid
+### `function removedSafetyValid`
 
 ```text
 WAVE 2 CODEX: the removal records on a copy's overrides, checked one
@@ -715,7 +715,7 @@ reads nothing.
 ```
 
 <a id="rosteroutofserviceok"></a>
-### function rosterOutOfServiceOk
+### `function rosterOutOfServiceOk`
 
 ```text
 WAVE 2 CATALOG: a reason on Out of service (AJ, Sep 28 2026, "all yes":
@@ -731,7 +731,7 @@ get(): the roster rule asks it first, before its role checks.
 ```
 
 <a id="trainers-trainerid-tasktemplates-templateid"></a>
-### match /trainers/{trainerId}/taskTemplates/{templateId}
+### `match /trainers/{trainerId}/taskTemplates/{templateId}`
 
 ```text
 PERSONAL TASKS — a trainer's own to-do list (Sep 2026).
@@ -751,7 +751,7 @@ shared list is where anything a manager needs to see belongs.
 ```
 
 <a id="trainers-trainerid-notifications-notificationid"></a>
-### match /trainers/{trainerId}/notifications/{notificationId}
+### `match /trainers/{trainerId}/notifications/{notificationId}`
 
 ```text
 IN-APP NOTIFICATIONS (round: Settings tiers & Task Board, Sep 2026).
@@ -777,7 +777,7 @@ the path, exactly like the private task lists above.
 ```
 
 <a id="trainers-trainerid-notes-noteid"></a>
-### match /trainers/{trainerId}/notes/{noteId}
+### `match /trainers/{trainerId}/notes/{noteId}`
 
 ```text
 WAVE 2 RELAY: the Journal's notes. trainers/{trainerId}/notes/{noteId}
@@ -791,7 +791,7 @@ as every note is. features/relay/notes/journal.ts.
 ```
 
 <a id="clients-clientid"></a>
-### match /clients/{clientId}
+### `match /clients/{clientId}`
 
 ```text
 CLIENTS — scoped to the reader's studios (tenancy pass, Sep 2026)
@@ -820,7 +820,7 @@ section of ADMIN-OVERHAUL-ROUND2.md.
 ```
 
 <a id="clients-clientid-allow-update"></a>
-### match /clients/{clientId}, allow update
+### `match /clients/{clientId}`, allow update
 
 ```text
 `resource.data` is the EXISTING document: a trainer may only edit a
@@ -859,7 +859,7 @@ other. The visitor's totals path above already excludes both.
 ```
 
 <a id="clients-clientid-sharednotes-noteid"></a>
-### match /clients/{clientId}/sharedNotes/{noteId}
+### `match /clients/{clientId}/sharedNotes/{noteId}`
 
 ```text
 SHARED NOTES (Learning + Planner round, Sep 2026) -- a note a trainer
@@ -879,7 +879,7 @@ batch as the note itself, without the whole batch being refused.
 ```
 
 <a id="machinetotalsclient"></a>
-### function machineTotalsClient
+### `function machineTotalsClient`
 
 ```text
 A CLIENT'S MACHINE TOTALS (the iPad round, Oct 6 2026;
@@ -902,7 +902,7 @@ a client that does not exist.
 ```
 
 <a id="clientmachinesettings-settingid"></a>
-### match /clientMachineSettings/{settingId}
+### `match /clientMachineSettings/{settingId}`
 
 ```text
 DISK SETTINGS: Machine settings assigned to specific athletes
@@ -916,7 +916,7 @@ It now matches create and update: a trainer, and nothing less.
 ```
 
 <a id="machines-machineid"></a>
-### match /machines/{machineId}
+### `match /machines/{machineId}`
 
 ```text
 GLOBAL MACHINE CATALOG — the default set every studio picks from
@@ -934,7 +934,7 @@ every exerciseLog ever written references its id.
 ```
 
 <a id="machines-machineid-settinghistory-historyid"></a>
-### match /machines/{machineId}/settingHistory/{historyId}
+### `match /machines/{machineId}/settingHistory/{historyId}`
 
 ```text
 The audit trail for a machine's settings: who changed what, when and
@@ -948,7 +948,7 @@ trail anyone can edit is not an audit trail.
 ```
 
 <a id="machinechangevalid"></a>
-### function machineChangeValid (in match /machines/{machineId})
+### `function machineChangeValid` (in `match /machines/{machineId}`)
 
 ```text
 CATALOG WAVE 3: the standard's change log (Sep 29 2026; the Codex's
@@ -963,7 +963,7 @@ the machine it records.
 ```
 
 <a id="planchangeok"></a>
-### function planChangeOk (in match /routines/{routineId})
+### `function planChangeOk` (in `match /routines/{routineId}`)
 
 ```text
 A ROUTINE'S PLAN'S CHANGES (Oct 7 2026, src/features/routine-plan).
@@ -979,7 +979,7 @@ replan (the road started again, kept in the history) and column
 ```
 
 <a id="presettier"></a>
-### function presetTier
+### `function presetTier`
 
 ```text
 ROUTINE PRESETS — two tiers: built-in "global" presets ship in app
@@ -1013,7 +1013,7 @@ office's, and a studio's leaders their studio's own.
 ```
 
 <a id="studiomachinesettings-settingid"></a>
-### match /studioMachineSettings/{settingId}
+### `match /studioMachineSettings/{settingId}`
 
 ```text
 STUDIO MACHINE SETTINGS — SUPERSEDED by studios/{id}/roster/{machineId}
@@ -1037,7 +1037,7 @@ its studio and machine, as its id says, and keeps them.
 ```
 
 <a id="sessions-sessionid"></a>
-### match /sessions/{sessionId}
+### `match /sessions/{sessionId}`
 
 ```text
 TRAINING SESSIONS — scoped three ways (tenancy pass, Sep 2026)
@@ -1075,7 +1075,7 @@ reads for the whole query, against a limit of ten.
 ```
 
 <a id="journalentries-entryid"></a>
-### match /journalEntries/{entryId}
+### The unified coaching journal (the section that opens with `match /journalEntries/{entryId}`)
 
 ```text
 ================================================================
@@ -1101,7 +1101,7 @@ pass tracked in ROADMAP.md.
 ```
 
 <a id="notedismissals-uid"></a>
-### match /noteDismissals/{uid}
+### `match /noteDismissals/{uid}`
 
 ```text
 NOTE DISMISSALS — "no need to remind me", one document per trainer.
@@ -1118,7 +1118,7 @@ underneath it, so there is no role that needs to see another person's.
 ```
 
 <a id="path-ford-fordid"></a>
-### match /{path=\*\*}/ford/{fordId}
+### `match /{path=**}/ford/{fordId}`
 
 ```text
 FORD — Family, Occupation, Recreation, Dreams.
@@ -1143,7 +1143,7 @@ guarantee we want, rather than one enforced only in app code.
 ```
 
 <a id="studios-studioid-allow-create"></a>
-### match /studios/{studioId}, allow create
+### `match /studios/{studioId}`, allow create
 
 ```text
 My Studio round (Sep 2026) closes the hole CLAUDE.md carried as
@@ -1187,7 +1187,7 @@ studio's schedule sync by stamping a far-future time).
 ```
 
 <a id="demostudiostaysdemo"></a>
-### function demoStudioStaysDemo (in match /studios/{studioId})
+### `function demoStudioStaysDemo` (in `match /studios/{studioId}`)
 
 ```text
 THE PRACTICE STUDIO STAYS A PRACTICE STUDIO (the franchise
@@ -1201,7 +1201,7 @@ after the write, so an update can't add them either.
 ```
 
 <a id="studios-studioid-sync-docid"></a>
-### match /studios/{studioId}/sync/{docId}
+### `match /studios/{studioId}/sync/{docId}`
 
 ```text
 THE SCHEDULE SYNC'S LEASE (the cost plan, Sep 26 2026, D3b).
@@ -1218,7 +1218,7 @@ above stays until every iPad has reloaded onto this build.
 ```
 
 <a id="studios-studioid-schedulecoverage-month"></a>
-### match /studios/{studioId}/scheduleCoverage/{month}
+### `match /studios/{studioId}/scheduleCoverage/{month}`
 
 ```text
 WHICH DAYS JOURNEY READ IN FULL (the whole-read record, Sep 27 2026;
@@ -1237,7 +1237,7 @@ the Sunday job (Admin SDK) and Openings.
 ```
 
 <a id="studios-studioid-openingsmarks-markkey"></a>
-### match /studios/{studioId}/openingsMarks/{markKey}
+### `match /studios/{studioId}/openingsMarks/{markKey}`
 
 ```text
 MARKS ON A TIME (Openings round, Sep 27 2026;
@@ -1269,7 +1269,7 @@ record's function; its answer is "works here, or runs it, or above").
 ```
 
 <a id="studios-studioid-config-configid"></a>
-### match /studios/{studioId}/config/{configId}
+### `match /studios/{studioId}/config/{configId}`
 
 ```text
 RENEWAL SETTINGS (Renewals round, Sep 2026).
@@ -1294,7 +1294,7 @@ choice of starting routines (config/startingRoutines, Oct 8 2026):
 ```
 
 <a id="studios-studioid-renewals-cyclekey"></a>
-### match /studios/{studioId}/renewals/{cycleKey}
+### `match /studios/{studioId}/renewals/{cycleKey}`
 
 ```text
 RENEWAL CYCLES AND CONVERSATIONS (Renewals round, Sep 2026).
@@ -1317,7 +1317,7 @@ through the Admin SDK, which these rules do not govern.
 ```
 
 <a id="studios-studioid-roster-machineid"></a>
-### match /studios/{studioId}/roster/{machineId}
+### `match /studios/{studioId}/roster/{machineId}`
 
 ```text
 STUDIO MACHINE ROSTER — what THIS location actually has
@@ -1343,7 +1343,7 @@ also covers a direct read of that one document.
 ```
 
 <a id="studios-studioid-machinenotes-machineid"></a>
-### match /studios/{studioId}/machineNotes/{machineId}
+### `match /studios/{studioId}/machineNotes/{machineId}`
 
 ```text
 STUDIO MACHINE NOTES — the floor's own notes about its equipment
@@ -1364,7 +1364,7 @@ signed-in account could read every studio's notes by path.
 ```
 
 <a id="studios-studioid-floornotes-noteid"></a>
-### match /studios/{studioId}/floorNotes/{noteId}
+### `match /studios/{studioId}/floorNotes/{noteId}`
 
 ```text
 THE FLOOR'S NOTES ON A MACHINE (notes round, Oct 3 2026; AJ's answer
@@ -1382,7 +1382,7 @@ It never names a client. features/floor-notes.
 ```
 
 <a id="studios-studioid-vault-entryid"></a>
-### match /studios/{studioId}/vault/{entryId}
+### `match /studios/{studioId}/vault/{entryId}`
 
 ```text
 EQUIPMENT UPKEEP LOG — "I deep-cleaned the leg press just now"
@@ -1409,7 +1409,7 @@ franchise partition, Oct 2026) and administrators.
 ```
 
 <a id="studios-studioid-standingweeks-traineruid"></a>
-### match /studios/{studioId}/standingWeeks/{trainerUid}
+### `match /studios/{studioId}/standingWeeks/{trainerUid}`
 
 ```text
 THE STANDING WEEK (voice-review round, Sep 27 2026) -- one document
@@ -1425,7 +1425,7 @@ bookings against it and writes nothing to Mindbody.
 ```
 
 <a id="studios-studioid-machinefit-machineid"></a>
-### match /studios/{studioId}/machineFit/{machineId}
+### `match /studios/{studioId}/machineFit/{machineId}`
 
 ```text
 MACHINE FIT (Sep 2026) -- one document per machine: which of this
@@ -1445,7 +1445,7 @@ joined to the client record when they are read.
 ```
 
 <a id="studios-studioid-watch-watchid"></a>
-### match /studios/{studioId}/watch/{watchId}
+### `match /studios/{studioId}/watch/{watchId}`
 
 ```text
 THE WATCH (Operations round, Sep 2026) -- what the weekly job noticed
@@ -1457,7 +1457,7 @@ the machineFit index is. Nothing in the app writes here.
 ```
 
 <a id="studios-studioid-watch-journey"></a>
-### match /studios/{studioId}/watch/journey
+### `match /studios/{studioId}/watch/journey`
 
 ```text
 WAVE 2 OPERATIONS: the night's Journey summary (Sep 28 2026; AJ: "all
@@ -1469,7 +1469,7 @@ the Hub's All stars, keeps the block above: everyone who works here.)
 ```
 
 <a id="studios-studioid-watchlist-clientid"></a>
-### match /studios/{studioId}/watchlist/{clientId}
+### `match /studios/{studioId}/watchlist/{clientId}`
 
 ```text
 THE WATCHLIST (Operations overhaul, Sep 2026) -- one document per
@@ -1483,7 +1483,7 @@ does. features/admin/attention.
 ```
 
 <a id="studios-studioid-acknowledgements-ackid"></a>
-### match /studios/{studioId}/acknowledgements/{ackId}
+### `match /studios/{studioId}/acknowledgements/{ackId}`
 
 ```text
 ACKNOWLEDGEMENTS (Operations overhaul, Sep 2026) -- one document per
@@ -1497,7 +1497,7 @@ ever deleted.
 ```
 
 <a id="studios-studioid-bookingmarks-bookingid"></a>
-### match /studios/{studioId}/bookingMarks/{bookingId}
+### `match /studios/{studioId}/bookingMarks/{bookingId}`
 
 ```text
 WAVE 2 OPERATIONS: a leader's "didn't come" (Sep 28 2026; AJ: "all
@@ -1512,7 +1512,7 @@ cheap field checks come before the one that reads the trainer.
 ```
 
 <a id="studios-studioid-bookingmarks-bookingid-allow-read"></a>
-### match /studios/{studioId}/bookingMarks/{bookingId}, allow read
+### `match /studios/{studioId}/bookingMarks/{bookingId}`, allow read
 
 ```text
 LATE CANCEL · SESSION TAKEN (Atlas answers, Oct 2 2026). AJ: "it
@@ -1526,7 +1526,7 @@ the finger), takes it back. The document's shape is unchanged
 ```
 
 <a id="studios-studioid-cases-clientid"></a>
-### match /studios/{studioId}/cases/{clientId}
+### `match /studios/{studioId}/cases/{clientId}`
 
 ```text
 WAVE 2 OPERATIONS: a client's case (Sep 28 2026; AJ: "all yes"). One
@@ -1544,7 +1544,7 @@ the trainer.
 ```
 
 <a id="studios-studioid-inactivemarks-clientid"></a>
-### match /studios/{studioId}/inactiveMarks/{clientId}
+### `match /studios/{studioId}/inactiveMarks/{clientId}`
 
 ```text
 THE INACTIVE ROUND: a leader's inactive mark (Oct 1 2026; AJ:
@@ -1562,7 +1562,7 @@ one that reads the trainer.
 ```
 
 <a id="studios-studioid-tasktemplates-templateid"></a>
-### match /studios/{studioId}/taskTemplates/{templateId}
+### `match /studios/{studioId}/taskTemplates/{templateId}`
 
 ```text
 STUDIO TASKS — cleaning, maintenance and floor operations
@@ -1586,7 +1586,7 @@ box re-opens it, which keeps the audit trail rather than erasing it.
 ```
 
 <a id="studios-studioid-taskinstances-instanceid"></a>
-### match /studios/{studioId}/taskInstances/{instanceId}
+### `match /studios/{studioId}/taskInstances/{instanceId}`
 
 ```text
 TASK INSTANCES — one day's occurrences.
@@ -1621,7 +1621,7 @@ box re-opens it, which keeps the audit trail rather than erasing it.
 ```
 
 <a id="studios-studioid-playbook-entryid"></a>
-### match /studios/{studioId}/playbook/{entryId}
+### `match /studios/{studioId}/playbook/{entryId}`
 
 ```text
 FLOATING REQUESTS — ad-hoc asks and low-priority studio comms
@@ -1669,7 +1669,7 @@ against a machine, so deleting orphans both.
 ```
 
 <a id="studios-studioid-wiki-docid"></a>
-### match /studios/{studioId}/wiki/{docId}
+### `match /studios/{studioId}/wiki/{docId}`
 
 ```text
 THE STUDIO'S OWN WIKI CONTENT.
@@ -1715,7 +1715,7 @@ Firestore does not cascade.
 ```
 
 <a id="studios-studioid-taskrequests-requestid-submissions-trainerid"></a>
-### match /studios/{studioId}/taskRequests/{requestId}/submissions/{trainerId}
+### `match /studios/{studioId}/taskRequests/{requestId}/submissions/{trainerId}`
 
 ```text
 INITIATIVE SUBMISSIONS — what each trainer logged against a
@@ -1737,7 +1737,7 @@ everyone can see where the floor has got to.
 ```
 
 <a id="studios-studioid-teamjobs-jobid"></a>
-### match /studios/{studioId}/teamJobs/{jobId}
+### `match /studios/{studioId}/teamJobs/{jobId}`
 
 ```text
 TEAM JOBS (Planner rework, Sep 2026) -- one piece of work several
@@ -1760,7 +1760,7 @@ check resolves the caller through document reads.
 ```
 
 <a id="studios-studioid-noteshares-noteid"></a>
-### match /studios/{studioId}/noteShares/{noteId}
+### `match /studios/{studioId}/noteShares/{noteId}`
 
 ```text
 NOTES SHARED WITH COLLEAGUES (Planner rework, Sep 2026) -- a COPY of
@@ -1781,7 +1781,7 @@ deletes it. Ending a share by hand removes the copy immediately.
 ```
 
 <a id="studios-studioid-comments-commentid"></a>
-### match /studios/{studioId}/comments/{commentId}
+### `match /studios/{studioId}/comments/{commentId}`
 
 ```text
 COMMENTS ON LEARNING PAGES (Learning + Planner round, Sep 2026).
@@ -1798,7 +1798,7 @@ leaders and administrators may take one down.
 ```
 
 <a id="path-roster-machineid"></a>
-### match /{path=\*\*}/roster/{machineId}
+### `match /{path=**}/roster/{machineId}`
 
 ```text
 THE MSF MACHINE DATABASE (Learning + Planner round, Sep 2026).
@@ -1820,7 +1820,7 @@ nothing reaches another studio until they do (shareDecisionOk).
 ```
 
 <a id="networks-networkid"></a>
-### match /networks/{networkId}
+### `match /networks/{networkId}`
 
 ```text
 NETWORKS: Regional Franchise Groupings. Administrators make and change
@@ -1835,7 +1835,7 @@ superOnRecord: the administrator's role from their own document.
 ```
 
 <a id="access-requests-requestid"></a>
-### match /access\_requests/{requestId}
+### `match /access_requests/{requestId}`
 
 ```text
 ACCESS REQUESTS
@@ -1861,7 +1861,7 @@ user" was everyone. Now:
 ```
 
 <a id="access-requests-requestid-allow-update"></a>
-### match /access\_requests/{requestId}, allow update
+### `match /access_requests/{requestId}`, allow update
 
 ```text
 A studio's leaders let people in from My Studio -> Team (My Studio
@@ -1876,7 +1876,7 @@ same studio only (the id names it).
 ```
 
 <a id="bug-reports-reportid"></a>
-### match /bug\_reports/{reportId}
+### `match /bug_reports/{reportId}`
 
 ```text
 BUG REPORTS
@@ -1890,7 +1890,7 @@ too. A reporter may read their OWN report; nobody else can.
 ```
 
 <a id="bugreplyvalid"></a>
-### function bugReplyValid (in match /bug\_reports/{reportId})
+### `function bugReplyValid` (in `match /bug_reports/{reportId}`)
 
 ```text
 WAVE 2 ADMINS: A REPLY THE REPORTER READS IN SETTINGS (Sep 28 2026; AJ
@@ -1905,7 +1905,7 @@ report is never filed with a reply already on it.
 ```
 
 <a id="activity-entryid"></a>
-### match /activity/{entryId}
+### `match /activity/{entryId}`
 
 ```text
 WAVE 2 ADMINS: THE ACTIVITY RECORD (the Admins room's second wave, Sep
@@ -1923,7 +1923,7 @@ Cheap shape checks first; isSuperAdmin() (document reads) runs last.
 ```
 
 <a id="studios-studioid-setupitems-itemid"></a>
-### match /studios/{studioId}/setupItems/{itemId}
+### `match /studios/{studioId}/setupItems/{itemId}`
 
 ```text
 WAVE 2 ADMINS: A STUDIO'S SETUP CHECKLIST (Opening a studio, the Admins
@@ -1943,7 +1943,7 @@ studio"). Cheap shape checks first; isSuperAdmin() runs last.
 ```
 
 <a id="adminhome-itemkey"></a>
-### match /adminHome/{itemKey}
+### `match /adminHome/{itemKey}`
 
 ```text
 WAVE 2 ADMINS: HOME'S TAKE IT / SNOOZE / DISMISS (the Admins room's
@@ -1960,7 +1960,7 @@ Administrators only, reading and writing.
 ```
 
 <a id="announcementreads-uid"></a>
-### match /announcementReads/{uid}
+### `match /announcementReads/{uid}`
 
 ```text
 ANNOUNCEMENTS
@@ -1986,7 +1986,7 @@ private in the same way. The poster never counts them.
 ```
 
 <a id="announcementacksreadable"></a>
-### function announcementAcksReadable
+### `function announcementAcksReadable`
 
 ```text
 WHO HAS READ A NOTICE (the Atlas answers, Oct 2 2026). A person's "I've

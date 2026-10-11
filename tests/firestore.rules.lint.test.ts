@@ -138,7 +138,7 @@ describe("firestore.rules stays under Firebase's size limits", () => {
   it("is at most 150,000 bytes of code, comments taken out and strings kept", () => {
     expect(
       Buffer.byteLength(stripRulesComments(SOURCE)),
-      "firestore.rules' code is growing toward Firebase's 250 KB compiled limit",
+      "firestore.rules' code (comments taken out) is over 150,000 bytes, heading for Firebase's 250 KB compiled limit; moving comments won't help here, fold repeated conditions into a helper before adding more",
     ).toBeLessThanOrEqual(150_000);
   });
 

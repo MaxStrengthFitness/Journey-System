@@ -718,6 +718,8 @@ the data files with esbuild's text loader, so that field comes back as the
 
 ## Security rules and permissions
 
+- **`firestore.rules` is held under Firebase's size limits** (the studio map round, phase 0, Oct 10 2026). Firebase refuses a rules source over 256 KiB, and the file reached 255,229 bytes in the franchise partition. The long explanations behind the rules are in `docs/ops/RULES-NOTES.md` (a comment of 8 lines or more goes there, and the lint holds the file under 240 KiB): a note gets a heading named after its function or match path and an `<a id="…">` anchor, and the rules file keeps `// Why: docs/ops/RULES-NOTES.md#<anchor>`. `tests/firestore.rules.lint.test.ts` also fails over 150,000 bytes of code with the comments taken out, which moving comments can't fix, and on a pointer whose note isn't there.
+
 - **Never deploy indexes with `--force` once the TTL policies are set** (the speed round, Oct 2026). Production holds two TTL field overrides, `expiresAt` on `mindbodyEventLog` and `mindbodyBookingCancels`, set by hand with gcloud after the round's golive. `firestore.indexes.json` does not hold them (the Enterprise edition refuses field overrides in it), and firebase-tools lists TTL configs as field overrides: an interactive index deploy asks to delete them, and `--force` deletes them without asking, so the webhook's logs would grow without bound again. Deploy indexes with `--non-interactive`; its note that "2 field overrides ... are not present" is expected.
 
 <a id="cross-train"></a>
