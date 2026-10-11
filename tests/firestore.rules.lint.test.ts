@@ -150,3 +150,37 @@ describe("firestore.rules stays under Firebase's size limits", () => {
     expect(pointers.filter((a) => !anchors.has(a))).toEqual([]);
   });
 });
+
+/**
+ * THE STUDIO MAP (Oct 2026): a machine's size, on its model and on its unit.
+ * The roster's create and update resolve the caller once (rosterLeaderOnce):
+ * the old helper pair ran out of the 1,000-expression budget on real writes
+ * (the round's review measured it), so it must not come back into that rule.
+ */
+describe("the studio map's sizes", () => {
+  it("defines the size checks and the once-resolved roster leader", () => {
+    for (const mark of ["function sizeMmOk(", "function modelSizeValid(", "function rosterUnitSizeOk(", "function rosterLeaderOnce("]) {
+      expect(SOURCE, mark).toContain(mark);
+    }
+  });
+
+  it("asks the roster's create and update with the once-resolved leader, never the old helper pair", () => {
+    const roster = /match \/roster\/\{machineId\} \{([\s\S]*?)\n {6}\}/.exec(SOURCE);
+    expect(roster).toBeTruthy();
+    const write = /allow create, update:([\s\S]*?);/.exec(stripped(roster![1]));
+    expect(write).toBeTruthy();
+    expect(write![1]).toContain("rosterUnitSizeOk()");
+    expect(write![1]).toContain("rosterLeaderOnce(studioId)");
+    expect(write![1]).not.toContain("isStudioOwnerOrHeadTrainer");
+    expect(write![1]).not.toContain("isSuperAdmin");
+  });
+
+  it("holds a size's lengths to the model editor's limits", async () => {
+    const { MODEL_LIMITS } = await import("../src/features/machine-codex/models");
+    const body = /function sizeMmOk\(v\) \{\s*return ([^;]+);/.exec(SOURCE);
+    expect(body?.[1]).toBe(`v is number && v >= ${MODEL_LIMITS.sizeMinMm} && v <= ${MODEL_LIMITS.sizeMaxMm}`);
+    const model = /function modelSizeValid\(s\) \{([\s\S]*?)\n {4}\}/.exec(SOURCE)?.[1] ?? "";
+    expect(model).toContain(`s.source.size() <= ${MODEL_LIMITS.sizeSource}`);
+    expect(model).toContain(`s.get('note', '').size() <= ${MODEL_LIMITS.sizeNote}`);
+  });
+});

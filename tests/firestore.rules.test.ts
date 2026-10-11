@@ -8803,4 +8803,239 @@ describe("the franchise partition: an owner runs their own studios and no other"
       );
     }, BUDGET_TIMEOUT);
   });
+
+  // -- THE STUDIO MAP (Oct 2026): a machine's size, on its model (head
+  // office's) and on its unit (the studio's leaders, tape-measured), and the
+  // roster's create and update in resolve-once form (rosterLeaderOnce).
+  // The design's §A.6; the budget cases' counts go in the round document.
+  describe("the studio map", () => {
+    const LP = "m-leg-press";
+    /** Ten removed safety lines, each with its reason: the most the rules check one by one. */
+    const removedTen = Array.from({ length: 10 }, (_, i) => ({
+      field: "clinicalWarnings",
+      line: `Warning ${i}`,
+      reason: `Reason ${i}: this unit has no end stop to lock against.`,
+      by: { uid: "leaderA", name: "Person leaderA" },
+      at: "2026-10-10T15:00:00.000Z",
+    }));
+    const entry = (studioId: string, machineId = LP, over: Record<string, unknown> = {}) => ({
+      machineId,
+      studioId,
+      source: "catalog",
+      basedOn: machineId.startsWith("m-") ? machineId : LP,
+      status: "active",
+      order: 1,
+      overrides: { removedSafety: removedTen },
+      ...over,
+    });
+    const unitSize = (uid: string, over: Record<string, unknown> = {}) => ({
+      lengthMm: 2120,
+      widthMm: 1260,
+      heightMm: 1800,
+      by: uid,
+      at: serverTimestamp(),
+      ...over,
+    });
+    const sizedModel = (uid: string, over: Record<string, unknown> = {}, size: Record<string, unknown> = {}) => ({
+      brand: "Imagine Strength",
+      model: "IS2019 Leg Press",
+      movementId: LP,
+      size: { lengthMm: 2120, widthMm: 1260, heightMm: 1800, source: "Imagine Strength brochure, 2026, page 2", ...size },
+      updatedAt: serverTimestamp(),
+      updatedBy: uid,
+      ...over,
+    });
+    const roster = (db: Db, studioId: string, machineId = LP) => doc(db, "studios", studioId, "roster", machineId);
+    const MODEL = "mm-imagine-strength-is2019-leg-press";
+    const twenty = Array.from({ length: 20 }, (_, i) => `sm-unit-${i}`);
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        const batch = writeBatch(db);
+        const put = (path: string, data: Record<string, unknown>) => batch.set(doc(db, path), data);
+        // The partition block has none of these; the cases below need them.
+        put("trainers/trainerA", person("trainerA", "LifeTransformer", A));
+        put("trainers/guestA", person("guestA", "LifeTransformer", C, { activeGuestStudioIds: [A] }));
+        put("trainers/guestGrantA", person("guestGrantA", "LifeTransformer", C, { activeGuestStudioIds: [A], managedStudioIds: [A] }));
+        put("trainers/trainerB", person("trainerB", "LifeTransformer", B));
+        put("trainers/demoTrainer", person("demoTrainer", "LifeTransformer", C));
+        put("trainers/outsiderC", person("outsiderC", "LifeTransformer", C));
+        for (const s of [A, B, DEMO]) put(`studios/${s}/roster/${LP}`, entry(s));
+        for (const s of [A, B]) {
+          twenty.forEach((id, i) => put(`studios/${s}/roster/${id}`, entry(s, id, { source: "custom", basedOn: LP, order: i + 2, overrides: {} })));
+        }
+        await batch.commit();
+      });
+    });
+
+    describe("the roster's writers, resolved once, are the same people as before", () => {
+      it("R1: lets leaderA, franchiseAB at B, grantA2 and adminP change the walking order", async () => {
+        await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { order: 2 }));
+        await assertSucceeds(updateDoc(roster(ctx("franchiseAB"), B), { order: 2 }));
+        await assertSucceeds(updateDoc(roster(ctx("grantA2"), A), { order: 3 }));
+        await assertSucceeds(updateDoc(roster(ctx("adminP"), A), { order: 4 }));
+        // An administrator answered by the claim alone, with no trainer document.
+        await assertSucceeds(updateDoc(roster(ctx("claim-admin", { role: "Admin" }), B), { order: 5 }));
+      });
+
+      it("R2: refuses trainerA, guestA, franchiseA at B and outsiderC at A", async () => {
+        await assertFails(updateDoc(roster(ctx("trainerA"), A), { order: 2 }));
+        await assertFails(updateDoc(roster(ctx("guestA"), A), { order: 2 }));
+        await assertFails(updateDoc(roster(ctx("franchiseA"), B), { order: 2 }));
+        await assertFails(updateDoc(roster(ctx("outsiderC"), A), { order: 2 }));
+        await assertFails(updateDoc(roster(testEnv.unauthenticatedContext().firestore(), A), { order: 2 }));
+      });
+
+      it("R3: lets anyone with a trainer document run the Demo Mode floor, as before", async () => {
+        await assertSucceeds(updateDoc(roster(ctx("demoTrainer"), DEMO), { status: "maintenance" }));
+      });
+    });
+
+    describe("a model's size", () => {
+      const model = (db: Db, id = MODEL) => doc(db, "machineModels", id);
+
+      it("M1, M2: lets an administrator record a size, with a height, a null height or none", async () => {
+        const admin = ctx("adminP");
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", {}, { lengthMm: 1594, widthMm: 1227, heightMm: 1850 })));
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", {}, { heightMm: null })));
+        const { heightMm: _h, ...noHeight } = sizedModel("adminP").size;
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", { size: noHeight })));
+      });
+
+      it("M3, M4, M5: refuses a size with no source, a length out of range or a key it doesn't know", async () => {
+        const admin = ctx("adminP");
+        const { source: _s, ...noSource } = sizedModel("adminP").size;
+        await assertFails(setDoc(model(admin), sizedModel("adminP", { size: noSource })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { source: "" })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { lengthMm: 100 })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { widthMm: 7000 })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { lengthMm: "2120" })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { weightKg: 300 })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", { size: null })));
+      });
+
+      it("M6: holds the note to 400 characters", async () => {
+        const admin = ctx("adminP");
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { note: "n".repeat(401) })));
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", {}, { note: "n".repeat(400) })));
+      });
+
+      it("M7: refuses a size from a studio's leader, who isn't an administrator", async () => {
+        await assertFails(setDoc(model(ctx("leaderA")), sizedModel("leaderA")));
+      });
+
+      it("M8: lets an administrator save a sized model again, its size kept and its notes changed", async () => {
+        const admin = ctx("adminP");
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP")));
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", { notes: "An 18 lb accessory stack." })));
+        await assertSucceeds(getDoc(model(ctx("trainerA"))));
+      });
+    });
+
+    describe("a unit's size and its model", () => {
+      it("U1-U5: takes a size signed by its writer at the server's time, in range, and takes it away", async () => {
+        const leader = ctx("leaderA");
+        await assertSucceeds(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA") }));
+        await assertFails(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA", { lengthMm: 2121, by: "someoneElse" }) }));
+        await assertFails(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA", { lengthMm: 2122, at: new Date() }) }));
+        await assertFails(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA", { weightLb: 400 }) }));
+        await assertFails(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA", { lengthMm: 100 }) }));
+        await assertSucceeds(updateDoc(roster(leader, A), { "unit.size": deleteField() }));
+        // No height is fine too.
+        const { heightMm: _h, ...flat } = unitSize("leaderA");
+        await assertSucceeds(updateDoc(roster(leader, A), { "unit.size": flat }));
+      });
+
+      it("U6: lets another write through with an old size signed by someone else left untouched", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await updateDoc(roster(context.firestore(), A), {
+            "unit.size": { lengthMm: 2120, widthMm: 1260, by: "someoneElse", at: new Date("2026-10-01T12:00:00Z") },
+            "unit.serialNumber": "IS-0042",
+          });
+        });
+        await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { status: "maintenance" }));
+        await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { "unit.serialNumber": "IS-0043" }));
+      });
+
+      it("U7, U8, U9: a size from the studio's leaders only, a franchise owner at the studios they own", async () => {
+        await assertFails(updateDoc(roster(ctx("trainerA"), A), { "unit.size": unitSize("trainerA") }));
+        await assertSucceeds(updateDoc(roster(ctx("franchiseAB"), B), { "unit.size": unitSize("franchiseAB") }));
+        await assertFails(updateDoc(roster(ctx("franchiseA"), B), { "unit.size": unitSize("franchiseA") }));
+      });
+
+      it("U10, U11: takes Mark 20 as Imagine Strength in one batch, from leaderA, franchiseAB at B and grantA2, and its Undo", async () => {
+        for (const [uid, studioId] of [["leaderA", A], ["franchiseAB", B], ["grantA2", A]] as const) {
+          const db = ctx(uid);
+          const mark = writeBatch(db);
+          for (const id of twenty) mark.update(roster(db, studioId, id), { modelId: MODEL });
+          await assertSucceeds(mark.commit());
+        }
+        const db = ctx("leaderA");
+        const undo = writeBatch(db);
+        for (const id of twenty) undo.update(roster(db, A, id), { modelId: deleteField() });
+        await assertSucceeds(undo.commit());
+      });
+
+      it("U12: takes a model id no record carries (the app, not the rules, refuses a wrong model)", async () => {
+        await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { modelId: "mm-does-not-exist" }));
+      });
+    });
+
+    describe("inside the rules' budget", () => {
+      /** The four writes the app sends to a roster entry, one kind at a time, each as its store sends it. */
+      const writes = (uid: string) =>
+        [
+          ["unit.size", { "unit.size": unitSize(uid) }],
+          [
+            "Out of service",
+            {
+              status: "maintenance",
+              outOfService: { reason: "The cable is frayed.", by: { uid, name: nameOf(uid) }, at: serverTimestamp() },
+              updatedAt: serverTimestamp(),
+              updatedBy: uid,
+            },
+          ],
+          ["modelId", { modelId: MODEL }],
+        ] as const;
+
+      // One case per leader: each measured write reads the coverage report
+      // twice, and the report grows with the whole file's run.
+      it.each([
+        ["leaderA", A, "a leader at home"],
+        ["franchiseAB", B, "an owner at a studio they own, not their home"],
+        ["grantA2", A, "the grant"],
+        ["guestGrantA", A, "a guest holding the grant"],
+      ] as const)("B1: fits each roster write by %s at %s (%s), ten removed safety lines, no role claim", async (uid, studioId) => {
+        for (const [label, data] of writes(uid)) {
+          await assertSucceeds(measured(`roster update, ${label}: ${uid} at ${studioId}, 10 removed lines`, () => updateDoc(roster(ctx(uid), studioId), data)));
+        }
+        // The walking order, as saveOrder sends it: a merge set of the order and the stamp.
+        await assertSucceeds(
+          measured(`roster update, order: ${uid} at ${studioId}, 10 removed lines`, () =>
+            setDoc(roster(ctx(uid), studioId), { order: 7, updatedAt: serverTimestamp(), updatedBy: uid }, { merge: true }),
+          ),
+        );
+      }, BUDGET_TIMEOUT);
+
+      it("B2: fits the walking-order drag by an owner at an owned studio that isn't their home", async () => {
+        const db = ctx("franchiseAB");
+        const order = writeBatch(db);
+        order.set(roster(db, B), { order: 2, updatedAt: serverTimestamp(), updatedBy: "franchiseAB" }, { merge: true });
+        await assertSucceeds(measured("roster batch, order only: franchiseAB at B, 10 removed lines", () => order.commit()));
+      }, BUDGET_TIMEOUT);
+
+      it("B6: fits the fullest model an administrator writes: 20 dials, 2,000 characters of notes, a size with a 400-character note", async () => {
+        const full = sizedModel(
+          "adminP",
+          {
+            dials: Array.from({ length: 20 }, (_, i) => ({ key: `dial-${i}`, label: `Dial ${i}`, letter: "D", default: "7", options: ["1", "2", "3"] })),
+            notes: "n".repeat(2000),
+          },
+          { note: "m".repeat(400) },
+        );
+        await assertSucceeds(measured("machineModels create: the fullest model", () => setDoc(doc(ctx("adminP"), "machineModels", MODEL), full)));
+      }, BUDGET_TIMEOUT);
+    });
+  });
 });

@@ -31,6 +31,16 @@ describe("a model record, read", () => {
     expect(machineModelOf("x", null)).toBeNull();
   });
 
+  it("carries a valid size, and leaves out one that isn't (the studio map)", () => {
+    const sized = machineModelOf("x", { ...HOIST, size: { lengthMm: 2120, widthMm: 1260, heightMm: 1800, source: "Brochure", note: "Measure yours." } });
+    expect(sized?.size).toEqual({ lengthMm: 2120, widthMm: 1260, heightMm: 1800, source: "Brochure", note: "Measure yours." });
+    const junk = machineModelOf("x", { ...HOIST, size: { lengthMm: "2120", widthMm: 1260, source: "Brochure" } });
+    expect(junk).not.toBeNull();
+    expect(junk && "size" in junk).toBe(false);
+    const noSource = machineModelOf("x", { ...HOIST, size: { lengthMm: 2120, widthMm: 1260 } });
+    expect(noSource && "size" in noSource).toBe(false);
+  });
+
   it("takes dials however the record holds them, and nothing that isn't one", () => {
     const m = machineModelOf("x", { ...HOIST, dials: ["Gap", { name: "Seat" }, { key: "arms" }, 4, null, { label: "" }] });
     expect(m?.dials).toEqual(["Gap", "Seat", "arms"]);

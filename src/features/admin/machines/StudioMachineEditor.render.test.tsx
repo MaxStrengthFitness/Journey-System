@@ -242,41 +242,54 @@ describe("the unit's model (Codex R2)", () => {
     models.docs = [];
   });
 
-  it("writes the model a studio picks on the roster entry, never into the overrides", async () => {
+  // Since the studio map (Oct 2026) a unit's model is set in ONE place, the
+  // floor's Sizes and the machine's Its size: this editor shows it read only
+  // and its save never writes it, so a whole draft saved here can't undo a
+  // model set there.
+  it("shows the unit's model read only, with where it is set", async () => {
     models.docs = [hoist, nautilus];
-    const el = await mount({ entry: rosterEntry, resolved: legPress, catalogEntry: legPress });
-    const picker = el.querySelector("#machine-model") as HTMLSelectElement;
-    expect(picker).toBeTruthy();
-    // Only this movement's models are offered.
-    expect([...picker.options].map((o) => o.textContent)).toEqual([
-      "Not recorded",
-      "Hoist ROC-IT Leg Press",
-      "Nautilus Nitro Leg Press",
-    ]);
-    await act(async () => {
-      picker.value = "mm-nautilus-nitro-leg-press";
-      picker.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await save(el);
-    expect(writes[0].data.modelId).toBe("mm-nautilus-nitro-leg-press");
-    expect((writes[0].data.overrides as Record<string, unknown>).modelId).toBeUndefined();
-  });
-
-  it("deletes the model when a studio clears it, so not recorded is absent", async () => {
-    models.docs = [hoist];
     const el = await mount({
       entry: { ...rosterEntry, modelId: "mm-hoist-roc-it-leg-press" },
       resolved: { ...legPress, modelId: "mm-hoist-roc-it-leg-press" },
       catalogEntry: legPress,
     });
-    const picker = el.querySelector("#machine-model") as HTMLSelectElement;
-    expect(picker.value).toBe("mm-hoist-roc-it-leg-press");
-    await act(async () => {
-      picker.value = "";
-      picker.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(el.querySelector("#machine-model")).toBeNull();
+    expect(el.textContent).toContain("Hoist ROC-IT Leg Press");
+    expect(el.textContent).toContain("Set on the floor's Sizes, or the machine's Its size.");
+  });
+
+  it("never writes the model when a studio saves its copy", async () => {
+    models.docs = [hoist, nautilus];
+    const el = await mount({
+      entry: { ...rosterEntry, modelId: "mm-nautilus-nitro-leg-press" },
+      resolved: { ...legPress, modelId: "mm-nautilus-nitro-leg-press" },
+      catalogEntry: legPress,
     });
+    const baseline = el.querySelector("#machine-section-baseline")!;
+    await type(baseline.querySelector("textarea") as HTMLTextAreaElement, "P3 here.");
     await save(el);
-    expect(writes[0].data.modelId).toBe("__delete__");
+    expect(writes).toHaveLength(1);
+    expect("modelId" in writes[0].data).toBe(false);
+    expect((writes[0].data.overrides as Record<string, unknown>).modelId).toBeUndefined();
+  });
+
+  it("never writes the model, nor deletes it, when a studio saves its own machine", async () => {
+    models.docs = [hoist];
+    const custom: StudioMachineRosterEntry = {
+      machineId: "sm-solon-hammer-sled",
+      studioId: "solon",
+      source: "custom",
+      basedOn: "m-leg-press",
+      status: "active",
+      modelId: "mm-hoist-roc-it-leg-press",
+      definition: { ...legPress, name: "Hammer Sled" },
+    };
+    const el = await mount({ entry: custom, resolved: custom.definition, rosteredIds: new Set(["sm-solon-hammer-sled"]) });
+    const identity = el.querySelector("#machine-section-identity")!;
+    await type(identity.querySelector("input") as HTMLInputElement, "The Sled");
+    await save(el);
+    expect(writes).toHaveLength(1);
+    expect("modelId" in writes[0].data).toBe(false);
   });
 });
 

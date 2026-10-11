@@ -71,6 +71,9 @@ const FILES = [
   // 2026), and the routine template editor's "For new clients" part, in the
   // Operations kit's --adm-* colours.
   "features/routine-plan/ui/starting-routines.css",
+  // The studio map (Oct 2026): a machine's size on its door, in
+  // equipment.tokens.css's --eq-* colours like floor-notes.css.
+  "features/studio-map/studio-map.css",
 ] as const;
 
 /**

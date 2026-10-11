@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { deleteField, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { useToast } from "../../../contexts/ToastContext";
 import type {
@@ -111,12 +111,11 @@ export function StudioMachineEditor({
 
     // THE UNIT'S MODEL lives on the roster entry itself (`modelId`), never in
     // the definition or its overrides: the definition's own `modelId` is the
-    // catalog's reference unit. Deleted when cleared, so "not recorded" is
-    // absent rather than "".
-    const { modelId: pickedModel, ...draft } = draftIn;
-    const unitModel = pickedModel?.trim() || undefined;
-    const modelWrite = (updating: boolean) =>
-      unitModel ? { modelId: unitModel } : updating ? { modelId: deleteField() } : {};
+    // catalog's reference unit. Since the studio map (Oct 2026) it is set in
+    // ONE place, the floor's Sizes and the machine's Its size
+    // (studio-map/ui/UnitModelField), and this save never writes it: a whole
+    // draft saved here would undo a model set there.
+    const { modelId: _unitModel, ...draft } = draftIn;
 
     if (isCustom) {
       const machineId = existingId ?? studioMachineId(studioId, name);
@@ -135,7 +134,6 @@ export function StudioMachineEditor({
         // resolved machine and carries the floor's bookkeeping too), and
         // with nothing `undefined` in it, which Firestore refuses.
         definition: stripUndefined(definitionFieldsOnly(draft)),
-        ...modelWrite(!!existingId),
         updatedAt: serverTimestamp(),
         updatedBy: auth.currentUser?.uid ?? null,
       };
@@ -172,7 +170,6 @@ export function StudioMachineEditor({
       // setDoc({overrides}, {merge:true}) would keep a key the studio has
       // just reverted — "use the standard" would appear to work and then not.
       overrides,
-      ...modelWrite(!!entry),
       updatedAt: serverTimestamp(),
       updatedBy: auth.currentUser?.uid ?? null,
     };

@@ -23,6 +23,7 @@ import {
   dialsFromMovement,
   draftOf,
   emptyModelDraft,
+  inchesToMm,
   modelIdFor,
   modelLabel,
   modelProblems,
@@ -125,7 +126,7 @@ export function ModelEditor({
       <AdminNotice tone="info">
         Settings pool per model in the weekly count: a seat 4 on one maker&apos;s unit is not a seat
         4 on another&apos;s. Weights keep pooling per movement. A studio says which model its unit
-        is on its own machine page.
+        is on the machine&apos;s Its size, or on the floor&apos;s Sizes.
       </AdminNotice>
 
       <AdminPanel title="The model">
@@ -251,6 +252,62 @@ export function ModelEditor({
             </AdminButton>
           </div>
         </div>
+      </AdminPanel>
+
+      <AdminPanel title="Its size" subtitle="The frame at rest. Length runs front to back as a person faces the seat or pad.">
+        <AdminGrid>
+          {(["length", "width", "height"] as const).map((part) => {
+            const label = part === "length" ? "Length" : part === "width" ? "Width" : "Height";
+            const typed = d.size[part];
+            const mm = typed.trim() ? inchesToMm(typed) : null;
+            return (
+              <AdminField
+                key={part}
+                label={`${label}, inches`}
+                htmlFor={`model-size-${part}`}
+                hint={mm !== null ? `${mm} mm` : part === "height" ? "Optional." : undefined}
+              >
+                <AdminInput
+                  id={`model-size-${part}`}
+                  inputMode="decimal"
+                  value={typed}
+                  placeholder={part === "length" ? "62.8" : part === "width" ? "48.3" : "72.8"}
+                  onChange={(e) => form.setField("size", { ...d.size, [part]: e.target.value })}
+                />
+              </AdminField>
+            );
+          })}
+          <AdminField
+            label="Where the size came from"
+            htmlFor="model-size-source"
+            required={!!(d.size.length.trim() || d.size.width.trim())}
+          >
+            <AdminInput
+              id="model-size-source"
+              value={d.size.source}
+              placeholder="Imagine Strength brochure, 2026, page 2"
+              onChange={(e) => form.setField("size", { ...d.size, source: e.target.value })}
+            />
+          </AdminField>
+          <AdminField
+            label="Note"
+            htmlFor="model-size-note"
+            wide
+            hint={
+              /\bmm\b/i.test(d.size.note)
+                ? "Every studio reads this note: feet and inches read better there than mm."
+                : "A caution every studio reads beside this size. Write it in feet and inches, and only what affects where the machine stands."
+            }
+          >
+            <AdminTextarea
+              id="model-size-note"
+              rows={2}
+              value={d.size.note}
+              placeholder="The brochure gives two lengths, 46 in and 44 in. Measure yours to be sure."
+              onChange={(e) => form.setField("size", { ...d.size, note: e.target.value })}
+            />
+          </AdminField>
+        </AdminGrid>
       </AdminPanel>
 
       <AdminPanel title="Notes" subtitle="Anything every unit of it shares — an accessory stack, a seat that moves during the rep.">

@@ -30,6 +30,7 @@ const SHEETS = {
   "relay.css": "features/relay/board/relay.css",
   "admin.css": "features/admin/admin.css",
   "openings.css": "features/openings/openings.css",
+  "studio-map.css": "features/studio-map/studio-map.css",
 } as const;
 type Sheet = keyof typeof SHEETS;
 
@@ -55,6 +56,11 @@ const HOSTS = [
   "features/openings/ui/MarkThisTime.tsx",
   // Starting routines on Studio (the first-session design round, Oct 8 2026).
   "features/routine-plan/ui/StartingRoutinesPanel.tsx",
+  // The studio map (Oct 2026): a machine's size on its door, and the form and
+  // the model picker the floor's Sizes sheet mounts too.
+  "features/studio-map/ui/UnitSizeCard.tsx",
+  "features/studio-map/ui/SizeForm.tsx",
+  "features/studio-map/ui/UnitModelField.tsx",
 ] as const;
 
 /**

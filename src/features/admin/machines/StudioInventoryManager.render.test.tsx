@@ -31,7 +31,7 @@ vi.mock("../../../firebase", () => ({
 type Write = { kind: string; path: string; data?: Record<string, unknown> };
 const writes: Write[] = [];
 /** When set, the next roster write waits for the test to let it through. */
-const gate = vi.hoisted(() => ({ hold: null as null | Promise<void> }));
+const gate = vi.hoisted(() => ({ hold: null as null | Promise<void>, batch: null as null | Promise<void> }));
 
 vi.mock("firebase/firestore", () => ({
   doc: (...parts: unknown[]) => ({ path: parts.filter((p) => typeof p === "string").join("/") }),
@@ -54,6 +54,7 @@ vi.mock("firebase/firestore", () => ({
     return {
       set: (t: { path: string }, data: Record<string, unknown>) => staged.push({ kind: "batch", path: t.path, data }),
       commit: async () => {
+        if (gate.batch) await gate.batch;
         writes.push(...staged);
       },
     };
@@ -203,6 +204,7 @@ afterEach(async () => {
   writes.length = 0;
   toasts.length = 0;
   gate.hold = null;
+  gate.batch = null;
   seeded.calls = 0;
   roster.entries = ROSTER;
 });
@@ -539,5 +541,55 @@ describe("the walking order", () => {
     await act(async () => byText(el, "Cancel")!.click());
     expect(writes).toEqual([]);
     expect(el.querySelector(".adm-rows")).not.toBeNull();
+  });
+
+  // The studio map (Oct 2026): a walking order being put together is unsaved
+  // work the List | Layout switch asks about, and Save never waits on the
+  // network, so an iPad offline is not left asking about an order it saved.
+  it("is unsaved work while it is being put together, and no longer once Save is tapped, before the batch lands", async () => {
+    const { UnsavedChangesProvider, useUnsavedStatus } = await import("../../unsaved-changes");
+    let status: { anyDirty: () => boolean } | null = null;
+    const Probe = () => {
+      status = useUnsavedStatus();
+      return null;
+    };
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(
+        <UnsavedChangesProvider>
+          <Probe />
+          <StudioInventoryManager studioId="solon" studioName="Solon" hideHeading />
+        </UnsavedChangesProvider>,
+      );
+    });
+    const el = host!;
+    expect(status!.anyDirty()).toBe(false);
+    await act(async () => byText(el, /Walking order/)!.click());
+    await act(async () => byLabel(el, "Move Lumbar Extension up")!.click());
+    expect(status!.anyDirty()).toBe(true);
+    let land!: () => void;
+    gate.batch = new Promise<void>((r) => (land = r));
+    await act(async () => byText(el, "Save order")!.click());
+    // The batch is still on its way: nothing has landed, and nothing is unsaved.
+    expect(writes).toEqual([]);
+    expect(status!.anyDirty()).toBe(false);
+    expect(el.querySelector(".adm-rows")).not.toBeNull();
+    await act(async () => {
+      land();
+      await new Promise((r) => setTimeout(r, 5));
+    });
+    expect(writes.map((w) => w.data?.order)).toEqual([1, 2, 3]);
+  });
+
+  it("says so when the walking order is refused", async () => {
+    const el = await mount();
+    await act(async () => byText(el, /Walking order/)!.click());
+    gate.batch = Promise.reject(new Error("permission-denied"));
+    gate.batch.catch(() => {});
+    await act(async () => byText(el, "Save order")!.click());
+    await settle();
+    expect(toasts).toContain("The walking order couldn't be saved.");
   });
 });

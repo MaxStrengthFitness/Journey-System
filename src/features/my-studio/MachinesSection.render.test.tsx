@@ -219,6 +219,18 @@ describe("the machine's door on My Studio → Machines", () => {
  * exist, so it dropped off the floor (LocalSetupDialog.render.test.tsx). Its
  * name and set-up are changed with Edit on the floor list instead.
  */
+describe("the machine's size on its door (the studio map, Oct 2026)", () => {
+  it("sits after this studio's standard settings, before the floor's notes, and is read only for a trainer", async () => {
+    await click("Open Leg Press");
+    const heads = [...(door()?.querySelectorAll(".ms__door-h") ?? [])].map((h) => h.textContent?.trim());
+    expect(heads.slice(0, 3)).toEqual(["This studio's standard settings", "Its size", "The floor's notes"]);
+    // The models are still being read (the listener never answers here): the size waits, and a trainer gets no controls.
+    expect(door()?.textContent).toContain("Size not known. Pick its model or measure it.");
+    const buttons = [...(door()?.querySelectorAll("button") ?? [])].map((x) => x.textContent?.trim());
+    expect(buttons).not.toContain("Measure it");
+  });
+});
+
 describe("the door's Local set-up, for a leader", () => {
   beforeAll(() => {
     lead.value = true;

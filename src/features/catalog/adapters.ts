@@ -105,6 +105,11 @@ export interface AdaptOptions {
    * (wave 2, Catalog R4; features/catalog/models.ts).
    */
   modelIds?: Record<string, string>;
+  /**
+   * Each unit's tape-measured size, raw, from its roster entry's
+   * `unit.size`, keyed by machineId (the studio map, Oct 2026).
+   */
+  unitSizes?: Record<string, unknown>;
 }
 
 /**
@@ -231,6 +236,7 @@ export function fromResolvedMachine(
       ? { outOfService: opts.outOfService[id] }
       : {}),
     ...(opts.modelIds?.[id] ? { modelId: opts.modelIds[id] } : {}),
+    ...(opts.unitSizes?.[id] != null ? { unitSize: opts.unitSizes[id] } : {}),
 
     // The document's own MuscleId fields win; contentId supplies the in-repo
     // default so a studio's copy of a catalog machine still lights up.

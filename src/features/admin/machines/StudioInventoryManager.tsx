@@ -41,6 +41,7 @@ import { outOfServiceLineOf, outOfServiceOfEntry } from "../../catalog/out-of-se
 import { OutOfServiceDialog } from "./OutOfServiceDialog";
 import { AddFromMsfDialog } from "./AddFromMsfDialog";
 import { addableFromMsf, moveInOrder, onFloor, orderForNewMachine, orderReach } from "./floor-editor";
+import { useUnsavedChanges } from "../../unsaved-changes";
 import "../admin.css";
 
 /**
@@ -218,6 +219,9 @@ export function StudioInventoryManager({
    * move so twenty small writes become one batch.
    */
   const [reorderIds, setReorderIds] = useState<string[] | null>(null);
+  // A walking order being put together is unsaved work: switching to the
+  // Layout, another section or another screen asks first (the studio map).
+  useUnsavedChanges(reorderIds !== null, "the walking order", { onDiscard: () => setReorderIds(null) });
   const [savingOrder, setSavingOrder] = useState(false);
   /** The machine whose reason for being out of service is being asked for. */
   const [askingOut, setAskingOut] = useState<{ machineId: string; name: string } | null>(null);
@@ -389,34 +393,34 @@ export function StudioInventoryManager({
    * order anywhere, and the field two of those screens read
    * (studioMachineSettings.order) had zero documents in production.
    */
-  const saveOrder = async () => {
+  const saveOrder = () => {
     if (!reorderIds || !studioId) return;
-    setSavingOrder(true);
-    try {
-      const batch = writeBatch(db);
-      reorderIds.forEach((machineId, i) => {
-        batch.set(
-          doc(db, "studios", studioId, "roster", machineId),
-          {
-            order: i + 1,
-            updatedAt: serverTimestamp(),
-            updatedBy: auth.currentUser?.uid ?? null,
-          },
-          { merge: true },
-        );
-      });
-      await batch.commit();
-      toastSuccess(
-        `Order saved. Every trainer at ${studioName ?? "this studio"} sees this sequence.`,
+    // A tap never waits on the network (the studio map, Oct 2026): the batch
+    // is SENT and the draft cleared at once, so the order is no longer
+    // "unsaved" (the leave question below) even offline, where the commit
+    // would not resolve until the iPad is back. The roster listener already
+    // shows the new order; a refusal comes back as a toast, and the listener
+    // then shows the order the studio really has.
+    const batch = writeBatch(db);
+    reorderIds.forEach((machineId, i) => {
+      batch.set(
+        doc(db, "studios", studioId, "roster", machineId),
+        {
+          order: i + 1,
+          updatedAt: serverTimestamp(),
+          updatedBy: auth.currentUser?.uid ?? null,
+        },
+        { merge: true },
       );
-      setReorderIds(null);
-    } catch (e: unknown) {
-      toastError(
-        `Could not save the order: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    } finally {
-      setSavingOrder(false);
-    }
+    });
+    batch.commit().catch((e: unknown) => {
+      console.error("[walking order] save refused", e);
+      toastError("The walking order couldn't be saved.");
+    });
+    toastSuccess(
+      `Order saved. Every trainer at ${studioName ?? "this studio"} sees this sequence.`,
+    );
+    setReorderIds(null);
   };
 
   /**

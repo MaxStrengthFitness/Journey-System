@@ -31,6 +31,7 @@ import { leadsStudioPerRules, writesForStudioPerRules } from "../learning/permis
 import { ContextPanel } from "../relay/board/ContextPanel";
 import { useRelayMaybe } from "../relay/board/RelayContext";
 import { leadsHere } from "../relay/leads";
+import { UnitSizeCard } from "../studio-map/ui/UnitSizeCard";
 import { UnsavedChangesScope, useLeaveScope } from "../unsaved-changes";
 import {
   buildSubmission,
@@ -102,7 +103,7 @@ interface Door {
   intent?: "open" | "submit";
 }
 
-export function MachinesSection({ authTrainer }: MachinesSectionProps) {
+export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps) {
   const { activeStudio, activeStudioId } = useActiveStudio();
   // Inside My Studio the Relay shell says who leads; on Operations → Floor
   // (the same editor, a second door — Operations overhaul, Sep 2026) there
@@ -437,6 +438,7 @@ export function MachinesSection({ authTrainer }: MachinesSectionProps) {
                       canLead={canLead}
                       canLogUpkeep={canLogUpkeep}
                       authTrainer={authTrainer ?? null}
+                      trainers={trainers}
                       openOffer={door.intent === "submit"}
                     />
                   </UnsavedChangesScope>
@@ -470,6 +472,7 @@ function MachineDoor({
   canLead,
   canLogUpkeep,
   authTrainer,
+  trainers,
   openOffer,
 }: {
   studioId: string;
@@ -488,6 +491,8 @@ function MachineDoor({
   canLead: boolean;
   canLogUpkeep: boolean;
   authTrainer: Trainer | null;
+  /** The team, to name who measured a machine (the studio map). */
+  trainers?: Trainer[];
   openOffer: boolean;
 }) {
   const [localSetup, setLocalSetup] = useState(false);
@@ -512,6 +517,20 @@ function MachineDoor({
           setting={setting}
           canEdit={canLead}
           authorId={authTrainer?.id ?? null}
+        />
+      </section>
+
+      {/* The studio map (Oct 2026): set-up information, read once and read
+          only for a trainer, so after the settings they open the door for. */}
+      <section>
+        <h3 className="ms__door-h">Its size</h3>
+        <UnitSizeCard
+          studioId={studioId}
+          entry={entry}
+          machineName={machineName}
+          canEdit={canLead}
+          authUid={uid}
+          nameOf={(who) => (trainers ?? []).find((t) => t.authUid === who || t.id === who)?.fullName ?? null}
         />
       </section>
 

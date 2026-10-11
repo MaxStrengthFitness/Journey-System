@@ -1,6 +1,9 @@
 import { AdminSelect } from "../../primitives";
 import { dialSummary, modelLabel, modelsFor, type ModelWithId } from "../../../machine-codex/models";
 
+/** What the picker needs of a model: the codex record, or the Catalog's read of it (the studio map). */
+export type PickerModel = Pick<ModelWithId, "id" | "brand" | "model" | "movementId" | "dials">;
+
 /**
  * WHICH MODEL — a select of the models recorded for one MSF movement
  * (Codex R2, Sep 28 2026). On a catalog machine it names the reference unit
@@ -15,13 +18,16 @@ export function ModelPicker({
   onChange,
   readOnly,
   id = "machine-model",
+  label,
 }: {
-  models: readonly ModelWithId[];
+  models: readonly PickerModel[];
   movementId: string | undefined;
   value: string | undefined;
   onChange: (next: string | undefined) => void;
   readOnly?: boolean;
   id?: string;
+  /** An accessible name, where no visible label names the select. */
+  label?: string;
 }) {
   const options = modelsFor(models, movementId);
   const current = value ? models.find((m) => m.id === value) : undefined;
@@ -39,7 +45,7 @@ export function ModelPicker({
   }
 
   return (
-    <AdminSelect id={id} value={value ?? ""} onChange={(e) => onChange(e.target.value || undefined)}>
+    <AdminSelect id={id} aria-label={label} value={value ?? ""} onChange={(e) => onChange(e.target.value || undefined)}>
       <option value="">Not recorded</option>
       {options.map((m) => (
         <option key={m.id} value={m.id}>
