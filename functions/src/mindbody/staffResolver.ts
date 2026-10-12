@@ -19,8 +19,27 @@
  * mint one is precisely the privilege-escalation shape the rules audit already
  * caught once. An unmatched staff member goes to the limbo queue and waits for
  * a human to link them in Edit Trainer.
+ *
+ * THE SITE (Oct 12 2026)
+ * ----------------------
+ * Each Mindbody site numbers its own staff, so a staff id alone is not a
+ * person. A staff event is matched only to a trainer whose staff id is on the
+ * event's site (`resolveStaffAtSite`, the rule in ./staffSite.ts), and a
+ * booking's trainer is looked up AT the booking's studio
+ * (`resolveTrainerAtStudio`), never company-wide and never with a limit that
+ * other sites' trainers can fill. `resolveTrainerByStaffId` is left exactly as
+ * it was, for a staff event that names no site.
+ * docs/rounds/2026-10-12-staff-webhook.md.
  */
 import { Firestore } from "firebase-admin/firestore";
+import {
+  candidateOf,
+  decideStaffAtSite,
+  staffIdForms,
+  StaffCandidate,
+  SiteStaffResolution,
+  StudioSite,
+} from "./staffSite";
 
 export type StaffResolution =
   | { kind: "matched"; trainerId: string }
@@ -70,4 +89,101 @@ export async function resolveTrainerByStaffId(
   if (found.size === 0) return { kind: "unlinked" };
   if (found.size > 1) return { kind: "ambiguous", trainerIds: [...found] };
   return { kind: "matched", trainerId: [...found][0] };
+}
+
+/**
+ * Every live trainer carrying this staff id, in string and number form, with
+ * NO limit (a cap is the blind spot this replaces: at 75 sites one number can
+ * be held once per site). Merged-away documents are dropped. Staff events are
+ * rare, a handful a week.
+ *
+ * Single-field equality, served by the trainers (mindbodyStaffId,
+ * primaryHomeStudioId) composite, which leads with it.
+ */
+export async function findTrainersByStaffId(
+  firestore: Firestore,
+  staffId: string | number,
+): Promise<StaffCandidate[]> {
+  const forms = staffIdForms(staffId);
+  const snaps = await Promise.all(
+    forms.map((value) =>
+      firestore.collection("trainers").where("mindbodyStaffId", "==", value).get(),
+    ),
+  );
+  const found = new Map<string, StaffCandidate>();
+  for (const snap of snaps) {
+    snap.forEach((doc) => {
+      if (found.has(doc.id)) return;
+      const candidate = candidateOf(doc.id, doc.data() as Record<string, unknown> | undefined);
+      if (candidate) found.set(doc.id, candidate);
+    });
+  }
+  return [...found.values()];
+}
+
+/**
+ * A staff event's trainer on its site (./staffSite.ts decideStaffAtSite).
+ * A site no studio is linked to is answered without reading trainers.
+ */
+export async function resolveStaffAtSite(
+  firestore: Firestore,
+  staffId: string | number,
+  siteId: string,
+  studios: readonly StudioSite[],
+  eventNames: readonly string[] = [],
+): Promise<SiteStaffResolution> {
+  const site = siteId.trim();
+  if (!studios.some((s) => s.siteId.trim() === site)) return { kind: "unmapped-site" };
+  const candidates = await findTrainersByStaffId(firestore, staffId);
+  return decideStaffAtSite(candidates, site, studios, eventNames);
+}
+
+/**
+ * The trainer a booking's staff id names AT this studio, or null.
+ *
+ * For each form of the id, two studio-scoped queries, all in parallel:
+ *   mindbodyStaffId == id AND primaryHomeStudioId == studio
+ *     (the trainers (mindbodyStaffId, primaryHomeStudioId) composite, exactly)
+ *   mindbodyStaffId == id AND accessibleStudioIds array-contains studio
+ *     (the trainers (mindbodyStaffId, accessibleStudioIds CONTAINS) composite)
+ * Merged-away documents are dropped; the rest are joined by id. Exactly one
+ * trainer at the studio is the answer; none or two-plus is null, today's rule
+ * (and the keep-the-row's-trainer fallback in index.ts decides from there).
+ * No limit: each query is one staff id at one studio, a handful at most, and
+ * no other site's trainer can crowd the studio's own out of the answer.
+ */
+export async function resolveTrainerAtStudio(
+  firestore: Firestore,
+  staffId: string | number,
+  studioId: string,
+): Promise<{ id: string; fullName: string } | null> {
+  const forms = staffIdForms(staffId);
+  if (forms.length === 0 || !studioId) return null;
+  const snaps = await Promise.all([
+    ...forms.map((value) =>
+      firestore
+        .collection("trainers")
+        .where("mindbodyStaffId", "==", value)
+        .where("primaryHomeStudioId", "==", studioId)
+        .get(),
+    ),
+    ...forms.map((value) =>
+      firestore
+        .collection("trainers")
+        .where("mindbodyStaffId", "==", value)
+        .where("accessibleStudioIds", "array-contains", studioId)
+        .get(),
+    ),
+  ]);
+  const here = new Map<string, StaffCandidate>();
+  for (const snap of snaps) {
+    snap.forEach((doc) => {
+      if (here.has(doc.id)) return;
+      const candidate = candidateOf(doc.id, doc.data() as Record<string, unknown> | undefined);
+      if (candidate) here.set(doc.id, candidate);
+    });
+  }
+  if (here.size !== 1) return null;
+  const [only] = [...here.values()];
+  return { id: only.id, fullName: only.fullName };
 }

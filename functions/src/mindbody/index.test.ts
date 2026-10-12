@@ -68,8 +68,12 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
   let clientQueryDocs: Array<{ id: string; ref: unknown }>;
   // Trainer roster for `trainers.where("mindbodyStaffId", ...)`. Staff events
   // resolve a trainer by field query rather than by doc id, because a trainer
-  // document id is the Firebase Auth uid.
-  let trainerDocs: Array<{ id: string; mindbodyStaffId?: unknown }>;
+  // document id is the Firebase Auth uid. A query reads each row with its
+  // `existingDocs["trainers/<id>"]` fields on top, so a test can give a
+  // trainer their studios either way.
+  let trainerDocs: Array<{ id: string; mindbodyStaffId?: unknown } & Record<string, unknown>>;
+  // Every trainers query the handler ran: its filters, in order.
+  let trainerQueries: Array<Array<[string, string, unknown]>>;
   // Documents that EXIST, keyed "collection/id". Everything else reads as
   // missing, which is what every older test here assumes.
   let existingDocs: Record<string, Record<string, unknown>>;
@@ -88,6 +92,7 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
 
     clientQueryDocs = [];
     trainerDocs = [{ id: "trainer-abc", mindbodyStaffId: "100000012" }];
+    trainerQueries = [];
     existingDocs = {};
 
     writes = [];
@@ -118,20 +123,33 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
         };
       }
       if (path === "trainers") {
-        const buildQuery = (matches: typeof trainerDocs) => ({
-          where: (field: string, _op: string, value: unknown) =>
-            buildQuery(matches.filter((t) => (t as any)[field] === value)),
-          limit: (n: number) => buildQuery(matches.slice(0, n)),
-          get: vi.fn().mockResolvedValue({
-            size: matches.length,
-            empty: matches.length === 0,
-            docs: matches.map((t) => ({ id: t.id, data: () => t })),
-            forEach: (cb: any) =>
-              matches.forEach((t) => cb({ id: t.id, data: () => t })),
+        const rows = trainerDocs.map((t) => ({ ...t, ...(existingDocs[`trainers/${t.id}`] ?? {}) }));
+        const holds = (row: Record<string, unknown>, field: string, op: string, value: unknown) =>
+          op === "array-contains"
+            ? Array.isArray(row[field]) && (row[field] as unknown[]).includes(value)
+            : op === "in"
+              ? Array.isArray(value) && value.includes(row[field])
+              : row[field] === value;
+        const buildQuery = (matches: typeof rows, wheres: Array<[string, string, unknown]>) => ({
+          where: (field: string, op: string, value: unknown) =>
+            buildQuery(
+              matches.filter((t) => holds(t, field, op, value)),
+              [...wheres, [field, op, value]],
+            ),
+          limit: (n: number) => buildQuery(matches.slice(0, n), wheres),
+          get: vi.fn(async () => {
+            trainerQueries.push(wheres);
+            return {
+              size: matches.length,
+              empty: matches.length === 0,
+              docs: matches.map((t) => ({ id: t.id, data: () => t })),
+              forEach: (cb: any) =>
+                matches.forEach((t) => cb({ id: t.id, data: () => t })),
+            };
           }),
         });
         return {
-          ...buildQuery(trainerDocs),
+          ...buildQuery(rows, []),
           // The booking handler lists every trainer to fuzzy-match a name.
           get: vi.fn().mockResolvedValue({
             forEach: (cb: any) =>
@@ -642,6 +660,108 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
     await handleMindbodyWebhook(deps, bookingEnvelope("appointmentBooking.created", created()));
 
     expect(scheduleWrite()?.data).toMatchObject({ trainerId: null, trainerName: "Jane Doe", mindbodyStaffId: "100000012" });
+  });
+
+  /*
+   * The booking's trainer is looked up AT its studio (staffResolver.ts
+   * resolveTrainerAtStudio, Oct 12 2026). Before, a company-wide lookup
+   * capped at three, then filtered to the studio, could be filled by other
+   * sites' trainers holding the same number.
+   */
+  it("11d. four trainers share the number; the studio's own is found though three others sort first", async () => {
+    trainerDocs = [
+      { id: "trainer-a1", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-solon" },
+      { id: "trainer-a2", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-far-1" },
+      { id: "trainer-a3", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-far-2" },
+      { id: "trainer-zz", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-123", fullName: "Zoe Z" },
+    ];
+
+    await handleMindbodyWebhook(deps, bookingEnvelope("appointmentBooking.created", created()));
+
+    expect(scheduleWrite()?.data).toMatchObject({ trainerId: "trainer-zz", trainerName: "Zoe Z" });
+    // Never a company-wide trainers query on a booking.
+    expect(trainerQueries.length).toBeGreaterThan(0);
+    for (const wheres of trainerQueries) {
+      expect(
+        wheres.some(
+          ([field, op, value]) =>
+            value === "studio-123" &&
+            ((field === "primaryHomeStudioId" && op === "==") ||
+              (field === "accessibleStudioIds" && op === "array-contains")),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("11e. the studio's trainer holding the number as a NUMBER is found while two others hold the string", async () => {
+    trainerDocs = [
+      { id: "trainer-a1", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-solon" },
+      { id: "trainer-a2", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-far-1" },
+      { id: "trainer-zz", mindbodyStaffId: 100000012, primaryHomeStudioId: "studio-123", fullName: "Zoe Z" },
+    ];
+
+    await handleMindbodyWebhook(deps, bookingEnvelope("appointmentBooking.created", created()));
+
+    expect(scheduleWrite()?.data).toMatchObject({ trainerId: "trainer-zz", trainerName: "Zoe Z" });
+  });
+
+  it("11f. a trainer who also works here is found by the number", async () => {
+    trainerDocs = [
+      {
+        id: "trainer-guest",
+        mindbodyStaffId: "100000012",
+        primaryHomeStudioId: "studio-far-1",
+        accessibleStudioIds: ["studio-123"],
+        fullName: "Gail Guest",
+      },
+    ];
+
+    await handleMindbodyWebhook(deps, bookingEnvelope("appointmentBooking.created", created()));
+
+    expect(scheduleWrite()?.data).toMatchObject({ trainerId: "trainer-guest", trainerName: "Gail Guest" });
+  });
+
+  it("11g. two trainers at the studio with the number name no one, and the row keeps the trainer it had", async () => {
+    trainerDocs = [
+      { id: "trainer-home", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-123" },
+      {
+        id: "trainer-guest",
+        mindbodyStaffId: "100000012",
+        primaryHomeStudioId: "studio-far-1",
+        accessibleStudioIds: ["studio-123"],
+      },
+    ];
+    existingDocs["schedules/121"] = {
+      studioId: "studio-123",
+      status: "Scheduled",
+      trainerId: "trainer-found-by-the-pull",
+      trainerName: "Someone",
+      mindbodyStaffId: "100000012",
+      startTime: Timestamp.fromDate(new Date("2026-09-26T14:00:00Z")),
+    };
+
+    await handleMindbodyWebhook(deps, bookingEnvelope("appointmentBooking.updated", created()));
+
+    const w = scheduleWrite();
+    expect(w?.data).not.toHaveProperty("trainerId");
+    expect(w?.data).not.toHaveProperty("trainerName");
+  });
+
+  it("11h. a claimed placeholder is never anyone: the claimed trainer is named", async () => {
+    trainerDocs = [
+      {
+        id: "placeholder-1",
+        mindbodyStaffId: "100000012",
+        primaryHomeStudioId: "studio-123",
+        fullName: "Marina K",
+        supersededByUid: "trainer-uid",
+      },
+      { id: "trainer-uid", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-123", fullName: "Marina K" },
+    ];
+
+    await handleMindbodyWebhook(deps, bookingEnvelope("appointmentBooking.created", created()));
+
+    expect(scheduleWrite()?.data).toMatchObject({ trainerId: "trainer-uid", trainerName: "Marina K" });
   });
 
   it("12i. a created that arrives after its own cancellation lands cancelled", async () => {
@@ -1677,6 +1797,9 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
     });
 
     it("28. a matched staff event writes only the mindbody map", async () => {
+      // Their home studio is on the event's site (99999): since Oct 12 2026 a
+      // staff id is matched only to a trainer whose staff id is on that site.
+      existingDocs["trainers/trainer-abc"] = { primaryHomeStudioId: "studio-123" };
       await post(
         staffEnvelope("staff.updated", {
           staffId: 100000012,
@@ -1699,6 +1822,7 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
         email: "aj@example.com",
         imageUrl: "https://cdn.example.com/aj.jpg",
         lastEventType: "staff.updated",
+        siteId: "99999",
       });
     });
 
@@ -1714,8 +1838,8 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
 
     it("30. a staff id claimed by two trainers is parked rather than guessed", async () => {
       trainerDocs = [
-        { id: "trainer-a", mindbodyStaffId: "55" },
-        { id: "trainer-b", mindbodyStaffId: "55" },
+        { id: "trainer-a", mindbodyStaffId: "55", primaryHomeStudioId: "studio-123" },
+        { id: "trainer-b", mindbodyStaffId: "55", primaryHomeStudioId: "studio-123" },
       ];
 
       await post(staffEnvelope("staff.updated", { staffId: 55, firstName: "Sam" }));
@@ -1727,6 +1851,7 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
     });
 
     it("31. deactivation is recorded but revokes nothing", async () => {
+      existingDocs["trainers/trainer-abc"] = { primaryHomeStudioId: "studio-123" };
       await post(staffEnvelope("staff.deactivated", { staffId: 100000012 }));
 
       const [written] = writesTo("trainers");
@@ -1753,6 +1878,217 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
       const [parked] = writesTo("mindbodyLimbo");
       expect(parked.data.kind).toBe("unhandled");
       expect(parked.data.reason).toContain("location.updated");
+    });
+
+    /*
+     * The site (Oct 12 2026): each Mindbody site numbers its own staff, so a
+     * staff event is matched only to a trainer whose staff id is on the
+     * event's site (staffSite.ts). studio-123 is site 99999 and studio-solon
+     * site 5746957 below.
+     */
+    const twoSites = () => {
+      studioDocs = [
+        { id: "studio-123", data: () => ({ mindbodySiteId: 99999 }) },
+        { id: "studio-solon", data: () => ({ mindbodySiteId: 5746957 }) },
+      ];
+    };
+    const rawStaff = (eventId: string, envelope: Record<string, unknown>) =>
+      JSON.stringify({
+        messageId: `msg-raw-${eventId}-${JSON.stringify(envelope).length}`,
+        eventId,
+        eventSchemaVersion: 1,
+        ...envelope,
+      });
+    const limboReason = () => writesTo("mindbodyLimbo")[0]?.data.reason as string;
+
+    it("34. the same number on two sites lands on each site's own trainer", async () => {
+      twoSites();
+      trainerDocs = [
+        { id: "trainer-abc", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-123", fullName: "Austin J" },
+        { id: "trainer-solon", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-solon", fullName: "Sally S" },
+      ];
+
+      await post(staffEnvelope("staff.updated", { siteId: 5746957, staffId: 100000012, firstName: "Sally" }));
+      expect(writesTo("trainers").map((w) => w.id)).toEqual(["trainer-solon"]);
+      expect(writesTo("trainers")[0].data.mindbody.siteId).toBe("5746957");
+
+      await post(staffEnvelope("staff.updated", { staffId: 100000012, firstName: "Austin" }));
+      expect(writesTo("trainers").map((w) => w.id)).toEqual(["trainer-solon", "trainer-abc"]);
+      expect(writesTo("trainers")[1].data.mindbody.siteId).toBe("99999");
+      expect(writesTo("mindbodyLimbo")).toHaveLength(0);
+    });
+
+    it("35. another site's deactivation never reaches a trainer whose number is on this site", async () => {
+      twoSites();
+      existingDocs["trainers/trainer-abc"] = { primaryHomeStudioId: "studio-123", fullName: "Austin J" };
+
+      await post(staffEnvelope("staff.deactivated", { siteId: 5746957, staffId: 100000012 }));
+
+      expect(writesTo("trainers")).toHaveLength(0);
+      const [parked] = writesTo("mindbodyLimbo");
+      expect(parked.data.kind).toBe("staff");
+      expect(parked.data.siteId).toBe("5746957");
+      expect(parked.data.summary).toEqual({ staffId: "100000012", siteId: "5746957" });
+      expect(parked.data.reason).toContain("A trainer at another site has the same number");
+      expect(parked.data.reason).toContain("can't tell it is the same person");
+      expect(parked.data.reason).toContain("never creates a trainer account");
+    });
+
+    it("36. an event that names no site keeps the old rule", async () => {
+      // One holder, no studio at all: written, as before.
+      await post(rawStaff("staff.updated", { eventData: { staffId: 100000012, firstName: "Austin" } }));
+      const [written] = writesTo("trainers");
+      expect(written.id).toBe("trainer-abc");
+      expect(written.data.mindbody).not.toHaveProperty("siteId");
+
+      // Two holders: "more than one trainer", as before.
+      trainerDocs = [
+        { id: "trainer-a", mindbodyStaffId: "55" },
+        { id: "trainer-b", mindbodyStaffId: "55" },
+      ];
+      await post(rawStaff("staff.updated", { eventData: { staffId: 55 } }));
+      expect(writesTo("trainers")).toHaveLength(1);
+      expect(limboReason()).toContain("is claimed by more than one trainer");
+    });
+
+    it("37. a site no studio is linked to is parked without reading a trainer", async () => {
+      await post(staffEnvelope("staff.updated", { siteId: 31337, staffId: 100000012 }));
+
+      expect(writesTo("trainers")).toHaveLength(0);
+      expect(trainerQueries).toHaveLength(0);
+      expect(limboReason()).toContain("no studio in Journey is linked to that site");
+      expect(limboReason()).toContain("31337");
+    });
+
+    it("38. the only holder, with no studio on a linked site, is parked: Journey can't tell", async () => {
+      existingDocs["trainers/trainer-abc"] = { primaryHomeStudioId: "studio-unlinked", fullName: "Austin J" };
+
+      await post(staffEnvelope("staff.updated", { staffId: 100000012, firstName: "Austin", lastName: "J" }));
+
+      expect(writesTo("trainers")).toHaveLength(0);
+      expect(limboReason()).toContain("matches Austin J, but none of their studios is linked to a Mindbody site");
+      expect(writesTo("mindbodyLimbo")[0].data.summary).toEqual({
+        staffId: "100000012",
+        siteId: "99999",
+        trainerIds: ["trainer-abc"],
+      });
+    });
+
+    it("39. two trainers on the event's site are parked, both named", async () => {
+      trainerDocs = [
+        { id: "trainer-a", mindbodyStaffId: "55", primaryHomeStudioId: "studio-123", fullName: "Ann A" },
+        { id: "trainer-b", mindbodyStaffId: "55", primaryHomeStudioId: "studio-123", fullName: "Ben B" },
+      ];
+
+      await post(staffEnvelope("staff.updated", { staffId: 55 }));
+
+      expect(writesTo("trainers")).toHaveLength(0);
+      expect(limboReason()).toContain("could belong to more than one trainer (Ann A, Ben B)");
+    });
+
+    it("40. a trainer on both sites: parked unless the event carries the name Journey has", async () => {
+      twoSites();
+      existingDocs["trainers/trainer-abc"] = {
+        primaryHomeStudioId: "studio-123",
+        accessibleStudioIds: ["studio-solon"],
+        fullName: "Austin Jurgens",
+      };
+
+      // Someone else on Solon's site with the same number.
+      await post(
+        staffEnvelope("staff.updated", { siteId: 5746957, staffId: 100000012, firstName: "Pat", lastName: "Other" }),
+      );
+      expect(writesTo("trainers")).toHaveLength(0);
+      expect(limboReason()).toContain("they work at studios on more than one Mindbody site");
+      expect(limboReason()).toContain("An update that carries their name");
+
+      // Their own update, with their name: written, with the site matched on.
+      await post(
+        staffEnvelope("staff.updated", { siteId: 5746957, staffId: 100000012, firstName: "austin", lastName: "jurgens " }),
+      );
+      const [written] = writesTo("trainers");
+      expect(written.id).toBe("trainer-abc");
+      expect(written.data.mindbody.siteId).toBe("5746957");
+    });
+
+    it("41. a trainer linked from the other site's list gets no home-site stranger's update", async () => {
+      // At home on 99999, also works at Solon, and linked with a Solon number:
+      // the 99999 person with that number is someone Journey can't vouch for.
+      twoSites();
+      existingDocs["trainers/trainer-abc"] = {
+        primaryHomeStudioId: "studio-123",
+        accessibleStudioIds: ["studio-solon"],
+        fullName: "Austin Jurgens",
+      };
+
+      await post(staffEnvelope("staff.deactivated", { staffId: 100000012 }));
+
+      expect(writesTo("trainers")).toHaveLength(0);
+      expect(writesTo("mindbodyLimbo")).toHaveLength(1);
+    });
+
+    it("42. a home moved to the other site, with the old site's echo, is parked", async () => {
+      twoSites();
+      existingDocs["trainers/trainer-abc"] = {
+        primaryHomeStudioId: "studio-solon",
+        fullName: "Austin Jurgens",
+        mindbody: { staffId: "100000012", siteId: "99999" },
+      };
+
+      await post(staffEnvelope("staff.deactivated", { siteId: 5746957, staffId: 100000012 }));
+
+      expect(writesTo("trainers")).toHaveLength(0);
+      expect(limboReason()).toContain(
+        "their studios are on site 5746957 while the last staff update Journey matched to them came from site 99999",
+      );
+    });
+
+    it("43. no home studio, but every studio they work at on the event's site: matched", async () => {
+      existingDocs["trainers/trainer-abc"] = { primaryHomeStudioId: "", accessibleStudioIds: ["studio-123"] };
+
+      await post(staffEnvelope("staff.updated", { staffId: 100000012 }));
+
+      expect(writesTo("trainers").map((w) => w.id)).toEqual(["trainer-abc"]);
+    });
+
+    it("44. a holder whose staff id is stored as a number is matched on its site", async () => {
+      trainerDocs = [{ id: "trainer-legacy", mindbodyStaffId: 100000012, primaryHomeStudioId: "studio-123" }];
+
+      await post(staffEnvelope("staff.updated", { staffId: "100000012" }));
+
+      expect(writesTo("trainers").map((w) => w.id)).toEqual(["trainer-legacy"]);
+    });
+
+    it("45. the site matched on is the site written, whichever field carries it", async () => {
+      twoSites();
+      trainerDocs = [{ id: "trainer-solon", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-solon" }];
+
+      // A blank site in the event's data: the envelope's site.
+      await post(rawStaff("staff.updated", { siteId: "5746957", eventData: { siteId: "", staffId: 100000012 } }));
+      // The capitalised spelling in the data wins over the envelope's.
+      await post(rawStaff("staff.updated", { siteId: 99999, eventData: { SiteId: 5746957, staffId: 100000012 } }));
+
+      const written = writesTo("trainers");
+      expect(written.map((w) => w.id)).toEqual(["trainer-solon", "trainer-solon"]);
+      expect(written.map((w) => w.data.mindbody.siteId)).toEqual(["5746957", "5746957"]);
+      expect(writesTo("mindbodyLimbo")).toHaveLength(0);
+    });
+
+    it("46. a claimed placeholder never makes its trainer look duplicated", async () => {
+      trainerDocs = [
+        {
+          id: "placeholder-1",
+          mindbodyStaffId: "100000012",
+          primaryHomeStudioId: "studio-123",
+          supersededByUid: "trainer-uid",
+        },
+        { id: "trainer-uid", mindbodyStaffId: "100000012", primaryHomeStudioId: "studio-123" },
+      ];
+
+      await post(staffEnvelope("staff.updated", { staffId: 100000012, firstName: "Marina" }));
+
+      expect(writesTo("trainers").map((w) => w.id)).toEqual(["trainer-uid"]);
+      expect(writesTo("mindbodyLimbo")).toHaveLength(0);
     });
   });
 

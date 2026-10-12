@@ -24,7 +24,12 @@ import {
 import { recordAttemptFailure, deadLetterUnfinished } from "./retryLedger";
 import { extractBookingExtras } from "./passFields";
 import { extractStaffId, mapStaffEventToPatch } from "./staffProfile";
-import { resolveTrainerByStaffId } from "./staffResolver";
+import {
+  resolveTrainerByStaffId,
+  resolveStaffAtSite,
+  resolveTrainerAtStudio,
+} from "./staffResolver";
+import { staffEventNames, staffEventSite, staffLimboReason } from "./staffSite";
 
 export type WebhookRequest = {
   rawBody: string;
@@ -201,42 +206,6 @@ function isOlderEvent(eventAt: Timestamp | undefined, stored: unknown): boolean 
   if (!eventAt) return false;
   const storedMs = millisOf(stored);
   return storedMs !== null && eventAt.toMillis() < storedMs;
-}
-
-/**
- * The trainer a booking's Mindbody staff id names AT THIS STUDIO, or null.
- * Staff ids are numbered per site, so a trainer counts only when their home
- * studio is the booking's or it is one they may work at: the pull's rule
- * (lib/mindbody-api-sync.ts). Ambiguity at the studio is no match.
- */
-async function resolveTrainerForStudio(
-  firestore: Firestore,
-  staffId: string,
-  studioId: string,
-): Promise<{ id: string; fullName: string } | null> {
-  const resolution = await resolveTrainerByStaffId(firestore, staffId);
-  const ids =
-    resolution.kind === "matched"
-      ? [resolution.trainerId]
-      : resolution.kind === "ambiguous"
-        ? resolution.trainerIds
-        : [];
-  if (ids.length === 0) return null;
-  const snaps = await Promise.all(ids.map((id) => firestore.collection("trainers").doc(id).get()));
-  const here: Array<{ id: string; data: Record<string, unknown> }> = [];
-  snaps.forEach((snap, i) => {
-    if (!snap.exists) return;
-    const d = (snap.data() as Record<string, unknown> | undefined) ?? {};
-    if (
-      d.primaryHomeStudioId === studioId ||
-      (Array.isArray(d.accessibleStudioIds) && d.accessibleStudioIds.includes(studioId))
-    ) {
-      here.push({ id: ids[i], data: d });
-    }
-  });
-  if (here.length !== 1) return null;
-  const fullName = here[0].data.fullName;
-  return { id: here[0].id, fullName: typeof fullName === "string" ? fullName : "" };
 }
 
 /**
@@ -1208,16 +1177,19 @@ export async function handleMindbodyWebhook(
           }
 
           /*
-           * The trainer, by Mindbody staff id: at most two indexed equality
-           * queries (staffResolver) and a read of each match. Staff ids are
-           * numbered per SITE, like client ids, so a match counts only when
-           * that trainer works at this booking's studio, exactly the pull's
-           * rule (lib/mindbody-api-sync.ts). This replaced reading EVERY
-           * trainer in the company on every booking to compare names.
+           * The trainer, by Mindbody staff id, looked up AT this booking's
+           * studio (staffResolver.ts resolveTrainerAtStudio): home here, or
+           * also works here, string and number forms, every query scoped to
+           * the studio. Staff ids are numbered per SITE, like client ids, so a
+           * company-wide lookup with a limit could be filled by other sites'
+           * trainers and miss this studio's (until Oct 12 2026). Exactly one
+           * trainer at the studio, else none: the pull's rule
+           * (lib/mindbody-api-sync.ts). This replaced reading EVERY trainer in
+           * the company on every booking to compare names.
            */
           let trainer: { id: string; fullName: string } | null = null;
           if (staffId && studioId) {
-            trainer = await resolveTrainerForStudio(deps.firestore, staffId, studioId);
+            trainer = await resolveTrainerAtStudio(deps.firestore, staffId, studioId);
           }
 
           let resolvedClientDocId: string | null = null;
@@ -1396,48 +1368,96 @@ export async function handleMindbodyWebhook(
           payload: parsed,
         });
       } else {
-        const resolution = await resolveTrainerByStaffId(deps.firestore, staffId);
-
-        if (resolution.kind === "matched") {
+        // ONLY the `mindbody` map. Not role, not studio access,
+        // not the Kaizen Roster. Mindbody owns the staff member's name,
+        // work email and photo; the Journey System owns everything that
+        // decides what they can do.
+        //
+        // Deactivation is reported, never enforced: `mindbody.isActive`
+        // goes false and the profile says so loudly, but nobody's access is
+        // revoked by a webhook. Removing a trainer's access is a decision a
+        // human makes, and a mis-mapped staff id must not be able to lock
+        // someone out mid-session.
+        const writeStaffMap = async (trainerId: string, site: string | null) => {
           const { mindbody, deactivated } = mapStaffEventToPatch(parsed, eventType);
-
-          // ONLY the `mindbody` map. Not role, not studio access,
-          // not the Kaizen Roster. Mindbody owns the staff member's name,
-          // work email and photo; the Journey System owns everything that
-          // decides what they can do.
-          //
-          // Deactivation is reported, never enforced: `mindbody.isActive`
-          // goes false and the profile says so loudly, but nobody's access is
-          // revoked by a webhook. Removing a trainer's access is a decision a
-          // human makes, and a mis-mapped staff id must not be able to lock
-          // someone out mid-session.
+          // On the site path, the site written is the one matched on.
+          if (site) mindbody.siteId = site;
           await deps.firestore
             .collection("trainers")
-            .doc(resolution.trainerId)
+            .doc(trainerId)
             .set(
               { mindbody: { ...mindbody, lastSyncAt: FieldValue.serverTimestamp() } },
               { merge: true },
             );
-
           if (deactivated) {
             console.warn(
-              `Mindbody webhook: staff ${staffId} was deactivated in Mindbody; trainer ${resolution.trainerId} flagged but access left unchanged.`,
+              `Mindbody webhook: staff ${staffId}${site ? ` on site ${site}` : ""} was deactivated in Mindbody; trainer ${trainerId} flagged but access left unchanged.`,
             );
           }
+        };
+
+        // Each Mindbody site numbers its own staff (staffSite.ts), so the
+        // event's site decides who the staff id can be. One site, worked out
+        // once: the same one is tested, matched on and written.
+        const eventSite = staffEventSite(parsed);
+
+        if (eventSite === "") {
+          // No site on the event: the rule as it was before Oct 12 2026.
+          // Real Mindbody events always carry one.
+          const resolution = await resolveTrainerByStaffId(deps.firestore, staffId);
+
+          if (resolution.kind === "matched") {
+            await writeStaffMap(resolution.trainerId, null);
+          } else {
+            await recordLimboEvent(deps.firestore, {
+              eventId,
+              eventType,
+              kind: "staff",
+              siteId,
+              locationId,
+              reason:
+                resolution.kind === "ambiguous"
+                  ? `Mindbody staff id ${staffId} is claimed by more than one trainer (${resolution.trainerIds.join(", ")}). Fix the duplicate in Admin -> Trainers; nothing was written.`
+                  : `No trainer carries Mindbody staff id ${staffId}. Link them in Edit Trainer -> Mindbody Staff ID; a webhook never creates a trainer account.`,
+              summary: { staffId },
+              payload: parsed,
+            });
+          }
         } else {
-          await recordLimboEvent(deps.firestore, {
-            eventId,
-            eventType,
-            kind: "staff",
-            siteId,
-            locationId,
-            reason:
-              resolution.kind === "ambiguous"
-                ? `Mindbody staff id ${staffId} is claimed by more than one trainer (${resolution.trainerIds.join(", ")}). Fix the duplicate in Admin -> Trainers; nothing was written.`
-                : `No trainer carries Mindbody staff id ${staffId}. Link them in Edit Trainer -> Mindbody Staff ID; a webhook never creates a trainer account.`,
-            summary: { staffId },
-            payload: parsed,
-          });
+          const resolution = await resolveStaffAtSite(
+            deps.firestore,
+            staffId,
+            eventSite,
+            await getStudios(deps.firestore),
+            staffEventNames(parsed),
+          );
+
+          if (resolution.kind === "matched") {
+            if (resolution.by === "name") {
+              console.log(
+                `Mindbody webhook: staff ${staffId} on site ${eventSite} matched trainer ${resolution.trainerId} by their name (they work on more than one site, or their last update came from another).`,
+              );
+            }
+            await writeStaffMap(resolution.trainerId, eventSite);
+          } else {
+            const trainerIds =
+              resolution.kind === "ambiguous" || resolution.kind === "cant-tell"
+                ? resolution.trainers.map((t) => t.id)
+                : [];
+            await recordLimboEvent(deps.firestore, {
+              eventId,
+              eventType,
+              kind: "staff",
+              siteId: eventSite,
+              locationId,
+              reason: staffLimboReason(resolution, staffId, eventSite),
+              summary:
+                trainerIds.length > 0
+                  ? { staffId, siteId: eventSite, trainerIds }
+                  : { staffId, siteId: eventSite },
+              payload: parsed,
+            });
+          }
         }
       }
     } else {
