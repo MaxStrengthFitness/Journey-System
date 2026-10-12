@@ -15,6 +15,7 @@ import { parkPullSyncBooking } from "./mindbody-limbo";
 import { chooseClientDoc, siteOfClient, siteQualifiedClientId } from "./mindbody-site";
 import { extractBookingExtras } from "./mindbody-pass";
 import { authedFetch } from "./authed-fetch";
+import { rowIsNewerThanAnswer } from "./mindbody-appointment-cache";
 import { clientLegalName } from "./client-name";
 import { Trainer, Client, Studio } from "../types";
 import {
@@ -48,6 +49,13 @@ export interface SyncOptions {
    * cancelled by its own sweep (the review of phase 1, Sep 25 2026).
    */
   settleSweepWith?: { start: string; end: string };
+  /**
+   * Read Mindbody itself, never a shared read the proxy kept (the Mindbody
+   * savings round, Oct 12 2026; lib/mindbody-appointment-cache.ts). Only
+   * Operations -> Mindbody's "Pull the schedule now" sets it: the person
+   * pressing it is checking Mindbody, not saving a call.
+   */
+  fresh?: boolean;
 }
 
 export interface MindbodySyncResult {
@@ -65,6 +73,12 @@ export interface MindbodySyncResult {
   sweepDeferred?: number;
   /** A settleSweepWith pull ran, and Mindbody answered for its whole window. */
   settledWithMonth?: boolean;
+  /**
+   * Bookings left as they were because Journey's row was written after
+   * Mindbody's answer was read (`rowIsNewerThanAnswer`): the webhook, or
+   * another iPad, already has something newer. The next pull decides them.
+   */
+  newerThanAnswer?: number;
   /**
    * This studio's bookings in Mindbody's answer, after the location filter.
    * 0 means the pull returned before its sweep: it checked nothing Journey
@@ -632,7 +646,7 @@ export async function syncMindbodySchedules(
       win.end,
       targetStudioIdOverride,
       targetLocationId,
-      { skipKnownClientLookups: options.skipKnownClientLookups },
+      { skipKnownClientLookups: options.skipKnownClientLookups, fresh: options.fresh },
     );
     result.added += settle.added;
     result.updated += settle.updated;
@@ -643,6 +657,9 @@ export async function syncMindbodySchedules(
       result.clientsCreated = (result.clientsCreated ?? 0) + settle.clientsCreated;
     }
     result.settledWithMonth = settle.windowComplete === true;
+    if (settle.newerThanAnswer) {
+      result.newerThanAnswer = (result.newerThanAnswer ?? 0) + settle.newerThanAnswer;
+    }
     result.settleAnswered = settle.studioAnswered ?? 0;
   };
 
@@ -693,6 +710,7 @@ export async function syncMindbodySchedules(
          */
         locationId: effectiveLocationId ?? undefined,
         skipClientLookupIds,
+        fresh: options.fresh === true ? true : undefined,
         keepLocationIds: studiosOnSite
           .map((s) => s.mindbodyLocationId)
           .filter((id): id is string | number => id !== undefined && id !== null && String(id).trim() !== "")
@@ -726,6 +744,22 @@ export async function syncMindbodySchedules(
      */
     const answerComplete = data.complete !== false;
     result.windowComplete = answerComplete;
+    /*
+     * When Mindbody was read. Since the Mindbody savings round (Oct 12 2026)
+     * the proxy may answer from a read up to two minutes old that another
+     * studio on the site, or another iPad, asked for. A booking row written
+     * after that moment (the webhook, or a pull with a newer answer) is newer
+     * than this answer, so it is neither overwritten nor cancelled here
+     * (`rowIsNewerThanAnswer`). An older proxy sends nothing, and nothing
+     * changes.
+     */
+    const fetchedAt: number | null =
+      typeof data.fetchedAt === "number" && Number.isFinite(data.fetchedAt) ? data.fetchedAt : null;
+    const newerThanAnswer = (row: unknown): boolean => {
+      const newer = rowIsNewerThanAnswer(row as Record<string, unknown> | null, fetchedAt);
+      if (newer) result.newerThanAnswer = (result.newerThanAnswer ?? 0) + 1;
+      return newer;
+    };
 
     // Before narrowing to this studio's location, park anything belonging to a
     // location NO studio claims.
@@ -1368,6 +1402,9 @@ export async function syncMindbodySchedules(
           batch.delete(doc(db, "schedules", existing.docId));
           result.updated++;
           batchCount++;
+        } else if (newerThanAnswer(existing.data)) {
+          // Written after this answer was read: leave it for a newer answer.
+          result.skipped++;
         } else {
           const curr = existing.data;
           const hasChanged =
@@ -1418,7 +1455,10 @@ export async function syncMindbodySchedules(
           ([mbId, existing]) =>
             !currentMbIds.has(mbId) &&
             existing.data.status !== "Cancelled" &&
-            inWindow(existing.data.startTime),
+            inWindow(existing.data.startTime) &&
+            // Absent from an answer older than the row is not gone: the
+            // webhook may have written it after the read.
+            !newerThanAnswer(existing.data),
         )
       : [];
     const settleWith = leftWindow.length > 0 ? options.settleSweepWith : undefined;

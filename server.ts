@@ -27,6 +27,7 @@ import {
 import { requireStaff } from "./server/auth.ts";
 import { crossTrainLookupAllowed } from "./src/lib/staff-access.ts";
 import { idsToLookUp, parseSkipIds, skipForOwnBookings } from "./src/lib/mindbody-lookup-skip.ts";
+import { SharedSiteReads } from "./src/lib/mindbody-appointment-cache.ts";
 import { isGeminiPath, registerGeminiRoutes } from "./server/gemini-routes.ts";
 import { devFileAccess, serveBuiltApp } from "./server/served-files.ts";
 import { isLogErrorPath, registerLogErrorRoute } from "./server/log-error.ts";
@@ -43,6 +44,13 @@ process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
   process.exit(1);
 });
+
+/**
+ * Whole Mindbody schedule answers, kept two minutes and shared between the
+ * studios on one site and between Refresh presses (the Mindbody savings
+ * round, Oct 12 2026; src/lib/mindbody-appointment-cache.ts).
+ */
+const sharedSiteReads = new SharedSiteReads<any>();
 
 async function startServer() {
   const app = express();
@@ -528,6 +536,7 @@ async function startServer() {
         locationId,
         keepLocationIds,
         skipClientLookupIds,
+        fresh,
       } = req.body || {};
 
       if (!siteId) {
@@ -584,72 +593,114 @@ async function startServer() {
       const apptsOf = (d: any) => d?.Appointments || d?.appointments || [];
 
       const tFetch = Date.now();
-      // A page of up to 500 appointments may take Mindbody a while to build:
-      // the longer per-attempt limit (server/mindbody-client.ts).
-      const first = await mindbodyGet(
-        String(siteId),
-        "appointment/staffappointments",
-        pageParams(0),
-        { timeoutMs: MINDBODY_LARGE_PAGE_TIMEOUT_MS },
-      );
-
-      if (!first.ok) {
-        console.error(
-          "Mindbody Staff Appointments Error:",
-          first.status,
-          first.error,
-        );
-        return res
-          .status(first.status || 502)
-          .json({ error: `Mindbody API Error: ${first.error}` });
-      }
-
-      const allAppointments: any[] = [...apptsOf(first.data)];
-      const siteTotal = first.data?.PaginationResponse?.TotalResults || 0;
-      let pages = 1;
-
       /*
-       * `complete` answers one question for the browser: is this every
-       * appointment Mindbody holds for the window, or only some of them?
-       *
-       * It matters far more than it looks. The sync marks a booking Cancelled
-       * when it is inside the window and absent from this answer. So a short
-       * answer does not mean "a bit less data" -- it means real bookings get
-       * cancelled in Journey because a page 404'd. That is the Aug 30 storm's
-       * second cause repeating: "a transient read failure turned into
-       * permanent data loss." A failed read means UNKNOWN, never EMPTY.
-       *
-       * The sequential loop this replaced had the same hole and simply
-       * `break`-ed, handing back a short list that looked whole.
+       * One read of a site, shared (the Mindbody savings round, Oct 12 2026;
+       * src/lib/mindbody-appointment-cache.ts). A whole answer is kept for two
+       * minutes and any request whose days lie inside it is answered from it:
+       * the three studios on site 29068 pulling at the same half-hour, or two
+       * iPads pressing Refresh, cost Mindbody one read instead of three or
+       * two. A trainer-filtered read (staffIds) is never shared, and `fresh`
+       * (Operations -> Mindbody's "Pull the schedule now") always asks
+       * Mindbody itself.
        */
-      let complete = true;
-
-      if (allAppointments.length === limit && siteTotal > limit) {
-        const offsets: number[] = [];
-        for (let o = limit; o < siteTotal; o += limit) offsets.push(o);
-        if (offsets.length > MAX_PAGES) {
-          offsets.length = MAX_PAGES;
-          complete = false;
-          console.warn(
-            `[staff-appointments] site ${siteId}: ${siteTotal} results exceeds the ${MAX_PAGES}-page valve.`,
-          );
-        }
-        pages += offsets.length;
-        const rest = await Promise.all(
-          offsets.map((o) =>
-            mindbodyGet(
-              String(siteId),
-              "appointment/staffappointments",
-              pageParams(o),
-              { timeoutMs: MINDBODY_LARGE_PAGE_TIMEOUT_MS },
-            ),
-          ),
+      const shareable =
+        !(staffIds && Array.isArray(staffIds) && staffIds.length > 0) && fresh !== true;
+      let refused: { status: number; error: string } | null = null;
+      const readMindbody = async () => {
+        const fetchedAt = Date.now();
+        // A page of up to 500 appointments may take Mindbody a while to build:
+        // the longer per-attempt limit (server/mindbody-client.ts).
+        const first = await mindbodyGet(
+          String(siteId),
+          "appointment/staffappointments",
+          pageParams(0),
+          { timeoutMs: MINDBODY_LARGE_PAGE_TIMEOUT_MS },
         );
-        for (const r of rest) {
-          if (r.ok) allAppointments.push(...apptsOf(r.data));
-          else complete = false;
+
+        if (!first.ok) {
+          console.error(
+            "Mindbody Staff Appointments Error:",
+            first.status,
+            first.error,
+          );
+          refused = { status: first.status || 502, error: String(first.error) };
+          return null;
         }
+
+        const got: any[] = [...apptsOf(first.data)];
+        const total = first.data?.PaginationResponse?.TotalResults || 0;
+
+        /*
+         * `whole` answers one question for the browser: is this every
+         * appointment Mindbody holds for the window, or only some of them?
+         *
+         * It matters far more than it looks. The sync marks a booking Cancelled
+         * when it is inside the window and absent from this answer. So a short
+         * answer does not mean "a bit less data" -- it means real bookings get
+         * cancelled in Journey because a page 404'd. That is the Aug 30 storm's
+         * second cause repeating: "a transient read failure turned into
+         * permanent data loss." A failed read means UNKNOWN, never EMPTY. A
+         * short answer is never kept for sharing either.
+         *
+         * The sequential loop this replaced had the same hole and simply
+         * `break`-ed, handing back a short list that looked whole.
+         */
+        let whole = true;
+
+        if (got.length === limit && total > limit) {
+          const offsets: number[] = [];
+          for (let o = limit; o < total; o += limit) offsets.push(o);
+          if (offsets.length > MAX_PAGES) {
+            offsets.length = MAX_PAGES;
+            whole = false;
+            console.warn(
+              `[staff-appointments] site ${siteId}: ${total} results exceeds the ${MAX_PAGES}-page valve.`,
+            );
+          }
+          pages += offsets.length;
+          const rest = await Promise.all(
+            offsets.map((o) =>
+              mindbodyGet(
+                String(siteId),
+                "appointment/staffappointments",
+                pageParams(o),
+                { timeoutMs: MINDBODY_LARGE_PAGE_TIMEOUT_MS },
+              ),
+            ),
+          );
+          for (const r of rest) {
+            if (r.ok) got.push(...apptsOf(r.data));
+            else whole = false;
+          }
+        }
+        return {
+          read: {
+            siteId: String(siteId),
+            start,
+            end,
+            fetchedAt,
+            siteTotal: total,
+            appointments: got,
+          },
+          complete: whole,
+        };
+      };
+
+      let pages = 1;
+      const answer = shareable
+        ? await sharedSiteReads.read(String(siteId), start, end, Date.now, readMindbody)
+        : await readMindbody().then((r) => (r ? { ...r, shared: null } : null));
+      if (!answer) {
+        const why = refused ?? { status: 502, error: "Mindbody did not answer." };
+        return res
+          .status(why.status)
+          .json({ error: `Mindbody API Error: ${why.error}` });
       }
+      if (answer.shared) pages = 0;
+      const allAppointments: any[] = answer.read.appointments;
+      const siteTotal = answer.read.siteTotal;
+      const complete = answer.complete;
+      const fetchedAt = answer.read.fetchedAt;
       const fetchMs = Date.now() - tFetch;
 
       /*
@@ -857,7 +908,12 @@ async function startServer() {
       console.log(
         `[staff-appointments] site ${siteId}` +
           (wantLocation ? ` loc ${wantLocation}` : "") +
-          ` ${start}..${end}: ${pages} page(s) ${fetchMs}ms, ` +
+          ` ${start}..${end}: ` +
+          (answer.shared === "kept"
+            ? `shared read (${Math.round((Date.now() - fetchedAt) / 1000)}s old, no Mindbody call), `
+            : answer.shared === "joined"
+              ? `joined a read in flight (no Mindbody call) ${fetchMs}ms, `
+              : `${pages} page(s) ${fetchMs}ms, `) +
           `${allAppointments.length}/${siteTotal} appts` +
           (appointments.length !== allAppointments.length
             ? ` -> ${appointments.length} after dropping siblings`
@@ -876,6 +932,10 @@ async function startServer() {
          * sweep against a short answer. */
         complete,
         siteTotal,
+        /* When Mindbody was read (ms). The sync never lets an answer older
+         * than a booking's last write overwrite or cancel it
+         * (rowIsNewerThanAnswer, src/lib/mindbody-appointment-cache.ts). */
+        fetchedAt,
       });
     } catch (e: any) {
       console.error("Staff appointments error:", e);

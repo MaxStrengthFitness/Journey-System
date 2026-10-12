@@ -1733,3 +1733,90 @@ describe("syncMindbodySchedules — what the whole-read record is told (Sep 27 2
     expect(opsFor("7108").some((o) => o.data.status === "Cancelled")).toBe(true);
   });
 });
+
+describe("syncMindbodySchedules — an older answer never undoes a newer write (Mindbody savings round, Oct 12 2026)", () => {
+  /*
+   * The proxy may answer from a whole read up to two minutes old
+   * (lib/mindbody-appointment-cache.ts) and says when it was read. A booking
+   * the webhook wrote after that moment is newer than the answer: the pull
+   * must not overwrite it, and must not cancel it for being absent.
+   */
+  const run = (options = {}) =>
+    syncMindbodySchedules(
+      SITE, TRAINERS, CLIENTS, SHARED_SITE_STUDIOS, null, undefined, undefined, "studio-solon", "2", options,
+    );
+  const READ_AT = 1_800_000_000_000;
+  const ts = (ms: number) => ({ toMillis: () => ms });
+
+  const row = (id: string, mbId: string, data: Record<string, unknown>) => ({
+    id,
+    data: () => ({
+      mindbodyAppointmentId: mbId,
+      studioId: "studio-solon",
+      clientId: "mb-client-1",
+      clientName: "Alice Smith",
+      trainerId: "t-marina",
+      status: "Scheduled",
+      startTime: { toMillis: () => Date.now() + 24 * 60 * 60 * 1000 },
+      ...data,
+    }),
+  });
+
+  it("does not cancel a booking the webhook wrote after the answer was read", async () => {
+    mockAppointments([appointment({ Id: 1, LocationId: 2 })], { complete: true, fetchedAt: READ_AT });
+    snapshots.schedules = [row("new-one", "999", { mindbodyEventAt: ts(READ_AT + 30_000) })];
+
+    const res = await run();
+
+    expect(batchOps.find((op) => op.id === "new-one")).toBeUndefined();
+    expect(res.newerThanAnswer).toBe(1);
+  });
+
+  it("still cancels a booking last written before the answer", async () => {
+    mockAppointments([appointment({ Id: 1, LocationId: 2 })], { complete: true, fetchedAt: READ_AT });
+    snapshots.schedules = [
+      row("gone", "999", { mindbodyEventAt: ts(READ_AT - 10 * 60_000), lastSyncAt: ts(READ_AT - 10 * 60_000) }),
+    ];
+
+    await run();
+
+    const update = batchOps.find((op) => op.kind === "update" && op.id === "gone");
+    expect(update?.data.status).toBe("Cancelled");
+  });
+
+  it("does not overwrite a booking written after the answer with the answer's older state", async () => {
+    // Mindbody's answer (read earlier) still says booked; the webhook has
+    // since cancelled it.
+    mockAppointments([appointment({ Id: 5001, LocationId: 2 })], { complete: true, fetchedAt: READ_AT });
+    snapshots.schedules = [
+      row("5001", "5001", { status: "Cancelled", cancelSource: "mindbody", lastSyncAt: ts(READ_AT + 5_000) }),
+    ];
+
+    const res = await run();
+
+    expect(batchOps.find((op) => op.kind === "update" && op.id === "5001")).toBeUndefined();
+    expect(res.newerThanAnswer).toBe(1);
+  });
+
+  it("an answer that says nothing about when it was read changes nothing (an older proxy)", async () => {
+    mockAppointments([appointment({ Id: 1, LocationId: 2 })], { complete: true });
+    snapshots.schedules = [row("gone", "999", { mindbodyEventAt: ts(Date.now() + 60_000) })];
+
+    await run();
+
+    const update = batchOps.find((op) => op.kind === "update" && op.id === "gone");
+    expect(update?.data.status).toBe("Cancelled");
+  });
+
+  it("asks the proxy for a fresh read only when told to", async () => {
+    mockAppointments([appointment({ Id: 1, LocationId: 2 })], { complete: true });
+    await run({ fresh: true });
+    const body = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    expect(body.fresh).toBe(true);
+
+    mockAppointments([appointment({ Id: 1, LocationId: 2 })], { complete: true });
+    await run();
+    const plain = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    expect(plain.fresh).toBeUndefined();
+  });
+});

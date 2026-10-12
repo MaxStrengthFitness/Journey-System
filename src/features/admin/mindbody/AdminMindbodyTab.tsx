@@ -341,6 +341,9 @@ function MindbodyPage({
         endDate,
         selected.id,
         selected.mindbodyLocationId,
+        // The person pressing this is checking Mindbody: never a shared read
+        // (the Mindbody savings round, Oct 12 2026).
+        { fresh: true },
       );
       // A whole answer: write down the days it read in full. For a past
       // "Pull from" (a back-read) that is every day asked for, up to
