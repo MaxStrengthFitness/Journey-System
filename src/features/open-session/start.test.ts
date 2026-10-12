@@ -39,6 +39,14 @@ describe("the open session's start (the open session round, Oct 9 2026)", () => 
     expect(p).not.toHaveProperty("routineId");
   });
 
+  it("carries this device's id when it has one, and never an undefined (the sessions round, Oct 12 2026)", () => {
+    expect(openSessionPayload({ ...facts, deviceId: "d-here" }).recordingDeviceId).toBe("d-here");
+    for (const p of [openSessionPayload({ ...facts, deviceId: null }), openSessionPayload(facts)]) {
+      expect(p).not.toHaveProperty("recordingDeviceId");
+      expect(Object.values(p).some((v) => v === undefined)).toBe(false);
+    }
+  });
+
   it("runs its timer from the iPad's clock and carries a heartbeat, as a client Start does", () => {
     const p = openSessionPayload(facts);
     expect(p.clientStartTime).toBe("2026-10-09T13:04:00.000Z");

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { firstOpenMachine, machinesDone, sessionMachineList, takeOverWords, watchWords, whoStartedIt } from "./watch";
+import {
+  continueHereWords,
+  firstOpenMachine,
+  isRecentlySaved,
+  machinesDone,
+  sessionMachineList,
+  takeOverWords,
+  watchWords,
+  whoStartedIt,
+} from "./watch";
 import type { LiveSet } from "../journey-grid";
 
 const set = (over: Partial<LiveSet>): LiveSet => ({
@@ -165,5 +174,41 @@ describe("whoStartedIt", () => {
       runner: "AJ",
       changedHands: true,
     });
+  });
+});
+
+/* ── The same trainer on another device (the sessions round, Oct 12 2026) ── */
+describe("the trainer's own session on another device", () => {
+  it("never says \"your other iPad\": another device", () => {
+    const recent = watchWords({ runner: "AJ", takenFromHere: false, online: true, sameTrainer: true, recentlySaved: true });
+    expect(recent.line).toBe("This session is open on another device and was saved a moment ago. You're watching it here.");
+    const quiet = watchWords({ runner: "AJ", takenFromHere: false, online: true, sameTrainer: true, recentlySaved: false });
+    expect(quiet.line).toBe("This session is open on another device. You're watching it here.");
+    const lost = watchWords({ runner: "AJ", takenFromHere: true, online: true, sameTrainer: true });
+    expect(lost.line).toBe("You continued this session somewhere else. This iPad is watching it now.");
+    for (const w of [recent, quiet, lost]) expect(w.line).not.toMatch(/other iPad|your iPad/i);
+  });
+
+  it("asks to continue here, Keep watching the default while it was saved a moment ago", () => {
+    expect(continueHereWords({ recentlySaved: true, lastSaved: "2:14 PM" })).toEqual({
+      title: "Continue this session here?",
+      question: "You record the rest of it here, and the other device switches to watching.",
+      continueLabel: "Continue here",
+      watchLabel: "Keep watching",
+    });
+  });
+
+  it("quieter than that, asks once with when it was last saved, Just watch the default", () => {
+    const w = continueHereWords({ recentlySaved: false, lastSaved: "2:14 PM" });
+    expect(w.question).toBe("It was last saved at 2:14 PM on another device. You record the rest of it here, and the other device switches to watching.");
+    expect(w.watchLabel).toBe("Just watch");
+    expect(continueHereWords({ recentlySaved: false, lastSaved: null }).question).toMatch(/^It was last saved on another device\./);
+  });
+
+  it("saved a moment ago is within three minutes; a pending stamp is now", () => {
+    const now = Date.UTC(2026, 9, 12, 14, 0);
+    expect(isRecentlySaved({ lastHeartbeatAt: new Date(now - 2 * 60_000) }, now)).toBe(true);
+    expect(isRecentlySaved({ lastHeartbeatAt: new Date(now - 4 * 60_000) }, now)).toBe(false);
+    expect(isRecentlySaved({ lastHeartbeatAt: null, createdAt: null }, now)).toBe(true);
   });
 });

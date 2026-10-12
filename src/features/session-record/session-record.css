@@ -59,3 +59,29 @@
 }
 .sr-watch__take:hover { background: var(--jg-surface-2); }
 .sr-watch__take:focus-visible { outline: 2px solid var(--jg-focus-ring); outline-offset: 1px; }
+
+/* Continue on this iPad (the sessions round, Oct 12 2026): the trainer's own
+   session, recorded on another device. The blue of a Save (every Save and
+   every selection is blue; orange is only now and go), solid, with the
+   tinted drop and top light of the grid's own blue buttons, and a press. */
+.sr-watch__continue {
+  appearance: none;
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 11px;
+  border: 0;
+  background: var(--jg-live);
+  box-shadow: var(--jg-glow-live), var(--jg-solid-light);
+  color: var(--jg-live-on);
+  font-family: var(--jg-font);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: normal;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.sr-watch__continue:hover { background: var(--jg-live); }
+.sr-watch__continue:active { transform: translateY(1px); box-shadow: var(--jg-press); }
+.sr-watch__continue:focus-visible { outline: 2px solid var(--jg-focus-ring); outline-offset: 2px; }

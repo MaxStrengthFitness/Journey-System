@@ -11,6 +11,7 @@
 import type { LiveSet } from "../journey-grid";
 import { todayFor } from "../routine-plan/plan";
 import type { RoutinePlan } from "../routine-plan/types";
+import { lastSignOfLife, type LiveSessionLike } from "../../lib/live-session";
 
 export interface WatchWords {
   /** The sentence under the session bar. */
@@ -23,20 +24,35 @@ export interface WatchWords {
  * "JC is running this session on another iPad…", or, on the iPad the session
  * was taken from, "AJ took over this session…". `runner` is the initials the
  * session carries; with none, "Another trainer".
+ *
+ * The trainer's OWN session recorded on another device (`sameTrainer`, the
+ * sessions round, Oct 12 2026) is never "your other iPad": the Home Screen
+ * app and a Safari tab on one iPad are two devices to Journey, so the words
+ * say "another device".
  */
 export function watchWords({
   runner,
   takenFromHere,
   online,
+  sameTrainer = false,
+  recentlySaved = false,
 }: {
   runner: string | null | undefined;
   takenFromHere: boolean;
   online: boolean;
+  sameTrainer?: boolean;
+  recentlySaved?: boolean;
 }): WatchWords {
   const who = (runner || "").trim() || "Another trainer";
-  const line = takenFromHere
-    ? `${who} took over this session on another iPad. You're watching it now: it updates as each set is saved.`
-    : `${who} is running this session on another iPad. You're watching: it updates as each set is saved, and nothing here changes it.`;
+  const line = sameTrainer
+    ? takenFromHere
+      ? "You continued this session somewhere else. This iPad is watching it now."
+      : recentlySaved
+        ? "This session is open on another device and was saved a moment ago. You're watching it here."
+        : "This session is open on another device. You're watching it here."
+    : takenFromHere
+      ? `${who} took over this session on another iPad. You're watching it now: it updates as each set is saved.`
+      : `${who} is running this session on another iPad. You're watching: it updates as each set is saved, and nothing here changes it.`;
   return {
     line,
     offline: online ? null : "Offline: what you see may be behind what has been saved.",
@@ -68,6 +84,47 @@ export function takeOverWords({
       `and the session is yours. ${theirs} switches to watching. The session still shows who started it.`,
     leaveLabel: "Take over",
     stayLabel: "Keep watching",
+  };
+}
+
+/** Saved within this long: the other device is in use, so this one watches until asked. */
+export const RECENTLY_SAVED_MS = 3 * 60_000;
+
+/** Whether the session showed a sign of life in the last three minutes (a pending stamp is now). */
+export function isRecentlySaved(session: LiveSessionLike, now: number = Date.now()): boolean {
+  return now - lastSignOfLife(session, now) < RECENTLY_SAVED_MS;
+}
+
+export interface ContinueHereWords {
+  title: string;
+  question: string;
+  /** The answer that moves the session here. */
+  continueLabel: string;
+  /** The safe answer, the default: watch. */
+  watchLabel: string;
+}
+
+/**
+ * Continue on this iPad (Oct 12 2026): the question for the trainer's own
+ * session that another device records. Saved a moment ago, the screen
+ * watches first and this is asked from its button; quieter than that, it is
+ * asked once, at once, with the time it was last saved ("2:14 PM").
+ */
+export function continueHereWords({
+  recentlySaved,
+  lastSaved,
+}: {
+  recentlySaved: boolean;
+  lastSaved: string | null;
+}): ContinueHereWords {
+  const consequence = "You record the rest of it here, and the other device switches to watching.";
+  return {
+    title: "Continue this session here?",
+    question: recentlySaved
+      ? consequence
+      : `${lastSaved ? `It was last saved at ${lastSaved} on another device.` : "It was last saved on another device."} ${consequence}`,
+    continueLabel: "Continue here",
+    watchLabel: recentlySaved ? "Keep watching" : "Just watch",
   };
 }
 

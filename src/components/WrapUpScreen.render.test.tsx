@@ -393,6 +393,8 @@ describe("the post-session screen mounts", () => {
           authTrainer={trainer}
           savedOnThisIpad={queued}
           refused={refused}
+          onEffort={vi.fn()}
+          onLeave={vi.fn()}
           machines={[]}
         />,
       );

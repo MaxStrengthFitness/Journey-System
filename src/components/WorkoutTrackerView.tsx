@@ -119,12 +119,15 @@ import { StartingRangeSheet } from "../features/routine-plan/ui/StartingRangeShe
 import { knownElsewhere } from "../features/machine-menu/header-words";
 import { WatchingSession } from "../features/session-record/WatchingSession";
 import {
+  continueHereWords,
   firstOpenMachine,
+  isRecentlySaved,
   machinesDone,
   sessionMachineList,
   takeOverWords,
   watchWords,
 } from "../features/session-record/watch";
+import { thisDeviceId } from "../features/session-record/device";
 
 /**
  * How long a set's Firestore write waits for the trainer to stop typing.
@@ -239,8 +242,12 @@ import { noMachineHistoryLine, ownedWindow, sessionNumberTag } from "../lib/hist
 import { priorHistoryOf } from "../lib/prior-history";
 import { sessionTimingFields, toEpochMs } from "../lib/session-timing";
 import {
+  continueHerePatch,
   forgetLiveSession,
   isAnotherTrainersSession,
+  isOnAnotherDevice,
+  isRecordedElsewhere,
+  lastSignOfLife,
   myTrainerIds,
   peekLiveSessionId,
   pickOpenSession,
@@ -277,7 +284,7 @@ import { traineeLevelOf } from "../lib/progression-cue";
 import { createJournalEntry, useClientJournal } from "../hooks/useClientJournal";
 import { flagLineOf, machineFlags, sessionFlags } from "../features/journey-grid/session-flags";
 import { SessionFlagsSheet } from "../features/journey-grid/SessionFlagsSheet";
-import { formatStudioDate } from "../lib/studio-time";
+import { formatStudioDate, formatStudioTime } from "../lib/studio-time";
 import {
   DEFAULT_IMPORTANCE,
   FILING_CATEGORIES,
@@ -842,6 +849,11 @@ export function WorkoutTrackerView({
   useEffect(() => {
     myIdsRef.current = myIds;
   }, [myIds]);
+  /* This device's id (the sessions round, Oct 12 2026): the session records
+     here only while it names this device or none; the trainer's own LIVE
+     session another device records is watched here, with Continue on this
+     iPad. Null when this browser can't keep one: never "another device". */
+  const deviceId = useMemo(() => thisDeviceId(), []);
   /* A take-over made here, until the stream carries it: a snapshot that has
      not caught up with the write must not hand the session straight back. */
   const takingOverRef = useRef<{ id: string; at: number } | null>(null);
@@ -869,15 +881,18 @@ export function WorkoutTrackerView({
     /* Another trainer's abandoned session becomes this trainer's to finish,
        exactly as a take-over does; otherwise this iPad would only watch it. */
     const patch =
-      authTrainer?.id && isAnotherTrainersSession(s, myIdsRef.current) ? takeOverPatch(s, authTrainer) : null;
-    if (patch) takingOverRef.current = { id: s.id, at: Date.now() };
+      authTrainer?.id && isAnotherTrainersSession(s, myIdsRef.current) ? takeOverPatch(s, authTrainer, deviceId) : null;
+    // This device records it from now on (Oct 12 2026).
+    const here = deviceId ? continueHerePatch(deviceId) : {};
+    takingOverRef.current = { id: s.id, at: Date.now() };
     currentSessionIdRef.current = s.id;
     setStaleSession(null);
-    setCurrentSession(patch ? ({ ...s, ...patch } as WorkoutSession) : s);
+    setCurrentSession({ ...s, ...here, ...(patch ?? {}) } as WorkoutSession);
     setShowRoutinePicker(false);
     setIsPreSessionMode(false);
     rememberLiveSession(s.id);
     updateDoc(doc(db, "sessions", s.id), {
+      ...here,
       ...(patch ?? {}),
       lastHeartbeatAt: serverTimestamp(),
     }).catch((error) => handleFirestoreError(error, OperationType.UPDATE, "sessions"));
@@ -890,7 +905,7 @@ export function WorkoutTrackerView({
   const takeOverWatchedSession = () => {
     const s = watchedSession;
     if (!s?.id || !authTrainer?.id) return;
-    const patch = takeOverPatch(s, authTrainer);
+    const patch = takeOverPatch(s, authTrainer, deviceId);
     takingOverRef.current = { id: s.id, at: Date.now() };
     currentSessionIdRef.current = s.id;
     watchedSessionRef.current = null;
@@ -912,6 +927,37 @@ export function WorkoutTrackerView({
       setCurrentSession((cur) => (cur?.id === s.id ? null : cur));
       setWatchedSession(s);
       toastError("The take-over didn't go through. Check the connection, then try again.");
+    });
+  };
+
+  /* Continue on this iPad (the sessions round, Oct 12 2026): the trainer's
+     own session, which another device records, is recorded here from now
+     on. The same settling and the same way back as a take-over; only this
+     device's id (and the heartbeat) is written. The other device sees it
+     and turns to watching. */
+  const continueHere = () => {
+    const s = watchedSession;
+    if (!s?.id || !deviceId) return;
+    const patch = continueHerePatch(deviceId);
+    takingOverRef.current = { id: s.id, at: Date.now() };
+    currentSessionIdRef.current = s.id;
+    watchedSessionRef.current = null;
+    setWatchedSession(null);
+    setTakenFromHere(false);
+    setCurrentSession({ ...s, ...patch } as WorkoutSession);
+    setShowRoutinePicker(false);
+    setIsPreSessionMode(false);
+    rememberLiveSession(s.id);
+    updateDoc(doc(db, "sessions", s.id), {
+      ...patch,
+      lastHeartbeatAt: serverTimestamp(),
+    }).catch((error) => {
+      console.error("[continue here] it was not saved", error);
+      takingOverRef.current = null;
+      if (currentSessionIdRef.current === s.id) currentSessionIdRef.current = null;
+      setCurrentSession((cur) => (cur?.id === s.id ? null : cur));
+      setWatchedSession(s);
+      toastError("Continuing here didn't go through. Check the connection, then try again.");
     });
   };
 
@@ -1014,7 +1060,7 @@ export function WorkoutTrackerView({
               data.status === "In-Progress" &&
               (!clientId || data.clientId === clientId) &&
               isSessionValid(data) &&
-              isAnotherTrainersSession(data, myIdsRef.current)
+              isRecordedElsewhere(data, myIdsRef.current, deviceId)
             ) {
               /* The device remembered a session someone else now runs (it
                  was taken over): it is watched, and no longer this iPad's
@@ -1391,6 +1437,8 @@ export function WorkoutTrackerView({
             settlingId,
             onScreenId: currentSessionIdRef.current,
             rememberedId: remembered,
+            deviceId,
+            activeStudioId: contextActiveStudioId,
           });
           const onScreen = open.find((s) => s.id === currentSessionIdRef.current);
           /* This trainer's abandoned open session, asked about on the screen
@@ -1444,14 +1492,22 @@ export function WorkoutTrackerView({
   const resumeStaleOpenSession = () => {
     const s = staleOpenSession;
     if (!s?.id) return;
+    /* Another trainer's, reached from a door (Operations → Today, Hours, the
+       Directory; AJ, Oct 12 2026: "Anyone can clear a session"): it becomes
+       this trainer's, as Resume does a client's. This device records it. */
+    const patch =
+      authTrainer?.id && isAnotherTrainersSession(s, myIdsRef.current) ? takeOverPatch(s, authTrainer, deviceId) : null;
+    const here = deviceId ? continueHerePatch(deviceId) : {};
+    const resumed = { ...s, ...here, ...(patch ?? {}) } as WorkoutSession;
+    takingOverRef.current = { id: s.id, at: Date.now() };
     currentSessionIdRef.current = s.id;
     setStaleOpenSession(null);
     setWatchedSession(null);
     setTakenFromHere(false);
-    setCurrentSession(s);
-    setSessions([s]);
+    setCurrentSession(resumed);
+    setSessions([resumed]);
     rememberLiveSession(s.id);
-    updateDoc(doc(db, "sessions", s.id), { lastHeartbeatAt: serverTimestamp() }).catch((error) =>
+    updateDoc(doc(db, "sessions", s.id), { ...here, ...(patch ?? {}), lastHeartbeatAt: serverTimestamp() }).catch((error) =>
       handleFirestoreError(error, OperationType.UPDATE, "sessions"),
     );
   };
@@ -1662,7 +1718,7 @@ export function WorkoutTrackerView({
             takingOver?.id === inProgress.id &&
             Date.now() - takingOver.at < JUST_STARTED_GRACE_MS;
           const elsewhere =
-            !!inProgress && !takeOverSettling && isAnotherTrainersSession(inProgress, myIdsRef.current);
+            !!inProgress && !takeOverSettling && isRecordedElsewhere(inProgress, myIdsRef.current, deviceId);
           if (inProgress && elsewhere) {
             /* A Finish running here goes on: its own check decides whether
                anything is written (features/session-record/finish-wait.ts). */
@@ -2232,6 +2288,8 @@ export function WorkoutTrackerView({
         trainerName: trainerName || "",
         trainerId: trainerId || "",
         startedByTrainerId: trainerId || "",
+        // This device records it (Oct 12 2026); left out when it can't keep an id.
+        ...(deviceId ? { recordingDeviceId: deviceId } : {}),
         lastHeartbeatAt: serverTimestamp(),
         status: "In-Progress",
         sessionMachineIds: sessionListIds,
@@ -4992,6 +5050,11 @@ export function WorkoutTrackerView({
        that only reads: no change handler that writes, no add, no reorder,
        and a cell with nothing to do on a tap is not a button. */
     const runner = (watchedSession.trainerInitials || "").trim();
+    /* The trainer's own session, recorded on another device (Oct 12 2026):
+       Continue on this iPad in Take over's place. */
+    const watchingMine =
+      !isAnotherTrainersSession(watchedSession, myIds) && isOnAnotherDevice(watchedSession, deviceId);
+    const watchedRecently = isRecentlySaved(watchedSession);
     const watchLive: LiveColumn = {
       session: {
         id: watchedSession.id,
@@ -5026,13 +5089,27 @@ export function WorkoutTrackerView({
         }}
         done={machinesDone(watchedMachineIds, gridLiveValues)}
         total={watchedMachineIds.length}
-        words={watchWords({ runner, takenFromHere, online: sendState.online })}
+        key={watchedSession.id}
+        words={watchWords({ runner, takenFromHere, online: sendState.online, sameTrainer: watchingMine, recentlySaved: watchedRecently })}
         takeOver={
           authTrainer?.id
             ? takeOverWords({ runner, clientFirstName: selectedClient ? clientFirstName(selectedClient) : null })
             : null
         }
         onTakeOver={takeOverWatchedSession}
+        continueHere={
+          watchingMine
+            ? {
+                words: continueHereWords({
+                  recentlySaved: watchedRecently,
+                  lastSaved: formatStudioTime(new Date(lastSignOfLife(watchedSession)), undefined, "") || null,
+                }),
+                // Quieter than three minutes: asked at once, never on the iPad the session was just taken from.
+                askNow: !watchedRecently && !takenFromHere,
+              }
+            : null
+        }
+        onContinueHere={continueHere}
       >
         <JourneyGrid
           sessions={gridVisibleHistory}

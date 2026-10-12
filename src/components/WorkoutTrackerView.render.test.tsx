@@ -684,8 +684,10 @@ describe("an abandoned session is asked about, never adopted (Sep 24 2026)", () 
     expect(host.querySelector(".jg-sbar")).toBeTruthy();
     const heartbeat = writes.find((w) => w.path === `sessions/${STALE_ID}`);
     expect(heartbeat?.data).toHaveProperty("lastHeartbeatAt");
-    // Only the heartbeat: its day, its status and its sets are untouched.
-    expect(Object.keys(heartbeat!.data)).toEqual(["lastHeartbeatAt"]);
+    // Only the heartbeat and this device (the sessions round, Oct 12 2026):
+    // its day, its status and its sets are untouched.
+    expect(Object.keys(heartbeat!.data).sort()).toEqual(["lastHeartbeatAt", "recordingDeviceId"]);
+    expect(heartbeat!.data.recordingDeviceId).toBe(localStorage.getItem("journey_device_id"));
     expect(localStorage.getItem("max_strength_active_session_id")).toBe(STALE_ID);
   });
 
@@ -1147,6 +1149,64 @@ describe("a session another trainer is running opens read-only, and live (sessio
     expect(host.querySelector(".jg-sbar__finish")).toBeNull();
     // The device no longer points at a session that is not this trainer's.
     expect(localStorage.getItem("max_strength_active_session_id")).toBeNull();
+  });
+
+  /* The sessions round (Oct 12 2026): the trainer's OWN live session that
+     another device records is watched here, with Continue on this iPad; a
+     session that names this device, or none, is recorded as before. */
+  const myOwnSession = (over: Record<string, unknown> = {}) => [
+    { id: SESSION_ID, data: () => ({ ...SESSION_DOCS[0].data(), ...over }) },
+  ];
+  const stripButton = (host: HTMLElement, label: string) =>
+    Array.from(host.querySelectorAll("button")).find((b) => b.textContent?.trim() === label);
+
+  it("this trainer's own session saved a moment ago on another device: watched, and Continue on this iPad records it here", async () => {
+    sessionDocs = myOwnSession({ recordingDeviceId: "d-other-device" });
+    const host = await mount(<Tracker />);
+    expect(watching(host)).toBeTruthy();
+    expect(host.textContent).toContain("This session is open on another device and was saved a moment ago.");
+    expect(host.textContent).not.toMatch(/other iPad/);
+    expect(stripButton(host, "Take over")).toBeUndefined();
+    expect(sessionWrites()).toEqual([]);
+
+    await act(async () => stripButton(host, "Continue on this iPad")!.click());
+    expect(document.body.textContent).toContain("Continue this session here?");
+    expect(dialogButton("keep-editing")!.textContent).toBe("Keep watching");
+    await act(async () => dialogButton("leave")!.click());
+    await settle();
+
+    const moved = writes.find((w) => w.path === `sessions/${SESSION_ID}` && w.data?.recordingDeviceId);
+    const here = localStorage.getItem("journey_device_id");
+    expect(here).toBeTruthy();
+    expect(moved?.data).toMatchObject({ recordingDeviceId: here });
+    expect(Object.keys(moved!.data).sort()).toEqual(["lastHeartbeatAt", "recordingDeviceId"]);
+    // Recording here now, and a snapshot that hasn't caught up doesn't hand it back.
+    expect(watching(host)).toBeNull();
+    expect(host.querySelector(".jg-sbar__finish")).toBeTruthy();
+    await emitSessions();
+    expect(watching(host)).toBeNull();
+  });
+
+  it("quieter than three minutes on the other device: asked at once, Just watch the default", async () => {
+    sessionDocs = myOwnSession({ recordingDeviceId: "d-other-device", lastHeartbeatAt: new Date(Date.now() - 10 * 60_000) });
+    const host = await mount(<Tracker />);
+    expect(watching(host)).toBeTruthy();
+    expect(document.body.textContent).toMatch(/It was last saved at .+ on another device\./);
+    expect(dialogButton("keep-editing")!.textContent).toBe("Just watch");
+    await act(async () => dialogButton("keep-editing")!.click());
+    expect(watching(host)).toBeTruthy();
+    expect(sessionWrites()).toEqual([]);
+  });
+
+  it("a session that names this device, or no device (from before), is recorded here as before", async () => {
+    localStorage.setItem("journey_device_id", "d-this-ipad");
+    sessionDocs = myOwnSession({ recordingDeviceId: "d-this-ipad" });
+    const host = await mount(<Tracker />);
+    expect(watching(host)).toBeNull();
+    expect(host.querySelector(".jg-sbar__finish")).toBeTruthy();
+    sessionDocs = myOwnSession();
+    const legacy = await mount(<Tracker />);
+    expect(watching(legacy)).toBeNull();
   });
 
   it("says so when the session being watched is finished, and stops watching", async () => {

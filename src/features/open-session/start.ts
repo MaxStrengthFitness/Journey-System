@@ -51,6 +51,13 @@ export interface OpenSessionFacts {
   nowIso: string;
   /** `serverTimestamp()`, passed in so this stays pure. */
   stamp: unknown;
+  /**
+   * This device's id (session-record/device.ts, Oct 12 2026): written as
+   * `recordingDeviceId` so the trainer's second device watches it rather
+   * than recording it twice. Null when the device can't keep one: then the
+   * field is left out, and the session is never "on another device".
+   */
+  deviceId?: string | null;
 }
 
 /**
@@ -84,6 +91,7 @@ export function openSessionPayload(f: OpenSessionFacts): Record<string, unknown>
     lastHeartbeatAt: f.stamp,
     startTime: f.stamp,
     createdAt: f.stamp,
+    ...(f.deviceId ? { recordingDeviceId: f.deviceId } : {}),
   };
 }
 
