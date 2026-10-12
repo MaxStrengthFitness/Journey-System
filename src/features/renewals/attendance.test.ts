@@ -111,8 +111,23 @@ describe("attendance", () => {
   it("reads Journey workouts as visits, never a future-dated one", () => {
     const rows = attendanceFromSessions(
       [
-        { startTime: "2026-09-10T13:00:00Z", trainerId: "t1" } as any,
-        { date: "2026-12-01", trainerId: "t1", trainerInitials: "Legacy" } as any,
+        { startTime: "2026-09-10T13:00:00Z", trainerId: "t1", status: "Completed" } as any,
+        { date: "2026-12-01", trainerId: "t1", trainerInitials: "Legacy", status: "Completed" } as any,
+      ],
+      TZ,
+      "2026-09-11",
+    );
+    expect(rows).toEqual([{ day: "2026-09-10", kind: "visit", trainerId: "t1" }]);
+  });
+
+  it("reads only a finished session as a visit (sessions round, #2)", () => {
+    const rows = attendanceFromSessions(
+      [
+        { startTime: "2026-09-10T13:00:00Z", trainerId: "t1", status: "Completed" } as any,
+        // Left open on an iPad and never finished: not a visit yet.
+        { startTime: "2026-09-09T13:00:00Z", trainerId: "t1", status: "In-Progress" } as any,
+        // No status at all: never read as finished.
+        { startTime: "2026-09-08T13:00:00Z", trainerId: "t1" } as any,
       ],
       TZ,
       "2026-09-11",

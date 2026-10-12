@@ -58,6 +58,14 @@ export interface LiveSessionLike {
   isUnassigned?: boolean;
   lastHeartbeatAt?: unknown;
   createdAt?: unknown;
+  /** The studio the session runs at. */
+  hostedAtStudioId?: string | null;
+  /**
+   * The device recording it (features/session-record/device.ts, Oct 12
+   * 2026), written at Start, Resume, a take-over and Continue on this iPad.
+   * Absent on older sessions.
+   */
+  recordingDeviceId?: string | null;
 }
 
 /**
@@ -310,11 +318,22 @@ export function pickOpenSession<T extends LiveSessionLike>(
     settlingId?: string | null;
     onScreenId?: string | null;
     rememberedId?: string | null;
+    /**
+     * This device's id (Oct 12 2026): a LIVE session of this trainer that
+     * another device records is watched here, never recorded twice. Null or
+     * absent: never "another device".
+     */
+    deviceId?: string | null;
+    /** The studio on this iPad: a remembered stale session elsewhere is never asked about here. */
+    activeStudioId?: string | null;
     now?: number;
   },
 ): { mine: T | null; watch: T | null; stale: T | null } {
   const now = opts.now ?? Date.now();
-  const mine = open.filter((s) => (!!opts.settlingId && s.id === opts.settlingId) || !isAnotherTrainersSession(s, opts.myIds));
+  const deviceId = opts.deviceId ?? null;
+  const mine = open.filter(
+    (s) => (!!opts.settlingId && s.id === opts.settlingId) || !isRecordedElsewhere(s, opts.myIds, deviceId, now),
+  );
   const byId = (id: string | null | undefined) => (id ? (mine.find((s) => s.id === id) ?? null) : null);
   const remembered = byId(opts.rememberedId);
   const chosen =
@@ -324,10 +343,33 @@ export function pickOpenSession<T extends LiveSessionLike>(
     splitInProgress(mine, now).live ??
     null;
   if (chosen) return { mine: chosen, watch: null, stale: null };
-  const others = open.filter((s) => !mine.includes(s));
-  const watch = (opts.onScreenId ? others.find((s) => s.id === opts.onScreenId) : undefined) ?? others[0] ?? null;
-  const stale = splitInProgress(mine.filter(isOpenSession), now).stale[0] ?? null;
-  return { mine: null, watch, stale };
+  /* Watched: only a LIVE session someone records elsewhere (Oct 12 2026: an
+     abandoned one is never watched; it is asked about, or left). */
+  const others = open.filter((s) => !mine.includes(s) && isSessionValid(s, now));
+  /* The one on screen, then the one a door asked for (Hours' Open on a
+     colleague's running open session; the review, Oct 12 2026: it used to
+     watch whichever came first), then the first. */
+  const othersById = (id: string | null | undefined) => (id ? others.find((s) => s.id === id) : undefined);
+  const watch = othersById(opts.onScreenId) ?? othersById(opts.rememberedId) ?? others[0] ?? null;
+  /* Asked about: the session the device remembers, anyone's, when it is
+     abandoned and at this studio (it was opened from a door: Operations →
+     Today, Hours, the Directory; AJ, Oct 12 2026: "Anyone can clear a
+     session"); else this trainer's own newest abandoned one. */
+  const rememberedAny = opts.rememberedId ? (open.find((s) => s.id === opts.rememberedId) ?? null) : null;
+  const atThisStudio = (s: T) => {
+    const at = (s.hostedAtStudioId || "").trim();
+    const here = (opts.activeStudioId || "").trim();
+    return !at || !here || at === here;
+  };
+  const rememberedStale =
+    rememberedAny && rememberedAny.status === "In-Progress" && !isSessionValid(rememberedAny, now) && atThisStudio(rememberedAny)
+      ? rememberedAny
+      : null;
+  const ownStale = splitInProgress(
+    open.filter((s) => isOpenSession(s) && !isAnotherTrainersSession(s, opts.myIds)),
+    now,
+  ).stale[0] ?? null;
+  return { mine: null, watch, stale: rememberedStale ?? ownStale };
 }
 
 /* ------------------------------------------------------------------ *
@@ -375,11 +417,45 @@ export function isAnotherTrainersSession(
   return !myIds.includes(runner);
 }
 
+/**
+ * True when ANOTHER device records this session (Oct 12 2026): both ids are
+ * known and they differ. A session with no id (older), or a device that
+ * can't keep one, is never another device: failing that way would lock a
+ * trainer out of their own session.
+ */
+export function isOnAnotherDevice(
+  session: { recordingDeviceId?: string | null } | null | undefined,
+  deviceId: string | null | undefined,
+): boolean {
+  const recorder = (session?.recordingDeviceId || "").trim();
+  const here = (deviceId || "").trim();
+  return !!recorder && !!here && recorder !== here;
+}
+
+/**
+ * Whether this iPad watches the session rather than recording into it:
+ * another trainer runs it, or (Oct 12 2026) this trainer's own LIVE session
+ * is being recorded on another device. A session nobody has saved anything
+ * in for an hour is recorded nowhere, so another device's id doesn't keep it
+ * from this one (the trainer test alone decides then).
+ */
+export function isRecordedElsewhere(
+  session: (LiveSessionLike & { status?: string }) | null | undefined,
+  myIds: readonly string[],
+  deviceId: string | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (isAnotherTrainersSession(session, myIds)) return true;
+  return isOnAnotherDevice(session, deviceId) && isSessionValid(session, now);
+}
+
 export interface TakeOverPatch {
   trainerId: string;
   trainerName: string;
   trainerInitials: string;
   startedByTrainerId?: string;
+  /** The device that records it from now on (Oct 12 2026), when it has an id. */
+  recordingDeviceId?: string;
 }
 
 /**
@@ -393,15 +469,25 @@ export interface TakeOverPatch {
 export function takeOverPatch(
   session: { trainerId?: string | null; startedByTrainerId?: string | null },
   me: { id: string; fullName?: string | null; initials?: string | null },
+  deviceId?: string | null,
 ): TakeOverPatch {
   const patch: TakeOverPatch = {
     trainerId: me.id,
     trainerName: me.fullName || "",
     trainerInitials: me.initials || "??",
   };
+  if (deviceId) patch.recordingDeviceId = deviceId;
   const starter = (session.startedByTrainerId || "").trim();
   const runner = (session.trainerId || "").trim();
   return !starter && runner ? { ...patch, startedByTrainerId: runner } : patch;
+}
+
+/**
+ * Continue on this iPad (Oct 12 2026): the same trainer's own session, now
+ * recorded on this device. Nothing else about it changes.
+ */
+export function continueHerePatch(deviceId: string): { recordingDeviceId: string } {
+  return { recordingDeviceId: deviceId };
 }
 
 function storage(): Storage | null {
@@ -412,8 +498,52 @@ function storage(): Storage | null {
   }
 }
 
-export function rememberLiveSession(sessionId: string): void {
-  storage()?.setItem(LIVE_SESSION_KEY, sessionId);
+/**
+ * The screen a session was opened from, by a door that isn't the trainer's
+ * own (the sessions round, Oct 12 2026): Operations → Today, Operations →
+ * Hours, the Client Directory. Not now, and a finished Discard, go back
+ * there; the Hub when none was kept.
+ */
+export type LiveSessionReturn = "operations-today" | "operations-hours" | "directory" | "hub";
+export const LIVE_SESSION_RETURN_KEY = "max_strength_active_session_return";
+const RETURNS: readonly LiveSessionReturn[] = ["operations-today", "operations-hours", "directory", "hub"];
+
+export function rememberLiveSession(
+  sessionId: string,
+  opts: {
+    returnTo?: LiveSessionReturn | null;
+    /**
+     * A door's session while the viewer has a live session of their own
+     * (the review, Oct 12 2026): only where the door was is kept, never the
+     * live session's id, which stays the viewer's own.
+     */
+    keepRemembered?: boolean;
+  } = {},
+): void {
+  const s = storage();
+  if (!s) return;
+  try {
+    if (opts.keepRemembered) {
+      if (opts.returnTo) s.setItem(LIVE_SESSION_RETURN_KEY, `${sessionId}|${opts.returnTo}`);
+      return;
+    }
+    s.setItem(LIVE_SESSION_KEY, sessionId);
+    if (opts.returnTo) s.setItem(LIVE_SESSION_RETURN_KEY, `${sessionId}|${opts.returnTo}`);
+    else if (s.getItem(LIVE_SESSION_RETURN_KEY)?.split("|")[0] !== sessionId) s.removeItem(LIVE_SESSION_RETURN_KEY);
+  } catch {
+    /* A storage that refuses: nothing remembered, nothing broken. */
+  }
+}
+
+/** Where the remembered session's door was, when it is this session's; else null. */
+export function peekLiveSessionReturn(sessionId: string | null | undefined): LiveSessionReturn | null {
+  if (!sessionId) return null;
+  try {
+    const [id, to] = (storage()?.getItem(LIVE_SESSION_RETURN_KEY) || "").split("|");
+    return id === sessionId && (RETURNS as readonly string[]).includes(to) ? (to as LiveSessionReturn) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function forgetLiveSession(sessionId?: string): void {
@@ -422,6 +552,9 @@ export function forgetLiveSession(sessionId?: string): void {
   // Only clear our own id — a second tab may have started another session.
   if (!sessionId || s.getItem(LIVE_SESSION_KEY) === sessionId) {
     s.removeItem(LIVE_SESSION_KEY);
+  }
+  if (!sessionId || s.getItem(LIVE_SESSION_RETURN_KEY)?.split("|")[0] === sessionId) {
+    s.removeItem(LIVE_SESSION_RETURN_KEY);
   }
 }
 

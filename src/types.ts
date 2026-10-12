@@ -1267,6 +1267,12 @@ export interface WorkoutSession {
   clientName?: string;
   /** Who originally initiated the session document (Soft Lock Architecture) */
   startedByTrainerId?: string;
+  /**
+   * The device recording the session (features/session-record/device.ts,
+   * the sessions round, Oct 12 2026): written at Start, Resume, a take-over
+   * and Continue on this iPad. Absent on older sessions.
+   */
+  recordingDeviceId?: string;
   /** Activity checkpoint updated during logs to detect abandonment (Lazy Cleanup) */
   lastHeartbeatAt?: any;
   /**

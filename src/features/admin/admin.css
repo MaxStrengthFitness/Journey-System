@@ -2112,6 +2112,18 @@
   color: var(--adm-ink-muted);
 }
 
+/* Not finished yet (the sessions round, Oct 12 2026): the two groups'
+   names, Running now and Left open, above their rows. */
+.adm-hrs-group {
+  margin: 0;
+  padding: 12px 16px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--adm-ink-2);
+  overflow-wrap: anywhere;
+}
+
 .adm-hrs-strong .adm-hrs-hours {
   color: var(--adm-hero-text);
 }

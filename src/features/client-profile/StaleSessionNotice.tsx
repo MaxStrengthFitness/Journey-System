@@ -1,30 +1,57 @@
 /**
- * AN UNFINISHED SESSION, SAID OUT LOUD (Sep 24 2026).
+ * AN UNFINISHED SESSION, SAID OUT LOUD (Sep 24 2026; the sessions round,
+ * Oct 12 2026).
  *
  * The header offers Start when nothing is running, and it still does: a
  * session the heartbeat rule calls abandoned (lib/live-session.ts) never
  * withholds Start. But it used to be invisible here, so Discard — which
  * lives in the "In progress" menu, shown only for a LIVE session — could
- * not reach it, and nothing else ever would. This line says it is there
- * and puts Discard beside it. Discard still asks before deleting anything.
+ * not reach it, and nothing else ever would. This line says it is there.
  *
- * Resume is not offered here on purpose: Start takes the trainer to the
- * Active Session, which asks "resume it, or start a new one?" — one place
- * for that question, not two.
+ * Since Oct 12 2026 (AJ: "Anyone can clear a session") it has two doors,
+ * for anyone who works at the studio it was left at:
+ *
+ *   - Resume or finish: the Active Session, which asks Resume it, Finish it
+ *     as it was, Discard it, or Start a new session — one place for that
+ *     question, not two;
+ *   - Discard it: the profile's own question, which checks the server first
+ *     when it isn't this trainer's session.
+ *
+ * A session left at another studio is described, never cleared from here:
+ * "Left open at Solon".
  */
-import { Clock, Trash2 } from "lucide-react";
+import { Clock, Play, Trash2 } from "lucide-react";
 import { staleSessionStartedLine, type StaleSessionFacts } from "../../lib/live-session";
 
 export function StaleSessionNotice({
   session,
   todayKey,
+  onResume,
   onDiscard,
+  discardWaits = null,
+  elsewhereStudioName,
 }: {
   session: StaleSessionFacts;
   todayKey: string;
+  /** Resume or finish: the Active Session asks there. */
+  onResume: () => void;
   onDiscard: () => void;
+  /**
+   * Someone else's session left open today (session-record/discard.ts
+   * `discardWaitsToday`; the attack, Oct 12 2026): Discard isn't offered,
+   * and these words say why and when it will be.
+   */
+  discardWaits?: string | null;
+  /**
+   * The studio's name when the session was left at another studio than this
+   * iPad's: said, with no buttons ("never another studio's").
+   */
+  elsewhereStudioName?: string | null;
 }) {
   const started = staleSessionStartedLine(session, todayKey);
+  const elsewhere = elsewhereStudioName !== undefined && elsewhereStudioName !== null;
+  const where = elsewhere ? `Left open at ${elsewhereStudioName || "another studio"}` : null;
+  const line = [where, started].filter(Boolean).join(" · ");
   return (
     <div
       role="status"
@@ -32,18 +59,36 @@ export function StaleSessionNotice({
     >
       <Clock className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
       <p className="min-w-0 flex-1 basis-64 text-sm leading-snug text-foreground">
-        <span className="font-bold">An unfinished session.</span>{" "}
-        {started ? `${started} ` : ""}It was never finished. Start session
-        asks whether to resume it or begin a new one.
+        <span className="font-bold">Unfinished session</span>
+        {line ? ` · ${line}` : "."}
       </p>
-      <button
-        type="button"
-        onClick={onDiscard}
-        className="shrink-0 inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-(--raised) border border-input shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) text-red-700 dark:text-red-400 text-[14px] font-bold hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-      >
-        <Trash2 className="w-4 h-4" aria-hidden />
-        Discard it
-      </button>
+      {!elsewhere && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onResume}
+            className="shrink-0 inline-flex items-center gap-2 min-h-10 px-4 py-2 rounded-xl bg-(--raised) border border-input shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) text-foreground text-[14px] font-bold text-left"
+          >
+            <Play className="w-4 h-4" aria-hidden />
+            Resume or finish
+          </button>
+          {!discardWaits && (
+            <button
+              type="button"
+              onClick={onDiscard}
+              className="shrink-0 inline-flex items-center gap-2 min-h-10 px-4 py-2 rounded-xl bg-(--raised) border border-input shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) text-red-700 dark:text-red-400 text-[14px] font-bold text-left hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" aria-hidden />
+              Discard it
+            </button>
+          )}
+        </div>
+      )}
+      {!elsewhere && discardWaits && (
+        <p className="basis-full text-[12px] leading-snug text-muted-foreground break-words" data-testid="notice-discard-waits">
+          {discardWaits}
+        </p>
+      )}
     </div>
   );
 }

@@ -146,8 +146,20 @@ describe("peekState: what happened, and the button that follows it (hub fixes, O
     expect(peekState("in-session").primary).toEqual({ kind: "open-session", label: "Back to the session" });
     const left = peekState("left-open");
     expect(left.words).toBe("Left open");
-    expect(left.primary).toEqual({ kind: "open-session", label: "Resume or start new" });
-    expect(left.note).toContain("Discard");
+    // Named as the profile names it, and nobody is sent to the profile (the review, Oct 12 2026).
+    expect(left.primary).toEqual({ kind: "open-session", label: "Resume or finish" });
+    expect(left.note).toBe("Started and quiet for over an hour. Open it to resume, finish or discard it.");
+  });
+  it("says why a session left open went quiet: Paused, or At End Session (the sessions round, Oct 12 2026)", () => {
+    const paused = peekState("left-open", { quiet: { kind: "paused", line: "Paused since 2:10 PM", first: "Ann" } });
+    expect(paused.words).toBe("Paused");
+    expect(paused.note).toBe("Paused since 2:10 PM, nothing saved. Open it to resume, finish or discard it.");
+    const ended = peekState("left-open", { quiet: { kind: "at-end-session", line: "At End Session since 2:10 PM", first: null } });
+    expect(ended.words).toBe("At End Session");
+    expect(ended.note).toBe("At End Session since 2:10 PM, never finished. Open it to finish, resume or discard it.");
+    expect(ended.primary).toEqual({ kind: "open-session", label: "Resume or finish" });
+    expect(`${paused.note} ${ended.note}`).not.toContain("profile");
+    expect(peekState("left-open", { quiet: { kind: "left-open", line: "Left open", first: "Ann" } }).words).toBe("Left open");
   });
   it("not logged offers Log past session; didn't come offers nothing to start", () => {
     expect(peekState("not-logged").primary).toEqual({ kind: "log-past", label: "Log past session" });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Trainer } from "../../types";
 import { recordImportedSessions, type PriorHistory } from "../../lib/prior-history";
 import {
+  MINDBODY_COUNT_CAVEAT,
   canEditPriorHistory,
   confirmGuessStatement,
   draftFromPrior,
@@ -207,5 +208,12 @@ describe("Mindbody's guess, confirmed once (Atlas answers, Oct 2 2026)", () => {
     expect(confirmGuessStatement(306, "2026-03-01", "2026-10-02").through).toBe("2026-02-28");
     // No Journey session yet: counted up to today.
     expect(confirmGuessStatement(40, null, "2026-10-02").through).toBe("2026-10-02");
+  });
+});
+
+describe("the caveat under the sum beside Confirm (sessions round, Oct 12 2026)", () => {
+  it("says what Mindbody's count can hold, in plain words with no pronoun", () => {
+    expect(MINDBODY_COUNT_CAVEAT).toBe("Mindbody's count can include late cancels and no-shows.");
+    expect(MINDBODY_COUNT_CAVEAT).not.toMatch(/\b(she|her|he|his|him)\b/i);
   });
 });

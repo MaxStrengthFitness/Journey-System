@@ -9,6 +9,13 @@ import {
   openSessionElsewhereWords,
   ownSessionName,
   pickOpenSession,
+  peekLiveSessionId,
+  peekLiveSessionReturn,
+  rememberLiveSession,
+  forgetLiveSession,
+  continueHerePatch,
+  isOnAnotherDevice,
+  isRecordedElsewhere,
   rememberedTarget,
   resumeSession,
   resumeTarget,
@@ -472,5 +479,137 @@ describe("pickOpenSession: which open session this iPad records (Oct 9 2026)", (
     const other = { ...theirs, id: "theirs-2" };
     expect(pickOpenSession([theirs, other], { myIds: ["t1"], onScreenId: "theirs-2", now }).watch?.id).toBe("theirs-2");
     expect(pickOpenSession([], { myIds: ["t1"], now })).toEqual({ mine: null, watch: null, stale: null });
+  });
+});
+
+/* ── This device (the sessions round, Oct 12 2026) ─────────────────────── */
+describe("isOnAnotherDevice and isRecordedElsewhere", () => {
+  const live = { status: "In-Progress", trainerId: "t1", ...fresh };
+
+  it("another device only when both ids are known and differ", () => {
+    expect(isOnAnotherDevice({ recordingDeviceId: "d-a" }, "d-b")).toBe(true);
+    expect(isOnAnotherDevice({ recordingDeviceId: "d-a" }, "d-a")).toBe(false);
+    // An older session with no id, and a device that can't keep one: never another device.
+    expect(isOnAnotherDevice({}, "d-b")).toBe(false);
+    expect(isOnAnotherDevice({ recordingDeviceId: "d-a" }, null)).toBe(false);
+    expect(isOnAnotherDevice({ recordingDeviceId: "  " }, "d-b")).toBe(false);
+  });
+
+  it("another trainer's session, or this trainer's LIVE one on another device", () => {
+    expect(isRecordedElsewhere({ ...live, trainerId: "t2" }, ["t1"], null, now)).toBe(true);
+    expect(isRecordedElsewhere({ ...live, recordingDeviceId: "d-a" }, ["t1"], "d-b", now)).toBe(true);
+    expect(isRecordedElsewhere({ ...live, recordingDeviceId: "d-a" }, ["t1"], "d-a", now)).toBe(false);
+    // Legacy (no id) and a null device: recorded here, as before.
+    expect(isRecordedElsewhere(live, ["t1"], "d-b", now)).toBe(false);
+    expect(isRecordedElsewhere({ ...live, recordingDeviceId: "d-a" }, ["t1"], null, now)).toBe(false);
+  });
+
+  it("an abandoned session of this trainer's is recorded nowhere, whatever device it names", () => {
+    expect(isRecordedElsewhere({ ...live, ...stale, recordingDeviceId: "d-a" }, ["t1"], "d-b", now)).toBe(false);
+  });
+});
+
+describe("takeOverPatch and continueHerePatch carry this device", () => {
+  const me = { id: "t-aj", fullName: "AJ Jurgens", initials: "AJ" };
+  it("writes the device on a take-over when it has one, and never undefined", () => {
+    expect(takeOverPatch({ trainerId: "t-jc", startedByTrainerId: "t-jc" }, me, "d-here")).toEqual({
+      trainerId: "t-aj", trainerName: "AJ Jurgens", trainerInitials: "AJ", recordingDeviceId: "d-here",
+    });
+    const none = takeOverPatch({ trainerId: "t-jc", startedByTrainerId: "t-jc" }, me, null);
+    expect(none).not.toHaveProperty("recordingDeviceId");
+  });
+  it("Continue on this iPad writes the device and nothing else", () => {
+    expect(continueHerePatch("d-here")).toEqual({ recordingDeviceId: "d-here" });
+  });
+});
+
+describe("pickOpenSession with this device and a door (Oct 12 2026)", () => {
+  const at = (minsAgo: number) => ({ lastHeartbeatAt: new Date(now - minsAgo * 60_000) });
+  const mineHere = { id: "here", status: "In-Progress", trainerId: "t1", isUnassigned: true, recordingDeviceId: "d-here", ...at(1) };
+  const mineThere = { id: "there", status: "In-Progress", trainerId: "t1", isUnassigned: true, recordingDeviceId: "d-there", ...at(1) };
+  const legacy = { id: "legacy", status: "In-Progress", trainerId: "t1", isUnassigned: true, ...at(1) };
+
+  it("this trainer's live session on another device is watched, not recorded", () => {
+    expect(pickOpenSession([mineThere], { myIds: ["t1"], deviceId: "d-here", now })).toEqual({ mine: null, watch: mineThere, stale: null });
+    // ...even when it is the one on screen (continued on the other device).
+    expect(pickOpenSession([mineThere], { myIds: ["t1"], deviceId: "d-here", onScreenId: "there", now }).watch?.id).toBe("there");
+    // Settling here (Continue on this iPad a moment ago): recorded here.
+    expect(pickOpenSession([mineThere], { myIds: ["t1"], deviceId: "d-here", settlingId: "there", now }).mine?.id).toBe("there");
+  });
+
+  it("this device's, a legacy one, or any with no device id here, is recorded as before", () => {
+    expect(pickOpenSession([mineHere], { myIds: ["t1"], deviceId: "d-here", now }).mine?.id).toBe("here");
+    expect(pickOpenSession([legacy], { myIds: ["t1"], deviceId: "d-here", now }).mine?.id).toBe("legacy");
+    expect(pickOpenSession([mineThere], { myIds: ["t1"], deviceId: null, now }).mine?.id).toBe("there");
+  });
+
+  it("an abandoned session is never watched", () => {
+    const theirsStale = { id: "ts", status: "In-Progress", trainerId: "t2", isUnassigned: true, ...stale };
+    expect(pickOpenSession([theirsStale], { myIds: ["t1"], now }).watch).toBeNull();
+  });
+
+  it("asks about the session a door remembered, anyone's, when it is abandoned and at this studio", () => {
+    const theirsStale = { id: "ts", status: "In-Progress", trainerId: "t2", isUnassigned: true, hostedAtStudioId: "sA", ...stale };
+    expect(pickOpenSession([theirsStale], { myIds: ["t1"], rememberedId: "ts", activeStudioId: "sA", now }).stale?.id).toBe("ts");
+    // Another studio's is never asked about here.
+    expect(pickOpenSession([theirsStale], { myIds: ["t1"], rememberedId: "ts", activeStudioId: "sB", now }).stale).toBeNull();
+    // Remembered but live: theirs to run, watched, never asked about.
+    const theirsLive = { ...theirsStale, ...fresh };
+    expect(pickOpenSession([theirsLive], { myIds: ["t1"], rememberedId: "ts", activeStudioId: "sA", now })).toEqual({
+      mine: null, watch: theirsLive, stale: null,
+    });
+  });
+});
+
+describe("the door a session was opened from (Oct 12 2026)", () => {
+  const store = new Map<string, string>();
+  beforeEach(() => {
+    store.clear();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps where the door was for that session, and forgets it with the session", () => {
+    rememberLiveSession("s1", { returnTo: "operations-today" });
+    expect(peekLiveSessionId()).toBe("s1");
+    expect(peekLiveSessionReturn("s1")).toBe("operations-today");
+    expect(peekLiveSessionReturn("s2")).toBeNull();
+    forgetLiveSession("s1");
+    expect(peekLiveSessionId()).toBeNull();
+    expect(peekLiveSessionReturn("s1")).toBeNull();
+  });
+
+  it("a session remembered without a door keeps no other session's door", () => {
+    rememberLiveSession("s1", { returnTo: "directory" });
+    rememberLiveSession("s2");
+    expect(peekLiveSessionReturn("s1")).toBeNull();
+    expect(peekLiveSessionReturn("s2")).toBeNull();
+    // ...and the same session remembered again keeps its door.
+    rememberLiveSession("s3", { returnTo: "operations-hours" });
+    rememberLiveSession("s3");
+    expect(peekLiveSessionReturn("s3")).toBe("operations-hours");
+  });
+
+  /* The review, Oct 12 2026: a door used to replace the viewer's own live
+     session's id on this iPad. */
+  it("a door's session never replaces the viewer's own live one: only its door is kept", () => {
+    rememberLiveSession("mine");
+    rememberLiveSession("colleague", { returnTo: "operations-hours", keepRemembered: true });
+    expect(peekLiveSessionId()).toBe("mine");
+    expect(peekLiveSessionReturn("colleague")).toBe("operations-hours");
+  });
+});
+
+describe("watching the session a door asked for (the review, Oct 12 2026)", () => {
+  it("watches the remembered colleague's running session, not whichever came first", () => {
+    const a = { id: "a", status: "In-Progress", trainerId: "t2", isUnassigned: true, ...fresh };
+    const b = { id: "b", status: "In-Progress", trainerId: "t3", isUnassigned: true, ...fresh };
+    expect(pickOpenSession([a, b], { myIds: ["t1"], rememberedId: "b", now }).watch?.id).toBe("b");
+    // The one on screen still comes first.
+    expect(pickOpenSession([a, b], { myIds: ["t1"], onScreenId: "a", rememberedId: "b", now }).watch?.id).toBe("a");
   });
 });

@@ -1,36 +1,55 @@
 /**
- * SESSIONS LEFT OPEN (the Atlas answers, Oct 2 2026). Pure: left-open.test.ts.
+ * SESSIONS NOT FINISHED (the Atlas answers, Oct 2 2026; the sessions round,
+ * Oct 12 2026). Pure: left-open.test.ts.
  *
  * AJ: "Unfinished sessions for leaders — a Needs-you line on Operations →
- * Today, and head office across every studio." A session is left open by
- * the app's one staleness rule (`isSessionValid`, lib/utils.ts): still
+ * Today, and head office across every studio." A session is listed by the
+ * app's one staleness rule (`isSessionValid`, lib/utils.ts): still
  * In-Progress with no heartbeat for an hour. That is what the Hub's card
- * calls "Left open", so the two never disagree.
+ * says too, so the two never disagree.
  *
- * Each row says whose session it is, who started it and when, and how far it
- * got, so a leader can find it without hunting for the client by name. The
- * row's door opens that client's session, where the Active Session's own
- * flow finishes it (or lets the trainer start again).
+ * Each row says whose session it is, why it went quiet and how far it got,
+ * so a leader can find it without hunting for the client by name:
+ *
+ *   - a client's session is named by the client, "started by" its trainer;
+ *   - an open session (started before a client was chosen) is "Open session
+ *     · Sam", never "A client", and its sentence doesn't name Sam twice;
+ *   - why it went quiet (lib/session-quiet.ts): Paused or At End Session
+ *     on the day it happened, else Left open. Only Left open counts in
+ *     Needs you (`needsYouCount`); a pause the trainer chose today is said,
+ *     not counted.
+ *
+ * Every row's door is Open (AJ, Oct 12 2026: "Anyone can clear a session"):
+ * a client's opens her session, an open session opens itself, and the Active
+ * Session asks there (resume it, finish it as it was, or discard it).
  *
  * Read from what the page already holds: Today's last 14 days of the
  * studio's sessions (useSessionsInRange), and on the Admins dashboard one
  * bounded query across the company (useLeftOpenEverywhere).
  */
 import { isSessionValid } from "../../../lib/utils";
-import { formatStudioTime, studioDateKey } from "../../../lib/studio-time";
+import { isOpenSession } from "../../../lib/live-session";
+import { lastActiveWords, quietDetail, quietKindOf, type QuietKind } from "../../../lib/session-quiet";
 import type { WorkoutSession } from "../../../types";
+
+export { lastActiveWords };
 
 export interface LeftOpenRow {
   id: string;
+  /** "open": started before a client was chosen. */
+  kind: "client" | "open";
   clientId: string | null;
+  /** The row's name: the client's, or "Open session · Sam". */
   clientName: string;
   studioId: string;
-  /** The trainer's name, or their initials, or null. */
+  /** Who started it: the trainer's name, or their initials, or null. */
   trainer: string | null;
   /** When it last showed a sign of life (the heartbeat, else its start). */
   lastMs: number | null;
   machines: number;
-  /** "Started by Sam · last active Tue 9:40 AM · 3 machines logged". */
+  /** Why it went quiet. */
+  quiet: QuietKind;
+  /** Beside the badge: "Last active Tue 9:40 AM · 3 machines logged · started by Sam", "Since 2:10 PM · …". */
   detail: string;
 }
 
@@ -48,23 +67,9 @@ const millisOf = (v: unknown): number | null => {
   return null;
 };
 
-const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const firstWord = (name: string | null) => (name || "").trim().split(/\s+/)[0] || "";
 
-/** "9:40 AM" today, "Yesterday 9:40 AM", "Tue 9:40 AM" this week, "Sep 27 9:40 AM" before. */
-export function lastActiveWords(ms: number, now: number, tz?: string): string {
-  const day = studioDateKey(new Date(ms), tz) ?? "";
-  const today = studioDateKey(new Date(now), tz) ?? "";
-  const time = formatStudioTime(new Date(ms), tz);
-  if (day === today) return time;
-  const days = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${day}T12:00:00Z`)) / 86_400_000);
-  if (days === 1) return `Yesterday ${time}`;
-  if (days > 1 && days < 7) return `${WEEKDAY[new Date(`${day}T12:00:00Z`).getUTCDay()]} ${time}`;
-  const [, m, d] = day.split("-").map(Number);
-  const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${MONTH[m - 1]} ${d} ${time}`;
-}
-
-/** The sessions left open, most recently active first. */
+/** The sessions not finished, most recently active first. */
 export function leftOpenSessions(
   sessions: readonly WorkoutSession[],
   now: number,
@@ -72,37 +77,57 @@ export function leftOpenSessions(
 ): LeftOpenRow[] {
   const rows: LeftOpenRow[] = [];
   const seen = new Set<string>();
+  const nameOf = (id: string | null | undefined, initials?: string) =>
+    (id ? opts.trainerNameOf?.(id) : null) || (initials || "").trim() || null;
   for (const s of sessions) {
     if (!s?.id || seen.has(s.id)) continue;
     if (s.status !== "In-Progress" || isSessionValid(s, now)) continue;
     seen.add(s.id);
+    const open = isOpenSession(s);
     const lastMs = millisOf(s.lastHeartbeatAt) ?? millisOf(s.createdAt);
-    const trainerId = s.startedByTrainerId || s.trainerId || null;
-    const trainer = (trainerId ? opts.trainerNameOf?.(trainerId) : null) || (s.trainerInitials || "").trim() || null;
+    const trainer = nameOf(s.startedByTrainerId || s.trainerId || null, s.trainerInitials);
+    // An open session is named by whose it is now (a take-over makes it the new trainer's).
+    const runner = nameOf(s.trainerId || s.startedByTrainerId || null, s.trainerInitials);
     const machines = Array.isArray(s.sessionMachineIds) ? s.sessionMachineIds.length : 0;
+    const quiet = quietKindOf(s, now, opts.tz);
+    /* The row's badge says Paused, At End Session or Left open, so the
+       sentence doesn't (the review, Oct 12 2026: "Operations says it once"). */
     const parts = [
-      trainer ? `Started by ${trainer.split(" ")[0]}` : null,
-      lastMs !== null ? `last active ${lastActiveWords(lastMs, now, opts.tz)}` : null,
-      machines > 0 ? `${machines} machine${machines === 1 ? "" : "s"} logged` : "no machines logged",
+      quietDetail(s, quiet, now, opts.tz),
+      machines > 0 ? `${machines} machine${machines === 1 ? "" : "s"} logged` : null,
+      !open && trainer ? `started by ${firstWord(trainer)}` : null,
     ].filter(Boolean) as string[];
-    const detail = parts.join(" · ");
     rows.push({
       id: s.id,
-      clientId: s.clientId ?? null,
-      clientName: (s.clientName ?? "").trim() || "A client",
+      kind: open ? "open" : "client",
+      clientId: open ? null : (s.clientId ?? null),
+      clientName: open
+        ? runner
+          ? `Open session · ${firstWord(runner)}`
+          : "Open session"
+        : (s.clientName ?? "").trim() || "A client",
       studioId: s.hostedAtStudioId,
       trainer,
       lastMs,
       machines,
-      detail: detail.charAt(0).toUpperCase() + detail.slice(1),
+      quiet,
+      detail: parts.join(" · "),
     });
   }
   return rows.sort((a, b) => (b.lastMs ?? 0) - (a.lastMs ?? 0) || a.clientName.localeCompare(b.clientName));
 }
 
-/** The Needs-you line's heading. */
-export function leftOpenHeading(n: number): string {
-  return n === 1 ? "A session was left open" : `${n} sessions were left open`;
+/** What Needs you counts: only the sessions left open, never a pause the trainer chose today. */
+export function needsYouCount(rows: readonly LeftOpenRow[]): number {
+  return rows.filter((r) => r.quiet === "left-open").length;
 }
 
-export const LEFT_OPEN_HINT = "Open it to finish it as it was, or start again. Nothing is lost until someone does.";
+/** The rows' heading. */
+export function leftOpenHeading(n: number): string {
+  return `Not finished (${n})`;
+}
+
+/** The (i) on a client's row. */
+export const LEFT_OPEN_HINT = "Never finished. Open it to resume, finish it as it was, or discard it.";
+/** The (i) on an open session's row. */
+export const OPEN_SESSION_HINT = "No client was chosen. Open it to carry on with it or discard it.";

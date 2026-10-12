@@ -201,11 +201,25 @@ on Journey reached six visits after about five sessions and, the next time the
 webhook refreshed her count, read as "partial" and lost her "#N" on the Hub.
 The line is now drawn on the visits Journey can't account for: Mindbody's count
 less Journey's own sessions (`client.sessionCount`, which with no prior record
-is exactly what Journey can see), and only once she has a Journey session
+is exactly what Journey can see), whenever Journey has any
 (`visitsBeforeJourney`). A Journey count that is stale or unknown takes off
 less, so the mistake it can make is the cautious one. Known limits: a visit
 count Mindbody refreshed long ago, and Journey sessions on the other Mindbody
 site, take off a few sessions too many; a prior record outranks both.
+
+**Journey's sessions come off whether or not she has a first Journey day**
+(sessions round, Oct 12 2026). Until then they came off only once
+`firstSessionDate` was set, and only a live Finish sets it: a client whose
+first Journey session was entered with Log past session never had one, so her
+Journey sessions were counted twice. With 10 Journey sessions and 310 Mindbody
+visits she read **#320**, and Account offered 310 as "before Journey", which
+Confirm would have locked in. She now reads #310, and Account offers 300.
+Account also shows the arithmetic under the guess, beside Confirm: "310 visits
+in Mindbody − 10 in Journey = 300", with "Mindbody's count can include late
+cancels and no-shows." (`beforeJourneySum` in `lib/session-total.ts`), so a
+trainer sees what Confirm would record and can Change it first. A client who
+already confirmed an inflated number keeps it (the record outranks the guess);
+listing them needs a read of production and is a follow-up, not done here.
 
 This also retires `machineStatsBackfilledAt` as a gate. That marker existed
 because `machineStats` only counts sessions since the running total existed —

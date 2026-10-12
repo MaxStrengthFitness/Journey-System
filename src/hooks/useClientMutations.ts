@@ -10,6 +10,7 @@ import {
 import { db } from "../firebase";
 import { Client, Trainer } from "../types";
 import { studioTodayKey } from "../lib/studio-time";
+import { thisDeviceId } from "../features/session-record/device";
 import {
   forgetLiveSession,
   myTrainerIds,
@@ -150,6 +151,8 @@ export function useClientMutations({
       date: studioTodayKey(),
       nowIso: new Date(now).toISOString(),
       stamp: serverTimestamp(),
+      // This device records it (Oct 12 2026): the trainer's other device watches.
+      deviceId: thisDeviceId(),
     });
     const refused = (error: unknown) => {
       console.error("[open session] the start was refused", error);

@@ -178,7 +178,17 @@ describe("sessions left open, across every studio (the Atlas answers, Oct 2 2026
     const { items, more } = needItems({ ...base(), openSessions: { state: "ok", sessions: [open("a", "solon", 120), open("b", "westlake", 300), open("c", "westlake", 600), open("d", "solon", 5)] } });
     const item = [...items, ...more].find((i) => i.id === "left-open");
     expect(item?.say).toBe("3 sessions were left open: Solon (1) and Westlake (2).");
-    expect(item?.door).toEqual({ label: "Open All studios", page: "studios" });
+    // The sessions round (Oct 12 2026): the studio with the most, on its own Today.
+    expect(item?.door).toEqual({ label: "Go to Westlake's Today", page: "operations-today", studioId: "westlake" });
+    expect(item?.proof).toBe("Started but never finished, with nothing saved for an hour or more (last 14 days). Each has Open on that studio's Today.");
+  });
+
+  it("breaks a tie by name, and never raises the item for a pause a trainer chose today", () => {
+    const tie = needItems({ ...base(), openSessions: { state: "ok", sessions: [open("a", "westlake", 120), open("b", "solon", 300)] } });
+    expect([...tie.items, ...tie.more].find((i) => i.id === "left-open")?.door).toEqual({ label: "Go to Solon's Today", page: "operations-today", studioId: "solon" });
+    const pausedToday = { ...(open("p", "solon", 90) as object), pausedAt: now - 80 * 60_000 } as never;
+    const paused = needItems({ ...base(), openSessions: { state: "ok", sessions: [pausedToday] } });
+    expect([...paused.items, ...paused.more].some((i) => i.id === "left-open")).toBe(false);
   });
 
   it("is nothing when every open session is still running, and couldn't-check when the read failed", () => {

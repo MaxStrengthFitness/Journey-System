@@ -229,6 +229,7 @@ describe("ProfileHeader's running-session menu", () => {
     await openMenu(el);
     expect(item("Continue session")).toBeTruthy();
     expect(item("Watch session")).toBeUndefined();
+    expect(item("Discard session")).toBeTruthy();
     expect(document.body.textContent).not.toContain("Take over session");
     await act(async () => item("Continue session")!.click());
     expect(onContinueSession).toHaveBeenCalledTimes(1);
@@ -265,6 +266,8 @@ describe("ProfileHeader's running-session menu", () => {
     await openMenu(el);
     expect(item("Watch session")).toBeTruthy();
     expect(item("Continue session")).toBeUndefined();
+    // A colleague's running session is never discarded from here (the sessions round, Oct 12 2026).
+    expect(item("Discard session")).toBeUndefined();
     await act(async () => item("Watch session")!.click());
     expect(onWatchSession).toHaveBeenCalledTimes(1);
   });

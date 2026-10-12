@@ -51,7 +51,7 @@ import type { FordAuthor } from "../ford/ford-write";
 import type { CodexFordStatus } from "../client-codex/codex-data";
 import { Btn, Page, type CodexGo, type Pronouns } from "../client-codex/kit";
 import type { RecordForm } from "../client-codex/useRecordForm";
-import { priorHistoryDoorLabel, type PriorHistoryDoorState } from "../client-profile/prior-history-door";
+import { MINDBODY_COUNT_CAVEAT, priorHistoryDoorLabel, type PriorHistoryDoorState } from "../client-profile/prior-history-door";
 import type { SessionsSplit } from "./account";
 import { ContactCard } from "./ContactCard";
 import { IntakeNotesCard } from "./IntakeNotesCard";
@@ -129,13 +129,25 @@ export function AccountPage({
   // The one door: the profile's words, rule and editor, drawn here only.
   // While the number is Mindbody's guess (Atlas answers, Oct 2 2026) it is
   // said as one, with Confirm (one tap writes it) and Change (the editor,
-  // seeded with the guess).
+  // seeded with the guess). Under the guess, the sum it came from and what
+  // Mindbody's count can hold (sessions round, Oct 12 2026), so Confirm
+  // never locks in a number nobody could check.
   const door = priorHistoryDoor ? (
     priorHistoryDoor.onConfirm ? (
       <>
-        <span className="cadm-prior-guess" data-testid="prior-history-guess">
-          {priorHistoryDoor.text}
-        </span>
+        <div className="cadm-prior-guess-block">
+          <span className="cadm-prior-guess" data-testid="prior-history-guess">
+            {priorHistoryDoor.text}
+          </span>
+          {priorHistoryDoor.sum ? (
+            <>
+              <span className="cadm-prior-sum" data-testid="prior-history-sum">
+                {priorHistoryDoor.sum}
+              </span>
+              <span className="cadm-prior-sum">{MINDBODY_COUNT_CAVEAT}</span>
+            </>
+          ) : null}
+        </div>
         <Btn
           variant="solid"
           icon={Check}

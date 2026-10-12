@@ -541,6 +541,50 @@ describe("AccountPage — the door to Sessions before Journey", () => {
     expect(doors(host)[0]?.getAttribute("aria-label")).toBe("Sessions before Journey: None before Journey. Open to read.");
   });
 
+  it("shows the sum under Mindbody's guess, beside Confirm, only while the guess waits (sessions round, Oct 12 2026)", async () => {
+    let confirmed = 0;
+    const host = await mount(
+      <Harness
+        c={carol()}
+        priorHistoryDoor={{
+          text: "About 306 before Journey (from Mindbody)",
+          canEdit: true,
+          onOpen: () => {},
+          onConfirm: () => (confirmed += 1),
+          sum: "312 visits in Mindbody − 6 in Journey = 306",
+        }}
+      />,
+    );
+    const head = host.querySelector(".cx-page-head__actions")!;
+    expect(head.querySelector('[data-testid="prior-history-guess"]')?.textContent).toBe("About 306 before Journey (from Mindbody)");
+    expect(head.querySelector('[data-testid="prior-history-sum"]')?.textContent).toBe("312 visits in Mindbody − 6 in Journey = 306");
+    expect(head.textContent).toContain("Mindbody's count can include late cancels and no-shows.");
+    // The sum is words, never cut short.
+    for (const el of Array.from(head.querySelectorAll<HTMLElement>(".cadm-prior-sum"))) {
+      expect(el.style.textOverflow).toBe("");
+      expect(el.className).not.toMatch(/truncate|line-clamp|ellipsis/);
+    }
+    await click(head.querySelector('[data-action="prior-history-confirm"]'));
+    expect(confirmed).toBe(1);
+
+    // A guess with no sum handed over (Journey's count unknown): no sum, no caveat.
+    const bare = await mount(
+      <Harness
+        c={carol()}
+        priorHistoryDoor={{ text: "About 306 before Journey (from Mindbody)", canEdit: true, onOpen: () => {}, onConfirm: () => {} }}
+      />,
+    );
+    expect(bare.querySelector('[data-testid="prior-history-sum"]')).toBeNull();
+    expect(bare.textContent).not.toContain("late cancels and no-shows");
+
+    // Once confirmed, the record is the door: no guess, no sum.
+    const recorded = await mount(
+      <Harness c={carol()} priorHistoryDoor={{ text: "306 before Journey · Mindbody", canEdit: true, onOpen: () => {} }} />,
+    );
+    expect(recorded.querySelector('[data-testid="prior-history-sum"]')).toBeNull();
+    expect(recorded.textContent).not.toContain("late cancels and no-shows");
+  });
+
   it("draws no door when the profile hands none (nothing recorded, and this reader may not add it)", async () => {
     const host = await mount(<Harness c={carol()} canEdit={false} priorHistoryDoor={null} />);
     expect(doors(host)).toHaveLength(0);

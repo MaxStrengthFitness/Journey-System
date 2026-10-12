@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 /**
  * The unfinished-session notice, MOUNTED (Sep 24 2026): an abandoned
- * session is said out loud on the profile, with Discard beside it — before
- * this, Discard could not reach one from anywhere.
+ * session is said out loud on the profile. Since the sessions round (Oct 12
+ * 2026; AJ: "Anyone can clear a session") it has Resume or finish beside
+ * Discard, and a session left at another studio is described with no
+ * buttons.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
@@ -38,28 +40,64 @@ const yesterdays = {
   startTime: new Date("2026-09-23T13:04:00Z"), // 9:04 AM Eastern
 };
 
+const button = (host: HTMLElement, label: string) =>
+  Array.from(host.querySelectorAll("button")).find((b) => (b.textContent ?? "").includes(label));
+
 describe("StaleSessionNotice", () => {
-  it("says when and by whom the session started, and that Start will ask", async () => {
+  it("says when and by whom the session started, once", async () => {
     const host = await mount(
-      <StaleSessionNotice session={yesterdays} todayKey="2026-09-24" onDiscard={() => {}} />,
+      <StaleSessionNotice session={yesterdays} todayKey="2026-09-24" onResume={() => {}} onDiscard={() => {}} />,
     );
-    const text = host.textContent ?? "";
-    expect(text).toContain("An unfinished session.");
-    expect(text).toContain("Started yesterday at 9:04 AM by JC.");
-    expect(text).toContain("asks whether to resume it or begin a new one");
+    const text = host.querySelector("p")?.textContent ?? "";
+    expect(text).toBe("Unfinished session · Started yesterday at 9:04 AM by JC.");
+    // "Unfinished" is said once (the review, L28).
+    expect(text.match(/nfinished/g)?.length).toBe(1);
   });
 
-  it("Discard hands the choice up — the notice deletes nothing itself", async () => {
+  it("Resume or finish and Discard hand the choice up — the notice deletes nothing itself", async () => {
+    const onResume = vi.fn();
     const onDiscard = vi.fn();
     const host = await mount(
-      <StaleSessionNotice session={yesterdays} todayKey="2026-09-24" onDiscard={onDiscard} />,
+      <StaleSessionNotice session={yesterdays} todayKey="2026-09-24" onResume={onResume} onDiscard={onDiscard} />,
     );
-    const button = Array.from(host.querySelectorAll("button")).find((b) =>
-      (b.textContent ?? "").includes("Discard it"),
-    )!;
-    // iPad-first: nothing tappable under 40px. h-10 is 40px.
-    expect(button.className).toContain("h-10");
-    await act(async () => button.click());
+    const resume = button(host, "Resume or finish")!;
+    const discard = button(host, "Discard it")!;
+    // iPad-first: nothing tappable under 40px, and the words wrap rather than clip.
+    for (const b of [resume, discard]) {
+      expect(b.className).toContain("min-h-10");
+      expect(b.className).not.toMatch(/\btruncate\b|whitespace-nowrap/);
+    }
+    await act(async () => resume.click());
+    expect(onResume).toHaveBeenCalledTimes(1);
+    await act(async () => discard.click());
     expect(onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  /* The attack, Oct 12 2026: someone else's session left open today is
+     discarded only from the next studio day; Resume or finish stays. */
+  it("holds Discard back with its reason when the session's discard waits", async () => {
+    const words = "Sam's session can be discarded from tomorrow, in case it was finished on an iPad that's offline. Today it can be resumed or finished as it was.";
+    const host = await mount(
+      <StaleSessionNotice session={yesterdays} todayKey="2026-09-24" onResume={() => {}} onDiscard={() => {}} discardWaits={words} />,
+    );
+    expect(button(host, "Discard it")).toBeUndefined();
+    expect(button(host, "Resume or finish")).toBeTruthy();
+    expect(host.querySelector('[data-testid="notice-discard-waits"]')!.textContent).toBe(words);
+  });
+
+  it("describes a session left at another studio, with no buttons", async () => {
+    const host = await mount(
+      <StaleSessionNotice
+        session={yesterdays}
+        todayKey="2026-09-24"
+        onResume={() => {}}
+        onDiscard={() => {}}
+        elsewhereStudioName="Solon"
+      />,
+    );
+    expect(host.querySelector("p")?.textContent).toBe(
+      "Unfinished session · Left open at Solon · Started yesterday at 9:04 AM by JC.",
+    );
+    expect(host.querySelectorAll("button").length).toBe(0);
   });
 });

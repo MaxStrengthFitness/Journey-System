@@ -65,9 +65,13 @@ import {
   openSessionElsewhereWords,
   ownSessionName,
   peekLiveSessionId,
+  rememberLiveSession,
   resumeSession,
+  type LiveSessionReturn,
   type RememberedSessionData,
 } from "./lib/live-session";
+import { rememberPlace } from "./features/admin/shell/place-memory";
+import { HOME_PLACE } from "./features/admin/shell/places";
 import { afterOverlayClose } from "./lib/scroll-lock";
 import { installShakeUndoGuard } from "./lib/shake-undo";
 import { useToast } from "./contexts/ToastContext";
@@ -997,6 +1001,61 @@ export default function AppContent({
   };
 
   /*
+   * A SESSION NOT FINISHED, OPENED FROM A DOOR (the sessions round, Oct 12
+   * 2026; AJ: "Anyone can clear a session"). Operations → Today, Hours and
+   * the Client Directory open a session someone left: the device points at
+   * it, with the door it came from, and the Active Session asks there
+   * (resume it, finish it as it was, or discard it). Not now, or a finished
+   * Discard, comes back through `returnToDoor`. A client's session opens
+   * with its client; an open session (no client yet) with none.
+   */
+  const openSessionFromDoor = (clientId: string | null, sessionId: string | null, returnTo: LiveSessionReturn | null) =>
+    guardLeave(() => {
+      /* The viewer's own live session stays the one this iPad remembers (the
+         review, Oct 12 2026): a door never replaces it, it only keeps where
+         the door was. */
+      const ownLive = !!myLiveSession?.id && myLiveSession.id !== sessionId;
+      if (sessionId && returnTo) rememberLiveSession(sessionId, { returnTo, keepRemembered: ownLive });
+      setSelectedClientIdNow(clientId);
+      setAppMode("trainer");
+      setCurrentView("workouts");
+    });
+  const returnToDoor = (to: LiveSessionReturn) => {
+    if (to === "operations-today" || to === "operations-hours") {
+      rememberPlace(to === "operations-today" ? HOME_PLACE : { page: "team", sub: "hours" });
+      switchAppMode("admin", "admin-dashboard");
+    } else if (to === "directory") {
+      switchAppMode("trainer", "client-directory");
+    } else {
+      switchAppMode("trainer", "clients");
+    }
+  };
+  /*
+   * Admins → Home's "Go to {Studio}'s Today" (Oct 12 2026): this iPad's own
+   * studio switches to it (the active studio is this iPad's alone), Operations
+   * opens on that studio's Today, and the app says so. The scope memory sits
+   * with the Operations screen, so it is loaded first; it is in the same file
+   * Operations opens with.
+   */
+  const openStudioToday = (studioId: string) => {
+    void import("./features/admin/scope-context")
+      .then((m) => m.rememberThisStudioScope())
+      .catch(() => {})
+      .then(() =>
+        guardLeave(() => {
+          if (studioId !== activeStudioId) {
+            setActiveStudioId(studioId);
+            const name = studios.find((s) => s.id === studioId)?.name;
+            toastInfo(name ? `This iPad is on ${name} now.` : "This iPad is on that studio now.");
+          }
+          rememberPlace(HOME_PLACE);
+          setAppMode("admin");
+          setCurrentView("admin-dashboard");
+        }),
+      );
+  };
+
+  /*
    * The "Wipe Entire Database" button lived here until Sep 20 2026 (Claude
    * Experiment, phase A). It ran getDocs + deleteDoc over eleven top-level
    * collections FROM THE BROWSER, against production (the local .env points
@@ -1720,6 +1779,9 @@ export default function AppContent({
                     onStartOpenSession={startOpenSession}
                     openSessionStarting={startingOpenSession}
                     openSessionRunning={isOpenSession(myLiveSession)}
+                    // Open sessions left open here, for anyone who works
+                    // here (the sessions round, Oct 12 2026).
+                    onOpenOpenSession={(sessionId, returnTo) => openSessionFromDoor(null, sessionId, returnTo)}
                     // In today's Start: the Hub search card's own path.
                     onStartSession={(id) => {
                       setSelectedClientId(id);
@@ -1876,6 +1938,9 @@ export default function AppContent({
                     onRetryClient={() => setClientReadAttempt((n) => n + 1)}
                     clientsStatus={rosterStatus}
                     onStartOpenSession={startOpenSession}
+                    // Not now on a session opened from a door, and a finished
+                    // Discard, go back to that door (Oct 12 2026).
+                    onReturn={returnToDoor}
                   />
                 )}
                 {currentView === "profile" && (
@@ -1999,11 +2064,13 @@ export default function AppContent({
                       setCurrentView("profile");
                     }}
                     // A session left open (Oct 2 2026): its client's session on
-                    // the floor, where the Active Session finishes it.
-                    onOpenSession={(clientId) => {
-                      setSelectedClientId(clientId);
-                      switchAppMode("trainer", "workouts");
-                    }}
+                    // the floor, where the Active Session finishes it. Since
+                    // Oct 12 2026 the device remembers which door, so Not now
+                    // comes back here; an open session opens itself.
+                    onOpenSession={(clientId, sessionId, returnTo) =>
+                      openSessionFromDoor(clientId, sessionId ?? null, returnTo ?? null)
+                    }
+                    onOpenOpenSession={(sessionId, returnTo) => openSessionFromDoor(null, sessionId, returnTo)}
                     // Operations' doors into My Studio (Staff & Roles, Renewals) switch back
                     // to trainer mode, or My Studio opens with Operations' bottom bar.
                     onOpenStudioTasks={() => switchAppMode("trainer", "studio-tasks")}
@@ -2021,6 +2088,7 @@ export default function AppContent({
                     activeStudioId={activeStudioId}
                     onRefresh={handleManualRefresh}
                     onReorderTrainers={() => setIsReorderingTrainers(true)}
+                    onOpenStudioToday={openStudioToday}
                   />
                 )}
                 {currentView === "trainer-hub" && (

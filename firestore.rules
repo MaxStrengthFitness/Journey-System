@@ -804,6 +804,63 @@ service cloud.firestore {
               || existsAfter(/databases/$(database)/documents/clients/$(after.clientId)));
     }
 
+    // Why: docs/ops/RULES-NOTES.md#finishonceok
+    function finishOnceOk(sessionId, d) {
+      let after = getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isAuthenticated()
+          && d.keys().hasAll(['finishId', 'by', 'at', 'clientId'])
+          && d.keys().hasOnly(['finishId', 'by', 'at', 'clientId', 'deviceId', 'asItWas'])
+          && d.finishId is string && d.finishId.size() > 0 && d.finishId.size() <= 64
+          && d.by == request.auth.uid
+          && d.at == request.time
+          && d.clientId is string && d.clientId.size() > 0
+          && (!('deviceId' in d) || (d.deviceId is string && d.deviceId.size() <= 64))
+          && (!('asItWas' in d) || d.asItWas == true)
+          && finishFromHolder(get(/databases/$(database)/documents/sessions/$(sessionId)).data, d)
+          && after.get('status', '') == 'Completed'
+          && after.get('clientId', '') == d.clientId;
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#finishfromholder
+    function finishFromHolder(before, d) {
+      let holder = before.get('recordingDeviceId', null);
+      let seen = before.get('lastHeartbeatAt', before.get('createdAt', null));
+      return before.get('status', '') != 'Completed'
+          && (holder == null || holder == '' || holder == d.get('deviceId', '')
+              || (!('deviceId' in d) && before.get('trainerId', '') == request.auth.uid)
+              || !(seen is timestamp) || seen < request.time - duration.value(60, 'm'));
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#finishedholderkept
+    function finishedHolderKept(before, after) {
+      return before.get('status', '') != 'Completed'
+          || !after.diff(before).affectedKeys().hasAny(
+               ['trainerId', 'trainerName', 'trainerInitials', 'startedByTrainerId', 'recordingDeviceId', 'lastHeartbeatAt']);
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#logsessionreach
+    function logSessionReach(d) {
+      let sid = d.get('sessionId', '');
+      return !(sid is string) || sid == ''
+          || !exists(/databases/$(database)/documents/sessions/$(sid))
+          || sessionIsReadable(get(/databases/$(database)/documents/sessions/$(sid)).data, getRole(), callerTrainer());
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#machinesettingsreach
+    function machineSettingsClientOk(cid) {
+      return cid is string && cid != '' && namedClientIsReadable(cid);
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#countedonceok
+    function countedOnceOk(before, after) {
+      return isAuthenticated()
+          && before.by == request.auth.uid
+          && !('countedAt' in before)
+          && after.diff(before).affectedKeys().hasOnly(['countedAt', 'countedBy'])
+          && after.countedAt == request.time
+          && after.countedBy == before.finishId;
+    }
+
     function isValidSchedule(data) {
       return hasRequiredFields(['clientName', 'trainerName', 'startTime', 'endTime', 'status', 'serviceName', 'source']);
     }
@@ -1804,9 +1861,21 @@ service cloud.firestore {
     // Why: docs/ops/RULES-NOTES.md#clientmachinesettings-settingid
     match /clientMachineSettings/{settingId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
-      allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
-      allow delete: if isAuthenticated() && isAnyAuthenticatedTrainer();
+      allow create: if isAuthenticated()
+                    && (isSuperAdmin()
+                        || (isAnyAuthenticatedTrainer()
+                            && machineSettingsClientOk(request.resource.data.get('clientId', ''))));
+      allow update: if isAuthenticated()
+                    && (isSuperAdmin()
+                        || (isAnyAuthenticatedTrainer()
+                            && resource.data.get('clientId', '') in [null, '', request.resource.data.get('clientId', '')]
+                            && machineSettingsClientOk(request.resource.data.get('clientId', ''))));
+      allow delete: if isAuthenticated()
+                    && (isSuperAdmin()
+                        || (isAnyAuthenticatedTrainer()
+                            && (resource == null
+                                || resource.data.get('clientId', '') in [null, '']
+                                || machineSettingsClientOk(resource.data.get('clientId', '')))));
     }
 
     // Why: docs/ops/RULES-NOTES.md#machines-machineid
@@ -1970,6 +2039,7 @@ service cloud.firestore {
 
       allow update: if isValidSession(request.resource.data)
                     && openSessionWriteOk(resource.data, request.resource.data)
+                    && finishedHolderKept(resource.data, request.resource.data)
                     && (isSuperAdmin()
                         || (isAnyAuthenticatedTrainer()
                             && (resource.data.get('trainerId', '') == request.auth.uid
@@ -1999,28 +2069,36 @@ service cloud.firestore {
                            || (isAnyAuthenticatedTrainer()
                                && isTrainerOfSessionId(sessionId));
       }
+
+      // Why: docs/ops/RULES-NOTES.md#sessions-finish-once
+      match /finish/{docId} {
+        allow read: if isSuperAdmin()
+                    || (isAuthenticated()
+                        && ((resource != null && resource.data.by == request.auth.uid)
+                            || (isAnyAuthenticatedTrainer() && isTrainerOfSessionId(sessionId))));
+        allow create: if docId == 'once' && finishOnceOk(sessionId, request.resource.data);
+        allow update: if docId == 'once' && countedOnceOk(resource.data, request.resource.data);
+        allow delete: if isSuperAdmin();
+      }
     }
 
-    // EXERCISE LOGS — KEY FIX: Any authenticated trainer can write exercise logs
+    // EXERCISE LOGS: written by whoever can reach the set's session (Oct 12 2026).
+    // Why: docs/ops/RULES-NOTES.md#exerciselogs-logid
     match /exerciseLogs/{logId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isAnyAuthenticatedTrainer() && isValidLog(request.resource.data);
+      allow create: if isAuthenticated() && isAnyAuthenticatedTrainer() && isValidLog(request.resource.data)
+                    && logSessionReach(request.resource.data);
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer() && isValidLog(request.resource.data) && (
         resource.data.get('sessionId', null) == request.resource.data.get('sessionId', null) && (
           resource.data.get('clientId', null) == request.resource.data.get('clientId', null)
           || logTakesItsSessionsClient(resource.data, request.resource.data)
           || logLeavesItsOpenSessionsClient(resource.data, request.resource.data)
         )
-      );
-      /* HISTORY EDITING (Sep 17 2026). Taking a machine off a session that
-         already happened means deleting its set, and only a super admin or a
-         franchise owner could — so "remove this machine", and the History
-         tab's own Delete Session, both failed for the people who work the
-         floor. The update rule above already lets any signed-in trainer blank
-         any log, so delete grants no reach update did not; it just stops
-         leaving an empty row behind where a machine used to be. */
+      ) && logSessionReach(resource.data);
+      // HISTORY EDITING (Sep 17 2026): delete has update's reach.
       allow delete: if isSuperAdmin()
-                    || (isAuthenticated() && isAnyAuthenticatedTrainer());
+                    || (isAuthenticated() && isAnyAuthenticatedTrainer()
+                        && (resource == null || logSessionReach(resource.data)));
     }
 
     // CALENDAR SCHEDULES

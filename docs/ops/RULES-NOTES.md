@@ -413,6 +413,160 @@ that is refused the assign must be refused with it, or the session and
 its sets would name a client that doesn't exist.
 ```
 
+<a id="finishonceok"></a>
+### `function finishOnceOk`
+
+```text
+A FINISH IS COUNTED ONCE (the sessions round, Oct 12 2026; AJ: "2 and 3
+I will trust your decision please be sure!"). Finish writes two batches
+(src/lib/sync-utils.ts completeWorkoutSession): the session batch (the
+session to Completed, every set, every setting) and, queued straight
+after it, the totals batch (the client's counters and the machine
+totals document). Two iPads finishing the same session used to count it
+twice: another iPad taking over from one that was offline, one trainer
+signed in on two iPads, two people choosing "Finish it as it was".
+
+The session batch now also creates sessions/{id}/finish/once:
+{ finishId, by, at, clientId }. This allows the create only when the
+SAME request moves the session from not Completed (get, the stored
+state) to Completed (getAfter, the state after the batch), for the
+client the session ends with. A second finish finds the marker there (a
+set on an existing document is an update, refused below) or the
+session already Completed (the create refused), and the whole second
+session batch is refused with it: no second status write, no older sets
+merged over newer ones, no trainer credit flipped back, no older
+weights over clientMachineSettings.
+
+Never block a save: a FIRST finish passes by construction. The check is
+`!= 'Completed'`, not `== 'In-Progress'`, because older documents say
+"In Progress" and a first finish must never be refused over spelling.
+There is no "who" check here: the create can pass only when the same
+request completes the session, and the session's own update rule
+already gates that (an administrator with a role claim and no trainer
+document finishes through isSuperAdmin() on the session).
+
+A session that doesn't exist errors in get(), so the create is
+refused, and the totals with it: they count only for a session that
+exists. The sessions' own rules are NOT changed to require the marker:
+that would refuse every Finish from an iPad still on the old version.
+The guard lives entirely in documents only the new app writes.
+
+The review and attack (Oct 12 2026) added two optional keys. `deviceId`
+(at most 64 characters) is the device the finish came from, held to the
+session by finishFromHolder below. `asItWas: true` marks "Finish it as
+it was": the app on the iPad that ran the session, finishing late, then
+puts its own sets, weights and note in over that finish with a plain
+session batch (no marker, no totals, no credit change), so it still
+counts once (src/features/session-record/finish-once.ts "correct").
+```
+
+<a id="finishfromholder"></a>
+### `function finishFromHolder`
+
+```text
+THE FINISH COMES FROM THE DEVICE HOLDING THE SESSION (the attack, Oct 12
+2026). The marker used to let in whichever finish arrived first. After a
+take-over (the session's recordingDeviceId now the taker's iPad), the
+iPad it was taken from could replay a Finish queued while offline: the
+credit went back to it, its older sets and next weights went over the
+taker's, and the taker's real Finish was refused as the second one.
+
+Now the marker is allowed only when the stored session (get, before the
+batch) is not Completed AND one of:
+  - no device holds it (recordingDeviceId absent, null or ''), so every
+    session from before the round, and every device that can't keep an
+    id, finishes as before;
+  - the marker's deviceId is the holder;
+  - the marker has no deviceId (a device that can't keep one) and the
+    session's trainerId is the signed-in person: a trainer is never
+    locked out of their own finish (after a take-over the trainerId is
+    the taker's, so the iPad it was taken from still can't);
+  - nothing was saved in it for 60 minutes (lastHeartbeatAt, else
+    createdAt, older than an hour; a value that isn't a timestamp passes):
+    the session is left open, and anyone at the studio may finish it as
+    it was (AJ: "Anyone can clear a session").
+A first finish is never blocked: the recording device always passes,
+and a device that never wrote an id is never the holder of anything.
+The app judges a refusal the same way (heldElsewhere) and says
+"taken over on another device", never resending without the marker.
+```
+
+<a id="finishedholderkept"></a>
+### `function finishedHolderKept`
+
+```text
+WHO HOLDS A FINISHED SESSION STAYS AS IT IS (the attack, Oct 12 2026).
+A take-over, a Resume or Continue on this iPad sent from an iPad that
+still showed the session left open (offline, a cached row) used to
+rewrite trainerId and the rest on a session another iPad had already
+finished and counted: History and Hours then credited one trainer and
+the count another. On a session already Completed, an update may not
+change trainerId, trainerName, trainerInitials, startedByTrainerId,
+recordingDeviceId or lastHeartbeatAt. The finish itself moves the
+session FROM not Completed, so it is unaffected; History's edits, the
+Wrap-up's effort and the as-it-was correction (which sends no credit)
+touch none of these. A second finish from an old-version iPad can no
+longer flip the credit either (its totals can still count: the guard
+covers new-version finishes only).
+```
+
+<a id="logsessionreach"></a>
+### `function logSessionReach`
+
+```text
+A SET IS WRITTEN BY WHOEVER CAN REACH ITS SESSION (the attack, Oct 12
+2026). Any signed-in trainer, at any studio, could blank, rewrite or
+delete any studio's sets. Now create, update and delete each ask the
+set's session (one get, cached across a batch: a finish or a discard of
+twenty sets reads it once) and the sessions' own read rule
+(sessionIsReadable: its trainer, anyone who works at or leads its
+studio, or anyone who can read its client).
+
+Three cases pass as before, on purpose:
+  - a set with no sessionId (older data);
+  - a set whose session doesn't exist (not yet, in a Start or Log past
+    session batch, where get() reads the state before the batch; or no
+    longer, so a sweep after a discard can still clear the orphans);
+  - an administrator.
+Rules read the state before a batch, so History's Delete and every
+Discard, which delete the session and its sets together, pass.
+```
+
+<a id="machinesettingsreach"></a>
+### `function machineSettingsClientOk`
+
+```text
+A CLIENT'S MACHINE SETTINGS ARE WRITTEN BY WHOEVER CAN REACH THE CLIENT
+(the attack, Oct 12 2026). Any signed-in trainer could overwrite another
+studio's client's next-session weight. Create and update now need the
+written clientId to be a client the writer can reach (namedClientIsReadable:
+the client's studio, or an approved cross-train visitor), and an update may
+not move a document to another client. Every writer in the app names its
+client (equipment/mutations, machine-fit/setup-save, next-weight, Finish).
+A document with no clientId (the old ghost records) may still be deleted
+by any trainer; administrators pass.
+```
+
+<a id="countedonceok"></a>
+### `function countedOnceOk`
+
+```text
+THE TOTALS LAND ONCE (Oct 12 2026). The totals batch updates the
+marker with { countedAt: request.time, countedBy: finishId }: allowed
+only while countedAt is absent, only with the SAME finishId that
+created the marker, and only from the person who created it (by ==
+request.auth.uid). The SDK queues writes per signed-in person, so the
+totals batch always comes from whoever's session batch made the
+marker; a trainer elsewhere who reads finishId cannot stamp countedAt
+first and silently stop the real count.
+
+The marker doesn't exist until the session batch lands, so the totals
+never land before the session, and never for a finish that didn't
+finish it. A single batch holding both the create and its counted
+update is refused (resource is the stored state, where no marker exists
+yet); the rules tests pin that so it is never loosened to fit.
+```
+
 <a id="studionoticeofmine"></a>
 ### `function studioNoticeOfMine`
 
@@ -901,6 +1055,21 @@ flag, which its seed puts on every document it writes), and never for
 a client that does not exist.
 ```
 
+<a id="exerciselogs-logid"></a>
+### `match /exerciseLogs/{logId}`
+
+```text
+EXERCISE LOGS. Until Oct 12 2026 any authenticated trainer could
+create, update or delete any set ("KEY FIX: Any authenticated trainer
+can write exercise logs"), and HISTORY EDITING (Sep 17 2026) gave delete
+the same reach as update, so "remove this machine" and the History
+tab's own Delete Session worked for the people who work the floor.
+Since the sessions round's attack every write also asks the set's
+session (logSessionReach above): the people who can reach that session
+write its sets, and nobody else. Delete still has update's reach. Read
+stays open to anyone signed in.
+```
+
 <a id="clientmachinesettings-settingid"></a>
 ### `match /clientMachineSettings/{settingId}`
 
@@ -913,6 +1082,9 @@ ANY signed-in Google account could delete any client's machine settings
 — including someone sitting in AccessRequestView with no trainer profile
 at all, who could enumerate them first through the open read above.
 It now matches create and update: a trainer, and nothing less.
+
+Since Oct 12 2026 (the sessions round's attack) all three also ask the
+client the document is for (machineSettingsClientOk above).
 ```
 
 <a id="machines-machineid"></a>
@@ -1072,6 +1244,38 @@ own history after I move studios.
 COST: for a `clientId`-pinned query every document resolves the same
 client path, which Firestore caches within one evaluation — two document
 reads for the whole query, against a limit of ten.
+```
+
+<a id="sessions-finish-once"></a>
+### `match /finish/{docId}`
+
+```text
+THE FINISH MARKER, sessions/{sessionId}/finish/once (Oct 12 2026; the
+rules are finishOnceOk and countedOnceOk above, the app's half is
+src/features/session-record/finish-once.ts).
+
+Read: whoever finished, or whoever can reach the session
+(isTrainerOfSessionId, the logs' rule), and administrators. Reading a
+MISSING marker is allowed for the same people, and the app relies on
+that: "marker confirmed missing" is a read that answered. A refused
+read is "failed" there, never "missing".
+
+Create: only the id `once`, and only by finishOnceOk. Update: only the
+counted update, by countedOnceOk; nobody else, administrators included,
+because an administrator finishing twice would count twice. Delete:
+administrators only (repair, and the pre-beta reset).
+
+What it guarantees, exactly: a second finish of the same session from
+the current app is refused, and its counts with it. The server decides
+at commit time from the stored session and the stored marker, never
+from any iPad's view of them. It does NOT cover an iPad still on the
+old version, a counter written outside Finish, or two different
+session documents for one visit.
+
+Any branch with its own firestore.rules must be merged with this one
+before its rules ship; scripts/ship/ship-sessions.ps1 refuses a rules
+deploy without this match, and tests/firestore.rules.lint.test.ts
+fails without it.
 ```
 
 <a id="journalentries-entryid"></a>

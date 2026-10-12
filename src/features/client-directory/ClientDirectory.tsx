@@ -36,7 +36,7 @@ import { useActiveStudio } from "../../contexts/ActiveStudioContext";
 import type { Client, KaizenRosterEntry, ScheduleEntry, Studio, Trainer, WorkoutSession } from "../../types";
 import { NAME_SEARCH_PROPS } from "../../lib/name-search-input";
 import { queryStudioIds, realmStudioIds } from "../../lib/tenancy";
-import { myTrainerIds } from "../../lib/live-session";
+import { myTrainerIds, type LiveSessionReturn } from "../../lib/live-session";
 import { formatStudioDate, studioTodayKey } from "../../lib/studio-time";
 import { LoadingArea } from "../../components/LoadingMark";
 import "../trainer-profile/trainer-profile.tokens.css";
@@ -66,6 +66,7 @@ import { rosterCutWords } from "../../lib/studio-roster";
 import { DirectoryRowView, type DirectoryMark, type ExtraColumn } from "./DirectoryRowView";
 import { SortPicker } from "./SortPicker";
 import { directoryBoundaries, useDirectoryContext } from "./use-directory-context";
+import { LEFT_HERE_FAILED, openSessionsLeftHere, useOpenSessionsLeftHere } from "./left-open-here";
 import "./client-directory.css";
 
 export type { DirectoryMark } from "./DirectoryRowView";
@@ -88,6 +89,13 @@ export interface ClientDirectoryProps {
    * and starts nothing (the open session round, Oct 9 2026).
    */
   openSessionRunning?: boolean;
+  /**
+   * Opens an open session someone left open at this studio (the sessions
+   * round, Oct 12 2026; AJ: "Anyone can clear a session"): the Active
+   * Session asks there, and Not now comes back here. Without it, none are
+   * listed and nothing is read.
+   */
+  onOpenOpenSession?: (sessionId: string, returnTo: LiveSessionReturn) => void;
   /** In today's Start: the Hub's own path (select the client, open the session). */
   onStartSession?: (clientId: string) => void;
   onStartNewClientOnboarding?: (name: string) => void;
@@ -233,6 +241,7 @@ export function ClientDirectory({
   onStartOpenSession,
   openSessionStarting = false,
   openSessionRunning = false,
+  onOpenOpenSession,
   onStartSession,
   onStartNewClientOnboarding,
   authTrainer,
@@ -462,6 +471,17 @@ export function ClientDirectory({
 
   const firstLoad = rosterStatus === "loading" && rows.length === 0 && !typedName;
 
+  /* Open sessions left open here, each with Open (the sessions round, Oct 12
+     2026): one bounded server read when the Directory opens, only when there
+     is a door to open them with. */
+  const leftHere = useOpenSessionsLeftHere(onOpenOpenSession ? activeStudioId : null);
+  const leftHereRows = useMemo(() => {
+    if (leftHere.read.state !== "ok") return [];
+    const nameOf = (id: string) => trainers.find((t) => t.id === id || t.authUid === id)?.fullName ?? null;
+    const tz = studioList.find((st) => st.id === activeStudioId)?.timezone || undefined;
+    return openSessionsLeftHere(leftHere.read.sessions, Date.now(), { trainerNameOf: nameOf, tz });
+  }, [leftHere.read, trainers, studioList, activeStudioId]);
+
   return (
     <div className="cd" data-view={view}>
       <header className="cd-head">
@@ -498,6 +518,28 @@ export function ClientDirectory({
             )}
           </div>
         </div>
+
+        {onOpenOpenSession && leftHereRows.length > 0 && (
+          <ul className="cd-left-open" aria-label="Open sessions not finished">
+            {leftHereRows.map((r) => (
+              <li key={r.id} className="cd-left-open__row">
+                <span className="cd-left-open__line">{r.line}</span>
+                <Button
+                  variant="outline"
+                  onClick={() => onOpenOpenSession(r.id, "directory")}
+                  className="text-[14px] font-bold rounded-xl h-10 px-4 cursor-pointer"
+                >
+                  Open
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {onOpenOpenSession && leftHere.read.state === "failed" && (
+          <p className="cd-left-open__note" data-testid="left-open-unknown">
+            {LEFT_HERE_FAILED}
+          </p>
+        )}
 
         <div className="cd-search-row">
           <label className="cd-search">

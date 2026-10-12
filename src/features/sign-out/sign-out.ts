@@ -33,6 +33,7 @@ import { STORE_PREFIX as PROFILE_NAV_PREFIX } from "../client-profile/profile-na
 import { PREFIX as SETUP_HINT_PREFIX } from "../machine-fit/ui/open-hint";
 import { PLACE_KEY as NEW_VERSION_PLACE_KEY } from "../new-version/reload-once";
 import { forgetPersonalMemory } from "./memory";
+import { DEVICE_ID_KEY } from "../session-record/device";
 
 /** The part of the Web Storage interface this module uses. */
 export interface StorageLike {
@@ -44,8 +45,12 @@ export interface StorageLike {
   clear(): void;
 }
 
-/** Local-storage keys that belong to the iPad, not to whoever is signed in. */
-export const DEVICE_KEYS: readonly string[] = [DEFAULT_STUDIO_KEY, DEVICE_STUDIO_KEY];
+/**
+ * Local-storage keys that belong to the iPad, not to whoever is signed in.
+ * This device's id (session-record/device.ts, Oct 12 2026) is the iPad's:
+ * cleared, a session it was recording would read as "another device".
+ */
+export const DEVICE_KEYS: readonly string[] = [DEFAULT_STUDIO_KEY, DEVICE_STUDIO_KEY, DEVICE_ID_KEY];
 
 /**
  * Local-storage keys, by prefix, that belong to the iPad too. The boot's

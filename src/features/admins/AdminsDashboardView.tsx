@@ -136,6 +136,12 @@ export interface AdminsDashboardViewProps {
   activeStudioId: string | null;
   onRefresh?: (collectionName: "studios" | "networks" | "trainers") => Promise<void>;
   onReorderTrainers?: () => void;
+  /**
+   * One studio's Operations → Today, from Home's "Go to {Studio}'s Today"
+   * (the sessions round, Oct 12 2026): this iPad's own studio switches to
+   * it, and the app says so.
+   */
+  onOpenStudioToday?: (studioId: string) => void;
 }
 
 const PAGE_ICON: Record<AdminsNavPage, ReactNode> = {
@@ -201,6 +207,7 @@ function AdminsShell({
   activeStudioId,
   onRefresh,
   onReorderTrainers,
+  onOpenStudioToday,
 }: AdminsDashboardViewProps) {
   const [page, setPage] = useState<AdminsPage>(ADMINS_START);
   // Which studio's page is open, or which machine a search pick opened. The
@@ -339,7 +346,10 @@ function AdminsShell({
   );
   const openDoor = (door: NeedDoor) => {
     if ("action" in door) checkAgain();
-    else go({ page: door.page, studioId: door.studioId ?? null, tab: door.tab ?? null });
+    else if (door.page === "operations-today") {
+      if (onOpenStudioToday) onOpenStudioToday(door.studioId);
+      else go({ page: "studio", studioId: door.studioId });
+    } else go({ page: door.page, studioId: door.studioId ?? null, tab: door.tab ?? null });
   };
 
   // Home's Take it, Snooze and Dismiss (the second wave, Sep 28 2026;

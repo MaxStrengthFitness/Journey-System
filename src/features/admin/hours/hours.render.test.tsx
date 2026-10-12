@@ -36,6 +36,10 @@ const fake = vi.hoisted(() => ({
   sessionReads: [] as Array<{ studio: string; from: number; to: number | null }>,
   watchReads: [] as string[],
   idReads: [] as string[][],
+  /** Not finished yet's server read (the sessions round, Oct 12 2026): refused, or answered from the cache. */
+  openFails: false,
+  openFromCache: false,
+  openReads: [] as string[],
 }));
 
 vi.mock("firebase/firestore", () => ({
@@ -51,7 +55,15 @@ vi.mock("firebase/firestore", () => ({
   orderBy: () => ({}),
   limit: (n: number) => ({ n }),
   documentId: () => "__name__",
-  getDocsFromServer: vi.fn(),
+  getDocsFromServer: async (q: { cs: Array<Record<string, any>> }) => {
+    const studio = q.cs.find((c) => c.field === "hostedAtStudioId")?.value as string;
+    fake.openReads.push(studio);
+    if (fake.openFails) throw new Error("unavailable");
+    const docs = (fake.sessions[studio] ?? [])
+      .filter((s) => s.status === "In-Progress")
+      .map((d) => ({ id: String(d.id), data: () => d }));
+    return { docs, size: docs.length, empty: docs.length === 0, metadata: { fromCache: fake.openFromCache } };
+  },
   getDocs: async (q: { cs: Array<Record<string, any>> }) => {
     const byId = q.cs.find((c) => c.field === "__name__");
     if (byId) {
@@ -79,6 +91,7 @@ vi.mock("firebase/firestore", () => ({
 }));
 
 import { AdminHoursTab } from "./AdminHoursTab";
+import type { LiveSessionReturn } from "../../../lib/live-session";
 import { OperationsScopeProvider, ScopeBar } from "../scope-context";
 import { forgetClosedSessions } from "../sessions-range";
 import type { Studio, Trainer } from "../../../types";
@@ -119,6 +132,11 @@ async function settle() {
   });
 }
 
+const doors = {
+  client: [] as unknown[][],
+  open: [] as unknown[][],
+};
+
 async function mount(who: Trainer, isAdmin = false) {
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -128,7 +146,11 @@ async function mount(who: Trainer, isAdmin = false) {
       <StrictMode>
         <OperationsScopeProvider authTrainer={who} studios={studios} isAdmin={isAdmin} activeStudioId="solon">
           <ScopeBar />
-          <AdminHoursTab trainers={trainers} />
+          <AdminHoursTab
+            trainers={trainers}
+            onOpenSession={(...a: [string, string?, LiveSessionReturn?]) => doors.client.push(a)}
+            onOpenOpenSession={(...a: [string, LiveSessionReturn]) => doors.open.push(a)}
+          />
         </OperationsScopeProvider>
       </StrictMode>,
     );
@@ -154,6 +176,11 @@ beforeEach(() => {
   fake.sessionReads = [];
   fake.watchReads = [];
   fake.idReads = [];
+  fake.openFails = false;
+  fake.openFromCache = false;
+  fake.openReads = [];
+  doors.client = [];
+  doors.open = [];
   fake.watch = {};
   fake.sessions = {
     solon: [
@@ -183,7 +210,7 @@ describe("Operations → Hours", () => {
     expect(text).toContain("Lee Brown");
     // 3 completed × 30 min = 1.5 h; the open one is reported, not counted.
     expect(text).toContain("1.5 h");
-    expect(text).toContain("1 session is still open");
+    expect(text).toContain("1 session isn't finished, so its hours aren't counted yet.");
     // A head trainer of one studio gets no scope bar at all.
     expect(el.querySelector("#ops-scope")).toBeNull();
     expect(fake.watchReads).toContain("studios/solon/watch/hours-2026-09");
@@ -213,7 +240,7 @@ describe("Operations → Hours", () => {
     expect(fake.idReads).toEqual([["d"]]);
     expect(text).toContain("Lee Brown");
     expect(text).toContain("3 sessions");
-    expect(text).not.toContain("still open");
+    expect(text).not.toContain("isn't finished");
   });
 
   it("gives an owner every studio, with a total from the night's counts, and a studio's month only when it is opened", async () => {
@@ -274,5 +301,68 @@ describe("Operations → Hours", () => {
     const text = el.textContent ?? "";
     expect(text).toContain("August 2026");
     expect(text).toContain("No completed sessions this month");
+  });
+  it("lists the studio's sessions not finished, running now and left open, each with Open (the sessions round, Oct 12 2026)", async () => {
+    fake.sessions.solon.push(
+      { id: "run", trainerId: "t1", trainerInitials: "AJ", status: "In-Progress", clientId: "c9", clientName: "Ann Able", createdAt: at("2026-09-19T14:40:00Z"), lastHeartbeatAt: at("2026-09-19T14:55:00Z"), hostedAtStudioId: "solon" },
+      { id: "open", trainerId: "t2", trainerInitials: "LB", status: "In-Progress", isUnassigned: true, createdAt: at("2026-09-19T12:00:00Z"), pausedAt: at("2026-09-19T12:20:00Z"), lastHeartbeatAt: at("2026-09-19T12:20:00Z"), hostedAtStudioId: "solon" },
+    );
+    const el = await mount(leader);
+    expect(fake.openReads).toContain("solon");
+    const panel = [...el.querySelectorAll<HTMLElement>("section.adm-panel")].find((p) => p.textContent?.includes("Not finished yet"))!;
+    expect(panel).toBeTruthy();
+    const text = panel.textContent ?? "";
+    expect(text).toContain("Running now");
+    expect(text).toContain("Not running now");
+    // A pause the trainer chose is never called left open (the review, Oct 12 2026).
+    expect(text).not.toContain("Left open");
+    expect(text).toContain("Ann Able");
+    expect(text).toContain("AJ Jurgens");
+    expect(text).toContain("Open session");
+    expect(text).toContain("Lee Brown");
+    expect(text).toContain("Paused since");
+    // Wednesday's session d was left open, said with its day and its last sign of life.
+    expect(text).toContain("started Wed 11:00 AM · last active Wed");
+    const open = (name: string) => panel.querySelector<HTMLButtonElement>(`button[aria-label="Open ${name}"]`)!;
+    await act(async () => {
+      open("Open session").click();
+    });
+    await act(async () => {
+      open("Ann Able").click();
+    });
+    expect(doors.open).toEqual([["open", "operations-hours"]]);
+    expect(doors.client).toEqual([["c9", "run", "operations-hours"]]);
+  });
+
+  it("says it couldn't check, never none, when the read fails or only the cache answered", async () => {
+    fake.openFails = true;
+    let el = await mount(leader);
+    expect(el.textContent).toContain("Couldn't check for unfinished sessions.");
+    expect(el.textContent).not.toContain("unfinished sessions. Try again.");
+    expect(el.textContent).not.toContain("Every session here is finished.");
+    act(() => root?.unmount());
+    host?.remove();
+    fake.openFails = false;
+    fake.openFromCache = true;
+    el = await mount(leader);
+    expect(el.textContent).toContain("Couldn't check for unfinished sessions.");
+    expect(el.textContent).not.toContain("unfinished sessions. Try again.");
+    // Try again reads the server again.
+    fake.openFromCache = false;
+    fake.sessions.solon = fake.sessions.solon.filter((s) => s.status !== "In-Progress");
+    const before = fake.openReads.length;
+    const again = [...el.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === "Try again")!;
+    await act(async () => {
+      again.click();
+    });
+    await settle();
+    expect(fake.openReads.length).toBeGreaterThan(before);
+    expect(el.textContent).toContain("Every session here is finished.");
+  });
+
+  it("isn't drawn under All my studios", async () => {
+    const el = await mount(owner);
+    await chooseAllStudios(el);
+    expect(el.textContent).not.toContain("Not finished yet");
   });
 });

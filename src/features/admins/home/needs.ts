@@ -37,6 +37,11 @@ export type NeedTone = "watch" | "unknown" | "live";
 
 export type NeedDoor =
   | { label: string; page: AdminsPage; studioId?: string; tab?: "setup" | "mindbody" | "floor" | "team" }
+  /**
+   * One studio's Operations → Today (the sessions round, Oct 12 2026): the
+   * door switches this iPad's own studio to it first, and says so.
+   */
+  | { label: string; page: "operations-today"; studioId: string }
   | { label: string; action: "check-again" };
 
 export interface NeedItem {
@@ -284,27 +289,30 @@ export function needItems(input: NeedInputs): { items: NeedItem[]; more: NeedIte
   }
 
   // 6b. Sessions left open, across every studio (the Atlas answers, Oct 2
-  // 2026): the Hub's own staleness rule. Each studio's leaders see theirs on
-  // Operations → Today, with a door to finish it.
+  // 2026): the Hub's own staleness rule. Only the ones left open count, never
+  // a pause or an End Session a trainer chose today (the sessions round, Oct
+  // 12 2026). The door is the studio with the most, on its Operations →
+  // Today, where each has Open (AJ: "Anyone can clear a session").
   if (input.openSessions?.state === "ok") {
-    const rows = leftOpenSessions(input.openSessions.sessions as WorkoutSession[], input.now);
+    const rows = leftOpenSessions(input.openSessions.sessions as WorkoutSession[], input.now).filter((r) => r.quiet === "left-open");
     if (rows.length > 0) {
       const byStudio = new Map<string, number>();
       for (const r of rows) byStudio.set(r.studioId, (byStudio.get(r.studioId) ?? 0) + 1);
       const studioName = (id: string) => input.studios.find((s) => s.id === id)?.name ?? "a studio";
-      const where = [...byStudio.entries()]
-        .map(([id, n]) => ({ name: studioName(id), n }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map(({ name, n }) => `${name} (${n})`);
-      const only = byStudio.size === 1 ? [...byStudio.keys()][0] : null;
+      const counts = [...byStudio.entries()]
+        .map(([id, n]) => ({ id, name: studioName(id), n }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const where = counts.map(({ name, n }) => `${name} (${n})`);
+      // The studio with the most; a tie goes by name.
+      const most = [...counts].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name))[0];
       out.push({
         id: "left-open",
         kind: "Sessions left open",
         tone: "watch",
         say: rows.length === 1 ? `A session was left open at ${studioName(rows[0].studioId)}.` : `${rows.length} sessions were left open: ${names(where)}.`,
-        proof: "Still In-Progress with no sign of life for an hour or more, in the last 14 days. Each studio's leaders see theirs on Operations \u2192 Today, with a door to finish it.",
-        door: only ? { label: `Open ${studioName(only)}`, page: "studio", studioId: only } : { label: "Open All studios", page: "studios" },
-        clears: "Clears itself when each is finished or started again.",
+        proof: "Started but never finished, with nothing saved for an hour or more (last 14 days). Each has Open on that studio's Today.",
+        door: { label: `Go to ${most.name}'s Today`, page: "operations-today", studioId: most.id },
+        clears: "Clears itself when each is finished, resumed or discarded.",
         condition: rows.map((r) => r.id).sort().join(","),
       });
     }

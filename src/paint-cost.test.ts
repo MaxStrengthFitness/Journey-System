@@ -220,7 +220,8 @@ describe("3. nothing animates forever but a loader, and a loop never repaints (W
     // Each is on screen for the seconds a delete or an import takes, then gone.
     const TRANSIENT: Record<string, number> = {
       "components/WorkoutTrackerView.tsx": 1, // the bin while a session is deleted
-      "components/ClientProfileView.tsx": 1, // the bin while a running session is discarded
+      // ClientProfileView's bin pulsed while a session was discarded, until the
+      // sessions round (Oct 12 2026): the discard is issued and never waited on.
       "features/admin/import/LegacyChartImporter.tsx": 1, // the heading while a chart scan is read
     };
     const found: string[] = [];

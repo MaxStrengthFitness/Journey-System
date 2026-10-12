@@ -92,6 +92,12 @@ export interface HubCardProps {
   usualService?: string | null;
   /** Her newest workout session on the booking's studio day, if one exists. */
   workoutSession?: WorkoutSession | null;
+  /**
+   * Why a session left open went quiet, in a word (the sessions round, Oct
+   * 12 2026; lib/session-quiet.ts): "Paused", "At End Session" or "Left
+   * open". Absent: "Left open".
+   */
+  quietWord?: string | null;
   /** `loggedSessions` over the Hub's session stream; null while unknown. */
   logged?: LoggedSessions | null;
   /** The day's "didn't come" marks (`useBookingMarks().marks`); null when not read. A marked booking reads "Didn't come", never "Not logged". */
@@ -152,6 +158,7 @@ function HubCardView({
   newToJourney = false,
   usualService = null,
   workoutSession = null,
+  quietWord = null,
   logged = null,
   noShows = null,
   now = new Date(),
@@ -315,8 +322,8 @@ function HubCardView({
           {cardState === "left-open" && !isUnlinked && (
             <>
               {" · "}
-              <strong className="hs-card-state" title="A session was started and not finished, and has gone quiet for over an hour">
-                Left open
+              <strong className="hs-card-state" title="A session was started and not finished, and nothing has been saved for over an hour">
+                {quietWord || "Left open"}
               </strong>
             </>
           )}

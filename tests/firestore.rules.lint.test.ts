@@ -119,6 +119,20 @@ describe("firestore.rules stays syntactically whole", () => {
     expect(SOURCE).toContain("function isDemoTrainerPayload(trainerId, data)");
     expect(SOURCE.match(/'demo-studio'/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
   });
+
+  /* The sessions round (Oct 12 2026): a finish is counted once because the
+     app writes sessions/{id}/finish/once and these rules hold it. A rules
+     file from a branch cut before this round would drop the path, and the
+     new app's every Finish would pay a refused round trip (and, replayed
+     offline after a reload, be refused outright). Any branch merged from
+     master inherits this check, so a later rules file without it fails. */
+  it("keeps the finish marker's path and both of its rules", () => {
+    expect(CODE).toContain("match /finish/{docId}");
+    expect(CODE).toContain("finishOnceOk(sessionId, request.resource.data)");
+    expect(CODE).toContain("countedOnceOk(resource.data, request.resource.data)");
+    expect(SOURCE).toContain("function finishOnceOk(sessionId, d)");
+    expect(SOURCE).toContain("function countedOnceOk(before, after)");
+  });
 });
 
 /**

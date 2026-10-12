@@ -12,12 +12,18 @@
  * It holds no write of its own. The tracker draws it in place of its own
  * screen, so none of the recording screen's effects, sheets or buttons are
  * mounted while watching.
+ *
+ * The trainer's OWN session recorded on another device (the sessions round,
+ * Oct 12 2026) has "Continue on this iPad" in Take over's place, in the blue
+ * of a Save, never orange. Saved a moment ago, the screen watches and asks
+ * from the button; quieter than that, it asks at once (`continueHere.askNow`).
+ * Either way the safe answer, watching, is the default.
  */
 import { useState, type ReactNode } from "react";
 import { Eye } from "lucide-react";
 import { ActiveSessionTimer } from "../../components/ActiveSessionTimer";
 import { LeaveConfirmDialog } from "../unsaved-changes";
-import type { TakeOverWords, WatchWords } from "./watch";
+import type { ContinueHereWords, TakeOverWords, WatchWords } from "./watch";
 import "../journey-grid/journey-grid.css";
 import "./session-record.css";
 
@@ -32,6 +38,8 @@ export function WatchingSession({
   words,
   takeOver,
   onTakeOver,
+  continueHere = null,
+  onContinueHere,
   children,
 }: {
   clientName: string;
@@ -46,10 +54,17 @@ export function WatchingSession({
   /** The question before a take-over; null when this person cannot take it over. */
   takeOver: TakeOverWords | null;
   onTakeOver: () => void;
+  /**
+   * The trainer's own session on another device: the question, and whether
+   * to ask it at once (the other device has gone quiet). Null otherwise.
+   */
+  continueHere?: { words: ContinueHereWords; askNow: boolean } | null;
+  onContinueHere?: () => void;
   /** The grid, drawn by the tracker with a read-only live column. */
   children: ReactNode;
 }) {
   const [asking, setAsking] = useState(false);
+  const [askingContinue, setAskingContinue] = useState(() => !!continueHere?.askNow);
 
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden relative" data-testid="watching-session">
@@ -102,10 +117,16 @@ export function WatchingSession({
           {words.line}
           {words.offline && <span className="sr-watch__offline"> {words.offline}</span>}
         </p>
-        {takeOver && (
-          <button type="button" className="sr-watch__take" onClick={() => setAsking(true)}>
-            Take over
+        {continueHere ? (
+          <button type="button" className="sr-watch__continue" onClick={() => setAskingContinue(true)}>
+            Continue on this iPad
           </button>
+        ) : (
+          takeOver && (
+            <button type="button" className="sr-watch__take" onClick={() => setAsking(true)}>
+              Take over
+            </button>
+          )
         )}
       </div>
 
@@ -113,7 +134,21 @@ export function WatchingSession({
         <div className="jg-stage__main">{children}</div>
       </div>
 
-      {asking && takeOver && (
+      {askingContinue && continueHere && (
+        <LeaveConfirmDialog
+          title={continueHere.words.title}
+          question={continueHere.words.question}
+          leaveLabel={continueHere.words.continueLabel}
+          stayLabel={continueHere.words.watchLabel}
+          onStay={() => setAskingContinue(false)}
+          onLeave={() => {
+            setAskingContinue(false);
+            onContinueHere?.();
+          }}
+        />
+      )}
+
+      {asking && takeOver && !continueHere && (
         <LeaveConfirmDialog
           title={takeOver.title}
           question={takeOver.question}

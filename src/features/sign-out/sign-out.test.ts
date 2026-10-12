@@ -13,6 +13,7 @@ import {
 } from "./sign-out";
 import { forgetOnSignOut, forgetPersonalMemory } from "./memory";
 import { DEFAULT_STUDIO_KEY, DEVICE_STUDIO_KEY } from "../../lib/default-studio";
+import { DEVICE_ID_KEY } from "../session-record/device";
 import { LIST_SEEN_PREFIX, listSeen } from "../front-door/boot-lookup";
 import { STORE_PREFIX as PROFILE_NAV_PREFIX } from "../client-profile/profile-nav";
 import { PREFIX as SETUP_HINT_PREFIX } from "../machine-fit/ui/open-hint";
@@ -81,8 +82,15 @@ describe("clearPersonalStorage — the iPad keeps its studio, nothing else", () 
     expect(local.length).toBe(0);
   });
 
-  it("the pinned studio and the studio this iPad last opened are the only device keys", () => {
-    expect(DEVICE_KEYS).toEqual([DEFAULT_STUDIO_KEY, DEVICE_STUDIO_KEY]);
+  it("the pinned studio, the studio this iPad last opened and this device's id are the only device keys", () => {
+    expect(DEVICE_KEYS).toEqual([DEFAULT_STUDIO_KEY, DEVICE_STUDIO_KEY, DEVICE_ID_KEY]);
+  });
+
+  it("keeps this device's id through a sign-out (the sessions round, Oct 12 2026)", () => {
+    const local = leadersLocal();
+    local.setItem(DEVICE_ID_KEY, "d-this-ipad");
+    clearPersonalStorage(local);
+    expect(local.getItem(DEVICE_ID_KEY)).toBe("d-this-ipad");
   });
 
   it("keeps the boot's list-seen flags: they describe the iPad's Firestore copy, which a sign-out keeps", () => {

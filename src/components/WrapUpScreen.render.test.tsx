@@ -378,6 +378,51 @@ describe("the post-session screen mounts", () => {
     );
   });
 
+  /* A Finish refused after the Wrap-up came up (the sessions round, Oct 12
+     2026): one line under the header, and "saved" never claimed over it. */
+  it("says in one line how a late Finish was refused, and never claims saved over a refusal", async () => {
+    const at = async (refused: "elsewhere" | "gone" | "taken" | "refused", queued = true) => {
+      const host = await mount(
+        <WrapUpScreen
+          client={client}
+          session={session}
+          logs={[]}
+          lines={[]}
+          journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
+          schedules={[]}
+          authTrainer={trainer}
+          savedOnThisIpad={queued}
+          refused={refused}
+          onEffort={vi.fn()}
+          onLeave={vi.fn()}
+          machines={[]}
+        />,
+      );
+      return host;
+    };
+    const elsewhere = await at("elsewhere");
+    expect(elsewhere.textContent).toContain("Already finished on another iPad · it counts once");
+    expect(elsewhere.textContent).toContain("Wrap-up · session saved");
+    expect(elsewhere.textContent).not.toContain("session saved on this iPad");
+    expect(elsewhere.textContent).not.toContain("when the connection is back");
+
+    const gone = await at("gone");
+    expect(gone.textContent).toContain("Not saved · this session was discarded on another iPad.");
+    expect(gone.textContent).toContain("Wrap-up · not saved");
+    expect(gone.textContent).not.toContain("session saved");
+
+    const refused = await at("refused");
+    expect(refused.textContent).toContain("Not saved yet · open the session again from Judy's profile and press Finish.");
+    expect(refused.textContent).not.toContain("session saved");
+    expect(refused.querySelector('[role="status"]')!.className).toContain("bg-(--eq-warn-fill)");
+
+    // Taken over on another device (the attack, Oct 12 2026): said quietly, never "saved".
+    const taken = await at("taken");
+    expect(taken.textContent).toContain("Not finished here · it was taken over on another device, and finishes there.");
+    expect(taken.textContent).toContain("Wrap-up · not finished here");
+    expect(taken.textContent).not.toContain("session saved");
+  });
+
   it("shows this session's unfiled note in the To-file tray and files it with one tap", async () => {
     const host = await mount(<Screen />);
     const tray = host.querySelector('[data-testid="note-sweep"]')!;

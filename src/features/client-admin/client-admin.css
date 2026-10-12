@@ -68,11 +68,26 @@
 
 /* Sessions before Journey while it is Mindbody's guess (Oct 2 2026): the
    words beside Confirm and Change, whole, never cut. */
-.cadm-prior-guess {
+.cadm-prior-guess-block {
   align-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cadm-prior-guess {
   color: var(--cx-ink-2);
   font-size: 14px;
   font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* The sum under the guess and Mindbody's caveat (sessions round, Oct 12
+   2026): small, in ink-2, wrapping, never cut short. */
+.cadm-prior-sum {
+  color: var(--cx-ink-2);
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
