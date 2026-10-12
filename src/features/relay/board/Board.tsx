@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Check, Hand, UserRoundPlus, Undo2 } from "lucide-react";
+import { Check, Hand, Map as MapIcon, UserRoundPlus, Undo2 } from "lucide-react";
 import type { Client } from "../../../types";
 import { useToast } from "../../../contexts/ToastContext";
 import { notify } from "../../notifications";
@@ -22,6 +22,9 @@ import { FloorMap } from "./FloorMap";
 import { floorLoad, quietLine } from "./right-now";
 import { JustNow } from "./JustNow";
 import { BoardCardView } from "./BoardCardView";
+import { careReadState, useCareRead } from "./machine-care-context";
+import { careActor, markWiped } from "./machine-care-store";
+import { isWipeChore, markAllTargets, wipedToday, type CleanState } from "./cleaning";
 import {
   CARD_COLUMNS,
   CARD_PARTS,
@@ -83,8 +86,10 @@ export interface BoardProps {
   onOpenClientTask?: (clientId: string, action?: ClientTaskAction) => void;
   /** A leader puts a name on a chore (the host's AssignDialog). */
   onAssign?: (group: ShiftGroup) => void;
-  /** The studio's own task categories: which chores are desk work. */
+  /** The studio's own task categories: which chores are desk work, and which is the wipe chore. */
   categories?: StudioTaskCategory[];
+  /** The floor's machines out of service (the roster): the wipe chore leaves them out (the studio map, phase 4). */
+  outOfServiceIds?: ReadonlySet<string>;
   /** The studio's clients: renewal talks, and the asks' names. */
   clients?: Client[];
   /** The day's tasks are still loading. */
@@ -112,6 +117,7 @@ export function Board({
   onOpenClientTask,
   onAssign,
   categories,
+  outOfServiceIds,
   clients,
   loading,
   unknown = false,
@@ -130,6 +136,21 @@ export function Board({
   /* The cards, worked out once from what the Board already holds. */
   const [tick, setTick] = useState(() => Date.now());
   useEffect(() => setTick(Date.now()), [now.nowMin]);
+
+  /*
+   * The floor's wipes today, from the screen's one live care read (the
+   * studio map, phase 4): the wipe chore counts these, never its rows. Null
+   * while the read hasn't answered or failed: unknown, never "none wiped".
+   */
+  const care = useCareRead(relay.studioId);
+  const careKnown = careReadState(care) === "ready";
+  const wipedTodayIds = useMemo(() => {
+    if (!careKnown) return null;
+    const out = new Set<string>();
+    for (const [id, c] of Object.entries(care.byMachineId)) if (wipedToday(c, now.todayKey, tick)) out.add(id);
+    return out;
+  }, [careKnown, care.byMachineId, now.todayKey, tick]);
+  const outIds = outOfServiceIds ?? NO_IDS;
   const cards = useMemo(
     () =>
       boardCards({
@@ -145,8 +166,10 @@ export function Board({
         todayKey: now.todayKey,
         phase: now.phase,
         nowMs: tick,
+        wipedTodayIds,
+        outOfServiceIds: outIds,
       }),
-    [rows, requests, resolved, jobs, clients, relay.clients, relay.studioId, categories, relay.uid, author?.id, now.todayKey, now.phase, tick],
+    [rows, requests, resolved, jobs, clients, relay.clients, relay.studioId, categories, relay.uid, author?.id, now.todayKey, now.phase, tick, wipedTodayIds, outIds],
   );
 
   /* The part of the day on show: the one it is now, until you pick another; a new phase brings it back. */
@@ -170,6 +193,50 @@ export function Board({
     toastError("Could not change that. Check your connection.");
   };
 
+  /* ---- the wipe chore: Mark all, through the cleaning checklist (the studio map, phase 4) ---- */
+
+  const isWipe = (g: ShiftGroup) => isWipeChore(g.rows[0]?.template, categories);
+  /** The chore's machines not wiped today, never one out of service, in the rows' order. */
+  const wipeTargets = (g: ShiftGroup): string[] => {
+    const seen = new Set<string>();
+    const states: { machineId: string; state: CleanState }[] = [];
+    for (const r of g.rows) {
+      if (!r.machineId || seen.has(r.machineId)) continue;
+      seen.add(r.machineId);
+      states.push({ machineId: r.machineId, state: outIds.has(r.machineId) ? "out" : wipedTodayIds?.has(r.machineId) ? "wiped" : "open" });
+    }
+    return markAllTargets(states);
+  };
+  /** Mark all {n} wiped: one batch, Undo on the Board's line. Never awaited. */
+  const markAll = (g: ShiftGroup) => {
+    if (!relay.studioId || !relay.uid) {
+      toastError("Sign in again before marking machines wiped.");
+      return;
+    }
+    const targets = wipeTargets(g);
+    if (targets.length === 0) return;
+    const res = markWiped({
+      studioId: relay.studioId,
+      machineIds: targets,
+      floorIds: new Set(g.rows.map((r) => r.machineId).filter((id): id is string => Boolean(id))),
+      author: careActor(relay.uid, relay.authTrainer?.fullName ?? author?.name),
+      taskAuthor: author,
+      before: careKnown ? care.byMachineId : null,
+      rows: g.rows,
+    });
+    res.done.catch((err) => {
+      console.warn("[relay] Mark all failed:", err);
+      toastError("Couldn't mark those. Check your connection.");
+    });
+    const n = res.written.length;
+    const label = `${n} ${n === 1 ? "machine" : "machines"} marked wiped today.`;
+    if (res.undo) offerUndo(label, res.undo);
+    else toastSuccess(label);
+  };
+
+  /* Show the floor: the chore's panel unfolds the floor below in Cleaning. */
+  const [floorAsk, setFloorAsk] = useState(0);
+
   /* ---- the box ---- */
 
   const onBox = (card: BoardCard) => {
@@ -179,6 +246,12 @@ export function Board({
     switch (src.kind) {
       case "group": {
         const g = src.group;
+        // The wipe chore's box is Mark all; a machine can't be un-wiped from here, so a done card opens.
+        if (isWipe(g)) {
+          if (done) open(card);
+          else markAll(g);
+          return;
+        }
         if (done) {
           const closed = g.rows.filter((r) => r.status === "done");
           void Promise.all(closed.map((r) => actions.reopen(r))).catch(failed);
@@ -297,12 +370,66 @@ export function Board({
   const panelFor = (card: BoardCard) => {
     const src = card.source;
     const kicker = `${CARD_PARTS.find((p) => p.id === card.part)?.label ?? ""} · ${CARD_COLUMNS.find((c) => c.id === card.column)?.label ?? ""}`;
+    if (src.kind === "group" && isWipe(src.group)) {
+      // The wipe chore: the checklist's line, Mark all, Show the floor; a leader's name on it and "I can't" stay.
+      const g = src.group;
+      const assignedMe = Boolean(g.assignedTo && me.has(g.assignedTo.id));
+      const targets = wipeTargets(g).length;
+      return {
+        id: `board:${card.id}`,
+        kicker,
+        title: g.title,
+        body: (
+          <>
+            <p className="rbd-note">{card.line}</p>
+            {g.assignedTo && <p className="rbd-note">{`${g.assignedTo.name.split(" ")[0]}'s today (a heads-up, not a lock: anyone may mark a machine).`}</p>}
+          </>
+        ),
+        foot: (
+          <div className="rbd-foot">
+            {targets > 0 && (
+              <button
+                type="button"
+                className="rbd-btn rbd-btn--primary"
+                onClick={() => {
+                  markAll(g);
+                  relay.closePanel();
+                }}
+              >
+                <Check size={16} aria-hidden /> {`Mark all ${targets} wiped`}
+              </button>
+            )}
+            <button
+              type="button"
+              className="rbd-btn"
+              onClick={() => {
+                relay.closePanel();
+                setFloorAsk((n) => n + 1);
+              }}
+            >
+              <MapIcon size={16} aria-hidden /> Show the floor
+            </button>
+            {relay.canLead && onAssign && g.scope !== "personal" && card.state !== "done" && (
+              <button type="button" className="rbd-btn" onClick={() => onAssign(g)}>
+                <UserRoundPlus size={16} aria-hidden /> {g.assignedTo ? `${g.assignedTo.name.split(" ")[0]} has it · change` : "Put a name on it"}
+              </button>
+            )}
+            {assignedMe && card.state !== "done" && (
+              <button type="button" className="rbd-btn" onClick={() => void cantDo(card)}>
+                I can't
+              </button>
+            )}
+          </div>
+        ),
+      };
+    }
     if (src.kind === "group") {
       const g = src.group;
       const mineClaim = Boolean(g.claimedBy && me.has(g.claimedBy.id));
       const assignedMe = Boolean(g.assignedTo && me.has(g.assignedTo.id));
       const openN = g.total - g.done;
       return {
+        id: `board:${card.id}`,
         kicker,
         title: g.title,
         body: <GroupBody group={g} actions={actions} />,
@@ -345,6 +472,7 @@ export function Board({
       const r = src.request;
       const named = src.kind === "ask" && r.forId && !me.has(r.forId) ? r.forName ?? null : null;
       return {
+        id: `board:${card.id}`,
         kicker,
         title: r.title,
         tall: true,
@@ -394,10 +522,11 @@ export function Board({
     relay.openPanel(content);
   }
 
-  // The panel follows the live documents while it's open (a machine ticked, a claim taken).
+  // The panel follows the live documents while it's open (a machine ticked, a claim taken),
+  // only while it is still this card's: another panel opened over it (a machine's card) is left alone.
   useEffect(() => {
     if (!openId) return;
-    if (!relay.panel) {
+    if (!relay.panel || relay.panel.id !== `board:${openId}`) {
       setOpenId(null);
       return;
     }
@@ -495,7 +624,7 @@ export function Board({
       )}
 
       {/* The floor's machines: their wipes, deep cleans and flags, by the studio's own cleaning log (machine-care.ts). Today's parts only. */}
-      {part !== "week" && <FloorMap rows={rows} actions={actions} />}
+      {part !== "week" && <FloorMap rows={rows} showCleaning={floorAsk} />}
 
       <div className="rbd-foot-notes">
         <FocusBanner />
@@ -506,6 +635,8 @@ export function Board({
     </div>
   );
 }
+
+const NO_IDS: ReadonlySet<string> = new Set();
 
 /* ------------------------------------------------------------------ *
  * A chore's machines, each a tick anyone may make

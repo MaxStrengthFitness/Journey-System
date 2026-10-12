@@ -39,6 +39,7 @@ import type { EditScope } from "../../../lib/machine-template";
 import { AdminBadge, AdminButton, AdminNotice } from "../primitives";
 import { outOfServiceLineOf, outOfServiceOfEntry } from "../../catalog/out-of-service";
 import { OutOfServiceDialog } from "./OutOfServiceDialog";
+import { backInService, setOutOfService } from "./roster-status";
 import { AddFromMsfDialog } from "./AddFromMsfDialog";
 import { addableFromMsf, moveInOrder, onFloor, orderForNewMachine, orderReach } from "./floor-editor";
 import { useUnsavedChanges } from "../../unsaved-changes";
@@ -335,51 +336,31 @@ export function StudioInventoryManager({
    * never written from here (docs/KNOWN-TRAPS.md, the Local set-up trap).
    * Signed with the Auth uid, which the rules pin, and the server's time.
    */
-  const takeOutOfService = async (machineId: string, reason: string) => {
+  const takeOutOfService = (machineId: string, reason: string) => {
     const uid = auth.currentUser?.uid;
     if (!uid) {
       toastError("Sign in again before taking a machine out of service.");
       return;
     }
-    setBusy(machineId);
-    try {
-      await updateDoc(doc(db, "studios", studioId, "roster", machineId), {
-        status: "maintenance",
-        outOfService: {
-          reason,
-          by: { uid, name: (authorName ?? "").trim() || auth.currentUser?.displayName?.trim() || "A leader" },
-          at: serverTimestamp(),
-        },
-        updatedAt: serverTimestamp(),
-        updatedBy: uid,
-      });
-      setAskingOut(null);
-      toastSuccess(`${byId[machineId]?.name ?? "The machine"} is out of service. Trainers see why.`);
-    } catch (err) {
+    // One writer (roster-status.ts), issued and not awaited: the listener shows the truth.
+    setOutOfService(studioId, machineId, reason, {
+      uid,
+      name: (authorName ?? "").trim() || auth.currentUser?.displayName?.trim() || "A leader",
+    }).catch((err: unknown) => {
       console.error(err);
       toastError("Could not take it out of service. Studio leads and admins only.");
-    } finally {
-      setBusy(null);
-    }
+    });
+    setAskingOut(null);
+    toastSuccess(`${byId[machineId]?.name ?? "The machine"} is out of service. Trainers see why.`);
   };
 
   /** Back in service: the status, and the reason off with it. */
-  const putBackInService = async (machineId: string) => {
-    setBusy(machineId);
-    try {
-      await updateDoc(doc(db, "studios", studioId, "roster", machineId), {
-        status: "active",
-        outOfService: deleteField(),
-        updatedAt: serverTimestamp(),
-        updatedBy: auth.currentUser?.uid ?? null,
-      });
-      toastSuccess(`${byId[machineId]?.name ?? "The machine"} is back in service.`);
-    } catch (err) {
+  const putBackInService = (machineId: string) => {
+    backInService(studioId, machineId, auth.currentUser?.uid ?? null).catch((err: unknown) => {
       console.error(err);
       toastError("Could not put it back in service. Studio leads and admins only.");
-    } finally {
-      setBusy(null);
-    }
+    });
+    toastSuccess(`${byId[machineId]?.name ?? "The machine"} is back in service.`);
   };
 
   /**
@@ -721,7 +702,7 @@ export function StudioInventoryManager({
                         variant="quiet"
                         size="sm"
                         busy={busy === m.machineId}
-                        onClick={() => void putBackInService(m.machineId)}
+                        onClick={() => putBackInService(m.machineId)}
                       >
                         {busy !== m.machineId && "Back in service"}
                       </AdminButton>
@@ -757,7 +738,7 @@ export function StudioInventoryManager({
           machineName={askingOut.name}
           busy={busy === askingOut.machineId}
           onCancel={() => setAskingOut(null)}
-          onConfirm={(reason) => void takeOutOfService(askingOut.machineId, reason)}
+          onConfirm={(reason) => takeOutOfService(askingOut.machineId, reason)}
         />
       )}
 

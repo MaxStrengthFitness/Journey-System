@@ -9210,6 +9210,96 @@ describe("the franchise partition: an owner runs their own studios and no other"
       });
     });
 
+    // THE CLEANING CHECKLIST (the studio map, phase 4): Mark all and Wiped
+    // write only machineCare's existing fields and the wipe chore's
+    // instances, the payload setManyTaskStatuses already writes, under the
+    // rules as they are. These pin it; no rule changed (the lint pins
+    // machineCareValid byte for byte as on master).
+    describe("the cleaning checklist (machineCare, phase 4)", () => {
+      const TODAY_KEY = "2026-10-12";
+      const care = (db: Db, studioId: string, machineId: string) => doc(db, "studios", studioId, "machineCare", machineId);
+      const inst = (db: Db, studioId: string, machineId: string) => doc(db, "studios", studioId, "taskInstances", `wipe__${TODAY_KEY}__pm__${machineId}`);
+      const wipe = (uid: string, machineId: string) => ({
+        machineId,
+        lastWipedAt: Date.now(),
+        lastWipedBy: { id: uid, name: `Person ${uid}` },
+        updatedAt: serverTimestamp(),
+      });
+      const instance = (studioId: string, machineId: string, status: "done" | "open", uid: string) => ({
+        studioId,
+        scope: "studio",
+        templateId: "wipe",
+        localDate: TODAY_KEY,
+        shift: "pm",
+        machineId,
+        status,
+        completedAt: status === "done" ? serverTimestamp() : null,
+        completedBy: status === "done" ? { id: uid, name: `Person ${uid}` } : null,
+        title: "Wipe down every machine",
+        category: "cleaning",
+        kind: "machine",
+        updatedAt: serverTimestamp(),
+      });
+      const markAll = (db: Db, uid: string, studioId: string, n: number) => {
+        const b = writeBatch(db);
+        for (let i = 0; i < n; i++) {
+          const m = `m-unit-${i}`;
+          b.set(care(db, studioId, m), wipe(uid, m), { merge: true });
+          b.set(inst(db, studioId, m), instance(studioId, m, "done", uid), { merge: true });
+        }
+        return b;
+      };
+
+      it("C1: takes Mark all from a trainer at the studio: 20 wipes and 20 chore rows in one batch", async () => {
+        await assertSucceeds(markAll(ctx("trainerA"), "trainerA", A, 20).commit());
+      });
+
+      it("C2: takes Mark all's Undo: each wipe back as it was (nulls, or someone else's), each row open again", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const db = context.firestore();
+          const b = writeBatch(db);
+          for (let i = 0; i < 20; i++) b.set(care(db, A, `m-unit-${i}`), wipe("trainerA", `m-unit-${i}`));
+          await b.commit();
+        });
+        const db = ctx("trainerA");
+        const undo = writeBatch(db);
+        for (let i = 0; i < 20; i++) {
+          const m = `m-unit-${i}`;
+          undo.set(
+            care(db, A, m),
+            i % 2 === 0
+              ? { machineId: m, lastWipedAt: null, lastWipedBy: null, updatedAt: serverTimestamp() }
+              : { machineId: m, lastWipedAt: 1_760_000_000_000, lastWipedBy: { id: "leaderA", name: "Person leaderA" }, updatedAt: serverTimestamp() },
+            { merge: true },
+          );
+          undo.set(inst(db, A, m), instance(A, m, "open", "trainerA"), { merge: true });
+        }
+        await assertSucceeds(undo.commit());
+      });
+
+      it("C3: takes a wipe merged over a standing flag someone else signed, the flag left as it was", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(care(context.firestore(), A, LP), { machineId: LP, flag: { note: "Torn pad", by: { id: "leaderA", name: "Person leaderA" }, at: 1_760_000_000_000 } });
+        });
+        await assertSucceeds(setDoc(care(ctx("trainerA"), A, LP), wipe("trainerA", LP), { merge: true }));
+      });
+
+      it("C4: refuses Mark all at studio A from trainerB and outsiderC (the machineCare half)", async () => {
+        await assertFails(markAll(ctx("trainerB"), "trainerB", A, 20).commit());
+        await assertFails(markAll(ctx("outsiderC"), "outsiderC", A, 20).commit());
+      });
+
+      it("C4b: still takes a chore row alone at another studio (pinned: docs/KNOWN-TRAPS.md:158, the taskInstances rule checks no studio, which is why the checklist counts machineCare only)", async () => {
+        // If AJ OKs writesForStudio on the taskInstances rule, this flips to
+        // assertFails, and B7 is measured again first (design §G).
+        await assertSucceeds(setDoc(inst(ctx("trainerB"), A, "m-unit-0"), instance(A, "m-unit-0", "done", "trainerB"), { merge: true }));
+      });
+
+      it("C5: takes Mark all from a guest at the studio, as the care sheet's wipes always were", async () => {
+        await assertSucceeds(markAll(ctx("guestA"), "guestA", A, 20).commit());
+      });
+    });
+
     describe("inside the rules' budget", () => {
       it("B3: fits the fullest layout the grant writes: 12 boxes, 40 places and 120 placements", async () => {
         await testEnv.withSecurityRulesDisabled(async (context) => {
@@ -9343,6 +9433,50 @@ describe("the franchise partition: an owner runs their own studios and no other"
         const order = writeBatch(db);
         order.update(roster(db, B), { order: 2, updatedAt: serverTimestamp(), updatedBy: "franchiseAB" });
         await assertSucceeds(measured("roster batch, order only: franchiseAB at B, 10 removed lines", () => order.commit()));
+      }, BUDGET_TIMEOUT);
+
+      it("B7: fits the largest batch the cleaning checklist sends: Mark all at the 120-machine cap (120 wipes and 120 chore rows), and 120 upkeep log entries apart, from a guest found last, no role claim", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(doc(context.firestore(), "trainers", "guestLastA"), person("guestLastA", "LifeTransformer", C, { activeGuestStudioIds: ["studio-x", "studio-y", B, A] }));
+        });
+        const db = ctx("guestLastA");
+        const mark = writeBatch(db);
+        for (let i = 0; i < 120; i++) {
+          const m = `m-unit-${i}`;
+          mark.set(doc(db, "studios", A, "machineCare", m), { machineId: m, lastWipedAt: Date.now(), lastWipedBy: { id: "guestLastA", name: "Person guestLastA" }, updatedAt: serverTimestamp() }, { merge: true });
+          mark.set(
+            doc(db, "studios", A, "taskInstances", `wipe__2026-10-12__pm__${m}`),
+            {
+              studioId: A,
+              scope: "studio",
+              templateId: "wipe",
+              localDate: "2026-10-12",
+              shift: "pm",
+              machineId: m,
+              status: "done",
+              completedAt: serverTimestamp(),
+              completedBy: { id: "guestLastA", name: "Person guestLastA" },
+              title: "Wipe down every machine",
+              category: "cleaning",
+              kind: "machine",
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
+        await assertSucceeds(measured("machineCare batch: guestLastA (guest found last), Mark all at 120 machines + 120 chore rows", () => mark.commit()));
+        const log = writeBatch(db);
+        for (let i = 0; i < 120; i++) {
+          log.set(doc(collection(db, "studios", A, "upkeepLog")), {
+            machineId: `m-unit-${i}`,
+            kind: "clean",
+            at: new Date().toISOString(),
+            byId: "guestLastA",
+            byName: "Person guestLastA",
+            createdAt: serverTimestamp(),
+          });
+        }
+        await assertSucceeds(measured("upkeepLog batch: guestLastA (guest found last), 120 clean entries", () => log.commit()));
       }, BUDGET_TIMEOUT);
 
       it("B6: fits the fullest model an administrator writes: 20 dials, 2,000 characters of notes, a size with a 400-character note", async () => {

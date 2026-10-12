@@ -383,6 +383,25 @@ describe("out of service, and why (wave 2, Sep 28 2026)", () => {
     expect(toasts).toEqual(["Leg Press is out of service. Trainers see why."]);
   });
 
+  it("goes through the one writer (roster-status.ts) and never waits on it: the dialog closes and the toast says so before the write lands", async () => {
+    let release = () => {};
+    gate.hold = new Promise<void>((r) => (release = r));
+    try {
+      const el = await mount({ authorName: "Beregond of the Guard" });
+      await act(async () => byText(rowOf(el, "Leg Press")!, "Out of service")!.click());
+      await typeReason("Pin sticks");
+      await act(async () => byText(dialog()!, "Take it out of service")!.click());
+      expect(dialog()).toBeNull();
+      expect(toasts).toEqual(["Leg Press is out of service. Trainers see why."]);
+      expect(writes).toEqual([]);
+      release();
+      await settle();
+      expect(writes.map((w) => [w.kind, w.path])).toEqual([["update", "studios/solon/roster/m-leg-press"]]);
+    } finally {
+      gate.hold = null;
+    }
+  });
+
   it("writes nothing on Cancel", async () => {
     const el = await mount();
     await act(async () => byText(rowOf(el, "Leg Press")!, "Out of service")!.click());

@@ -65,6 +65,12 @@ describe("the studio map's look", () => {
     expect(declared(name.body, "font-size")).toEqual(["12px"]);
   });
 
+  it("marks Used since its wipe in plum and Wiped today in the done green, and nothing in orange (phase 4)", () => {
+    expect(ruleFor(".smap-m__used").flatMap((r) => declared(r.body, "fill"))).toEqual(["var(--eq-warn)"]);
+    expect(ruleFor(".smap-m__tick").flatMap((r) => declared(r.body, "stroke"))).toEqual(["var(--eq-ok)"]);
+    expect(ruleFor(".smap-mode__btn[aria-pressed=\"true\"]").flatMap((r) => declared(r.body, "background"))).toEqual(["var(--eq-live)"]);
+  });
+
   it("uses no orange and no crimson", () => {
     expect(CSS).not.toMatch(/--eq-(?:hero|go|go-on|alert)\b/);
   });

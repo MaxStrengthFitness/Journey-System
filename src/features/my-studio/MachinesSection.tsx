@@ -1,53 +1,37 @@
-import { useEffect, useMemo, useState } from "react";
-import { addDoc, collection, doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
-import { Dumbbell, Map as MapIcon, Network, Sparkles, Upload } from "lucide-react";
-import { auth, db } from "../../firebase";
+import { useMemo, useState } from "react";
+import { Dumbbell, Map as MapIcon, Network, Sparkles } from "lucide-react";
+import { auth } from "../../firebase";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
 import { useToast } from "../../contexts/ToastContext";
 import { useStudioMachines } from "../../hooks/useStudioMachines";
 import { useStudioMachineSettings } from "../../hooks/useStudioMachineSettings";
 import { OperationType, handleFirestoreError } from "../../lib/firestore-errors";
-import { studioDateKey } from "../../lib/studio-time";
 import type { Trainer } from "../../types";
 import type { MachineCatalogEntry, StudioMachineRosterEntry } from "../../types/machines";
 import { StudioInventoryManager } from "../admin/machines/StudioInventoryManager";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AdminBadge, AdminButton, AdminEmpty, AdminNotice, AdminPanel, AdminRow, AdminRows, AdminTextarea } from "../admin/primitives";
+import { AdminBadge, AdminButton, AdminEmpty, AdminNotice, AdminPanel, AdminRow, AdminRows } from "../admin/primitives";
 import { adoptCatalogMachine, seedStandardSet } from "../admin/equipment/seed";
-import { LocalSetupDialog } from "../admin/equipment/LocalSetupDialog";
-import { UpkeepDialog } from "../admin/upkeep/UpkeepDialog";
 import { useStudioUpkeep } from "../admin/upkeep/useStudioUpkeep";
-import { DEFAULT_UPKEEP_POLICY, tallyUpkeep, worstStatus } from "../admin/upkeep/upkeepLog";
-import { StudioSetupCard } from "../catalog/StudioSetupCard";
 import { useStudioMachineNotes } from "../catalog/useStudioMachineNotes";
-import { FloorNotes } from "../floor-notes/FloorNotes";
-import type { earlierNotes } from "../floor-notes/floor-notes";
-import { useFloorNotes, type FloorNotesRead } from "../floor-notes/useFloorNotes";
+import { useFloorNotes } from "../floor-notes/useFloorNotes";
 import { useStudioWiki } from "../wiki/useStudioWiki";
 import { buildDatabase, planAdoption } from "../machine-db/database";
 import { useSharedMachines } from "../machine-db/hooks";
 import { adoptMachine } from "../machine-db/mutations";
-import { leadsStudioPerRules, writesForStudioPerRules } from "../learning/permissions";
+import { MachineCard } from "../machine-card/MachineCard";
+import type { MapMode } from "../machine-card/parts";
 import { ContextPanel } from "../relay/board/ContextPanel";
+import { MachineCareProvider } from "../relay/board/machine-care-context";
 import { useRelayMaybe } from "../relay/board/RelayContext";
 import { leadsHere } from "../relay/leads";
-import { UnitSizeCard } from "../studio-map/ui/UnitSizeCard";
-import { takeArrange } from "./machines-view-memory";
-import { LazyLayoutView } from "../studio-map/lazy";
+import { useFloorPlan } from "../studio-map/hooks";
+import { reconcile } from "../studio-map/layout";
+import { rememberMachinesView, rememberedMachinesView, takeArrange, type MachinesView } from "./machines-view-memory";
+import { LazyFloorMapView, LazyLayoutView } from "../studio-map/lazy";
 import { usePhone } from "../phone/device";
 import { DEMO_STUDIO_ID } from "../demo-mode/constants";
 import { UnsavedChangesScope, useLeaveScope } from "../unsaved-changes";
-import {
-  buildSubmission,
-  canOffer,
-  canWithdraw,
-  decisionSentence,
-  standardGaps,
-  submissionLabel,
-  SUBMISSION_NOTE_MAX,
-  type CatalogSubmissionDoc,
-  type RosterSubmissionMarker,
-} from "./floor";
+import { standardGaps, submissionLabel, type RosterSubmissionMarker } from "./floor";
 // Every stylesheet this section draws with, imported here and not left to
 // the shell: Operations → Floor mounts this section without My Studio's
 // shell, so it cannot count on MyStudioView's imports (.pl__frame, .pl__body
@@ -80,12 +64,20 @@ import "./my-studio.css";
  *                              custom machine) for leaders; the same list
  *                              read-only for trainers. Every row opens the
  *                              machine's door.
- *   The machine's door         the Context Panel beside the list: this
- *                              studio's standard settings (the Studio setup
- *                              card, the same one the Catalog page shows),
- *                              the floor's notes, local set-up on a Max
- *                              Strength machine, upkeep, and "Offer to the
- *                              MSF catalog" on the studio's own machines.
+ *   The machine's card         the Context Panel beside the map or the list:
+ *                              the one card from every door (features/
+ *                              machine-card, the studio map's phase 4),
+ *                              Learn · Clean · Maintain · Set up, Set up open
+ *                              (Clean from the map in Cleaning): this
+ *                              studio's standard settings, its size, the
+ *                              floor's notes, Out of service, upkeep, local
+ *                              set-up and the offer to the MSF catalog.
+ *   The map | the list         the floor drawn (Look up, or the team's
+ *                              Cleaning checklist), first once the studio
+ *                              has a map (AJ, Oct 10 2026: "the trainers
+ *                              know where all the machines are they dont
+ *                              remember them alphabetically"); the list one
+ *                              tap away, and always on a phone.
  *   Shared by other studios    machines other MSF studios built and listed;
  *                              a leader adopts one as a copy (machine-db).
  *
@@ -103,6 +95,8 @@ export interface MachinesSectionProps {
 
 interface Door {
   machineId: string;
+  /** The map's mode when it was tapped ("machines" from the list). */
+  mode: MapMode;
   /** What the door was opened for; "submit" opens the offer dialog too. */
   intent?: "open" | "submit";
 }
@@ -117,7 +111,6 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
   const studioId = activeStudioId ?? null;
   const studioName = activeStudio?.name ?? "this studio";
   const canLead = relay ? relay.canLead : leadsHere(authTrainer ?? null, studioId);
-  const canLogUpkeep = writesForStudioPerRules(authTrainer ?? null, studioId);
 
   const { rosterEntries, catalog, byId, loading } = useStudioMachines(studioId, {
     includeInactive: true,
@@ -129,9 +122,8 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
   const { notesByMachineId } = useStudioMachineNotes(studioId);
   const floorNotes = useFloorNotes(studioId);
   const { overlayFor } = useStudioWiki(studioId);
-  const { events: upkeepEvents } = useStudioUpkeep(studioId);
+  const upkeep = useStudioUpkeep(studioId);
   const shared = useSharedMachines(true, studioId);
-  const todayKey = studioDateKey(new Date()) ?? "";
 
   const gaps = useMemo(
     () => standardGaps(catalog as MachineCatalogEntry[], rosterEntries),
@@ -171,6 +163,34 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
   // The Catalog's Draw the floor sends a leader straight here (machines-view-memory.ts), taken once as this mounts.
   const [arranging, setArranging] = useState(() => takeArrange() && canLead && !phone);
   const viewScope = useLeaveScope();
+  /*
+   * MAP FIRST (the studio map, phase 4). The layout is read on an iPad; the
+   * section opens on the map once it is ready with a machine of the floor on
+   * it, else on the list (and on the list while it is still being read: never
+   * a blank panel, never a flash of "No map yet"). A pick on this iPad wins;
+   * a phone is always the list.
+   */
+  const layout = useFloorPlan(studioId, { enabled: !phone });
+  const placed = useMemo(
+    () =>
+      layout.state === "ready" && layout.plan
+        ? reconcile(
+            layout.plan,
+            rosterEntries.filter((e) => e.status !== "inactive").map((e) => ({ machineId: e.machineId, name: "", code: "", status: e.status })),
+          ).placed.length
+        : 0,
+    [layout.state, layout.plan, rosterEntries],
+  );
+  const [picked, setPicked] = useState<MachinesView | null>(rememberedMachinesView);
+  const shownView: MachinesView = phone ? "list" : (picked ?? (placed > 0 ? "map" : "list"));
+  const pickView = (next: MachinesView) => {
+    if (next === shownView) return;
+    viewScope.guard(() => {
+      rememberMachinesView(next);
+      setPicked(next);
+    });
+  };
+  const hasMap = layout.state === "ready";
   const [seeding, setSeeding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -267,12 +287,18 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
   const doorEntry = door ? entryById.get(door.machineId) ?? null : null;
   const doorMachine = door ? byId[door.machineId] ?? null : null;
   const doorName = doorMachine?.name ?? doorEntry?.machineId ?? "";
+  const cardDoor = relay ? "my-studio" : "operations";
+  const openDoor = (machineId: string, mode: MapMode) => {
+    // The machine already open changes nothing, so it never asks.
+    if (machineId === door?.machineId && mode === door.mode) return;
+    doorScope.guard(() => setDoor({ machineId, mode }));
+  };
 
   // Without My Studio's shell (Operations → Floor) nothing bounds this
   // frame's height, so the machine's door rides the page's own scroller
   // instead of sitting at the top or the foot of a long list, off-screen
   // (my-studio.css, .ms__frame--hosted).
-  return (
+  const frame = (
     <div className={relay ? "pl__frame" : "pl__frame ms__frame--hosted"}>
       <div className="pl__body adm ms__page" role="tabpanel" id="ms-panel" aria-labelledby="ms-tab-machines">
         {/* ── New in the MSF standard ─────────────────────────────────── */}
@@ -326,15 +352,28 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
           icon={<Dumbbell className="w-3.5 h-3.5" />}
           subtitle={
             canLead
-              ? "What this location has, in the order trainers see it. Tap a machine for its settings, notes, local set-up and upkeep."
-              : "What this location has, in the order you see it. Tap a machine for the studio's standard settings and the floor's notes."
+              ? "What this location has, in the order trainers see it. Tap a machine for its card: learn it, clean it, maintain it, set it up."
+              : "What this location has, in the order you see it. Tap a machine for its card: learn it, clean it, maintain it, and the studio's settings."
           }
           actions={
-            canLead && !phone && !arranging && !floorEmpty ? (
-              <AdminButton onClick={() => setArranging(true)}>
-                <MapIcon className="w-3.5 h-3.5" />
-                Arrange the floor
-              </AdminButton>
+            !phone && !arranging && !floorEmpty ? (
+              <span className="flex flex-wrap items-center gap-2">
+                {!floorEmpty && (
+                  <div className="adm-segmented" role="tablist" aria-label="The floor as">
+                    {(["map", "list"] as const).map((v) => (
+                      <button key={v} type="button" role="tab" className="adm-seg" aria-selected={shownView === v} onClick={() => pickView(v)}>
+                        {v === "map" ? "Map" : "List"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {canLead && !floorEmpty && (
+                  <AdminButton onClick={() => viewScope.guard(() => setArranging(true))}>
+                    <MapIcon className="w-3.5 h-3.5" />
+                    {hasMap ? "Arrange the floor" : "Draw the floor"}
+                  </AdminButton>
+                )}
+              </span>
             ) : undefined
           }
         >
@@ -355,6 +394,17 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
             <AdminEmpty title="No floor set up yet">
               A studio leader adopts the MSF standard set from here; until then the Catalog shows every MSF machine.
             </AdminEmpty>
+          ) : shownView === "map" && !floorEmpty ? (
+            <UnsavedChangesScope scope={viewScope}>
+              <LazyFloorMapView
+                door={cardDoor}
+                studioId={studioId}
+                studioName={studioName}
+                authTrainer={authTrainer ?? null}
+                onOpenCard={openDoor}
+                onDone={() => pickView("list")}
+              />
+            </UnsavedChangesScope>
           ) : (
             <StudioInventoryManager
               studioId={studioId}
@@ -362,11 +412,7 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
               readOnly={!canLead}
               authorName={authTrainer?.fullName ?? null}
               flags={flags}
-              onOpenMachine={(machineId) => {
-                // The machine already open changes nothing, so it never asks.
-                if (machineId === door?.machineId) return;
-                doorScope.guard(() => setDoor({ machineId }));
-              }}
+              onOpenMachine={(machineId) => openDoor(machineId, "machines")}
               hideHeading
             />
           )}
@@ -412,65 +458,35 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
 
       <ContextPanel
         content={
-          door && doorEntry
+          door && studioId
             ? {
-                kicker:
-                  doorEntry.source === "custom"
-                    ? (doorEntry as { adoptedFrom?: { studioName: string } }).adoptedFrom
-                      ? `Copied from ${(doorEntry as { adoptedFrom?: { studioName: string } }).adoptedFrom?.studioName}`
-                      : `${studioName}'s own machine`
-                    : noLongerStandard.has(doorEntry.machineId)
-                      ? "MSF catalog · no longer in the standard"
-                      : "MSF catalog",
-                title: doorName,
+                kicker: "Machine",
+                title: doorName || door.machineId,
                 tall: true,
                 body: (
                   <UnsavedChangesScope scope={doorScope}>
-                    {/* Keyed by machine: each machine gets a fresh door, so a
+                    {/* Keyed by machine (and the mode it was opened in): each opening is a fresh card, so a
                         Leave's discard never re-seeds onto the next one. */}
-                    <MachineDoor
-                      key={doorEntry.machineId}
+                    <MachineCard
+                      key={`${door.machineId}:${door.mode}`}
+                      door={cardDoor}
+                      mode={door.mode}
                       studioId={studioId}
                       studioName={studioName}
-                      entry={doorEntry}
-                      machineName={doorName}
-                      catalogName={
-                        doorEntry.source === "catalog" ? (byId[doorEntry.machineId]?.name ?? doorName) : doorName
-                      }
-                      catalogEntry={doorEntry.source === "catalog" ? (catalog as MachineCatalogEntry[]).find((c) => c.id === (doorEntry as { basedOn?: string }).basedOn) ?? null : null}
-                      setting={settingsByMachineId[doorEntry.machineId]}
-                      floorRead={floorNotes}
-                      earlier={{
-                        studioNotes: notesByMachineId[doorEntry.machineId]?.notes
-                          ? {
-                              text: notesByMachineId[doorEntry.machineId].notes,
-                              by: notesByMachineId[doorEntry.machineId].updatedBy?.name ?? null,
-                              at: notesByMachineId[doorEntry.machineId].updatedAt,
-                            }
-                          : null,
-                        catalogNote: (() => {
-                          const o = overlayFor("machine", doorEntry.machineId);
-                          return o
-                            ? {
-                                id: o.id,
-                                blocks: o.blocks,
-                                by: o.updatedByName ?? o.authorName ?? null,
-                                at: o.updatedAt ?? o.createdAt,
-                                shared: o.shared,
-                                shareStatus: o.shareStatus,
-                                shareReviewNote: o.shareReviewNote,
-                              }
-                            : null;
-                        })(),
-                        unitNote: doorEntry.studioNotes ?? null,
-                      }}
-                      shareKey={byId[doorEntry.machineId]?.comparisonKey || doorEntry.machineId}
-                      upkeepEvents={upkeepEvents}
-                      upkeepStatus={worstStatus(tallyUpkeep(upkeepEvents, doorEntry.machineId, todayKey), DEFAULT_UPKEEP_POLICY)}
-                      canLead={canLead}
-                      canLogUpkeep={canLogUpkeep}
+                      machineId={door.machineId}
                       authTrainer={authTrainer ?? null}
                       trainers={trainers}
+                      reads={{
+                        floor: { rosterEntries, byId, catalog, loading },
+                        settingsByMachineId,
+                        floorNotes,
+                        oldNotes: notesByMachineId,
+                        overlayFor,
+                        upkeep: { events: upkeep.events, state: upkeep.state },
+                      }}
+                      onOpenCatalogPage={relay?.openCatalogMachine}
+                      onClose={() => doorScope.guard(() => setDoor(null))}
+                      nameShown={false}
                       openOffer={door.intent === "submit"}
                     />
                   </UnsavedChangesScope>
@@ -482,383 +498,6 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
       />
     </div>
   );
-}
-
-/* ------------------------------------------------------------------ *
- * The machine's door — everything the studio has said about one machine
- * ------------------------------------------------------------------ */
-
-function MachineDoor({
-  studioId,
-  studioName,
-  entry,
-  machineName,
-  catalogName,
-  catalogEntry,
-  setting,
-  floorRead,
-  earlier,
-  shareKey,
-  upkeepEvents,
-  upkeepStatus,
-  canLead,
-  canLogUpkeep,
-  authTrainer,
-  trainers,
-  openOffer,
-}: {
-  studioId: string;
-  studioName: string;
-  entry: StudioMachineRosterEntry;
-  machineName: string;
-  catalogName: string;
-  catalogEntry: MachineCatalogEntry | null;
-  setting: ReturnType<typeof useStudioMachineSettings>["settingsByMachineId"][string] | undefined;
-  floorRead: FloorNotesRead;
-  earlier: Parameters<typeof earlierNotes>[0];
-  /** The lineage other studios find this machine's shared notes under. */
-  shareKey: string;
-  upkeepEvents: ReturnType<typeof useStudioUpkeep>["events"];
-  upkeepStatus: ReturnType<typeof worstStatus>;
-  canLead: boolean;
-  canLogUpkeep: boolean;
-  authTrainer: Trainer | null;
-  /** The team, to name who measured a machine (the studio map). */
-  trainers?: Trainer[];
-  openOffer: boolean;
-}) {
-  const [localSetup, setLocalSetup] = useState(false);
-  const [upkeep, setUpkeep] = useState(false);
-  const [offer, setOffer] = useState(openOffer);
-  const uid = auth.currentUser?.uid ?? null;
-  const marker = (entry as { submission?: RosterSubmissionMarker }).submission ?? null;
-  const markerLabel = submissionLabel(marker);
-  const ownMachine = entry.source === "custom" && !(entry as { adoptedFrom?: unknown }).adoptedFrom;
-
-  return (
-    <div className="adm ms__door">
-      <section>
-        <h3 className="ms__door-h">This studio's standard settings</h3>
-        <p className="ms__door-sub">
-          What trainers preset the machine to as they walk up. Trainers read these; leaders change them. The same card is on the machine's Catalog page.
-        </p>
-        <StudioSetupCard
-          machineId={entry.machineId}
-          machineName={machineName}
-          studioId={studioId}
-          setting={setting}
-          canEdit={canLead}
-          authorId={authTrainer?.id ?? null}
-        />
-      </section>
-
-      {/* The studio map (Oct 2026): set-up information, read once and read
-          only for a trainer, so after the settings they open the door for. */}
-      <section>
-        <h3 className="ms__door-h">Its size</h3>
-        <UnitSizeCard
-          studioId={studioId}
-          entry={entry}
-          machineName={machineName}
-          canEdit={canLead}
-          authUid={uid}
-          nameOf={(who) => (trainers ?? []).find((t) => t.authUid === who || t.id === who)?.fullName ?? null}
-        />
-      </section>
-
-      <section>
-        <h3 className="ms__door-h">The floor's notes</h3>
-        <p className="ms__door-sub">
-          Anyone at {studioName} can write here: the pad that sticks, the footstool, what to watch for. Each note keeps its
-          date and its updates; close one when it's done and it stays in the history. The same list is on the machine's
-          Catalog page.
-        </p>
-        <FloorNotes
-          studioId={studioId}
-          studioName={studioName}
-          machineId={entry.machineId}
-          machineName={machineName}
-          read={floorRead}
-          earlier={earlier}
-          uid={uid}
-          writerName={canLogUpkeep ? (authTrainer?.fullName ?? "A trainer") : null}
-          // The rules' own answer for whose words a leader may change
-          // (isStudioOwnerOrHeadTrainer), never the wider leadsHere.
-          canLead={leadsStudioPerRules(authTrainer ?? null, studioId)}
-          shareKeys={[shareKey]}
-        />
-      </section>
-
-      <section className="ms__door-actions">
-        {/* A Max Strength machine's only: a studio's own machine, or a copy
-            of another studio's, has no catalog machine to set up locally, and
-            saving Local set-up on one took it off the floor (Sep 28 2026).
-            Its name and set-up are Edit on the floor list. */}
-        {canLead && entry.source === "catalog" && (
-          <AdminButton variant="quiet" onClick={() => setLocalSetup(true)}>
-            Local set-up
-          </AdminButton>
-        )}
-        {canLogUpkeep && (
-          <AdminButton variant="quiet" onClick={() => setUpkeep(true)}>
-            Upkeep{upkeepStatus === "overdue" ? " · overdue" : upkeepStatus === "due" ? " · due" : ""}
-          </AdminButton>
-        )}
-        {canLead && ownMachine && canOffer(marker) && (
-          <AdminButton variant="quiet" onClick={() => setOffer(true)}>
-            <Upload className="w-3.5 h-3.5" />
-            {marker ? "Offer it again" : "Offer to the MSF catalog"}
-          </AdminButton>
-        )}
-        {canLead && canWithdraw(marker) && marker && (
-          <WithdrawOffer
-            submissionId={marker.id}
-            studioId={studioId}
-            machineId={entry.machineId}
-            machineName={machineName}
-          />
-        )}
-      </section>
-      {markerLabel && <AdminNotice tone={marker?.status === "declined" ? "warn" : "info"}>{markerLabel}</AdminNotice>}
-      {marker && <DecisionNote submissionId={marker.id} status={marker.status} />}
-
-      {localSetup && (
-        <LocalSetupDialog
-          studioId={studioId}
-          machineId={entry.machineId}
-          catalogName={catalogName}
-          catalog={catalogEntry}
-          entry={entry}
-          onClose={() => setLocalSetup(false)}
-        />
-      )}
-      {upkeep && (
-        <UpkeepDialog
-          studioId={studioId}
-          machineId={entry.machineId}
-          machineName={machineName}
-          events={upkeepEvents}
-          authTrainer={authTrainer}
-          onClose={() => setUpkeep(false)}
-        />
-      )}
-      {offer && (
-        <OfferDialog
-          studioId={studioId}
-          studioName={studioName}
-          entry={entry}
-          machineName={machineName}
-          authTrainer={authTrainer}
-          onClose={() => setOffer(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ *
- * Taking an offer back, and hearing what corporate said
- * ------------------------------------------------------------------ */
-
-/**
- * WITHDRAW — a leader takes back an offer corporate has not decided on yet.
- *
- * The status and the rule for it already existed (`withdrawn`;
- * firestore.rules allows a studio's leader exactly the pending → withdrawn
- * transition, and only the `status` and `updatedAt` keys with it). Nothing
- * in the app ever wrote it, so an offer made by mistake sat in corporate's
- * queue until someone there passed on it.
- *
- * The write is deliberately those two keys and nothing else: adding a third
- * would be refused by the rule, silently, from the studio's side.
- */
-function WithdrawOffer({
-  submissionId,
-  studioId,
-  machineId,
-  machineName,
-}: {
-  submissionId: string;
-  studioId: string;
-  machineId: string;
-  machineName: string;
-}) {
-  const { success: toastSuccess } = useToast();
-  const [busy, setBusy] = useState(false);
-
-  const withdraw = async () => {
-    setBusy(true);
-    try {
-      await updateDoc(doc(db, "catalogSubmissions", submissionId), {
-        status: "withdrawn",
-        updatedAt: serverTimestamp(),
-      });
-      // The marker is a convenience copy, as it is when the offer is made:
-      // its failure leaves the withdrawal standing rather than undoing it.
-      try {
-        await setDoc(
-          doc(db, "studios", studioId, "roster", machineId),
-          { submission: { id: submissionId, status: "withdrawn" } satisfies RosterSubmissionMarker },
-          { merge: true },
-        );
-      } catch (err) {
-        console.warn("[my-studio] withdrawal marker failed:", err);
-      }
-      toastSuccess(`${machineName} is no longer offered. You can fix it and offer it again.`);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, "catalogSubmissions");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <AdminButton variant="quiet" busy={busy} disabled={busy} onClick={() => void withdraw()}>
-      Take the offer back
-    </AdminButton>
-  );
-}
-
-/**
- * WHAT CORPORATE SAID — the decision note, on the studio's own floor.
- *
- * It was always written and a studio's leaders could always read it; it was
- * simply never shown. So a studio learned that corporate passed and never
- * learned why, which is the one thing that would let them fix the machine
- * and offer it again.
- *
- * One `getDoc` when the machine's door opens, not a listener: a decision is
- * made once and the door is already open on a tap.
- */
-function DecisionNote({ submissionId, status }: { submissionId: string; status: RosterSubmissionMarker["status"] }) {
-  const [sentence, setSentence] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (status !== "declined" && status !== "published") return;
-    let alive = true;
-    void (async () => {
-      try {
-        const snap = await getDoc(doc(db, "catalogSubmissions", submissionId));
-        if (!alive || !snap.exists()) return;
-        const data = snap.data() as CatalogSubmissionDoc;
-        setSentence(decisionSentence(status, data.decisionNote));
-      } catch {
-        // A refused read means "unknown", never "there was no note" — so the
-        // panel says nothing rather than implying corporate stayed silent.
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [submissionId, status]);
-
-  if (!sentence) return null;
-  return <AdminNotice tone={status === "declined" ? "warn" : "ok"}>{sentence}</AdminNotice>;
-}
-
-/* ------------------------------------------------------------------ *
- * Offering a machine to the MSF catalog
- * ------------------------------------------------------------------ */
-
-function OfferDialog({
-  studioId,
-  studioName,
-  entry,
-  machineName,
-  authTrainer,
-  onClose,
-}: {
-  studioId: string;
-  studioName: string;
-  entry: StudioMachineRosterEntry;
-  machineName: string;
-  authTrainer: Trainer | null;
-  onClose: () => void;
-}) {
-  const { success: toastSuccess, error: toastError } = useToast();
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const send = async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) {
-      toastError("Sign in again before offering a machine.");
-      return;
-    }
-    const built = buildSubmission({
-      studioId,
-      studioName,
-      entry,
-      author: { uid, name: authTrainer?.fullName ?? "A leader" },
-      note,
-    });
-    if (built.ok === false) {
-      toastError(built.reason);
-      return;
-    }
-    setBusy(true);
-    try {
-      const ref = await addDoc(collection(db, "catalogSubmissions"), {
-        ...built.doc,
-        submittedAt: serverTimestamp(),
-      });
-      // The marker on the roster entry is what the floor shows; it is a
-      // convenience copy, so a failure here leaves the submission standing.
-      try {
-        await setDoc(
-          doc(db, "studios", studioId, "roster", entry.machineId),
-          {
-            submission: { id: ref.id, status: "pending" } satisfies RosterSubmissionMarker,
-            updatedAt: serverTimestamp(),
-            updatedBy: uid,
-          },
-          { merge: true },
-        );
-      } catch (err) {
-        console.warn("[my-studio] submission marker failed:", err);
-      }
-      toastSuccess(`${machineName} offered to the MSF catalog. Corporate decides; nothing changes on your floor until it does.`);
-      onClose();
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, "catalogSubmissions");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Offer {machineName} to the MSF catalog</DialogTitle>
-        </DialogHeader>
-        <div className="adm flex flex-col gap-3">
-          <p className="ms__line ms__line--muted">
-            Corporate reviews it. If it is published, {studioName} is moved onto the catalog version so every studio starts from the same machine, and your history comes with it.
-          </p>
-          <label className="flex flex-col gap-1">
-            <span className="adm-label">
-              A note for corporate (optional)
-            </span>
-            <AdminTextarea
-              className="min-h-24"
-              maxLength={SUBMISSION_NOTE_MAX}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Why it earns a place in the catalog, and what it is most like."
-            />
-          </label>
-          <div className="flex justify-end gap-2">
-            <AdminButton variant="quiet" onClick={onClose}>
-              Cancel
-            </AdminButton>
-            <AdminButton variant="primary" busy={busy} onClick={() => void send()}>
-              <Upload className="w-3.5 h-3.5" />
-              Offer it
-            </AdminButton>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+  // Inside My Studio the shell holds the floor's one care read; Operations → Floor has no shell, so the section does.
+  return relay ? frame : <MachineCareProvider studioId={studioId}>{frame}</MachineCareProvider>;
 }

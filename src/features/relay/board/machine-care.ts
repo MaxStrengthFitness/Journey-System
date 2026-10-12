@@ -184,15 +184,6 @@ export function wearOf(
   };
 }
 
-/** "Wiped 40 min ago by Marina" · "Not wiped today". */
-export function wipeSentence(w: MachineWear, care: MachineCare | null | undefined): string {
-  if (w.sinceWipeMin === null) return "No wipe on record";
-  const who = care?.lastWipedBy ? ` by ${care.lastWipedBy.name.split(" ")[0]}` : "";
-  if (w.sinceWipeMin < 60) return `Wiped ${w.sinceWipeMin} min ago${who}`;
-  if (w.sinceWipeMin < 24 * 60) return `Wiped ${Math.floor(w.sinceWipeMin / 60)} h ago${who}`;
-  return `Wiped ${Math.floor(w.sinceWipeMin / 1440)} d ago${who}`;
-}
-
 export function deepSentence(w: MachineWear, days = DEFAULT_DEEP_CLEAN_DAYS): string {
   if (w.daysSinceDeep === null) return "No deep clean on record";
   if (w.daysSinceDeep === 0) return "Deep cleaned today";

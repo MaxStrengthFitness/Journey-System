@@ -40,6 +40,33 @@ vi.mock("../studio-map/hooks", () => ({
   },
 }));
 vi.mock("../phone/device", () => ({ usePhone: () => false }));
+// The machine's card (phase 4) reads the studio's roster for its header: stood in for the floor.
+vi.mock("../../hooks/useStudioMachines", () => ({
+  useStudioMachines: (studioId: string | null) => ({
+    machines: [],
+    rosterEntries: studioId
+      ? (fx.machines as { id: string; rosterStatus?: string }[]).map((m) => ({
+          machineId: m.id,
+          studioId: "solon",
+          source: "catalog",
+          basedOn: m.id,
+          status: m.rosterStatus ?? "active",
+        }))
+      : [],
+    byId: studioId
+      ? Object.fromEntries(
+          (fx.machines as { id: string; name: string }[]).map((m) => [
+            m.id,
+            { machineId: m.id, name: m.name, comparisonKey: m.id, primaryMuscles: [], rosterStatus: "active" },
+          ]),
+        )
+      : {},
+    catalog: [],
+    loading: false,
+    failed: false,
+    source: "roster",
+  }),
+}));
 
 vi.mock("../../firebase", () => ({ db: {}, auth: { currentUser: null } }));
 vi.mock("../../contexts/ActiveStudioContext", () => ({
@@ -610,9 +637,18 @@ describe("the floor as a map (the studio map, phase 3)", () => {
     expect(host.querySelector('[data-id="m-lumbar"]')!.getAttribute("aria-label")).toContain("out of service");
     // The AED is drawn with its words.
     expect(host.querySelector(".smap-safety__name")?.textContent).toBe("AED");
+    // Phase 4: a tap opens the one machine card, Learn open (the Catalog is Learning), and
+    // Learn's first action, Open its Catalog page, closes the card and opens the page.
     await act(async () => {
       host.querySelector('[data-id="m-leg-press"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
+    expect(host.querySelector(".cp__title")?.textContent).toContain("LEG PRESS");
+    const parts = [...host.querySelectorAll(".mdc-part")];
+    expect(parts.map((p) => p.getAttribute("data-part"))).toEqual(["learn", "clean", "maintain", "setup"]);
+    expect(parts.map((p) => p.querySelector(".mdc-part__head")?.getAttribute("aria-expanded"))).toEqual(["true", "false", "false", "false"]);
+    expect(host.querySelector(".wk__h1")?.textContent).not.toBe("LEG PRESS");
+    await click([...host.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Open its Catalog page"));
+    expect(host.querySelector(".cp")).toBeNull();
     expect(host.querySelector(".wk__h1")?.textContent).toBe("LEG PRESS");
   });
 

@@ -770,3 +770,195 @@
 .smap-read .smap-frame {
   min-height: 0;
 }
+
+/* ------------------------------------------------------------------ *
+ * The map and its cleaning checklist (ui/FloorMapView.tsx, phase 4).
+ * Two looks: a tick for Wiped today (--eq-ok), a quiet plum dot for
+ * Used since its wipe (--eq-warn, information, never orange). Look up |
+ * Cleaning is a switch; the picked segment is blue (selection). Mark all
+ * is the one blue action in the row.
+ * ------------------------------------------------------------------ */
+
+.smap-m__tick-bg {
+  fill: var(--eq-ok-fill);
+  stroke: var(--eq-ok);
+  stroke-width: 1.5;
+}
+
+.smap-m__tick {
+  fill: none;
+  stroke: var(--eq-ok);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.smap-m__used {
+  fill: var(--eq-warn);
+}
+
+.smap-map {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.smap-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.smap-head__line {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--eq-ink);
+  overflow-wrap: anywhere;
+}
+
+.smap-mode {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--eq-border-strong);
+  border-radius: 12px;
+  background: var(--eq-tray);
+}
+
+.smap-mode__btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--eq-ink-2);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.smap-mode__btn[aria-pressed="true"] {
+  background: var(--eq-live);
+  color: var(--eq-live-on);
+}
+
+.smap-mode__btn:focus-visible,
+.smap-btn:focus-visible,
+.smap-tick:focus-visible,
+.smap-clean__name:focus-visible {
+  outline: 2px solid var(--eq-focus-ring);
+  outline-offset: 2px;
+}
+
+.smap-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--eq-border-strong);
+  border-radius: 10px;
+  background: var(--eq-raised);
+  color: var(--eq-ink);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.smap-btn--primary {
+  border-color: var(--eq-live);
+  background: var(--eq-live);
+  color: var(--eq-live-on);
+}
+
+.smap-btn--primary:hover {
+  background: var(--eq-live);
+}
+
+.smap-clean {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.smap-clean__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--eq-divider);
+}
+
+.smap-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--eq-ok);
+  cursor: pointer;
+}
+
+.smap-tick__box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid var(--eq-border-strong);
+  border-radius: 6px;
+  background: var(--eq-raised);
+}
+
+.smap-tick[aria-pressed="true"] .smap-tick__box {
+  border-color: var(--eq-ok);
+  background: var(--eq-ok-fill);
+}
+
+.smap-tick:disabled {
+  cursor: default;
+}
+
+.smap-clean__name {
+  flex: 1 1 10rem;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--eq-ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.smap-clean__state {
+  font-size: 12px;
+  color: var(--eq-ink-2);
+}
+
+.smap-clean__state--used::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--eq-warn);
+}

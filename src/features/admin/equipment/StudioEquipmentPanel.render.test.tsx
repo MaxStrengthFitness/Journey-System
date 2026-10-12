@@ -19,6 +19,8 @@ import { createRoot, type Root } from "react-dom/client";
 vi.mock("../../../firebase", () => ({ db: {}, auth: { currentUser: { uid: "uid-admin" } } }));
 vi.mock("firebase/firestore", () => ({
   doc: (_db: unknown, ...parts: string[]) => ({ path: parts.join("/") }),
+  collection: (_db: unknown, ...parts: string[]) => ({ path: parts.join("/") }),
+  onSnapshot: () => () => {},
   serverTimestamp: () => "now",
   deleteField: () => "__delete__",
   setDoc: async () => {},
@@ -62,8 +64,27 @@ vi.mock("../../studio-map/lazy", () => ({
       </button>
     </div>
   ),
+  LazyFloorMapView: ({ door, onOpenCard }: { door: string; onOpenCard: (id: string, mode: "machines" | "cleaning") => void }) => (
+    <div data-testid="the-map" data-door={door}>
+      <button type="button" onClick={() => onOpenCard("m-leg-press", "machines")}>
+        LEG PRESS on the map
+      </button>
+    </div>
+  ),
 }));
 vi.mock("../../phone/device", () => ({ usePhone: () => false }));
+// The studio's map (phase 4): the read held to a fixture, the map and the card stood in for (each has its own test).
+const plan = vi.hoisted(() => ({ value: { state: "empty", plan: null, fromCache: false, dropped: 0 } as unknown }));
+vi.mock("../../studio-map/hooks", () => ({
+  useFloorPlan: (_s: string | null, opts: { enabled: boolean }) => (opts.enabled ? plan.value : { state: "off", plan: null, fromCache: false, dropped: 0 }),
+}));
+vi.mock("../../machine-card/MachineCard", () => ({
+  MachineCard: ({ door, mode, machineId }: { door: string; mode: string; machineId: string }) => (
+    <div data-testid="card">
+      The card for {machineId}, from {door}, in {mode}
+    </div>
+  ),
+}));
 
 const { StudioEquipmentPanel } = await import("./StudioEquipmentPanel");
 import type { Studio, Trainer } from "../../../types";
@@ -114,12 +135,14 @@ describe("Arrange the floor on Admins → a studio → Floor (the studio map, ph
 
   it("is an administrator's, and opens the same editor in place of the list, Done coming back", async () => {
     await mount(admin);
-    expect(button("Arrange the floor")).toBeTruthy();
-    await act(async () => button("Arrange the floor")!.click());
+    // No map yet: Draw the floor (phase 4's words, the same in every door).
+    expect(button("Arrange the floor")).toBeUndefined();
+    expect(button("Draw the floor")).toBeTruthy();
+    await act(async () => button("Draw the floor")!.click());
     expect(host.querySelector("[data-testid=arrange]")!.textContent).toContain("Arranging Solon's floor");
     expect(host.querySelector("[data-testid=arrange]")!.textContent).not.toContain("read only");
     expect(row("LEG PRESS")).toBeUndefined();
-    expect(button("Arrange the floor")).toBeUndefined();
+    expect(button("Draw the floor")).toBeUndefined();
     await act(async () => button("Done arranging")!.click());
     expect(row("LEG PRESS")).toBeTruthy();
   });
@@ -127,5 +150,51 @@ describe("Arrange the floor on Admins → a studio → Floor (the studio map, ph
   it("is never offered to someone who doesn't lead the studio", async () => {
     await mount(null);
     expect(button("Arrange the floor")).toBeUndefined();
+    expect(button("Draw the floor")).toBeUndefined();
+  });
+});
+
+describe("the map and the card on Admins → a studio → Floor (the studio map, phase 4)", () => {
+  const admin = { id: "t-admin", authUid: "uid-admin", fullName: "Head Office", role: "Admin", studioId: "hq" } as unknown as Trainer;
+  const button = (text: string) => [...host.querySelectorAll("button")].find((b) => b.textContent?.trim() === text);
+  const tab = (label: string) => [...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent?.trim() === label) as HTMLButtonElement | undefined;
+  const ft = (n: number) => Math.round(n * 304.8);
+  afterEach(() => {
+    plan.value = { state: "empty", plan: null, fromCache: false, dropped: 0 };
+  });
+
+  it("opens on the map once the studio has one, with Map | List and Arrange the floor in the panel's actions", async () => {
+    plan.value = {
+      state: "ready",
+      plan: {
+        v: 1,
+        name: "The layout",
+        room: { areaSqFt: 1800, boxes: [{ id: "bx-1", x: 0, y: 0, w: ft(60), h: ft(30) }], places: [] },
+        placements: [{ machineId: "m-leg-press", x: ft(10), y: ft(10), rotationDeg: 0 }],
+        rev: 1,
+        updatedAt: null,
+        updatedBy: "u",
+      },
+      fromCache: false,
+      dropped: 0,
+    };
+    await mount(admin);
+    expect(host.querySelector('[data-testid="the-map"]')?.getAttribute("data-door")).toBe("admins");
+    expect(tab("Map")?.getAttribute("aria-selected")).toBe("true");
+    expect(button("Arrange the floor")).toBeTruthy();
+    // A tap on the map: the one card, door admins (Set up first), in Look up.
+    await act(async () => button("LEG PRESS on the map")!.click());
+    expect(host.querySelector('[data-testid="card"]')?.textContent).toBe("The card for m-leg-press, from admins, in machines");
+    expect(host.querySelector(".cp__title")?.textContent).toContain("LEG PRESS");
+    // The list is one tap away, with its rows.
+    await act(async () => tab("List")!.click());
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(row("LEG PRESS")).toBeTruthy();
+  });
+
+  it("is the list while the studio has no map", async () => {
+    await mount(admin);
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(row("LEG PRESS")).toBeTruthy();
   });
 });

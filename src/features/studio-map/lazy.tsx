@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { LoadBoundary } from "../new-version/LoadBoundary";
 import type { LayoutViewProps } from "./ui/types";
 import type { StudioRoomProps } from "./ui/StudioRoom";
+import type { FloorMapViewProps } from "./ui/FloorMapView";
 import "./studio-map.css";
 
 /**
@@ -43,4 +44,22 @@ export function LazyStudioRoom({ onDone, ...props }: StudioRoomProps & { /** The
   );
 }
 
-export type { LayoutViewProps, StudioRoomProps };
+const FloorMapView = lazy(() => import("./ui/FloorMapView"));
+
+/**
+ * The map every door but the Catalog reads (the studio map, phase 4): My
+ * Studio → Machines, Relay's floor, Admins' floor, with the cleaning
+ * checklist. Its chunk is the drawing's; a deploy that removed it says so
+ * in the panel, and Done goes back to the host's list.
+ */
+export function LazyFloorMapView({ onDone, ...props }: FloorMapViewProps & { /** The way back to the list or the tiles, should the map's file be gone. */ onDone: () => void }) {
+  return (
+    <LoadBoundary kind="panel" where="screen" panel="The map" onDone={onDone}>
+      <Suspense fallback={<p className="smap-quiet">Loading the map…</p>}>
+        <FloorMapView {...props} />
+      </Suspense>
+    </LoadBoundary>
+  );
+}
+
+export type { FloorMapViewProps, LayoutViewProps, StudioRoomProps };

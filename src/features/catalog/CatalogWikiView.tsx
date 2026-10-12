@@ -945,7 +945,11 @@ export function CatalogWikiView({
 
       {floorState === "ready" && !findResult && shownFloorView === "map" && layout.plan ? (
         <FloorRoomView
+          studioId={activeStudioId ?? ""}
           studioName={studioName}
+          care={care}
+          authTrainer={authTrainer ?? null}
+          reads={{ settingsByMachineId, floorNotes, oldNotes: oldStudioNotes, overlayFor }}
           plan={layout.plan}
           machines={floorMachines}
           models={modelsRead}

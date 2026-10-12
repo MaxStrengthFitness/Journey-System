@@ -31,6 +31,7 @@ const SHEETS = {
   "admin.css": "features/admin/admin.css",
   "openings.css": "features/openings/openings.css",
   "studio-map.css": "features/studio-map/studio-map.css",
+  "machine-card.css": "features/machine-card/machine-card.css",
 } as const;
 type Sheet = keyof typeof SHEETS;
 
@@ -73,6 +74,19 @@ const HOSTS = [
   "features/studio-map/ui/DraftTabs.tsx",
   "features/studio-map/ui/PlanMachineSheet.tsx",
   "features/catalog/FloorRoomView.tsx",
+  // Phase 4: the map every door but the Catalog reads, and the one machine
+  // card, mounted by four hosts (My Studio's panel, Relay's panel, the
+  // Catalog's map, Admins' floor), so it brings its own sheets.
+  "features/studio-map/ui/FloorMapView.tsx",
+  "features/machine-card/MachineCard.tsx",
+  "features/machine-card/CardFrame.tsx",
+  "features/machine-card/LearnPart.tsx",
+  "features/machine-card/CleanPart.tsx",
+  "features/machine-card/MaintainPart.tsx",
+  "features/machine-card/SetupPart.tsx",
+  "features/machine-card/offer.tsx",
+  "features/relay/board/FloorMap.tsx",
+  "features/admin/equipment/StudioEquipmentPanel.tsx",
 ] as const;
 
 /**

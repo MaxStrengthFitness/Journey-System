@@ -13,23 +13,36 @@ import { mergeUpkeepHistory, type UpkeepEvent, type UpkeepLogEntry } from "./upk
  * studio beats twenty-two that re-subscribe every time someone taps a row,
  * which is the same call useMachineUpkeep already made and for the same
  * reason.
+ *
+ * `state` (the studio map, phase 4, Oct 2026): a failed read used to set the
+ * lists to [] and say nothing, so an unreadable log showed as an empty one.
+ * Either read failing is "failed" now, and the machine's card says it
+ * can't read the upkeep record rather than "no upkeep". The lists stay as
+ * they were for the screens that read them.
  */
+export type UpkeepReadState = "loading" | "ready" | "failed";
+
 export function useStudioUpkeep(studioId: string | null): {
   events: UpkeepEvent[];
   loading: boolean;
+  state: UpkeepReadState;
 } {
   const [instances, setInstances] = useState<TaskInstance[]>([]);
   const [logged, setLogged] = useState<UpkeepLogEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(studioId));
+  const [failed, setFailed] = useState(false);
   const { categories } = useStudioTaskCategories(studioId);
 
   useEffect(() => {
     if (!studioId) {
       setInstances([]);
       setLogged([]);
+      setFailed(false);
+      setLoading(false);
       return;
     }
     setLoading(true);
+    setFailed(false);
     let done = 0;
     const settle = () => {
       done += 1;
@@ -46,6 +59,7 @@ export function useStudioUpkeep(studioId: string | null): {
       },
       () => {
         setInstances([]);
+        setFailed(true);
         settle();
       },
     );
@@ -58,6 +72,7 @@ export function useStudioUpkeep(studioId: string | null): {
       },
       () => {
         setLogged([]);
+        setFailed(true);
         settle();
       },
     );
@@ -73,5 +88,6 @@ export function useStudioUpkeep(studioId: string | null): {
     [instances, logged, categories],
   );
 
-  return { events, loading };
+  const state: UpkeepReadState = failed ? "failed" : loading ? "loading" : "ready";
+  return { events, loading, state };
 }

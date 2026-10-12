@@ -1,4 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { Trainer } from "../../types";
+import { CardFrame } from "../machine-card/CardFrame";
+import { MachineCard } from "../machine-card/MachineCard";
+import type { CardReads } from "../machine-card/useMachineCardReads";
+import { MachineCareProvider } from "../relay/board/machine-care-context";
+import type { MachineCareState } from "../relay/board/machine-care-store";
+import { UnsavedChangesScope, useLeaveScope } from "../unsaved-changes";
+import { useWikiPageGuard } from "../wiki/page-guard";
 import { footprint } from "../studio-map/geometry";
 import { reconcile, type FloorPlanDoc } from "../studio-map/layout";
 import { LazyStudioRoom } from "../studio-map/lazy";
@@ -14,6 +22,7 @@ import "../studio-map/studio-map.css";
 import "./catalog.css";
 
 export interface FloorRoomViewProps {
+  studioId: string;
   studioName: string;
   /** The studio's map (`current`), read and ready. */
   plan: FloorPlanDoc;
@@ -23,8 +32,14 @@ export interface FloorRoomViewProps {
   models: ModelsRead;
   /** Find's narrowing: these machines are drawn faint. The AED and the extinguisher never are. */
   dimIds?: ReadonlySet<string>;
-  /** A tap on a machine: its Catalog page (phase 3). */
+  /** The machine's Catalog page: the card's Learn opens it (phase 4). */
   onOpenMachine: (id: string) => void;
+  /** The Catalog's one care read (its flags), handed to the card: never a second listener. */
+  care: MachineCareState;
+  authTrainer: Trainer | null;
+  trainers?: readonly Trainer[];
+  /** What the Catalog already reads for its pages, handed to the card. */
+  reads?: Partial<CardReads>;
   /** Back to the list (the drawing's file gone after a deploy). */
   onList: () => void;
   /** The floor as a list: shown instead of the map when the map would be too small to tap. */
@@ -37,8 +52,11 @@ const OUT = { className: "smap-m--out", aria: "out of service" } as const;
  * THE CATALOG'S MAP (the studio map, Oct 2026): Learning → Catalog → the
  * floor lens → Map. The same drawing every door shows (the room, its
  * places, the AED and the fire extinguisher above everything, every machine
- * at its true size or a round marker), read only, where a tap on a machine
- * opens its Catalog page. AJ, Oct 10 2026: "the trainers know where all the
+ * at its true size or a round marker), read only. A tap on a machine opens
+ * the one machine card (phase 4, features/machine-card) with Learn open, and
+ * Learn's first action, Open its Catalog page, closes the card and opens the
+ * page (asking first about typing on the page). No Cleaning here: the
+ * Catalog is Learning. AJ, Oct 10 2026: "the trainers know where all the
  * machines are they dont remember them alphabetically".
  *
  * It measures its own width and checks the one tappable rule (every
@@ -48,7 +66,15 @@ const OUT = { className: "smap-m--out", aria: "out of service" } as const;
  * waits rather than drawing a guess. A machine still to buy is never here:
  * the map is `current`, which can't hold one.
  */
-export function FloorRoomView({ studioName, plan, machines, models, dimIds, onOpenMachine, onList, list }: FloorRoomViewProps) {
+export function FloorRoomView({ studioId, studioName, plan, machines, models, dimIds, onOpenMachine, onList, list, care, authTrainer, trainers, reads }: FloorRoomViewProps) {
+  const pageGuard = useWikiPageGuard();
+  const cardScope = useLeaveScope();
+  const [card, setCard] = useState<string | null>(null);
+  const cardName = machines.find((m) => m.id === card)?.name ?? "Machine";
+  const openCard = (id: string) => {
+    if (id === card) return;
+    cardScope.guard(() => setCard(id));
+  };
   const ref = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
@@ -89,6 +115,42 @@ export function FloorRoomView({ studioName, plan, machines, models, dimIds, onOp
   }, [plan.room, shape, width, drawn.machines]);
 
   return (
+    <MachineCareProvider studioId={studioId} read={care}>
+    <CardFrame
+      panel={
+        card
+          ? {
+              kicker: "Machine",
+              title: cardName,
+              tall: true,
+              body: (
+                <UnsavedChangesScope scope={cardScope}>
+                  <MachineCard
+                    key={card}
+                    door="catalog"
+                    mode="machines"
+                    studioId={studioId}
+                    studioName={studioName}
+                    machineId={card}
+                    authTrainer={authTrainer}
+                    trainers={trainers}
+                    reads={reads}
+                    onOpenCatalogPage={(id) =>
+                      pageGuard(() => {
+                        setCard(null);
+                        onOpenMachine(id);
+                      })
+                    }
+                    onClose={() => cardScope.guard(() => setCard(null))}
+                    nameShown={false}
+                  />
+                </UnsavedChangesScope>
+              ),
+            }
+          : null
+      }
+      onClose={() => cardScope.guard(() => setCard(null))}
+    >
     <div ref={ref} className="smap-read">
       {drawn.loading ? (
         <p className="smap-quiet">Loading the map…</p>
@@ -107,11 +169,13 @@ export function FloorRoomView({ studioName, plan, machines, models, dimIds, onOp
             widthPx={width}
             dimIds={dimIds}
             markOf={(id) => (outIds.has(id) ? OUT : null)}
-            onPick={onOpenMachine}
+            onPick={openCard}
             onDone={onList}
           />
         </div>
       )}
     </div>
+    </CardFrame>
+    </MachineCareProvider>
   );
 }

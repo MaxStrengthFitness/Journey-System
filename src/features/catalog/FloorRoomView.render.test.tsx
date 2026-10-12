@@ -18,6 +18,25 @@ import type { ModelsRead } from "./models";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+vi.mock("../../firebase", () => ({ db: {}, auth: { currentUser: null } }));
+// The machine's card (phase 4) reads the studio's roster for its header.
+const rosterAsked = vi.hoisted(() => [] as (string | null)[]);
+vi.mock("../../hooks/useStudioMachines", () => ({
+  useStudioMachines: (studioId: string | null) => {
+    rosterAsked.push(studioId);
+    const ids = ["m-leg-press", "m-neck", "m-lumbar", "m-ext"];
+    return {
+      machines: [],
+      rosterEntries: ids.map((id) => ({ machineId: id, studioId: "solon", source: "catalog", basedOn: id, status: id === "m-lumbar" ? "maintenance" : "active" })),
+      byId: Object.fromEntries(ids.map((id) => [id, { machineId: id, name: id === "m-leg-press" ? "LEG PRESS" : id, comparisonKey: id, primaryMuscles: [] }])),
+      catalog: [],
+      loading: false,
+      failed: false,
+      source: "roster",
+    };
+  },
+}));
+
 const { FloorRoomView } = await import("./FloorRoomView");
 
 const ft = (n: number) => Math.round(n * 304.8);
@@ -68,7 +87,10 @@ function mount(p: { plan?: FloorPlanDoc; machines?: CatalogMachine[]; models?: M
   act(() =>
     root.render(
       <FloorRoomView
+        studioId="solon"
         studioName="Solon"
+        care={{ byMachineId: {}, loading: false, error: null }}
+        authTrainer={null}
         plan={p.plan ?? plan(40)}
         machines={p.machines ?? FLOOR}
         models={p.models ?? READY}
@@ -92,7 +114,7 @@ const drawn = async () => {
 };
 
 describe("the Catalog's map", () => {
-  it("draws the room, its places and the floor's placed machines; a tap opens the machine's page", async () => {
+  it("draws the room, its places and the floor's placed machines; a tap opens the machine's card at Learn, whose door is the page", async () => {
     const { opened } = mount();
     expect(await drawn()).not.toBeNull();
     expect(host.querySelector(".smap-svg")!.getAttribute("aria-label")).toBe("Solon's map");
@@ -111,7 +133,15 @@ describe("the Catalog's map", () => {
     await act(async () => {
       host.querySelector('[data-id="m-leg-press"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
+    // Phase 4: the one card, Learn open; Open its Catalog page closes it and opens the page.
+    expect(opened).not.toHaveBeenCalled();
+    expect(host.querySelector(".cp__title")?.textContent).toContain("LEG PRESS");
+    expect(host.querySelector('.mdc-part[data-part="learn"] .mdc-part__head')?.getAttribute("aria-expanded")).toBe("true");
+    await act(async () => {
+      [...host.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Open its Catalog page")!.click();
+    });
     expect(opened).toHaveBeenCalledWith("m-leg-press");
+    expect(host.querySelector(".cp")).toBeNull();
   });
 
   it("never dims the AED, whatever Find narrowed", async () => {

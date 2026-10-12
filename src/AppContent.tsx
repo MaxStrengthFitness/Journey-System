@@ -287,7 +287,7 @@ import { useClientMutations } from "./hooks/useClientMutations";
 // notes share.
 import { parseLearningRef, type LearningRef } from "./features/learning/ref";
 import { rememberMyStudioSection } from "./features/my-studio/section-memory";
-import { rememberArrange } from "./features/my-studio/machines-view-memory";
+import { rememberArrange, rememberMachinesView } from "./features/my-studio/machines-view-memory";
 import { AppBottomBar } from "./components/AppBottomBar";
 import { StatusBarStrip } from "./features/home-screen/StatusBarStrip";
 import { EnvironmentMark } from "./features/environment-mark/EnvironmentMark";
@@ -483,6 +483,8 @@ export default function AppContent({
     [guardLeave, setCurrentView],
   );
   const clearLearningJump = useCallback(() => setLearningJump(null), []);
+  // The machine card's Learn, from My Studio (the studio map, phase 4): a machine's Catalog page.
+  const openCatalogMachine = useCallback((id: string) => openLearning({ kind: "machine", id }), [openLearning]);
   /*
    * The bottom bar's Learning button reopens whichever section was open last:
    * the front page ("learning") the first time, the Catalog or the Academy
@@ -1794,6 +1796,7 @@ export default function AppContent({
                     onOpenFloorEditor={(view) => {
                       rememberMyStudioSection("machines");
                       if (view === "arrange") rememberArrange();
+                      else if (view) rememberMachinesView(view);
                       setCurrentView("studio-tasks");
                     }}
                   />
@@ -1847,6 +1850,7 @@ export default function AppContent({
                           setSelectedProfileTrainerId(id);
                           setView("trainer-profile");
                         }}
+                        onOpenCatalogMachine={openCatalogMachine}
                       />
                     );
                   })()}

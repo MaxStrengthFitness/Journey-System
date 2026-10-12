@@ -44,7 +44,14 @@ import { studioDateKey } from "../../../lib/studio-time";
 import { writesForStudioPerRules } from "../../learning/permissions";
 import { outOfServiceOfEntry, outOfServiceShort } from "../../catalog/out-of-service";
 import { leadsHere } from "../../relay/leads";
-import { LazyLayoutView } from "../../studio-map/lazy";
+import { LazyFloorMapView, LazyLayoutView } from "../../studio-map/lazy";
+import { useFloorPlan } from "../../studio-map/hooks";
+import { reconcile } from "../../studio-map/layout";
+import { CardFrame } from "../../machine-card/CardFrame";
+import { MachineCard } from "../../machine-card/MachineCard";
+import type { MapMode } from "../../machine-card/parts";
+import { MachineCareProvider } from "../../relay/board/machine-care-context";
+import "../admin.css";
 import { usePhone } from "../../phone/device";
 import { DEMO_STUDIO_ID } from "../../demo-mode/constants";
 import { UnsavedChangesScope, useLeaveScope } from "../../unsaved-changes";
@@ -87,7 +94,8 @@ export function StudioEquipmentPanel({
   const [editing, setEditing] = useState<string | null>(null);
   const [upkeepFor, setUpkeepFor] = useState<string | null>(null);
   const [showInventory, setShowInventory] = useState(false);
-  const { events: upkeepEvents } = useStudioUpkeep(studioId);
+  const upkeepRead = useStudioUpkeep(studioId);
+  const upkeepEvents = upkeepRead.events;
   // Arrange the floor (the studio map, Oct 2026): the same editor My Studio →
   // Machines opens, in place of this list. Administrators lead every studio.
   // Leaving it while it holds unsaved work asks (its own leave scope).
@@ -96,6 +104,36 @@ export function StudioEquipmentPanel({
   const viewScope = useLeaveScope();
   const canArrange = leadsHere(authTrainer ?? null, studioId);
   const todayKey = studioDateKey(new Date()) ?? "";
+  /*
+   * THE MAP (the studio map, phase 4): the same map and the same card as My
+   * Studio → Machines, the card's door "admins" (Set up first). Map first
+   * once the studio has a map with a machine on it; the list one tap away;
+   * a phone keeps the list. Always opens in Look up (only Relay remembers
+   * Cleaning).
+   */
+  const layout = useFloorPlan(studioId, { enabled: !phone && Boolean(studioId) });
+  const placed = useMemo(
+    () =>
+      layout.state === "ready" && layout.plan
+        ? reconcile(
+            layout.plan,
+            rosterEntries.filter((e) => e.status !== "inactive").map((e) => ({ machineId: e.machineId, name: "", code: "", status: e.status })),
+          ).placed.length
+        : 0,
+    [layout.state, layout.plan, rosterEntries],
+  );
+  const [picked, setPicked] = useState<"map" | "list" | null>(null);
+  const shownView: "map" | "list" = phone ? "list" : (picked ?? (placed > 0 ? "map" : "list"));
+  const pickView = (next: "map" | "list") => {
+    if (next !== shownView) viewScope.guard(() => setPicked(next));
+  };
+  const hasMap = layout.state === "ready";
+  const cardScope = useLeaveScope();
+  const [card, setCard] = useState<{ machineId: string; mode: MapMode } | null>(null);
+  const openCard = (machineId: string, mode: MapMode) => {
+    if (card?.machineId === machineId && card.mode === mode) return;
+    cardScope.guard(() => setCard({ machineId, mode }));
+  };
 
   const catalogById = useMemo(
     () => Object.fromEntries(catalog.map((c) => [c.id, c])),
@@ -187,8 +225,10 @@ export function StudioEquipmentPanel({
   };
 
   const editingRow = rows.find((r) => r.entry.machineId === editing) ?? null;
+  const cardName = card ? (rows.find((r) => r.entry.machineId === card.machineId)?.name ?? card.machineId) : "";
 
   return (
+    <MachineCareProvider studioId={studioId || null}>
     <AdminPanel
       title="Equipment"
       icon={<Dumbbell className="w-3.5 h-3.5" />}
@@ -198,10 +238,19 @@ export function StudioEquipmentPanel({
           <AdminBadge tone="neutral">
             {loading ? "…" : `${rows.length} on the floor`}
           </AdminBadge>
+          {!phone && !arranging && rows.length > 0 && (
+            <div className="adm-segmented" role="tablist" aria-label="The floor as">
+              {(["map", "list"] as const).map((v) => (
+                <button key={v} type="button" role="tab" className="adm-seg" aria-selected={shownView === v} onClick={() => pickView(v)}>
+                  {v === "map" ? "Map" : "List"}
+                </button>
+              ))}
+            </div>
+          )}
           {canArrange && !phone && !arranging && rows.length > 0 && (
-            <AdminButton onClick={() => setArranging(true)}>
+            <AdminButton onClick={() => viewScope.guard(() => setArranging(true))}>
               <MapIcon className="w-3.5 h-3.5" />
-              Arrange the floor
+              {hasMap ? "Arrange the floor" : "Draw the floor"}
             </AdminButton>
           )}
         </span>
@@ -220,6 +269,47 @@ export function StudioEquipmentPanel({
             onDone={() => viewScope.guard(() => setArranging(false))}
           />
         </UnsavedChangesScope>
+      ) : shownView === "map" && rows.length > 0 ? (
+        <CardFrame
+          panel={
+            card
+              ? {
+                  kicker: "Machine",
+                  title: cardName,
+                  tall: true,
+                  body: (
+                    <UnsavedChangesScope scope={cardScope}>
+                      <MachineCard
+                        key={`${card.machineId}:${card.mode}`}
+                        door="admins"
+                        mode={card.mode}
+                        studioId={studioId}
+                        studioName={studio.name}
+                        machineId={card.machineId}
+                        authTrainer={authTrainer ?? null}
+                        trainers={trainers}
+                        reads={{ upkeep: { events: upkeepEvents, state: upkeepRead.state } }}
+                        onClose={() => cardScope.guard(() => setCard(null))}
+                        nameShown={false}
+                      />
+                    </UnsavedChangesScope>
+                  ),
+                }
+              : null
+          }
+          onClose={() => cardScope.guard(() => setCard(null))}
+        >
+          <UnsavedChangesScope scope={viewScope}>
+            <LazyFloorMapView
+              door="admins"
+              studioId={studioId}
+              studioName={studio.name}
+              authTrainer={authTrainer ?? null}
+              onOpenCard={openCard}
+              onDone={() => pickView("list")}
+            />
+          </UnsavedChangesScope>
+        </CardFrame>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
@@ -359,5 +449,6 @@ export function StudioEquipmentPanel({
         />
       )}
     </AdminPanel>
+    </MachineCareProvider>
   );
 }

@@ -451,38 +451,50 @@
 .fm__deep-fill { display: block; height: 100%; background: var(--st-live); transition: width 500ms ease-out; }
 .fm__tile--deep .fm__deep-fill { background: var(--st-flag); }
 
-.fm__sheet { display: flex; flex-direction: column; gap: 0.75rem; }
-.fm__heat { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; font-weight: 800; }
-.fm__heat--2, .fm__heat--3 { color: var(--st-hero-text); }
-.fm__line { margin: 0; font-size: 14px; color: var(--st-ink-2); }
-.fm__line--due { color: var(--st-flag); font-weight: 700; }
 /* The studio's own cleaning log (Sep 28 2026): a machine used past the studio's wipe-after number, and the weekly maintenance day. */
 .fm__tile--wipe { border-color: var(--st-hero); }
 .fm__weekly { margin: 0 0 0.75rem; padding: 0.625rem 0.875rem; border: 1px solid var(--st-border); border-radius: var(--st-radius); background: var(--st-surface-2); font-size: 14px; font-weight: 700; color: var(--st-ink); }
-.fm__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.fm__actions .pl__btn { min-height: 48px; }
-.fm__flagbox {
-  display: flex;
-  gap: 0.625rem;
-  align-items: flex-start;
-  padding: 0.75rem;
-  border: 1px solid var(--st-flag-border);
+/* The floor's two switches (the studio map, phase 4, Oct 2026): Map | Tiles,
+   and Look up | Cleaning. The picked segment is blue (selection). In
+   Cleaning a tile is the team's checklist: a tick for Wiped today, a quiet
+   plum dot for Used since its wipe (never orange: orange is only now and
+   go); the care sheet these rules replaced is the machine's card now. */
+.fm__modes { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.fm__views {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 0.5rem;
+  padding: 3px;
+  border: 1px solid var(--st-border-strong);
   border-radius: 12px;
-  background: var(--st-flag-fill);
-  color: var(--st-flag);
+  background: var(--st-tray);
+}
+.fm__modes .fm__views { margin-bottom: 0; }
+.fm__view {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--st-ink-2);
   font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
 }
-.fm__flagbox > div { flex: 1; min-width: 0; }
-.fm__flagbox p { margin: 2px 0 0; color: var(--st-ink-2); white-space: pre-wrap; }
-.fm__flagform { display: flex; flex-direction: column; gap: 0.5rem; }
-/* "Flag the machine" borrows the danger button's shape, but a flag is
-   caution, not a deletion: the plum, not the crimson. */
-.fm__flagform .pl__btn--danger {
-  background: var(--st-flag-fill);
-  border-color: var(--st-flag-border);
-  color: var(--st-flag);
+.fm__view[aria-pressed="true"] { background: var(--st-live); color: var(--st-live-on); }
+.fm__view:focus-visible { outline: 2px solid var(--st-live); outline-offset: 2px; }
+.fm__tile--wiped { border-color: var(--st-done); background: var(--st-done-fill); }
+.fm__tick { color: var(--st-done); }
+.fm__state { font-size: 12px; font-weight: 700; color: var(--st-ink-2); }
+.fm__state--used::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 999px;
+  background: var(--st-flag);
 }
-.fm__rows { display: flex; flex-direction: column; gap: 0.375rem; }
 
 /* ------------------------------------------------------------------ *
  * Open loops (OpenLoops.tsx) and the vault (VaultPanel.tsx). Who's in

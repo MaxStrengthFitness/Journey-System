@@ -74,6 +74,8 @@ const FILES = [
   // The studio map (Oct 2026): a machine's size on its door, in
   // equipment.tokens.css's --eq-* colours like floor-notes.css.
   "features/studio-map/studio-map.css",
+  // The one machine card (the studio map, phase 4): its own sheet, the same tokens.
+  "features/machine-card/machine-card.css",
 ] as const;
 
 /**
@@ -206,6 +208,12 @@ const NAME_CLASSES = [
   "smap-list__name",
   // Phase 3: a remodel plan's tab.
   "smap-tabs__name",
+  // Phase 4: the map's floor list, the card's name, and what a folded part says.
+  "smap-clean__name",
+  "mdc-head__name",
+  "mdc-head__line",
+  "mdc-part__sum",
+  "mdc-flag",
 ] as const;
 
 describe("names in My Studio", () => {
@@ -327,6 +335,15 @@ const TAP_CLASSES = [
   "smap-list__row",
   // Phase 3: The map and its remodel plans.
   "smap-tabs__btn",
+  // Phase 4: Look up | Cleaning, Mark all, a tick, a row's name; Map | Tiles and
+  // the tiles' switch on Relay; the card's part heads and its header's flags.
+  "smap-mode__btn",
+  "smap-btn",
+  "smap-tick",
+  "smap-clean__name",
+  "fm__view",
+  "mdc-part__head",
+  "mdc-flag",
 ] as const;
 
 const px = (v: string) => (/^\d+(?:\.\d+)?px$/.test(v.trim()) ? parseFloat(v) : null);

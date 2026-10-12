@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { Client, Machine, ScheduleEntry, Trainer, WorkoutSession } from "../../../types";
-import type { ClientTaskAction } from "../../studio-tasks/types";
+import type { ClientTaskAction, TaskRow } from "../../studio-tasks/types";
 import type { NowContext } from "./now-context";
 import type { CapturePreset } from "./capture";
 import type { AskPreset } from "./ask";
@@ -19,6 +19,19 @@ import type { AskPreset } from "./ask";
  * six levels to get there.
  */
 export interface PanelContent {
+  /**
+   * What the panel is showing (the studio map, phase 4): a machine's card is
+   * `card:{machineId}`, a Board card's work `board:{cardId}`. Opening the
+   * same id again is a refresh and never asks; a different one asks the
+   * current panel's `guard` first.
+   */
+  id?: string;
+  /**
+   * The panel's own leave question (the studio map, phase 4): its X,
+   * Escape, and another panel opening over it go through this, so typing
+   * inside it (the card's problem report, its notes) is asked about first.
+   */
+  guard?: (proceed: () => void) => void;
   kicker?: string;
   title: string;
   body: ReactNode;
@@ -73,6 +86,16 @@ export interface RelayContextValue {
    * both in its own body.
    */
   slots?: { news: HTMLElement | null; subhead: HTMLElement | null };
+  /**
+   * Today's task rows, published by the Board's host while it is mounted
+   * (the studio map, phase 4), so a machine's card opened in the panel
+   * completes today's wipe-chore row from the same live rows without a
+   * second read. Null when no Board is mounted; absent outside the shell.
+   */
+  dayRows?: readonly TaskRow[] | null;
+  /** A machine's Catalog page in Learning (the card's Learn, the studio map, phase 4); absent outside the shell. */
+  openCatalogMachine?: (machineId: string) => void;
+  publishDayRows?: (rows: readonly TaskRow[] | null) => void;
 }
 
 const RelayCtx = createContext<RelayContextValue | null>(null);

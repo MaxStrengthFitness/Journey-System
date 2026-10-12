@@ -13,7 +13,8 @@ import type { TaskRow } from "../../studio-tasks/types";
 import type { PlaybookEntry } from "../../studio-tasks/playbook";
 import type { TeamJob } from "../jobs/types";
 import { useRelay } from "./RelayContext";
-import { useMachineCare } from "./machine-care-store";
+// The floor's one live care read (the studio map, phase 4): the shell's, never a second listener.
+import { useCareRead } from "./machine-care-context";
 import { tapNotice, tappedKeys, useLastSeen } from "./last-seen";
 import {
   ackWords,
@@ -79,7 +80,7 @@ export function SinceYouWereIn({ rows, jobs, resolved, playbook, pill = false }:
     }
   };
   const { machines: floor, rosterEntries } = useStudioMachines(relay.studioId);
-  const care = useMachineCare(relay.studioId);
+  const care = useCareRead(relay.studioId);
   const last = useLastSeen(relay.studioId, relay.uid);
   const [tick, setTick] = useState(0);
   const now = relay.now;

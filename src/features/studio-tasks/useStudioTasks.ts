@@ -37,6 +37,11 @@ export interface UseStudioTasksResult {
   counts: { total: number; done: number; flagged: number };
   /** Machines the day plan expanded over. 0 means machine tasks make no rows. */
   machineCount: number;
+  /**
+   * The machines of that floor out of service (the studio map, phase 4):
+   * the wipe chore leaves them out of its count, as the map's checklist does.
+   */
+  outOfServiceIds: ReadonlySet<string>;
 }
 
 export interface UseStudioTasksOptions {
@@ -239,6 +244,10 @@ export function useStudioTasks(
     () => machines.map((m) => m.machineId),
     [machines],
   );
+  const outOfServiceIds = useMemo(
+    () => new Set(machines.filter((m) => m.rosterStatus === "maintenance").map((m) => m.machineId)),
+    [machines],
+  );
   const machineNames = useMemo(() => {
     const map: Record<string, string> = {};
     for (const m of machines) map[m.machineId] = m.name;
@@ -288,5 +297,6 @@ export function useStudioTasks(
       : null,
     counts,
     machineCount: machineIds.length,
+    outOfServiceIds,
   };
 }

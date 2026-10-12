@@ -226,3 +226,24 @@ describe("the studio map's layout", () => {
   });
 });
 
+
+/*
+ * THE CLEANING CHECKLIST ADDS NO RULE (the studio map, phase 4, Oct 2026).
+ * Mark all and Wiped write only `machineCare`'s existing fields under the
+ * rule that already took the care sheet's wipes (rules tests C1 to C5, B7).
+ * `machineCareValid` accepts any id, time and named wiper (an insider-only
+ * risk, accepted and said in the round document); tightening it is AJ's OK,
+ * not this round's. This pins it, `careActorValid` and the match block,
+ * byte for byte as they are on master (sha256 of the three as written).
+ */
+describe("the machine care rule the cleaning checklist writes under", () => {
+  it("is unchanged from master", async () => {
+    const { createHash } = await import("node:crypto");
+    const s = SOURCE.replace(/\r\n/g, "\n");
+    const fn = /    function careActorValid\(a\) \{[\s\S]*?\n    \}\n    function machineCareValid\(d, machineId\) \{[\s\S]*?\n    \}\n/.exec(s);
+    const match = /      match \/machineCare\/\{machineId\} \{[\s\S]*?\n      \}\n/.exec(s);
+    expect(fn, "careActorValid then machineCareValid").toBeTruthy();
+    expect(match, "match /machineCare/{machineId}").toBeTruthy();
+    expect(createHash("sha256").update(fn![0] + match![0]).digest("hex")).toBe("0b59c28a1201bf880b342200a52bf42229df7b606ca8cb2800a7d7df9f9977c7");
+  });
+});

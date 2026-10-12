@@ -4,7 +4,7 @@ import { useActiveStudio } from "../../contexts/ActiveStudioContext";
 import { auth } from "../../firebase";
 import { formatStudioDate, studioDateKey } from "../../lib/studio-time";
 import type { Client, Machine, ScheduleEntry, Trainer, WorkoutSession } from "../../types";
-import type { ClientTaskAction } from "../studio-tasks/types";
+import type { ClientTaskAction, TaskRow } from "../studio-tasks/types";
 import { reminderPreset } from "../studio-tasks/task-wizard";
 import { PLANNER_TABS, PlannerView, initialPlannerTab, rememberPlannerTab, type PlannerTab } from "../relay/PlannerView";
 import { TeamSection } from "./TeamSection";
@@ -20,6 +20,7 @@ import { ContextPanel } from "../relay/board/ContextPanel";
 import { CaptureSheet } from "../relay/board/CaptureSheet";
 import type { CapturePreset } from "../relay/board/capture";
 import { AskSheet } from "../relay/board/AskSheet";
+import { MachineCareProvider } from "../relay/board/machine-care-context";
 import type { AskPreset } from "../relay/board/ask";
 import { StudioHeader, type HeaderMenuItem, type HeaderSection } from "./StudioHeader";
 import "../studio-tasks/studio-tasks.css";
@@ -125,6 +126,8 @@ export interface MyStudioViewProps {
   onOpenClientTask?: (clientId: string, action?: ClientTaskAction) => void;
   /** Opens a team member's profile, read-only as visibility.ts allows (the Atlas answers, Oct 2 2026). */
   onOpenTrainer?: (trainerId: string) => void;
+  /** A machine's Catalog page in Learning: the machine card's Learn (the studio map, phase 4). */
+  onOpenCatalogMachine?: (machineId: string) => void;
 }
 
 const NONE: never[] = [];
@@ -139,6 +142,7 @@ export function MyStudioView({
   machines,
   onOpenClientTask,
   onOpenTrainer,
+  onOpenCatalogMachine,
 }: MyStudioViewProps) {
   const { activeStudio, activeStudioId } = useActiveStudio();
   const canLead = leadsHere(authTrainer, activeStudioId);
@@ -247,8 +251,28 @@ export function MyStudioView({
   // Ask the team (phase 7): its own sheet; + stays for your own to-dos.
   const [ask, setAsk] = useState<{ preset: AskPreset } | null>(null);
   const openAsk = useCallback((preset: AskPreset = {}) => setAsk({ preset }), []);
-  const openPanel = useCallback((content: PanelContent) => setPanel(content), []);
-  const closePanel = useCallback(() => setPanel(null), []);
+  /*
+   * The panel's own leave question (the studio map, phase 4): a machine's
+   * card holds typing (a problem report, a floor note), so its X, Escape and
+   * another panel opening over it ask its `guard` first. Opening the same
+   * id again is a refresh (the Board following its live cards) and never
+   * asks.
+   */
+  const panelRef = useRef<PanelContent | null>(null);
+  panelRef.current = panel;
+  const openPanel = useCallback((content: PanelContent) => {
+    const cur = panelRef.current;
+    if (cur?.guard && !(content.id && content.id === cur.id)) cur.guard(() => setPanel(content));
+    else setPanel(content);
+  }, []);
+  const closePanel = useCallback(() => {
+    const cur = panelRef.current;
+    if (cur?.guard) cur.guard(() => setPanel(null));
+    else setPanel(null);
+  }, []);
+  /* Today's task rows, published by the Board's host while it is mounted: a card in the panel reads them live. */
+  const [dayRows, setDayRows] = useState<readonly TaskRow[] | null>(null);
+  const publishDayRows = useCallback((rows: readonly TaskRow[] | null) => setDayRows(rows), []);
 
   // A card's door to one of Relay's tabs (the Board's Mine door ends with the
   // way to Mine), through the same guarded move as the header's.
@@ -280,6 +304,9 @@ export function MyStudioView({
       openRelayTab,
       openAsk,
       slots,
+      dayRows,
+      publishDayRows,
+      openCatalogMachine: onOpenCatalogMachine,
     }),
     [
       activeStudioId,
@@ -301,6 +328,9 @@ export function MyStudioView({
       openRelayTab,
       openAsk,
       slots,
+      dayRows,
+      publishDayRows,
+      onOpenCatalogMachine,
     ],
   );
 
@@ -346,6 +376,8 @@ export function MyStudioView({
 
   return (
     <RelayProvider value={relay}>
+      {/* The floor's one live care read (relay/board/machine-care-context.tsx), around the sections AND the panel. */}
+      <MachineCareProvider studioId={activeStudioId ?? null}>
       <div className="pl ms" data-section={shown}>
         <StudioHeader
           sections={sections}
@@ -405,6 +437,7 @@ export function MyStudioView({
         />
         <AskSheet open={ask !== null} preset={ask?.preset ?? null} onOpenChange={(o) => !o && setAsk(null)} />
       </div>
+      </MachineCareProvider>
     </RelayProvider>
   );
 }
