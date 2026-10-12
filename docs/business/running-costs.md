@@ -1,5 +1,7 @@
 # What Journey will cost to run: a model built from the code
 
+**Oct 12 2026, the Mindbody savings round** (`docs/rounds/2026-10-12-mindbody-savings.md`): the proxy shares one whole read of a site for two minutes, and the studios on a site pull at the same slot, so a shared site costs about one background read per slot instead of one per studio, and Refresh presses close together cost one call. Each 30-minute check now counts what it found that the webhook had not. The figures below are from before it; read the next Activity by Studio report against them.
+
 ## Corrected Oct 5 2026: the Enterprise edition's prices (the speed round, R31)
 
 **Read this section first; it supersedes the Sep 25 model's prices and totals below.** That model priced Firestore as the Standard edition, multi-region ($0.06 per 100k reads), which is about 12 times too high for an indexed read on this database, and it had no line for collection scans, real-time updates, internet egress or point-in-time recovery. Production Firestore is the **Enterprise edition in us-west1** (one region), and it bills differently. The figures here are from the speed round's blueprint (https://claude.ai/artifact/3BVGAvBj8ooWwMNhQ2tEtt, §7), with prices fetched on Oct 5 2026. "Est." means an estimate. Read off invoices on the night of Oct 5 2026 (AJ's dashboards): Mindbody's ($13.56 for 6,779 calls), Render's (September $50.00, August $18.75), and Render's billing page (October projected $50 before the crons).
