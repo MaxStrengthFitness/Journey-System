@@ -24,6 +24,11 @@
  * (sessions-range.ts) when the night has nothing usable. "All my studios"
  * reads one small document per studio for its line, and a studio's own
  * month only when that studio is opened. Nothing written.
+ *
+ * Not finished yet (the sessions round, Oct 12 2026): on one studio, its
+ * In-Progress sessions from one bounded server read (open-sessions.ts),
+ * Running now and Left open, each with Open (AJ: "Anyone can clear a
+ * session"). Not drawn under "All my studios".
  */
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
@@ -57,12 +62,28 @@ import {
   type HoursTally,
   type MonthKey,
 } from "./hours";
+import {
+  OPEN_SESSIONS_FAILED,
+  OPEN_SESSIONS_NONE,
+  groupOpenSessions,
+  notFinishedLine,
+  useStudioOpenSessions,
+  type OpenSessionRow,
+} from "./open-sessions";
+import { QUIET_WORDS } from "../../../lib/session-quiet";
+import type { LiveSessionReturn } from "../../../lib/live-session";
 
-interface Props {
+/** Where Open goes: a client's session, or an open session (no client yet). */
+interface OpenDoors {
+  onOpenSession?: (clientId: string, sessionId?: string, returnTo?: LiveSessionReturn) => void;
+  onOpenOpenSession?: (sessionId: string, returnTo: LiveSessionReturn) => void;
+}
+
+interface Props extends OpenDoors {
   trainers: Trainer[];
 }
 
-export function AdminHoursTab({ trainers }: Props) {
+export function AdminHoursTab({ trainers, onOpenSession, onOpenOpenSession }: Props) {
   const { studios: inScope } = useOperationsScope();
   const [month, setMonth] = useState<MonthKey>(() => monthKeyOfToday());
   const thisMonth = monthKeyOfToday();
@@ -103,7 +124,14 @@ export function AdminHoursTab({ trainers }: Props) {
       ) : inScope.length > 1 ? (
         <CompanyHours studios={inScope} month={month} names={names} />
       ) : inScope[0] ? (
-        <StudioHours studio={inScope[0]} month={month} names={names} showName={false} />
+        <StudioHours
+          studio={inScope[0]}
+          month={month}
+          names={names}
+          showName={false}
+          trainers={trainers}
+          doors={{ onOpenSession, onOpenOpenSession }}
+        />
       ) : null}
 
     </AdminScreen>
@@ -119,11 +147,15 @@ function StudioHours({
   month,
   names,
   showName,
+  trainers,
+  doors,
 }: {
   studio: Studio;
   month: MonthKey;
   names: Record<string, string>;
   showName: boolean;
+  trainers: Trainer[];
+  doors: OpenDoors;
 }) {
   const read = useStudioHours(studio, month, names);
   const tally = read.tally;
@@ -138,7 +170,81 @@ function StudioHours({
         failed={read.failed}
         truncated={read.truncated}
       />
+      <NotFinishedYet studio={studio} trainers={trainers} doors={doors} />
     </>
+  );
+}
+
+/**
+ * Not finished yet (the sessions round, Oct 12 2026): the studio's
+ * In-Progress sessions, Running now and Left open, each with Open. A read
+ * that didn't answer from the server is "couldn't check", never "none".
+ */
+function NotFinishedYet({ studio, trainers, doors }: { studio: Studio; trainers: Trainer[]; doors: OpenDoors }) {
+  const { read, again } = useStudioOpenSessions(studio.id ?? null);
+  const groups = useMemo(() => {
+    if (read.state !== "ok") return null;
+    const nameOf = (id: string) => trainers.find((t) => t.id === id || t.authUid === id)?.fullName ?? null;
+    return groupOpenSessions(read.sessions, Date.now(), { trainerNameOf: nameOf, tz: studio.timezone || undefined });
+  }, [read, trainers, studio.timezone]);
+  const openOf = (r: OpenSessionRow): (() => void) | null => {
+    if (r.kind === "open") return doors.onOpenOpenSession ? () => doors.onOpenOpenSession!(r.id, "operations-hours") : null;
+    return r.clientId && doors.onOpenSession ? () => doors.onOpenSession!(r.clientId as string, r.id, "operations-hours") : null;
+  };
+  const rowsOf = (rows: OpenSessionRow[]) => (
+    <AdminRows>
+      {rows.map((r) => {
+        const open = openOf(r);
+        const meta = [r.trainer, r.started, r.quiet ? QUIET_WORDS[r.quiet] : null].filter(Boolean).join(" · ");
+        return (
+          <AdminRow
+            key={r.id}
+            name={r.name}
+            meta={meta}
+            trailing={
+              open ? (
+                <AdminButton size="sm" onClick={open} aria-label={`Open ${r.name}`}>
+                  Open
+                </AdminButton>
+              ) : undefined
+            }
+          />
+        );
+      })}
+    </AdminRows>
+  );
+  return (
+    <AdminPanel title="Not finished yet" flush>
+      {read.state === "loading" ? (
+        <AdminEmpty title="Checking for unfinished sessions…" />
+      ) : read.state === "failed" || !groups ? (
+        <AdminEmpty
+          title={OPEN_SESSIONS_FAILED}
+          action={
+            <AdminButton size="sm" onClick={again}>
+              Try again
+            </AdminButton>
+          }
+        />
+      ) : groups.running.length === 0 && groups.leftOpen.length === 0 ? (
+        <AdminEmpty title={OPEN_SESSIONS_NONE} />
+      ) : (
+        <>
+          {groups.running.length > 0 && (
+            <>
+              <p className="adm-hrs-group">Running now</p>
+              {rowsOf(groups.running)}
+            </>
+          )}
+          {groups.leftOpen.length > 0 && (
+            <>
+              <p className="adm-hrs-group">Left open</p>
+              {rowsOf(groups.leftOpen)}
+            </>
+          )}
+        </>
+      )}
+    </AdminPanel>
   );
 }
 
@@ -209,7 +315,7 @@ function HoursTable({
           <AdminNotice tone="info">
             {tally.unattributed > 0 &&
               `${tally.unattributed} completed session${tally.unattributed === 1 ? " has" : "s have"} no trainer on the record and ${tally.unattributed === 1 ? "is" : "are"} not in any row. `}
-            {tally.open > 0 && `${tally.open} session${tally.open === 1 ? " is" : "s are"} still open and not counted yet.`}
+            {tally.open > 0 && notFinishedLine(tally.open)}
           </AdminNotice>
         </div>
       )}

@@ -29,3 +29,7 @@ Monday to Sunday (`weekStartOf`). A leader reads this on Monday morning about th
 - `hours.ts` — pure: months, weeks, the tally, `formatHours`. `hours.test.ts` beside it.
 - `AdminHoursTab.tsx` — the screen. `hours.render.test.tsx` mounts it for one studio, every studio and a month flip.
 - `../sessions-range.ts` — the read. It takes an optional `fromServer` since the Openings round (Sep 27 2026): My Profile's Your week passes it, so an answer only the iPad's cache gave is "can't read"; Hours, Insights and Today (the Overview until Sep 28 2026) don't, and read as before. `../scope.ts` — the scope.
+
+## Not finished yet (the sessions round, Oct 12 2026)
+
+On one studio (never under "All my studios"), Hours lists the studio's In-Progress sessions from one bounded server read (`open-sessions.ts`, `useStudioOpenSessions`: `hostedAtStudioId`, `status == "In-Progress"`, newest fifty, its own index), in two groups: **Running now** (alive by `isSessionValid`) and **Left open**, each row "client or Open session · trainer · started … · Paused / At End Session / Left open" (`lib/session-quiet.ts`) with **Open** (AJ: "Anyone can clear a session"; the Active Session asks there, and Not now comes back to Hours). A read the server didn't answer in 5 seconds, or one only this iPad's cache answered, is "Couldn't check for unfinished sessions. Try again.", never "none". The month line says "N sessions aren't finished, so their hours aren't counted yet."

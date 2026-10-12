@@ -65,6 +65,8 @@ const failures = vi.hoisted(() => ({
   weekCacheOnly: false,
   quiet: false,
   leftOpen: false,
+  /** An open session left open, and a client's session paused today (the sessions round, Oct 12 2026). */
+  notFinished: false,
   serverLater: [] as Array<() => void>,
   marks: [] as Array<Record<string, unknown>>,
   /** The leaders' inactive marks (studios/solon/inactiveMarks): their rows, a refused read, or an answer held until a test says so. */
@@ -126,6 +128,12 @@ vi.mock("firebase/firestore", () => {
         // A session left open since yesterday (Oct 2 2026), only when a test asks.
         ...(failures.leftOpen
           ? [{ id: "open1", trainerId: "t1", trainerInitials: "AJ", status: "In-Progress", date: dayKey(1), hostedAtStudioId: "solon", clientId: "c3", clientName: "Cy Cole", createdAt: daysAgo(1), sessionMachineIds: ["m1", "m2"] }]
+          : []),
+        ...(failures.notFinished
+          ? [
+              { id: "s-open", trainerId: "t1", trainerInitials: "AJ", status: "In-Progress", date: dayKey(1), hostedAtStudioId: "solon", isUnassigned: true, createdAt: daysAgo(1), sessionMachineIds: ["m1"] },
+              { id: "s-paused", trainerId: "t1", trainerInitials: "AJ", status: "In-Progress", date: dayKey(0), hostedAtStudioId: "solon", clientId: "c5", clientName: "Eve Eames", createdAt: new Date(NOW.getTime() - 3 * 3_600_000), lastHeartbeatAt: new Date(NOW.getTime() - 2 * 3_600_000), pausedAt: new Date(NOW.getTime() - 2 * 3_600_000) },
+            ]
           : []),
       ]);
     if (path === "schedules")
@@ -292,6 +300,7 @@ afterEach(() => {
   failures.weekCacheOnly = false;
   failures.quiet = false;
   failures.leftOpen = false;
+  failures.notFinished = false;
   failures.serverLater.length = 0;
   failures.marks = [];
   failures.inactive = [];
@@ -304,7 +313,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function mount(onOpen: (t: string) => void = () => {}, extra: { studio?: Studio; onOpenMyStudio?: () => void; clients?: Client[]; onNeedsCount?: (n: number | null) => void; onOpenSession?: (id: string) => void } = {}) {
+async function mount(onOpen: (t: string) => void = () => {}, extra: { studio?: Studio; onOpenMyStudio?: () => void; clients?: Client[]; onNeedsCount?: (n: number | null) => void; onOpenSession?: (id: string, sessionId?: string, returnTo?: string) => void; onOpenOpenSession?: (id: string, returnTo: string) => void } = {}) {
   vi.useFakeTimers({ shouldAdvanceTime: true, now: NOW });
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -324,6 +333,7 @@ async function mount(onOpen: (t: string) => void = () => {}, extra: { studio?: S
           onOpenMyStudio={extra.onOpenMyStudio}
           onNeedsCount={extra.onNeedsCount}
           onOpenSession={extra.onOpenSession}
+          onOpenOpenSession={extra.onOpenOpenSession}
         />
       </StrictMode>,
     );
@@ -432,14 +442,54 @@ describe("Today, the brief", () => {
 
   it("Needs you lists a session left open, by the Hub's rule, with a door to finish it (the Atlas answers, Oct 2 2026)", async () => {
     failures.leftOpen = true;
-    const opened: string[] = [];
-    const el = await mount(() => {}, { onOpenSession: (id) => opened.push(id) });
+    const opened: unknown[][] = [];
+    const el = await mount(() => {}, { onOpenSession: (...a) => opened.push(a) });
     const needs = section(el, "needs");
     expect(needs.textContent).toContain("Cy Cole");
-    expect(needs.textContent).toContain("A session was left open \u2014 Started by AJ");
-    expect(needs.textContent).toContain("2 machines logged");
-    await click(buttonByText(needs, "Open the session"));
-    expect(opened).toEqual(["c3"]);
+    expect(needs.textContent).toContain("Left open \u00b7 last active Yesterday");
+    expect(needs.textContent).toContain("2 machines logged \u00b7 started by AJ");
+    expect(el.querySelector("[data-testid='not-finished']")?.textContent).toBe("Not finished (1)");
+    await click(buttonByText(needs, "Open"));
+    // The session and the door ride along, so Not now comes back here (Oct 12 2026).
+    expect(opened).toEqual([["c3", "open1", "operations-today"]]);
+  });
+
+  it("names an open session by its trainer, counts only what was left open, and every row's door is Open (the sessions round, Oct 12 2026)", async () => {
+    failures.notFinished = true;
+    const counts: Array<number | null> = [];
+    const openedOpen: unknown[][] = [];
+    const opened: unknown[][] = [];
+    const el = await mount(() => {}, {
+      onNeedsCount: (n) => counts.push(n),
+      onOpenSession: (...a) => opened.push(a),
+      onOpenOpenSession: (...a) => openedOpen.push(a),
+    });
+    const needs = section(el, "needs");
+    const text = needs.textContent ?? "";
+    expect(text).toContain("Open session \u00b7 AJ");
+    expect(text).not.toContain("A client");
+    // Eve's session was paused this morning: said, and not counted.
+    expect(text).toContain("Eve Eames");
+    expect(text).toContain("Paused at");
+    expect(el.querySelector("[data-testid='not-finished']")?.textContent).toBe("Not finished (2)");
+    // The three things that clear here, as in the first test, and the one left open: four.
+    expect(counts.at(-1)).toBe(4);
+    const rows = [...needs.querySelectorAll<HTMLElement>("li.adm-ov__row")].filter((li) => /Open session|Eve Eames/.test(li.textContent ?? ""));
+    expect(rows.length).toBe(2);
+    // The open session's row doesn't name AJ twice; Eve's says who started it.
+    const openRow = rows.find((li) => li.textContent?.includes("Open session"))!;
+    expect(openRow.textContent).not.toContain("started by");
+    expect(rows.find((li) => li.textContent?.includes("Eve Eames"))!.textContent).toContain("started by AJ");
+    for (const li of rows) {
+      const buttons = [...li.querySelectorAll<HTMLButtonElement>(".adm-ov__row-actions button")].filter((b) => !b.classList.contains("adm-ov__info"));
+      expect(buttons.map((b) => b.textContent?.trim())).toEqual(["Open"]);
+    }
+    for (const li of rows) await click([...li.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === "Open"));
+    expect(openedOpen).toEqual([["s-open", "operations-today"]]);
+    expect(opened).toEqual([["c5", "s-paused", "operations-today"]]);
+    // Its (i): what Open does there.
+    await click(why(needs, "Open session \u00b7 AJ"));
+    expect(needs.textContent).toContain("No client was chosen. Open it to carry on with it or discard it.");
   });
 
   it("Catch today names who is in with a reason, in the order they're in, and who trained with nothing booked", async () => {

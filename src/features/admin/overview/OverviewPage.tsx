@@ -18,6 +18,7 @@ import { Activity } from "lucide-react";
 import { auth } from "../../../firebase";
 import type { Client, FranchiseNetwork, Machine, ScheduleEntry, Studio, Trainer } from "../../../types";
 import { studioDateKey } from "../../../lib/studio-time";
+import type { LiveSessionReturn } from "../../../lib/live-session";
 import { NetworkOverview } from "../network/NetworkOverview";
 import { NetworkActions } from "../network/NetworkActions";
 import { mayActForNetwork } from "../network/network-actions";
@@ -53,11 +54,13 @@ export interface OverviewPageProps {
   onOpenMyStudio?: () => void;
   /** What Needs you counts, for the menu's badge; null while unknown. */
   onNeedsCount?: (count: number | null) => void;
-  /** Opens a client's session on the floor, to finish one left open (Oct 2 2026). */
-  onOpenSession?: (clientId: string) => void;
+  /** Opens a client's session on the floor, to finish one left open (Oct 2 2026); the session and where to come back to ride along (Oct 12 2026). */
+  onOpenSession?: (clientId: string, sessionId?: string, returnTo?: LiveSessionReturn) => void;
+  /** Opens an open session (no client chosen yet) on the floor (the sessions round, Oct 12 2026). */
+  onOpenOpenSession?: (sessionId: string, returnTo: LiveSessionReturn) => void;
 }
 
-export function OverviewPage({ homeSignal = 0, authTrainer, studios, trainers, machines, clients, activeStudioId, onNavigateProfile, onOpen, networks = [], onOpenMyStudio, onNeedsCount, onOpenSession }: OverviewPageProps) {
+export function OverviewPage({ homeSignal = 0, authTrainer, studios, trainers, machines, clients, activeStudioId, onNavigateProfile, onOpen, networks = [], onOpenMyStudio, onNeedsCount, onOpenSession, onOpenOpenSession }: OverviewPageProps) {
   const ops = useOperationsScope();
   const now = useMinuteClock();
 
@@ -112,6 +115,7 @@ export function OverviewPage({ homeSignal = 0, authTrainer, studios, trainers, m
       onOpenMyStudio={onOpenMyStudio}
       onNeedsCount={onNeedsCount}
       onOpenSession={onOpenSession}
+      onOpenOpenSession={onOpenOpenSession}
     />
   );
 }

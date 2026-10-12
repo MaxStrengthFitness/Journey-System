@@ -55,6 +55,15 @@ forgetOnSignOut(() => {
   rememberedSpan = false;
 });
 
+/**
+ * The next Operations opens on this studio, not "All my studios": a door
+ * that names one studio's page (Admins → Home's "Go to {Studio}'s Today",
+ * the sessions round, Oct 12 2026).
+ */
+export function rememberThisStudioScope(): void {
+  rememberedSpan = false;
+}
+
 export function OperationsScopeProvider({
   authTrainer,
   studios,

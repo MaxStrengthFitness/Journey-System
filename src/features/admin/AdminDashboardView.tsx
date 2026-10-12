@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Trainer, Studio, FranchiseNetwork, Client, WorkoutSession, Machine, ScheduleEntry } from "../../types";
 import type { RosterStatus } from "../../hooks/useStudioRoster";
+import type { LiveSessionReturn } from "../../lib/live-session";
 import { ChevronLeft } from "lucide-react";
 import "./admin.css";
 import "./shell/ops.css";
@@ -69,8 +70,14 @@ interface Props {
   onUpdateClient?: (id: string, updates: Partial<Client>) => Promise<void>;
   /** The client's full profile, in the app. Operations opens a client inside itself first. */
   onNavigateProfile?: (clientId: string) => void;
-  /** A client's session on the floor, in trainer mode: Today's sessions left open (Oct 2 2026). */
-  onOpenSession?: (clientId: string) => void;
+  /**
+   * A client's session on the floor, in trainer mode: Today's sessions left
+   * open (Oct 2 2026), and Hours' Not finished yet (Oct 12 2026). The session
+   * and where to come back to ride along, so Not now returns here.
+   */
+  onOpenSession?: (clientId: string, sessionId?: string, returnTo?: LiveSessionReturn) => void;
+  /** An open session (no client chosen yet) on the floor: Today's and Hours' Open (the sessions round, Oct 12 2026). */
+  onOpenOpenSession?: (sessionId: string, returnTo: LiveSessionReturn) => void;
   /**
    * The studio the admin is currently working in. Data & Reports and Alerts
    * both act on ONE studio, so they need it explicitly rather than inferring
@@ -190,6 +197,7 @@ function OperationsShell({
   onUpdateClient,
   onNavigateProfile,
   onOpenSession,
+  onOpenOpenSession,
   onReorderTrainers,
   onOpenStudioTasks,
   // The studio the APP is in: where My Studio opens (ops.studioId is null
@@ -356,6 +364,7 @@ function OperationsShell({
             onOpenMyStudio={onOpenStudioTasks}
             onNeedsCount={setNeedsCount}
             onOpenSession={onOpenSession}
+            onOpenOpenSession={onOpenOpenSession}
           />
         );
       case "week":
@@ -429,7 +438,7 @@ function OperationsShell({
           if (ops.scope.kind === "all") return <PickOneStudio what="The team this week" />;
           return studio ? <TeamWeekPage key={tabKey} studio={studio} studios={studios} clients={clients} trainers={trainers} authTrainer={authTrainer} /> : noStudio;
         }
-        return <AdminHoursTab key={tabKey} trainers={trainers} />;
+        return <AdminHoursTab key={tabKey} trainers={trainers} onOpenSession={onOpenSession} onOpenOpenSession={onOpenOpenSession} />;
       case "setup":
         switch (place.sub) {
           case "floor":

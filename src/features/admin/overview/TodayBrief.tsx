@@ -71,7 +71,9 @@ import { useSettledNow } from "../../../lib/boundary-clock";
 import { canManageRenewals } from "../../renewals/permissions";
 import { markNoShow, takeBackNoShow, useBookingMarks } from "../attention/booking-marks";
 import { myTrainerIds } from "../../../lib/live-session";
-import { LEFT_OPEN_HINT, leftOpenHeading, leftOpenSessions } from "./left-open";
+import { LEFT_OPEN_HINT, OPEN_SESSION_HINT, leftOpenHeading, leftOpenSessions, needsYouCount } from "./left-open";
+import { QUIET_WORDS } from "../../../lib/session-quiet";
+import type { LiveSessionReturn } from "../../../lib/live-session";
 import { formatStudioDate, formatStudioTime, toDate, formatDateWords } from "../../../lib/studio-time";
 import { useDelightQueue } from "../../ford/useClientFord";
 import { setGestureStatus } from "../../ford/ford-write";
@@ -149,11 +151,17 @@ export interface TodayBriefProps {
   onOpenMyStudio?: () => void;
   /** What Needs you counts, for the menu's badge; null while it is still being read. */
   onNeedsCount?: (count: number | null) => void;
-  /** Opens a client's session on the floor, to finish one left open (the Atlas answers, Oct 2 2026). */
-  onOpenSession?: (clientId: string) => void;
+  /**
+   * Opens a client's session on the floor, to finish one left open (the Atlas
+   * answers, Oct 2 2026). The session and where to come back to ride along
+   * (the sessions round, Oct 12 2026), so Not now returns here.
+   */
+  onOpenSession?: (clientId: string, sessionId?: string, returnTo?: LiveSessionReturn) => void;
+  /** Opens an open session (no client chosen yet) on the floor, where the Active Session asks (Oct 12 2026). */
+  onOpenOpenSession?: (sessionId: string, returnTo: LiveSessionReturn) => void;
 }
 
-export function TodayBrief({ footer, homeSignal, studio, studios, today, now, me, authTrainer, trainers, machines, clients, onNavigateProfile, onOpen, onOpenMyStudio, onNeedsCount, onOpenSession }: TodayBriefProps) {
+export function TodayBrief({ footer, homeSignal, studio, studios, today, now, me, authTrainer, trainers, machines, clients, onNavigateProfile, onOpen, onOpenMyStudio, onNeedsCount, onOpenSession, onOpenOpenSession }: TodayBriefProps) {
   const studioId = studio.id as string;
   const tz = studio.timezone || undefined;
   // Pressing Today while on it: the page has no views of its own any more (the
@@ -266,14 +274,15 @@ export function TodayBrief({ footer, homeSignal, studio, studios, today, now, me
   const needsPartial = otherPartial || unloggedUnknown;
   // Still reading (not failed): say so in those words.
   const unloggedStillReading = !otherPartial && canMark && neverLogged === null && !marks.failed && (week.loading || logged.loading || marks.loading);
-  // Sessions left open (the Atlas answers, Oct 2 2026): the Hub's own staleness rule over the
-  // last 14 days this page already reads. No new query.
+  // Sessions not finished (the Atlas answers, Oct 2 2026): the Hub's own staleness rule over the
+  // last 14 days this page already reads. No new query. Only the ones left open count in Needs
+  // you; a pause or an End Session the trainer chose today is listed, not counted (Oct 12 2026).
   const leftOpen = useMemo(
     () => leftOpenSessions(recent.sessions, now.getTime(), { trainerNameOf: (id) => trainers.find((t) => t.id === id || t.authUid === id)?.fullName ?? null, tz }),
     [recent.sessions, now, trainers, tz],
   );
   const needsCount =
-    painPending.pending.length + teamPending.pending.length + unowned.length + review.length + unlogged.length + leftOpen.length;
+    painPending.pending.length + teamPending.pending.length + unowned.length + review.length + unlogged.length + needsYouCount(leftOpen);
   useEffect(() => {
     onNeedsCount?.(needsLoading ? null : needsCount);
   }, [onNeedsCount, needsLoading, needsCount]);
@@ -583,7 +592,7 @@ export function TodayBrief({ footer, homeSignal, studio, studios, today, now, me
 
   /* ---- which sections have something; the rest fold into "All clear" ---- */
   const clear: string[] = [];
-  const needsShown = needsLoading || needsCount > 0 || needsPartial;
+  const needsShown = needsLoading || needsCount > 0 || needsPartial || leftOpen.length > 0;
   if (!needsShown) clear.push("Needs you");
   const unloggedShown = !canMark && neverLogged !== null && neverLogged > 0;
   const catchShown = catchRows === null || (catchCount ?? 0) > 0 || leftRows === null;
@@ -697,7 +706,7 @@ export function TodayBrief({ footer, homeSignal, studio, studios, today, now, me
         >
           {needsLoading ? (
             <BriefEmpty>Reading…</BriefEmpty>
-          ) : needsCount === 0 ? (
+          ) : needsCount === 0 && leftOpen.length === 0 ? (
             <BriefEmpty>{unloggedStillReading ? "Nothing so far. Today's logging is still being read." : "Nothing that could be read. Part of this couldn't be read just now."}</BriefEmpty>
           ) : (
             <>
@@ -760,25 +769,41 @@ export function TodayBrief({ footer, homeSignal, studio, studios, today, now, me
                 empty=""
               />
               {leftOpen.length > 0 && (
-                <ActionRows
-                  rows={leftOpen.map((r) => ({
-                    key: `left-open:${r.id}`,
-                    clientId: r.clientId,
-                    name: r.clientName,
-                    sentence: `${leftOpenHeading(1)} — ${r.detail}.`,
-                    proof: LEFT_OPEN_HINT,
-                    tone: "warn",
-                    badge: "Left open",
-                    actions:
-                      r.clientId && onOpenSession ? (
-                        <AdminButton size="sm" onClick={() => onOpenSession(r.clientId as string)}>
-                          Open the session
-                        </AdminButton>
-                      ) : undefined,
-                  }))}
-                  onOpenClient={onNavigateProfile}
-                  empty=""
-                />
+                <>
+                  <p className="ops-sec__note" data-testid="not-finished">
+                    {leftOpenHeading(leftOpen.length)}
+                  </p>
+                  <ActionRows
+                    rows={leftOpen.map((r) => {
+                      // AJ, Oct 12 2026: "Anyone can clear a session". One door on every row, Open;
+                      // the Active Session asks there. Today reads only this studio, so every row is here.
+                      const open =
+                        r.kind === "open"
+                          ? onOpenOpenSession
+                            ? () => onOpenOpenSession(r.id, "operations-today")
+                            : null
+                          : r.clientId && onOpenSession
+                            ? () => onOpenSession(r.clientId as string, r.id, "operations-today")
+                            : null;
+                      return {
+                        key: `left-open:${r.id}`,
+                        clientId: r.clientId,
+                        name: r.clientName,
+                        sentence: `${r.detail}.`,
+                        proof: r.kind === "open" ? OPEN_SESSION_HINT : LEFT_OPEN_HINT,
+                        tone: r.quiet === "left-open" ? ("warn" as const) : undefined,
+                        badge: QUIET_WORDS[r.quiet],
+                        actions: open ? (
+                          <AdminButton size="sm" onClick={open}>
+                            Open
+                          </AdminButton>
+                        ) : undefined,
+                      };
+                    })}
+                    onOpenClient={onNavigateProfile}
+                    empty=""
+                  />
+                </>
               )}
               {review.length > 0 && (
                 <div className="ops-sec__foot">
