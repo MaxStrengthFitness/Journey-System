@@ -494,8 +494,37 @@ function storage(): Storage | null {
   }
 }
 
-export function rememberLiveSession(sessionId: string): void {
-  storage()?.setItem(LIVE_SESSION_KEY, sessionId);
+/**
+ * The screen a session was opened from, by a door that isn't the trainer's
+ * own (the sessions round, Oct 12 2026): Operations → Today, Operations →
+ * Hours, the Client Directory. Not now, and a finished Discard, go back
+ * there; the Hub when none was kept.
+ */
+export type LiveSessionReturn = "operations-today" | "operations-hours" | "directory" | "hub";
+export const LIVE_SESSION_RETURN_KEY = "max_strength_active_session_return";
+const RETURNS: readonly LiveSessionReturn[] = ["operations-today", "operations-hours", "directory", "hub"];
+
+export function rememberLiveSession(sessionId: string, opts: { returnTo?: LiveSessionReturn | null } = {}): void {
+  const s = storage();
+  if (!s) return;
+  try {
+    s.setItem(LIVE_SESSION_KEY, sessionId);
+    if (opts.returnTo) s.setItem(LIVE_SESSION_RETURN_KEY, `${sessionId}|${opts.returnTo}`);
+    else if (s.getItem(LIVE_SESSION_RETURN_KEY)?.split("|")[0] !== sessionId) s.removeItem(LIVE_SESSION_RETURN_KEY);
+  } catch {
+    /* A storage that refuses: nothing remembered, nothing broken. */
+  }
+}
+
+/** Where the remembered session's door was, when it is this session's; else null. */
+export function peekLiveSessionReturn(sessionId: string | null | undefined): LiveSessionReturn | null {
+  if (!sessionId) return null;
+  try {
+    const [id, to] = (storage()?.getItem(LIVE_SESSION_RETURN_KEY) || "").split("|");
+    return id === sessionId && (RETURNS as readonly string[]).includes(to) ? (to as LiveSessionReturn) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function forgetLiveSession(sessionId?: string): void {
@@ -504,6 +533,9 @@ export function forgetLiveSession(sessionId?: string): void {
   // Only clear our own id — a second tab may have started another session.
   if (!sessionId || s.getItem(LIVE_SESSION_KEY) === sessionId) {
     s.removeItem(LIVE_SESSION_KEY);
+  }
+  if (!sessionId || s.getItem(LIVE_SESSION_RETURN_KEY)?.split("|")[0] === sessionId) {
+    s.removeItem(LIVE_SESSION_RETURN_KEY);
   }
 }
 

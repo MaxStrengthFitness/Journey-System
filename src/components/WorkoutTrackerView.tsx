@@ -57,6 +57,7 @@ import { useSendState } from "../features/session-record/useSendState";
 import { SendStatusStrip } from "../features/session-record/SendStatusStrip";
 import { finishedElsewhereAtTap, settleOrQueue } from "../features/session-record/finish-wait";
 import {
+  readFromServer,
   finishRefusedAgainWords,
   finishRefusedWords,
   finishedElsewhereWords,
@@ -128,6 +129,12 @@ import {
   watchWords,
 } from "../features/session-record/watch";
 import { thisDeviceId } from "../features/session-record/device";
+import {
+  DISCARDED_WORDS,
+  DISCARD_REFUSED_WORDS,
+  checkStillLeftOpen,
+  discardStaleSession,
+} from "../features/session-record/discard";
 
 /**
  * How long a set's Firestore write waits for the trainer to stop typing.
@@ -250,6 +257,8 @@ import {
   lastSignOfLife,
   myTrainerIds,
   peekLiveSessionId,
+  peekLiveSessionReturn,
+  type LiveSessionReturn,
   pickOpenSession,
   rememberLiveSession,
   sessionDayWords,
@@ -284,7 +293,7 @@ import { traineeLevelOf } from "../lib/progression-cue";
 import { createJournalEntry, useClientJournal } from "../hooks/useClientJournal";
 import { flagLineOf, machineFlags, sessionFlags } from "../features/journey-grid/session-flags";
 import { SessionFlagsSheet } from "../features/journey-grid/SessionFlagsSheet";
-import { formatStudioDate, formatStudioTime } from "../lib/studio-time";
+import { formatStudioDate, formatStudioTime, studioDayKeyOf } from "../lib/studio-time";
 import {
   DEFAULT_IMPORTANCE,
   FILING_CATEGORIES,
@@ -404,6 +413,7 @@ export function WorkoutTrackerView({
   onRetryClient,
   clientsStatus = "ready",
   onStartOpenSession,
+  onReturn,
 }: {
   clientId: string | null;
   clients: Client[];
@@ -421,6 +431,13 @@ export function WorkoutTrackerView({
    * 2026).
    */
   onStartOpenSession?: () => void;
+  /**
+   * Back to the door a session left open was opened from (the sessions
+   * round, Oct 12 2026): Operations → Today, Hours, the Directory, else the
+   * Hub. Not now and a finished Discard of someone else's session go there
+   * (`rememberLiveSession`'s `returnTo`). Without it, the Hub.
+   */
+  onReturn?: (to: LiveSessionReturn) => void;
   machines: Machine[];
   schedules: any[];
   trainers: Trainer[];
@@ -967,6 +984,77 @@ export function WorkoutTrackerView({
     if (staleSession?.id) setDeclinedStaleId(staleSession.id);
   };
 
+  /* ANYONE AT THE STUDIO (the sessions round, Oct 12 2026; AJ: "Anyone can
+     clear a session"). A session left open is reached from doors that aren't
+     its trainer's; these are the question's other answers. */
+
+  /** The trainer on a session, as a person says it: first name, else initials. */
+  const starterNameOf = (s: WorkoutSession | null | undefined): string | null => {
+    if (!s) return null;
+    const named = ((s as { trainerName?: string }).trainerName || "").trim().split(/\s+/)[0];
+    if (named) return named;
+    const t = trainers.find((x) => x.id === s.trainerId);
+    const first = (t?.fullName || "").trim().split(/\s+/)[0];
+    return first || (s.trainerInitials || "").trim() || null;
+  };
+
+  /** "2:14 PM" when the session's last sign of life is today; null otherwise. */
+  const lastActiveOf = (s: WorkoutSession | null | undefined): string | null => {
+    if (!s) return null;
+    const at = new Date(lastSignOfLife(s));
+    return studioDayKeyOf(at) === studioTodayKey() ? formatStudioTime(at, undefined, "") || null : null;
+  };
+
+  /** Back to the door the session was opened from, else `fallback` (nothing: stay here). */
+  const returnFrom = (sessionId: string | undefined, fallback: LiveSessionReturn | null) => {
+    const to = peekLiveSessionReturn(sessionId) ?? fallback;
+    forgetLiveSession(sessionId);
+    if (!to) return;
+    if (onReturn) onReturn(to);
+    else setView("clients");
+  };
+
+  /** Not now: someone else's session, left exactly as it is; nothing starts. */
+  const notNowStaleSession = () => {
+    const s = staleSession;
+    if (!s?.id) return;
+    setDeclinedStaleId(s.id);
+    returnFrom(s.id, null);
+  };
+  const notNowStaleOpenSession = () => {
+    const s = staleOpenSession;
+    if (!s?.id) return;
+    declineStaleOpenSession(s.id);
+    setDeclinedStaleOpenId(s.id);
+    returnFrom(s.id, "hub");
+  };
+
+  /* Discard it, after the question's second tap (and, for someone else's
+     session, the server's word that it is still left open): ONE batch with
+     every set known and the session, issued now and never awaited, then a
+     sweep (features/session-record/discard.ts). */
+  const discardStale = (s: WorkoutSession, kind: "client" | "open") => {
+    if (!s.id) return;
+    discardStaleSession(db, s, logsRef.current).then(
+      () => {},
+      (error) => {
+        console.error("[discard] the left-open session was not discarded", error);
+        toastError(DISCARD_REFUSED_WORDS);
+      },
+    );
+    toastInfo(DISCARDED_WORDS);
+    if (kind === "client") {
+      setDeclinedStaleId(s.id);
+      setStaleSession(null);
+      returnFrom(s.id, null);
+    } else {
+      declineStaleOpenSession(s.id);
+      setDeclinedStaleOpenId(s.id);
+      setStaleOpenSession(null);
+      returnFrom(s.id, "hub");
+    }
+  };
+
   /*
    * ...or chose "Finish it as it was" (the Atlas answers, Oct 2 2026). The
    * old session is finished under its OWN day, by the trainer who ran it, so
@@ -1441,12 +1529,27 @@ export function WorkoutTrackerView({
             activeStudioId: contextActiveStudioId,
           });
           const onScreen = open.find((s) => s.id === currentSessionIdRef.current);
-          /* This trainer's abandoned open session, asked about on the screen
-             with nothing on it. Brought here to it (Open session goes back to
-             it, and the device points at it), it is asked about rather than
-             another trainer's session being watched. */
-          setStaleOpenSession(mine ? null : stale);
-          const askFirst = !mine && !!stale && stale.id === remembered;
+          /* The session a door remembered, read by its id because it isn't
+             among these twenty (the sessions round, Oct 12 2026). */
+          const byId = rememberedOutsideRef.current?.id === remembered ? rememberedOutsideRef.current : null;
+          /* This trainer's abandoned open session, or the one a door brought
+             here (anyone's), asked about on the screen with nothing on it.
+             Brought here to it (Open session goes back to it, and the device
+             points at it), it is asked about rather than another trainer's
+             session being watched. */
+          setStaleOpenSession(mine ? null : (stale ?? byId));
+          const askFirst = !mine && ((!!stale && stale.id === remembered) || !!byId);
+          if (
+            !mine &&
+            !stale &&
+            remembered &&
+            !open.some((s) => s.id === remembered) &&
+            peekLiveSessionReturn(remembered) &&
+            rememberedReadRef.current !== remembered
+          ) {
+            rememberedReadRef.current = remembered;
+            void readRememberedOutside(remembered, studioKey);
+          }
           if (mine) {
             setWatchedSession(null);
             setTakenFromHere(false);
@@ -1484,6 +1587,36 @@ export function WorkoutTrackerView({
        query, so this iPad went on recording and watching another studio's
        open sessions. A Try again after a failed read opens it again. */
   }, [clientId, user?.uid, contextActiveStudioId, openSessionsTry]);
+
+  /* The session a door remembered (Operations → Today, Hours, the
+     Directory), read once by its id when the open sessions' listener (the
+     newest twenty) doesn't hold it (the sessions round, Oct 12 2026). Open,
+     abandoned and at this studio: asked about. A client's: opened with its
+     client, whose stream asks. Anything else: forgotten, and said. */
+  const rememberedOutsideRef = useRef<WorkoutSession | null>(null);
+  const rememberedReadRef = useRef<string | null>(null);
+  const readRememberedOutside = async (id: string, studioKey: string) => {
+    const read = await readFromServer<WorkoutSession>(doc(db, "sessions", id), 5_000);
+    if (peekLiveSessionId() !== id) return;
+    if (read.kind === "failed" || read.kind === "denied") {
+      forgetLiveSession(id);
+      toastError("Couldn't open that session. Try again.");
+      return;
+    }
+    const data = read.kind === "found" ? ({ ...read.data, id } as WorkoutSession) : null;
+    const hereOk = !data?.hostedAtStudioId || data.hostedAtStudioId === studioKey;
+    if (data && data.status === "In-Progress" && !isSessionValid(data) && hereOk) {
+      if (data.clientId) {
+        setSelectedClientId(data.clientId);
+        return;
+      }
+      rememberedOutsideRef.current = data;
+      setStaleOpenSession(data);
+      return;
+    }
+    forgetLiveSession(id);
+    toastInfo("That session isn't open any more.");
+  };
 
   /* Carry on with the abandoned open session (the question's Resume): it is
      on screen at once, the device points at it, and a heartbeat marks it
@@ -5159,8 +5292,19 @@ export function WorkoutTrackerView({
           session={staleOpenSession}
           begunMachines={null}
           todayKey={studioTodayKey()}
+          mine={!isAnotherTrainersSession(staleOpenSession, myIds)}
+          takesOver={isAnotherTrainersSession(staleOpenSession, myIds)}
+          starterName={starterNameOf(staleOpenSession)}
+          lastActive={lastActiveOf(staleOpenSession)}
           onResume={resumeStaleOpenSession}
           onStartNew={leaveStaleOpenSession}
+          onDiscard={() => discardStale(staleOpenSession, "open")}
+          checkDiscard={
+            isAnotherTrainersSession(staleOpenSession, myIds)
+              ? () => checkStillLeftOpen(db, staleOpenSession, staleOpenSession.lastHeartbeatAt)
+              : undefined
+          }
+          onNotNow={isAnotherTrainersSession(staleOpenSession, myIds) ? notNowStaleOpenSession : undefined}
         />
       ) : null;
     return (
@@ -5184,6 +5328,11 @@ export function WorkoutTrackerView({
   if (screen === "briefing" && selectedClient) {
     /* The question about a stale session sits over whichever briefing is
        drawn (features/tracker/StaleSessionDialog.tsx). */
+    /* At this studio, anyone who works here may clear it (AJ, Oct 12 2026);
+       at another, it is described and left (never another studio's). */
+    const staleHostedAt = (staleSession?.hostedAtStudioId || "").trim();
+    const staleElsewhere = !!staleHostedAt && !!contextActiveStudioId && staleHostedAt !== contextActiveStudioId;
+    const staleNotMine = !!staleSession && isAnotherTrainersSession(staleSession, myIds);
     const staleAsk = staleSession ? (
       <StaleSessionDialog
         open={staleSession.id !== declinedStaleId}
@@ -5191,11 +5340,20 @@ export function WorkoutTrackerView({
         session={staleSession}
         begunMachines={staleBegunMachines}
         todayKey={studioTodayKey()}
-        takesOver={isAnotherTrainersSession(staleSession, myIds)}
+        mine={!staleNotMine}
+        takesOver={staleNotMine}
+        starterName={starterNameOf(staleSession)}
+        lastActive={lastActiveOf(staleSession)}
+        leftOpenAt={
+          staleElsewhere ? ((studios ?? []).find((x) => x.id === staleHostedAt)?.name || "another studio") : null
+        }
         onResume={resumeStaleSession}
         onStartNew={leaveStaleSession}
         onFinishAsItWas={finishStaleSessionAsItWas}
         finishAsItWasReady={totalsKnown}
+        onDiscard={() => discardStale(staleSession, "client")}
+        checkDiscard={staleNotMine ? () => checkStillLeftOpen(db, staleSession, staleSession.lastHeartbeatAt) : undefined}
+        onNotNow={staleNotMine ? notNowStaleSession : undefined}
       />
     ) : null;
 

@@ -9,6 +9,10 @@ import {
   openSessionElsewhereWords,
   ownSessionName,
   pickOpenSession,
+  peekLiveSessionId,
+  peekLiveSessionReturn,
+  rememberLiveSession,
+  forgetLiveSession,
   continueHerePatch,
   isOnAnotherDevice,
   isRecordedElsewhere,
@@ -554,5 +558,39 @@ describe("pickOpenSession with this device and a door (Oct 12 2026)", () => {
     expect(pickOpenSession([theirsLive], { myIds: ["t1"], rememberedId: "ts", activeStudioId: "sA", now })).toEqual({
       mine: null, watch: theirsLive, stale: null,
     });
+  });
+});
+
+describe("the door a session was opened from (Oct 12 2026)", () => {
+  const store = new Map<string, string>();
+  beforeEach(() => {
+    store.clear();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps where the door was for that session, and forgets it with the session", () => {
+    rememberLiveSession("s1", { returnTo: "operations-today" });
+    expect(peekLiveSessionId()).toBe("s1");
+    expect(peekLiveSessionReturn("s1")).toBe("operations-today");
+    expect(peekLiveSessionReturn("s2")).toBeNull();
+    forgetLiveSession("s1");
+    expect(peekLiveSessionId()).toBeNull();
+    expect(peekLiveSessionReturn("s1")).toBeNull();
+  });
+
+  it("a session remembered without a door keeps no other session's door", () => {
+    rememberLiveSession("s1", { returnTo: "directory" });
+    rememberLiveSession("s2");
+    expect(peekLiveSessionReturn("s1")).toBeNull();
+    expect(peekLiveSessionReturn("s2")).toBeNull();
+    // ...and the same session remembered again keeps its door.
+    rememberLiveSession("s3", { returnTo: "operations-hours" });
+    rememberLiveSession("s3");
+    expect(peekLiveSessionReturn("s3")).toBe("operations-hours");
   });
 });

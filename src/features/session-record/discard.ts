@@ -1,0 +1,136 @@
+/**
+ * DISCARDING A SESSION LEFT OPEN (the sessions round, Oct 12 2026; AJ:
+ * "Anyone can clear a session").
+ *
+ * Anyone who works at the studio a session runs at may discard it once it is
+ * left open (no sign of life for an hour). Two halves:
+ *
+ *   - `checkStillLeftOpen`, when the Discard question OPENS (the first tap,
+ *     never after the final one): one bounded server read of the session.
+ *     Only "ok" (still there, still In-Progress, still quiet, and nothing
+ *     newer than what the screen showed) lets the final Discard through. A
+ *     discard is a delete, not a save, so refusing it on an unknown answer
+ *     is right. Skipped for the trainer's own session.
+ *   - `discardStaleSession`, on the final tap: ONE batch, issued at once and
+ *     never awaited by the tap, holding every set id known (the sets the
+ *     screen holds and every id the session's machines write under) and the
+ *     session itself, so a dropped connection never leaves a session with
+ *     no sets or sets with no session. A read AFTER the commit sweeps any
+ *     set the batch didn't know, as the in-session Discard does. It never
+ *     touches `sessionNotes` (nothing writes them; only administrators may
+ *     delete one, so a trainer's discard used to stop there).
+ */
+import { collection, doc, getDocs, query, where, writeBatch, type Firestore } from "firebase/firestore";
+import type { ExerciseLog } from "../../types";
+import { getMillis, isSessionValid } from "../../lib/utils";
+import { discardLogIds } from "./start-plan";
+import { readFromServer, type ServerRead } from "./finish-once";
+
+/** Every set id a discard deletes: the screen's, the machines', and what a read found. No duplicates. */
+export function discardIds(
+  sessionId: string,
+  held: Record<string, Pick<ExerciseLog, "id" | "sessionId">>,
+  machineIds: readonly string[],
+  readIds: readonly string[] | null,
+): string[] {
+  const ids = new Set(discardLogIds(sessionId, held, [...machineIds]));
+  for (const id of readIds ?? []) if (id) ids.add(id);
+  return [...ids];
+}
+
+export type StillLeftOpen = "ok" | "active" | "gone" | "done" | "unknown";
+
+export interface LeftOpenSession {
+  id?: string;
+  status?: string;
+  lastHeartbeatAt?: unknown;
+  createdAt?: unknown;
+}
+
+/** What the server's read of the session says, judged against the heartbeat the screen showed. */
+export function judgeStillLeftOpen(
+  read: ServerRead<LeftOpenSession>,
+  shownHeartbeat: unknown,
+  now: number = Date.now(),
+): StillLeftOpen {
+  if (read.kind === "missing") return "gone";
+  if (read.kind !== "found") return "unknown";
+  const s = read.data ?? {};
+  if (s.status === "Completed") return "done";
+  // Any spelling but Completed is still unfinished; the staleness rule reads it as In-Progress.
+  if (isSessionValid({ ...s, status: "In-Progress" }, now)) return "active";
+  const seen = getMillis(shownHeartbeat);
+  const stored = getMillis(s.lastHeartbeatAt);
+  if (stored > 0 && stored > seen) return "active";
+  return "ok";
+}
+
+/** One bounded server read of the session, judged. */
+export async function checkStillLeftOpen(
+  db: Firestore,
+  session: { id?: string },
+  shownHeartbeat: unknown,
+  opts: { now?: number; read?: (ref: ReturnType<typeof doc>) => Promise<ServerRead<LeftOpenSession>> } = {},
+): Promise<StillLeftOpen> {
+  if (!session.id) return "unknown";
+  const ref = doc(db, "sessions", session.id);
+  const read = opts.read ? await opts.read(ref).catch((): ServerRead<LeftOpenSession> => ({ kind: "failed" })) : await readFromServer<LeftOpenSession>(ref);
+  return judgeStillLeftOpen(read, shownHeartbeat, opts.now);
+}
+
+/** The sentence for an answer that holds the final Discard back; null for "ok". */
+export function stillLeftOpenWords(answer: StillLeftOpen, trainer?: string | null): string | null {
+  const who = (trainer || "").trim();
+  switch (answer) {
+    case "ok":
+      return null;
+    case "active":
+      return who
+        ? `It's been active since you opened this. Check with ${who} first.`
+        : "It's been active since you opened this. Check with whoever is running it first.";
+    case "gone":
+      return "That session was already discarded.";
+    case "done":
+      return "That session was finished on another iPad.";
+    default:
+      return "Couldn't check that session. Try again.";
+  }
+}
+
+export const DISCARDED_WORDS = "Session discarded.";
+export const DISCARD_REFUSED_WORDS = "That session couldn't be discarded. Try again from the same place.";
+
+/**
+ * Discard a session and every set in it: ONE batch, issued now (the caller
+ * never awaits it at the tap), then a sweep of any set the batch didn't
+ * know. Returns the batch's commit, for a toast.
+ */
+export function discardStaleSession(
+  db: Firestore,
+  session: { id?: string; sessionMachineIds?: readonly string[] | null },
+  held: Record<string, Pick<ExerciseLog, "id" | "sessionId">> = {},
+  machineIds: readonly string[] = [],
+): Promise<void> {
+  const sessionId = session.id;
+  if (!sessionId) return Promise.reject(new Error("No session to discard."));
+  const machines = Array.from(new Set([...machineIds, ...(session.sessionMachineIds ?? [])]));
+  const ids = discardIds(sessionId, held, machines, null);
+  const batch = writeBatch(db);
+  for (const id of ids) batch.delete(doc(db, "exerciseLogs", id));
+  batch.delete(doc(db, "sessions", sessionId));
+  const committed = batch.commit();
+  void committed.then(
+    () =>
+      getDocs(query(collection(db, "exerciseLogs"), where("sessionId", "==", sessionId)))
+        .then((snap) => {
+          const left = snap.docs.filter((d) => !ids.includes(d.id));
+          if (left.length === 0) return;
+          const sweep = writeBatch(db);
+          for (const d of left) sweep.delete(d.ref);
+          return sweep.commit();
+        })
+        .catch((error) => console.error("[discard] leftover sets were not swept", error)),
+    () => {},
+  );
+  return committed;
+}

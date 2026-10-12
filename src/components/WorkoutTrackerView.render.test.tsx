@@ -666,13 +666,45 @@ describe("an abandoned session is asked about, never adopted (Sep 24 2026)", () 
     expect(host.querySelector(".jg-sbar")).toBeNull();
     const body = document.body.textContent ?? "";
     expect(body).toContain("has an unfinished session");
-    expect(body).toContain("It was never finished.");
+    // One line: when it started and by whom (the sessions round, Oct 12 2026).
+    expect(body).toMatch(/Started .+ by JC\./);
     // This trainer's own: resuming is not a take-over, and does not say it is.
-    expect(body).not.toContain("makes it yours");
+    expect(body).not.toContain("yours to finish");
+    expect(body).toContain("Carry on where you left off.");
     expect(button("Resume it")).toBeTruthy();
     expect(button("Start a new session")).toBeTruthy();
     // Asking writes nothing.
     expect(writes.filter((w) => w.path === `sessions/${STALE_ID}`)).toEqual([]);
+  });
+
+  /* The sessions round (Oct 12 2026; AJ: "Anyone can clear a session"):
+     Discard on the question, after a second tap, as ONE batch. */
+  it("Discard on the trainer's own abandoned session: a second tap, then the session and its sets in one batch", async () => {
+    sessionDocs = STALE_SESSION_DOCS;
+    await mount(<Tracker />);
+    await act(async () => button("Discard it")!.click());
+    expect(netCtl.deletes).toEqual([]);
+    expect(document.body.textContent).toContain("Discard this session?");
+    await act(async () => button("Discard")!.click());
+    expect(netCtl.deletes).toContain(`sessions/${STALE_ID}`);
+    expect(netCtl.deletes.some((p) => p.startsWith("exerciseLogs/"))).toBe(true);
+    expect(netCtl.deletes.some((p) => p.startsWith("sessionNotes/"))).toBe(false);
+    expect(document.body.textContent).toContain("Session discarded.");
+  });
+
+  it("a colleague's: the server is asked first, and a session already gone is never deleted again", async () => {
+    sessionDocs = [{ id: STALE_ID, data: () => ({ ...STALE_SESSION_DOCS[0].data(), trainerId: "t-aj", trainerInitials: "AJ" }) }];
+    finishCtl.serverStatus = undefined; // the server has no such session
+    await mount(<Tracker />);
+    await act(async () => button("Discard it")!.click());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(document.body.textContent).toContain("That session was already discarded.");
+    const held = button("Discard")!;
+    expect(held.disabled).toBe(true);
+    await act(async () => held.click());
+    expect(netCtl.deletes).toEqual([]);
   });
 
   it("Resume carries on in that session and marks it running again", async () => {
@@ -844,7 +876,10 @@ describe("Finish never hangs and never counts a session twice (session record, S
     const title = Array.from(document.querySelectorAll("h3")).find((h) => /^Finish .+'s session\?$/.test(h.textContent ?? ""));
     expect(title).toBeDefined();
     await act(async () => {});
-    expect(document.activeElement).toBe(title);
+    /* The dialog moves the focus on its own schedule, which a loaded run
+       (the stale question's tests before this one) can push past a single
+       flush: wait for it, never assume it (the sessions round, Oct 12 2026). */
+    await vi.waitFor(() => expect(document.activeElement).toBe(title));
     expect(document.activeElement?.id).not.toBe("next-trainer-note");
     expect(document.body.textContent).not.toContain("conclude this");
     expect(document.body.textContent).not.toContain("Abort session");
@@ -1257,7 +1292,9 @@ describe("a session another trainer is running opens read-only, and live (sessio
   it("resuming another trainer's abandoned session takes it over", async () => {
     sessionDocs = [{ id: STALE_ID, data: () => ({ ...STALE_SESSION_DOCS[0].data(), trainerId: "t-aj", trainerInitials: "AJ" }) }];
     const host = await mount(<Tracker />);
-    expect(document.body.textContent).toContain("Resuming it makes it yours to finish.");
+    expect(document.body.textContent).toContain("Carry on in it. It becomes yours to finish.");
+    // Never "your" to someone else's session; closing it is Not now (AJ, Oct 12 2026: "Anyone can clear a session").
+    expect(document.body.textContent).toContain("Not now");
     const resume = Array.from(document.body.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Resume it");
     await act(async () => resume!.click());
     const write = writes.find((w) => w.path === `sessions/${STALE_ID}`);
