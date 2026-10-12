@@ -214,6 +214,34 @@ describe("the layout's writes", () => {
     expect((writes[1].data.placements as unknown[]).length).toBe(1);
   });
 
+  it("every layout write carries rev as a literal whole number, never a transform (final review fixes)", async () => {
+    // The rules' rev check only protects an honest client: increment(1) passes it without reading rev,
+    // so "Someone changed it" depends on this store always sending the number it read, plus one.
+    const current = loaded("current", 4, [unit("m-a")]);
+    const draft = loaded("d-1", 2, [unit("m-b"), planned]);
+    const retired = loaded("d-2", 7, [], true);
+    await saveLayout("solon", "current", { room, placements: [unit("m-a")], gone: [] }, "The layout", 4, "uid-aj");
+    await saveLayout("solon", "d-4", { room, placements: [planned], gone: [] }, "Remodel 4", null, "uid-aj");
+    const plan = planUseThisLayout(current, draft, [draft, retired], 0);
+    await useThisLayout("solon", current, draft, [draft, retired], "uid-aj", 0);
+    await undoUseThisLayout("solon", plan.record, { current: 5, slot: 3, before: 8 }, "uid-aj");
+    await retireDraft("solon", loaded("d-3", 4, [planned]), "uid-aj");
+    await restoreDraft("solon", { ...loaded("d-3", 4, [planned]), rev: 5, retired: true }, "uid-aj");
+    const layoutWrites = writes.filter((w) => w.path.includes("/floorPlans/"));
+    expect(layoutWrites.length).toBeGreaterThanOrEqual(8);
+    for (const w of layoutWrites) {
+      expect(typeof w.data.rev).toBe("number");
+      expect(Number.isInteger(w.data.rev)).toBe(true);
+    }
+  });
+
+  it("the store never imports Firestore's increment (a rev is always the number read, plus one)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const src = readFileSync(fileURLToPath(new URL("./store.ts", import.meta.url)), "utf8");
+    expect(src).not.toMatch(/\bincrement\s*\(/);
+  });
+
   it("refuses a composed layout that would carry a machine still to buy, sending nothing", async () => {
     // An Undo whose "before" layout holds one (only a bug could make it).
     const { record } = useLayoutOps(loaded("current", 4, [planned]), loaded("d-1", 2, [unit("m-b")]), null, 0);

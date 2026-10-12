@@ -504,4 +504,27 @@ describe("a machine not on the floor list yet (the catalog stand-in)", () => {
     expect(host.querySelector('.mdc-part[data-part="setup"]')?.textContent).toContain("Not on the floor list yet.");
     expect(host.querySelector('.mdc-part[data-part="maintain"]')?.textContent).toContain("Not on the floor list yet.");
   });
+
+  it("can still be flagged and cleared, as the care sheet allowed (final review fixes)", async () => {
+    const floor = {
+      rosterEntries: [],
+      byId: { "m-leg-press": { machineId: "m-leg-press", name: "LEG PRESS", comparisonKey: "m-leg-press", primaryMuscles: [], rosterStatus: "active" } } as never,
+      catalog: [],
+      loading: false,
+    };
+    await mount({ door: "relay", reads: { floor } }, { relay: true });
+    await unfold("maintain");
+    const box = host.querySelector('.mdc-part[data-part="maintain"] textarea') as HTMLTextAreaElement;
+    expect(box).toBeTruthy();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "seat pin sticks");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await click(button("Report it"));
+    expect(fs.batches.at(-1)![0]).toMatchObject({ path: "studios/solon/machineCare/m-leg-press", data: { flag: { note: "seat pin sticks" } } });
+    expect(host.querySelector('.mdc-part[data-part="maintain"]')?.textContent).toContain("Flagged: seat pin sticks.");
+    expect(button("Clear the flag")).toBeTruthy();
+    // Floor notes, Out of service and upkeep still need the floor list.
+    expect(host.querySelector('.mdc-part[data-part="maintain"]')?.textContent).not.toContain("Take it out of service");
+  });
 });

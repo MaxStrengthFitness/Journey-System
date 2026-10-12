@@ -488,6 +488,36 @@ describe("the wipe chore (the studio map, phase 4)", () => {
     expect(batch[1].data).toMatchObject({ machineId: "cp", status: "done" });
   });
 
+  it("in two shifts, Close's box marks the machines the morning wiped again and closes Close's own rows (final review fixes)", async () => {
+    care();
+    const shifted = (r: ReturnType<typeof row>, shift: "am" | "pm", status: "open" | "done") => ({
+      ...r,
+      id: r.id.replace("__any", `__${shift}`),
+      shift,
+      status,
+      instance: status === "done" ? ({ status: "done" } as never) : null,
+    });
+    const two = [
+      shifted(row(wipeDown, "lp", "done", { machineName: "Leg Press" }), "am", "done"),
+      shifted(row(wipeDown, "cp", "done", { machineName: "Chest Press" }), "am", "done"),
+      shifted(row(wipeDown, "lp", "open", { machineName: "Leg Press" }), "pm", "open"),
+      shifted(row(wipeDown, "cp", "open", { machineName: "Chest Press" }), "pm", "open"),
+    ];
+    writes.care = { ...writes.care, cp: { machineId: "cp", lastWipedAt: noon(TODAY), lastWipedBy: { id: BEREGOND.id, name: BEREGOND.name } } };
+    const { h } = await render({ only: two });
+    await click(h.querySelector("#rb-part-close"));
+    const card = cardTitled(h, "Wipe down every machine");
+    expect(card?.dataset.state).not.toBe("done");
+    expect(card?.querySelector(".rbc__line")?.textContent).toContain("None wiped yet this shift");
+    await click(card?.querySelector(".rbc__box"));
+    const batch = writes.batches[0];
+    expect(batch.filter((w) => w.path.includes("machineCare")).map((w) => w.path)).toEqual(["studios/s1/machineCare/lp", "studios/s1/machineCare/cp"]);
+    expect(batch.filter((w) => w.path.includes("taskInstances")).map((w) => [w.path.split("/").pop(), w.data.status])).toEqual([
+      [`wipe-down__${TODAY}__pm__lp`, "done"],
+      [`wipe-down__${TODAY}__pm__cp`, "done"],
+    ]);
+  });
+
   it("an assigned wipe chore's panel names the person once", async () => {
     care();
     const assigned = rows().map((r) => ({ ...r, instance: { ...(r.instance ?? {}), assignedTo: { id: MABLUNG.id, name: MABLUNG.name } } as never }));

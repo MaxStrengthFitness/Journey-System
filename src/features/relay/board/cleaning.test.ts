@@ -4,9 +4,11 @@ import {
   careLines,
   checklistLine,
   choreParts,
+  choreStates,
   cleanStateOf,
   flagLine,
   isWipeChore,
+  laterWipeShifts,
   markAllTargets,
   rowsForWipe,
   shiftNowOf,
@@ -183,6 +185,41 @@ describe("choreParts", () => {
   it("is complete on a floor wiped entirely from the map", () => {
     expect(choreParts(rows(ids), new Set(ids.slice(0, 19)), new Set(["m19"]))).toEqual({ done: 19, total: 19, complete: true });
     expect(choreParts([], new Set(), new Set())).toEqual({ done: 0, total: 0, complete: false });
+  });
+});
+
+describe("a wipe chore that runs in more than one shift (final review fixes)", () => {
+  const g = (templateId: string, shift: "am" | "any" | "pm", scope = "studio") => ({ scope, templateId, shift });
+
+  it("names every shift after a template's first as a later one, per template and scope", () => {
+    const later = laterWipeShifts([g("wipe", "pm"), g("wipe", "am"), g("solo", "pm"), g("wipe", "any"), g("wipe", "pm", "personal")]);
+    expect([...later].sort()).toEqual(["studio:wipe:any", "studio:wipe:pm"]);
+  });
+
+  it("a later shift counts a machine only when it was wiped today and its own row is done", () => {
+    const rows = [
+      { machineId: "lp", status: "open" },
+      { machineId: "cp", status: "done" },
+      { machineId: "cr", status: "done" },
+      { machineId: "ab", status: "open" },
+    ];
+    const wiped = new Set(["lp", "cp"]);
+    expect(choreStates(rows, wiped, new Set(["ab"]), true)).toEqual([
+      { machineId: "lp", state: "open" },
+      { machineId: "cp", state: "wiped" },
+      // A done row is never evidence of a wipe on its own.
+      { machineId: "cr", state: "open" },
+      { machineId: "ab", state: "out" },
+    ]);
+    expect(choreParts(rows, wiped, new Set(["ab"]), true)).toEqual({ done: 1, total: 3, complete: false });
+    // The first shift counts the wipes alone, as before.
+    expect(choreParts(rows, wiped, new Set(["ab"]))).toEqual({ done: 2, total: 3, complete: false });
+  });
+
+  it("says this shift on a later shift's line", () => {
+    expect(checklistLine(["wiped", "open"], "this shift")).toBe("1 of 2 wiped this shift");
+    expect(checklistLine(["open"], "this shift")).toBe("None wiped yet this shift");
+    expect(checklistLine(["wiped"], "this shift")).toBe("All 1 wiped this shift");
   });
 });
 

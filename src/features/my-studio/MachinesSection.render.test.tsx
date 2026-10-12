@@ -443,6 +443,22 @@ describe("Map | List, map first (the studio map, phase 4)", () => {
     expect(host.querySelector('[data-testid="the-map"]')).not.toBeNull();
   });
 
+  it("honours a Map picked at another studio only where there is a map: no layout, or none of this floor on it, is the list with no Map tab (final review fixes)", async () => {
+    await remount(() => rememberMachinesView("map"));
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(byText("Open Leg Press")).toBeTruthy();
+    expect(tab("Map")).toBeUndefined();
+    plan.value = { ...READY, plan: { ...READY.plan, placements: [{ machineId: "m-elsewhere", x: ft(10), y: ft(10), rotationDeg: 0 }] } };
+    await remount(() => rememberMachinesView("map"));
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(byText("Open Leg Press")).toBeTruthy();
+    expect(tab("Map")).toBeUndefined();
+    // Where there is a map, the pick holds.
+    plan.value = READY;
+    await remount(() => rememberMachinesView("map"));
+    expect(host.querySelector('[data-testid="the-map"]')).not.toBeNull();
+  });
+
   it("is always the list on a phone, with no switch and no map read", async () => {
     plan.value = READY;
     phone.value = true;

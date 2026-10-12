@@ -19,9 +19,12 @@
  * and Relay's "Wipe down every machine" card (`choreParts`) count the same
  * thing: a machine wiped on the studio's today, read from `machineCare`
  * (which the rules check by studio), out-of-service machines left out of
- * both sides. A chore row's own status is never counted: the taskInstances
- * rule checks no studio (docs/KNOWN-TRAPS.md, "taskInstances checks no
- * studio"), so an instance is not evidence of a wipe.
+ * both sides. A chore row's own status is never counted on its own: the
+ * taskInstances rule checks no studio (docs/KNOWN-TRAPS.md, "taskInstances
+ * checks no studio"), so an instance is not evidence of a wipe. A LATER
+ * shift of a chore that runs in two or three (Close after Opening) needs its
+ * own row done as well as the wipe, never instead (`laterWipeShifts`), so the
+ * morning's wipe never makes Close's card read done.
  *
  * PURE MODULE — no React, no Firestore.
  */
@@ -69,15 +72,19 @@ export function cleanStateOf(i: {
   return "open";
 }
 
-/** "12 of 20 wiped today" · "All 20 wiped today" · "None wiped yet today"; null when a counted machine is unknown. */
-export function checklistLine(states: readonly CleanState[]): string | null {
+/**
+ * "12 of 20 wiped today" · "All 20 wiped today" · "None wiped yet today";
+ * null when a counted machine is unknown. A later shift of the wipe chore
+ * says "this shift" in place of "today" (`choreStates`).
+ */
+export function checklistLine(states: readonly CleanState[], when: "today" | "this shift" = "today"): string | null {
   const counted = states.filter((s) => s !== "out");
   if (counted.length === 0) return null;
   if (counted.some((s) => s === "unknown")) return null;
   const done = counted.filter((s) => s === "wiped").length;
-  if (done === 0) return "None wiped yet today";
-  if (done === counted.length) return `All ${counted.length} wiped today`;
-  return `${done} of ${counted.length} wiped today`;
+  if (done === 0) return `None wiped yet ${when}`;
+  if (done === counted.length) return `All ${counted.length} wiped ${when}`;
+  return `${done} of ${counted.length} wiped ${when}`;
 }
 
 /** Every counted machine not wiped today, in the order given (the walking order); never one out of service. */
@@ -155,25 +162,78 @@ export function wipeRowsOf<R extends { template?: Pick<TaskTemplate, "kind" | "c
   return rows.filter((r) => isWipeChore(r.template, categories));
 }
 
+/** One key for a chore's shift group: its scope, its template and its shift. */
+export const wipeShiftKey = (g: { scope: string; templateId: string; shift: TaskShift }): string => `${g.scope}:${g.templateId}:${g.shift}`;
+
 /**
- * A wipe chore's parts, by the machines' wipes today (never by the rows'
- * status): out-of-service machines are left out of done AND total;
- * complete when every counted machine is wiped.
+ * A LATER SHIFT OF THE WIPE CHORE (the studio map's final review fixes, Oct
+ * 12 2026). A template may run in more than one shift (Opening and Close),
+ * and each shift has its own rows. One wipe completes one row a machine
+ * (`rowsForWipe`), so the morning's wipe leaves Close's rows open. The keys
+ * of every group whose template also runs in an earlier shift today: those
+ * cards count a machine only when it was wiped today AND its own row in that
+ * shift is done (`choreStates`), so the Close card never reads done off the
+ * morning's wipe and its Mark all closes its own rows.
  */
-export function choreParts(
-  groupRows: readonly { machineId?: string }[],
+export function laterWipeShifts(groups: readonly { scope: string; templateId: string; shift: TaskShift }[]): Set<string> {
+  const first = new Map<string, number>();
+  for (const g of groups) {
+    const k = `${g.scope}:${g.templateId}`;
+    const rank = SHIFT_ORDER[g.shift] ?? 3;
+    if (!first.has(k) || rank < (first.get(k) as number)) first.set(k, rank);
+  }
+  const out = new Set<string>();
+  for (const g of groups) {
+    if ((SHIFT_ORDER[g.shift] ?? 3) > (first.get(`${g.scope}:${g.templateId}`) ?? 3)) out.add(wipeShiftKey(g));
+  }
+  return out;
+}
+
+/**
+ * Each machine of a wipe chore's group, once, in the rows' order: out of
+ * service, wiped or open. Counted by the machines' wipes today (machineCare,
+ * which the rules check by studio). A row's status alone is never evidence
+ * of a wipe (taskInstances checks no studio); in a LATER shift
+ * (`laterWipeShifts`) a done row is required as well, never instead.
+ */
+export function choreStates(
+  groupRows: readonly { machineId?: string; status?: string }[],
   wiped: ReadonlySet<string>,
   outOfService: ReadonlySet<string>,
-): { done: number; total: number; complete: boolean } {
-  let done = 0;
-  let total = 0;
+  laterShift = false,
+): { machineId: string; state: "out" | "wiped" | "open" }[] {
+  const rowDone = new Set<string>();
+  if (laterShift) for (const r of groupRows) if (r.machineId && r.status === "done") rowDone.add(r.machineId);
+  const out: { machineId: string; state: "out" | "wiped" | "open" }[] = [];
   const seen = new Set<string>();
   for (const r of groupRows) {
     const id = r.machineId;
-    if (!id || seen.has(id) || outOfService.has(id)) continue;
+    if (!id || seen.has(id)) continue;
     seen.add(id);
+    const isWiped = wiped.has(id) && (!laterShift || rowDone.has(id));
+    out.push({ machineId: id, state: outOfService.has(id) ? "out" : isWiped ? "wiped" : "open" });
+  }
+  return out;
+}
+
+/**
+ * A wipe chore's parts, by the machines' wipes today (never by the rows'
+ * status alone): out-of-service machines are left out of done AND total;
+ * complete when every counted machine is wiped. A later shift needs its own
+ * row done too (`choreStates`).
+ */
+export function choreParts(
+  groupRows: readonly { machineId?: string; status?: string }[],
+  wiped: ReadonlySet<string>,
+  outOfService: ReadonlySet<string>,
+  laterShift = false,
+): { done: number; total: number; complete: boolean } {
+  let done = 0;
+  let total = 0;
+  for (const m of choreStates(groupRows, wiped, outOfService, laterShift)) {
+    if (m.state === "out") continue;
     total += 1;
-    if (wiped.has(id)) done += 1;
+    if (m.state === "wiped") done += 1;
   }
   return { done, total, complete: total > 0 && done === total };
 }

@@ -69,43 +69,19 @@ export function MaintainPart({
   onClose: () => void;
 }) {
   const { success: toastSuccess, error: toastError } = useToast();
-  const { activeStudio, studios } = useActiveStudio();
   const reads = useCardMaintain(studioId, have);
-  const [note, setNote] = useState("");
   const [upkeep, setUpkeep] = useState(false);
   const [askingOut, setAskingOut] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonProblem, setReasonProblem] = useState<string | null>(null);
-  useUnsavedChanges(note.trim().length > 0, `the problem report on ${name}`, { onDiscard: () => setNote("") });
   const reasonUnsaved = useUnsavedChanges(askingOut && reason.trim().length > 0, `the out of service reason for ${name}`, { onDiscard: () => setReason("") });
 
-  const flag = flagLine(care);
   const out = entry.status === "maintenance";
   const outLine = out ? outOfServiceOfEntry(entry) : null;
   const upkeepStatus = useMemo(
     () => worstStatus(tallyUpkeep(reads.upkeep.events, machineId, studioDateKey(new Date()) ?? ""), DEFAULT_UPKEEP_POLICY),
     [reads.upkeep.events, machineId],
   );
-  const leaderId = (activeStudio?.id === studioId ? activeStudio : (studios ?? []).find((s) => s.id === studioId))?.headTrainerId ?? null;
-
-  const report = () => {
-    const text = note.trim().slice(0, FLAG_NOTE_MAX);
-    if (!text || !uid) return;
-    flagMachine({ studioId, machineId, machineName: name, note: text, author: careActor(uid, authTrainer?.fullName), leaderId }).catch((err: unknown) => {
-      console.warn("[machine card] report failed:", err);
-      toastError(`Couldn't report the problem with ${name}. Check your connection.`);
-    });
-    setNote("");
-    toastSuccess("Reported. Leaders see it under Open loops.");
-  };
-
-  const clear = () => {
-    clearMachineFlag({ studioId, machineId }).catch((err: unknown) => {
-      console.warn("[machine card] clear failed:", err);
-      toastError("Couldn't clear that.");
-    });
-    toastSuccess("Flag cleared.");
-  };
 
   const saveOut = () => {
     const r = reasonToStore(reason);
@@ -139,41 +115,7 @@ export function MaintainPart({
 
   return (
     <>
-      <section className="mdc-report" aria-label="Report a problem">
-        <h3 className="mdc-h">Report a problem</h3>
-        {flag ? (
-          <>
-            <p className="mdc-line">{flag}</p>
-            {canWrite && (
-              <div className="mdc-actions">
-                <AdminButton onClick={clear}>
-                  <FlagOff className="w-3.5 h-3.5" aria-hidden />
-                  Clear the flag
-                </AdminButton>
-              </div>
-            )}
-          </>
-        ) : canWrite ? (
-          <>
-            <AdminTextarea
-              aria-label={`What's wrong with ${name}`}
-              className="min-h-20"
-              maxLength={FLAG_NOTE_MAX}
-              value={note}
-              placeholder="What's wrong? A torn pad, a squeak, a loose cable…"
-              onChange={(e) => setNote(e.target.value)}
-            />
-            <div className="mdc-actions">
-              <AdminButton variant="primary" disabled={!note.trim()} onClick={report}>
-                <Flag className="w-3.5 h-3.5" aria-hidden />
-                Report it
-              </AdminButton>
-            </div>
-          </>
-        ) : (
-          <p className="mdc-line mdc-line--quiet">Nothing reported.</p>
-        )}
-      </section>
+      <ReportProblem studioId={studioId} machineId={machineId} name={name} care={care} authTrainer={authTrainer} uid={uid} canWrite={canWrite} />
 
       <section aria-label="The floor's notes">
         <h3 className="mdc-h">The floor's notes</h3>
@@ -298,3 +240,92 @@ export function MaintainPart({
   );
 }
 
+/**
+ * REPORT A PROBLEM — the machine's flag (`machineCare.flag`), on its own so
+ * a machine with no roster entry (Relay's stand-in, bridged from the catalog
+ * while a studio has no floor list) can still be flagged and cleared, as the
+ * care sheet allowed (the studio map's final review fixes, Oct 12 2026):
+ * flagMachine and clearMachineFlag need no roster entry. Rings the studio
+ * leader's bell as today (design §G question 3, its default).
+ */
+export function ReportProblem({
+  studioId,
+  machineId,
+  name,
+  care,
+  authTrainer,
+  uid,
+  canWrite,
+}: {
+  studioId: string;
+  machineId: string;
+  name: string;
+  care: MachineCare | undefined;
+  authTrainer: Trainer | null;
+  uid: string | null;
+  canWrite: boolean;
+}) {
+  const { success: toastSuccess, error: toastError } = useToast();
+  const { activeStudio, studios } = useActiveStudio();
+  const [note, setNote] = useState("");
+  useUnsavedChanges(note.trim().length > 0, `the problem report on ${name}`, { onDiscard: () => setNote("") });
+  const flag = flagLine(care);
+  const leaderId = (activeStudio?.id === studioId ? activeStudio : (studios ?? []).find((s) => s.id === studioId))?.headTrainerId ?? null;
+
+  const report = () => {
+    const text = note.trim().slice(0, FLAG_NOTE_MAX);
+    if (!text || !uid) return;
+    flagMachine({ studioId, machineId, machineName: name, note: text, author: careActor(uid, authTrainer?.fullName), leaderId }).catch((err: unknown) => {
+      console.warn("[machine card] report failed:", err);
+      toastError(`Couldn't report the problem with ${name}. Check your connection.`);
+    });
+    setNote("");
+    toastSuccess("Reported. Leaders see it under Open loops.");
+  };
+
+  const clear = () => {
+    clearMachineFlag({ studioId, machineId }).catch((err: unknown) => {
+      console.warn("[machine card] clear failed:", err);
+      toastError("Couldn't clear that.");
+    });
+    toastSuccess("Flag cleared.");
+  };
+
+  return (
+    <section className="mdc-report" aria-label="Report a problem">
+      <h3 className="mdc-h">Report a problem</h3>
+      {flag ? (
+        <>
+          <p className="mdc-line">{flag}</p>
+          {canWrite && (
+            <div className="mdc-actions">
+              <AdminButton onClick={clear}>
+                <FlagOff className="w-3.5 h-3.5" aria-hidden />
+                Clear the flag
+              </AdminButton>
+            </div>
+          )}
+        </>
+      ) : canWrite ? (
+        <>
+          <AdminTextarea
+            aria-label={`What's wrong with ${name}`}
+            className="min-h-20"
+            maxLength={FLAG_NOTE_MAX}
+            value={note}
+            placeholder="What's wrong? A torn pad, a squeak, a loose cable…"
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="mdc-actions">
+            <AdminButton variant="primary" disabled={!note.trim()} onClick={report}>
+              <Flag className="w-3.5 h-3.5" aria-hidden />
+              Report it
+            </AdminButton>
+          </div>
+        </>
+      ) : (
+        <p className="mdc-line mdc-line--quiet">Nothing reported.</p>
+      )}
+    </section>
+  );
+}

@@ -183,7 +183,15 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
     [layout.state, layout.plan, rosterEntries],
   );
   const [picked, setPicked] = useState<MachinesView | null>(rememberedMachinesView);
-  const shownView: MachinesView = phone ? "list" : (picked ?? (placed > 0 ? "map" : "list"));
+  /*
+   * No map to show (final review fixes, Oct 12 2026): the read answered with
+   * no layout, or a layout with none of this floor's machines on it. The pick
+   * is remembered per iPad, not per studio, so a Map picked at another studio
+   * is honoured only where there is a map; here the list shows and the Map
+   * tab isn't offered. Still being read, or unreadable, is not "no map".
+   */
+  const noMap = layout.state === "empty" || (layout.state === "ready" && placed === 0);
+  const shownView: MachinesView = phone || noMap ? "list" : (picked ?? (placed > 0 ? "map" : "list"));
   const pickView = (next: MachinesView) => {
     if (next === shownView) return;
     viewScope.guard(() => {
@@ -368,7 +376,7 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
           actions={
             !phone && !arranging && !floorEmpty ? (
               <span className="flex flex-wrap items-center gap-2">
-                {!floorEmpty && (
+                {!floorEmpty && !noMap && (
                   <div className="adm-segmented" role="tablist" aria-label="The floor as">
                     {(["map", "list"] as const).map((v) => (
                       <button key={v} type="button" role="tab" className="adm-seg" aria-selected={shownView === v} onClick={() => pickView(v)}>

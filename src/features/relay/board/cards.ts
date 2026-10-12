@@ -37,7 +37,7 @@ import type { TeamJob } from "../jobs/types";
 import { coverTimeOf, neededWords } from "./cover";
 import type { ShiftPhase } from "./now-context";
 import { renewalPromptDue } from "../../renewals/conversation";
-import { checklistLine, choreParts, isWipeChore, type CleanState } from "./cleaning";
+import { checklistLine, choreParts, choreStates, isWipeChore, laterWipeShifts, wipeShiftKey } from "./cleaning";
 
 export type CardPart = "open" | "day" | "close" | "week";
 export type CardColumn = "floor" | "desk" | "clients" | "team";
@@ -206,12 +206,13 @@ function laterIn(part: CardPart, phase: ShiftPhase): boolean {
  * map's own words ("12 of 19 wiped today"), never who or when. No claims on
  * it this round (Q1: "claim for later optional for planning").
  */
-function wipeChoreCard(g: ShiftGroup, input: CardsInput, me: Set<string>): BoardCard {
+function wipeChoreCard(g: ShiftGroup, input: CardsInput, me: Set<string>, later: boolean): BoardCard {
   const part = SHIFT_PART[g.shift];
   const t = g.rows[0]?.template;
   const out = input.outOfServiceIds ?? new Set<string>();
   const wiped = input.wipedTodayIds ?? null;
-  const counted = choreParts(g.rows, wiped ?? new Set<string>(), out);
+  // A later shift (Close after Opening) needs its own row done too: the morning's wipe isn't Close's.
+  const counted = choreParts(g.rows, wiped ?? new Set<string>(), out, later);
   const assignedMe = Boolean(g.assignedTo && me.has(g.assignedTo.id));
   let state: CardState;
   let line: string;
@@ -219,14 +220,8 @@ function wipeChoreCard(g: ShiftGroup, input: CardsInput, me: Set<string>): Board
     state = laterIn(part, input.phase) ? "later" : "todo";
     line = input.careRead === "failed" ? "Can't read the cleaning marks right now" : "Reading the cleaning marks…";
   } else {
-    const states: CleanState[] = [];
-    const seen = new Set<string>();
-    for (const r of g.rows) {
-      if (!r.machineId || seen.has(r.machineId)) continue;
-      seen.add(r.machineId);
-      states.push(out.has(r.machineId) ? "out" : wiped.has(r.machineId) ? "wiped" : "open");
-    }
-    line = checklistLine(states) ?? "Nothing to wipe today";
+    const states = choreStates(g.rows, wiped, out, later).map((m) => m.state);
+    line = checklistLine(states, later ? "this shift" : "today") ?? "Nothing to wipe today";
     if (counted.complete) state = "done";
     else if (counted.done > 0) state = "started";
     else state = laterIn(part, input.phase) ? "later" : "todo";
@@ -251,8 +246,8 @@ function wipeChoreCard(g: ShiftGroup, input: CardsInput, me: Set<string>): Board
   };
 }
 
-function groupCard(g: ShiftGroup, input: CardsInput, me: Set<string>): BoardCard {
-  if (isWipeChore(g.rows[0]?.template, input.categories)) return wipeChoreCard(g, input, me);
+function groupCard(g: ShiftGroup, input: CardsInput, me: Set<string>, laterWipes: ReadonlySet<string>): BoardCard {
+  if (isWipeChore(g.rows[0]?.template, input.categories)) return wipeChoreCard(g, input, me, laterWipes.has(wipeShiftKey(g)));
   const part = SHIFT_PART[g.shift];
   const t = g.rows[0]?.template;
   const personal = taskScopeOf(t ?? {}) === "personal";
@@ -503,11 +498,10 @@ export function boardCards(input: CardsInput): BoardCard[] {
     if (r.kind === "client") cards.push(clientCard(r, input, me));
     else shift.push(r);
   }
-  for (const g of shiftGroups(shift, input.categories, { trainerId: input.trainerId })) {
-    // A group someone skipped entirely has nothing to do and nothing done: it stays off the board.
-    if (g.total === 0) continue;
-    cards.push(groupCard(g, input, me));
-  }
+  // A group someone skipped entirely has nothing to do and nothing done: it stays off the board.
+  const groups = shiftGroups(shift, input.categories, { trainerId: input.trainerId }).filter((g) => g.total > 0);
+  const laterWipes = laterWipeShifts(groups);
+  for (const g of groups) cards.push(groupCard(g, input, me, laterWipes));
 
   for (const r of input.requests) {
     if (r.status !== "open") continue;

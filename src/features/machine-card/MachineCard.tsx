@@ -20,7 +20,7 @@ import { sizeLine } from "../studio-map/units";
 import type { TaskRow } from "../studio-tasks/types";
 import { CleanPart } from "./CleanPart";
 import { LearnPart, learnSummary } from "./LearnPart";
-import { MaintainPart } from "./MaintainPart";
+import { MaintainPart, ReportProblem } from "./MaintainPart";
 import { CARD_PARTS, PART_TITLE, firstPartFor, type CardDoor, type CardPart, type MapMode } from "./parts";
 import { SetupPart } from "./SetupPart";
 import { useCardFloor, type CardReads } from "./useMachineCardReads";
@@ -177,7 +177,7 @@ export function MachineCard({
   const summaries: Record<CardPart, string | null> = {
     learn: learnSummary(machine, name),
     clean: cleanSummary,
-    maintain: standIn ? null : openNotes !== null && openNotes > 0 ? `${openNotes} open ${openNotes === 1 ? "note" : "notes"}` : "Notes, out of service, upkeep",
+    maintain: standIn ? "Report a problem" : openNotes !== null && openNotes > 0 ? `${openNotes} open ${openNotes === 1 ? "note" : "notes"}` : "Notes, out of service, upkeep",
     setup: standIn
       ? null
       : measured
@@ -235,7 +235,11 @@ export function MachineCard({
           onClose={onClose}
         />
       ) : (
-        notOnList
+        // A machine with no roster entry (Relay's stand-in) can still be flagged and cleared; the rest needs the list.
+        <>
+          <ReportProblem studioId={studioId} machineId={machineId} name={name} care={record} authTrainer={authTrainer} uid={uid} canWrite={canWrite} />
+          {notOnList}
+        </>
       ),
     setup: () =>
       entry ? (

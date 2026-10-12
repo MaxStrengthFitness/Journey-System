@@ -510,6 +510,8 @@ if ($Stage -eq 'golive') {
   Log '3. Render -> journey-cron-renewals -> Manual Build, then the same on journey-cron-leaderboards' 'White'
   Log '   (a cron left out keeps running its old commit; keep all three on one).' 'White'
   Log '4. The iPads pick the new version up by themselves on the Hub (never over a session or while typing).' 'White'
+  Log '   Deploy before the studios open: the new Board counts the floor''s wipe marks, not the old app''s row ticks,' 'White'
+  Log '   so a wipe chore ticked on the old version earlier today reads "None wiped yet today" until it is marked again.' 'White'
   Log 'Next: -Stage seed once version.json names the commit:' 'White'
   Log '     powershell -ExecutionPolicy Bypass -File .\scripts\ship\ship-studio-map.ps1 -Stage seed' 'Cyan'
   Log '' 'White'
@@ -537,6 +539,12 @@ Log "Render serves this round's commit ($BranchShort)." 'Green'
 
 if (-not $HaveKey) { Stop-Here "the service-account key is not at $KeyPath. Put it there (it stays out of git) and run this stage again. Nothing was written." }
 $Seed = "npx tsx scripts/seed-imagine-strength-models.ts --key `"$KeyPath`" --project $GcpProject --database $Db --confirm-project $GcpProject"
+
+Log '' 'White'
+Log 'BEFORE THE SEED: every administrator, and the Solon and Strongsville leaders, opens the Hub on their iPad' 'Yellow'
+Log '  so it loads the new version. An iPad still on the old one can erase what this stage adds: saving a model on' 'Yellow'
+Log '  Admins drops its size, and saving a machine in the old editor can take a unit''s model away.' 'Yellow'
+Log '' 'White'
 
 # The dry run: reads which of the twenty are there, writes nothing.
 $dry = Run 'the Imagine Strength models, dry run (reads only)' $Seed

@@ -24,7 +24,7 @@ import { JustNow } from "./JustNow";
 import { BoardCardView } from "./BoardCardView";
 import { careReadState, useCareRead, useLiveCare } from "./machine-care-context";
 import { careActor, markWiped } from "./machine-care-store";
-import { isWipeChore, markAllTargets, wipedToday, type CleanState } from "./cleaning";
+import { choreStates, isWipeChore, laterWipeShifts, markAllTargets, wipeShiftKey, wipedToday } from "./cleaning";
 import {
   CARD_COLUMNS,
   CARD_PARTS,
@@ -199,17 +199,18 @@ export function Board({
   /* ---- the wipe chore: Mark all, through the cleaning checklist (the studio map, phase 4) ---- */
 
   const isWipe = (g: ShiftGroup) => isWipeChore(g.rows[0]?.template, categories);
-  /** The chore's machines not wiped today, never one out of service, in the rows' order. */
-  const wipeTargets = (g: ShiftGroup): string[] => {
-    const seen = new Set<string>();
-    const states: { machineId: string; state: CleanState }[] = [];
-    for (const r of g.rows) {
-      if (!r.machineId || seen.has(r.machineId)) continue;
-      seen.add(r.machineId);
-      states.push({ machineId: r.machineId, state: outIds.has(r.machineId) ? "out" : wipedTodayIds?.has(r.machineId) ? "wiped" : "open" });
-    }
-    return markAllTargets(states);
-  };
+  /** The wipe chore's later shifts (Close after Opening): the cards' own rule (`laterWipeShifts`). */
+  const laterWipes = useMemo(
+    () => laterWipeShifts(cards.flatMap((c) => (c.source.kind === "group" ? [c.source.group] : []))),
+    [cards],
+  );
+  /**
+   * The chore's machines not counted yet, never one out of service, in the
+   * rows' order: not wiped today, or, in a later shift, its own row still
+   * open (the morning's wipe isn't Close's, so Close's Mark all closes Close's rows).
+   */
+  const wipeTargets = (g: ShiftGroup): string[] =>
+    markAllTargets(choreStates(g.rows, wipedTodayIds ?? new Set<string>(), outIds, laterWipes.has(wipeShiftKey(g))));
   /** Mark all {n} wiped: one batch, Undo on the Board's line. Never awaited. */
   const markAll = (g: ShiftGroup) => {
     if (!relay.studioId || !relay.uid) {

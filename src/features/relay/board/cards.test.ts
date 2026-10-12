@@ -220,6 +220,25 @@ describe("the wipe chore (the studio map, phase 4)", () => {
     expect(card.parts).toBeNull();
   });
 
+  it("runs in two shifts: the morning's Mark all never makes Close's card read done, and Close's own rows do", () => {
+    const am = ids.slice(0, 3).map((id) => at("am")(row(realWipe, id, "done")));
+    const pmOpen = ids.slice(0, 3).map((id) => at("pm")(row(realWipe, id, "open")));
+    const wiped = new Set(ids.slice(0, 3));
+    const morning = input({ rows: [...am, ...pmOpen], wipedTodayIds: wiped, phase: "closing" });
+    expect(one(morning, "group:studio:wipedown:am")).toMatchObject({ state: "done", line: "All 3 wiped today" });
+    expect(one(morning, "group:studio:wipedown:pm")).toMatchObject({ state: "todo", line: "None wiped yet this shift", parts: { done: 0, total: 3 } });
+    // Close's Mark all wipes them again and closes Close's rows: then it reads done.
+    const pmDone = pmOpen.map((r, i) => (i < 2 ? { ...r, status: "done" as const } : r));
+    expect(one(input({ rows: [...am, ...pmDone], wipedTodayIds: wiped, phase: "closing" }), "group:studio:wipedown:pm")).toMatchObject({
+      state: "started",
+      line: "2 of 3 wiped this shift",
+    });
+    const allDone = pmOpen.map((r) => ({ ...r, status: "done" as const }));
+    expect(one(input({ rows: [...am, ...allDone], wipedTodayIds: wiped, phase: "closing" }), "group:studio:wipedown:pm").state).toBe("done");
+    // A done row whose machine wasn't wiped today still isn't counted.
+    expect(one(input({ rows: [...am, ...allDone], wipedTodayIds: new Set(["m0"]), phase: "closing" }), "group:studio:wipedown:pm").line).toBe("1 of 3 wiped this shift");
+  });
+
   it("says whose it is when a leader put a name on it", () => {
     const named = ids.map((id) => row(realWipe, id, "open", { instance: { status: "open", assignedTo: MABLUNG } as never }));
     expect(one(input({ rows: named, wipedTodayIds: new Set(["m0"]) }), ID).line).toBe("For Mablung · 1 of 20 wiped today");
