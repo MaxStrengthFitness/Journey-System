@@ -59,6 +59,11 @@ export async function loadTrainingHistory(clientId: string, fromDay = ""): Promi
   );
   if (sessions.length === 0) return { sessions, logs: [], ...(fromDay ? { logsFrom: fromDay } : {}) };
 
+  // Every session's sets: one query by client, the same bytes as reading them by session in many.
+  if (!fromDay) {
+    const snap = await getDocs(query(collection(db, "exerciseLogs"), where("clientId", "==", clientId)));
+    return { sessions, logs: snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ExerciseLog) };
+  }
   // The window's sessions' sets only, 30 sessions to a query (Firestore's `in`), side by side.
   const ids = sessionsInWindow(sessions, fromDay).map((s) => s.id).filter((id): id is string => !!id);
   const chunks: string[][] = [];

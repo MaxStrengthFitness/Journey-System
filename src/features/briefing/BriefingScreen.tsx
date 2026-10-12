@@ -1335,7 +1335,7 @@ export function BriefingScreen({
                       <span className="br__routine-name">Routine {type}</span>
                       <span className="br__routine-sub">
                         {routine
-                          ? `${lastRunLabel(lastRun)} · ${routine.machineIds?.length || 0} machines`
+                          ? `${lastRunLabel(lastRun, sessionsAreAll)} · ${routine.machineIds?.length || 0} machines`
                           : "Not set up yet · today only"}
                       </span>
                     </button>

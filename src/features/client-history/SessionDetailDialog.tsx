@@ -605,7 +605,14 @@ export function SessionDetailDialog({
                   </span>
                 )}
                 <span className="hsd-chip hsd-chip--end">
-                  Volume <b>{summary.volume.toLocaleString()}</b> lb{summary.volumeComplete ? null : " (recorded sets)"}
+                  {/* No set with its reps written down: no volume to give, never a confident 0 (History's list says "—"). */}
+                  {!summary.volumeComplete && summary.volume === 0 ? (
+                    "Volume: reps not recorded"
+                  ) : (
+                    <>
+                      Volume <b>{summary.volume.toLocaleString()}</b> lb{summary.volumeComplete ? null : " (recorded sets)"}
+                    </>
+                  )}
                 </span>
               </div>
 

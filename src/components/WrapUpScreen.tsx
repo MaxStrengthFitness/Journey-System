@@ -1280,8 +1280,12 @@ export function WrapUpScreen({
           <div className="wu-fade mx-5 grid grid-cols-3 gap-2" style={{ "--wu-delay": "0.3s" } as React.CSSProperties}>
             {[
               { label: "Sessions", value: lifetime.sessions.toLocaleString() },
-              { label: "Lifetime volume", value: `${fmtBig(lifetime.volume)} lb` },
-              { label: "Lifetime reps", value: fmtBig(lifetime.reps) },
+              /* FileMaker history came in (the import's mark on the client):
+                 the sets whose reps were never written down count for neither,
+                 so the two say "recorded", as the progress report does (AJ,
+                 Oct 12 2026, "2a"). */
+              { label: client.legacy_filemaker_id ? "Lifetime volume (recorded)" : "Lifetime volume", value: `${fmtBig(lifetime.volume)} lb` },
+              { label: client.legacy_filemaker_id ? "Lifetime reps (recorded)" : "Lifetime reps", value: fmtBig(lifetime.reps) },
             ].map((t) => (
               <div key={t.label} className="rounded-xl border border-(--edge) bg-clip-padding bg-bg-dark-2 shadow-(--panel-lift) px-3 py-2">
                 <div className="text-[12px] font-semibold text-ink-d3">{t.label}</div>

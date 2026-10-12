@@ -150,13 +150,19 @@ export function lastRunOfRoutine(
   return { session: best, date: bestAt > 0 ? new Date(bestAt) : null };
 }
 
-/** "Last run today" · "Last run yesterday" · "Last run Sep 12" · "Never run". */
-export function lastRunLabel(run: RoutineLastRun | null): string {
+/**
+ * "Last run today" · "Last run yesterday" · "Last run Sep 12" · "No run
+ * recorded" · "No recent run". `listComplete` is whether `sessions` was every
+ * session Journey holds for the client: the session screen reads only the
+ * newest ones (the history-ready round, Oct 12 2026), and a run older than
+ * those is still on record.
+ */
+export function lastRunLabel(run: RoutineLastRun | null, listComplete = true): string {
   // "Never run" is a claim about the CLIENT. A routine built in Journey for
   // a client who has trained here for years has no Journey run and plenty of
   // real ones, so the honest form is about our records. Safe whatever the
   // coverage, so unlike the rest of this round it needs no gate.
-  if (!run) return "No run recorded";
+  if (!run) return listComplete ? "No run recorded" : "No recent run";
   if (!run.date) return "Last run · date unknown";
   const rel = relativeDay(run.date);
   if (rel === "Today" || rel === "Yesterday") return `Last run ${rel.toLowerCase()}`;

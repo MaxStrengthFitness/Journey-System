@@ -118,7 +118,13 @@ export function useClinicalReport(clientId: string | null, options: { enabled?: 
 
         setProgress(`Loading sets for ${sessions.length} sessions…`);
         const ids = sessions.map((s) => s.id!).filter(Boolean);
-        const logs = await fetchLogsForSessions(ids);
+        // All time: one query by client (the same sets, read in one), kept to the range's sessions.
+        const idSet = new Set(ids);
+        const logs = from
+          ? await fetchLogsForSessions(ids)
+          : (await getDocs(query(collection(db, "exerciseLogs"), where("clientId", "==", clientId))))
+              .docs.map((d) => ({ id: d.id, ...(d.data() as ExerciseLog) }))
+              .filter((l) => idSet.has(l.sessionId));
         if (requestId.current !== myId) return;
 
         setProgress("Loading incidents…");

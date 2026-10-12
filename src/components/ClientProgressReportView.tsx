@@ -422,6 +422,8 @@ export function ClientProgressReportView({
   // The history read so far, for the effect below to ask without depending on it.
   const historyRef = useRef<TrainingHistory | null>(null);
   historyRef.current = history;
+  // A window start moved earlier than what was read, counted when the read for it lands.
+  const pendingRecalc = useRef<string | null>(null);
   /** The auto-populate runs once per open report, never over the trainer's edits. */
   const autoPopulated = useRef(false);
 
@@ -441,8 +443,9 @@ export function ClientProgressReportView({
     [machines],
   );
 
-  /** Everything the accolade rules need for a given window start. */
-  const slotContextFor = (startDate: string | undefined): SlotContext => {
+  /** Everything the accolade rules need for a given window start (from `h`, the history on screen unless given). */
+  const slotContextFor = (startDate: string | undefined, h: TrainingHistory | null = history): SlotContext => {
+    const history = h;
     if (!history) {
       return {
         stats: {},
@@ -662,7 +665,11 @@ export function ClientProgressReportView({
   const windowStart = report.attendance.customStartDate || "";
   useEffect(() => {
     if (mode !== "editing" || !client.id) return;
-    if (historyLoadedFor.current === client.id && historyRef.current && historyCovers(historyRef.current, windowStart)) return;
+    if (historyLoadedFor.current === client.id && historyRef.current && historyCovers(historyRef.current, windowStart)) {
+      // What is in memory covers the window: a read for a wider one that was overtaken never leaves "loading" behind.
+      setHistoryStatus("ready");
+      return;
+    }
     let cancelled = false;
     setHistoryStatus("loading");
     loadTrainingHistory(client.id, windowStart)
@@ -671,6 +678,12 @@ export function ClientProgressReportView({
         historyLoadedFor.current = client.id!;
         setHistory(h);
         setHistoryStatus("ready");
+        // A window widened past what was read is counted now that its sets are here.
+        const pending = pendingRecalc.current;
+        if (pending !== null && historyCovers(h, pending)) {
+          pendingRecalc.current = null;
+          applyWindow(h, pending);
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -793,17 +806,32 @@ export function ClientProgressReportView({
      Sep 2" - Journey's count and Journey's first day, as her whole story. */
   const sessionWords = reportSessionWords(coverage, priorHistoryOf(client));
 
+  /* Only the window's sets are in memory (the history-ready round): a start
+     moved earlier than what was read is counted once the read for it lands
+     (the load effect above). Until then the tiles counted from sets say
+     "Reading their sessions…", never the narrower window's totals. */
   const handleRecalculateAttendance = (customStartDate?: string) => {
     const activeStartDate = customStartDate || "";
-    if (!history) {
+    if (!history || !historyCovers(history, activeStartDate)) {
+      pendingRecalc.current = history ? activeStartDate : null;
       setReport((prev) => ({
         ...prev,
-        attendance: { ...prev.attendance, customStartDate: activeStartDate },
+        attendance: {
+          ...prev.attendance,
+          customStartDate: activeStartDate,
+          ...(history ? { totalVolume: undefined, totalReps: undefined, totalGoodReps: undefined, unrecordedSets: undefined } : {}),
+        },
       }));
       return;
     }
-    const stats = attendanceStatsFrom(history, activeStartDate);
-    const ctx = slotContextFor(activeStartDate);
+    pendingRecalc.current = null;
+    applyWindow(history, activeStartDate);
+  };
+
+  /** The tiles and the accolades for a window start, from a history that covers it. */
+  const applyWindow = (h: TrainingHistory, activeStartDate: string) => {
+    const stats = attendanceStatsFrom(h, activeStartDate);
+    const ctx = slotContextFor(activeStartDate, h);
     setReport((prev) => ({
       ...prev,
       attendance: {
@@ -1852,17 +1880,21 @@ export function ClientProgressReportView({
                       },
                       {
                         key: "totalVolume",
-                        label: "Total Volume Lifted",
+                        label: report.attendance.unrecordedSets ? "Total Volume Lifted (recorded)" : "Total Volume Lifted",
                         value: realStat(report.attendance.totalVolume),
                         unit: "lbs",
-                        why: "No performed, weighted sets in this window.",
+                        why: report.attendance.unrecordedSets
+                          ? "The reps weren't recorded on the sets in this window."
+                          : "No performed, weighted sets in this window.",
                       },
                       {
                         key: "totalReps",
-                        label: "Total Reps",
+                        label: report.attendance.unrecordedSets ? "Total Reps (recorded)" : "Total Reps",
                         value: realStat(report.attendance.totalReps),
                         unit: "",
-                        why: "No performed, weighted sets in this window.",
+                        why: report.attendance.unrecordedSets
+                          ? "The reps weren't recorded on the sets in this window."
+                          : "No performed, weighted sets in this window.",
                       },
                       {
                         key: "totalGoodReps",

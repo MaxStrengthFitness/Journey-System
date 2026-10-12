@@ -197,11 +197,12 @@ describe("loadTrainingHistory", () => {
     expect(logsQuery.constraints[0]).toMatchObject({ field: "sessionId", op: "in" });
     expect(logsQuery.constraints[0].value).toHaveLength(14);
     expect(h.logsFrom).toBe("2025-03-01");
-    // The whole history: 70 sessions, three queries side by side.
+    // The whole history: every set, so one query by client rather than one per 30 sessions.
     getDocs.mockReset();
     getDocs.mockResolvedValueOnce(snap(sessions)).mockResolvedValue(snap([]));
     await loadTrainingHistory("c1");
-    expect(getDocs).toHaveBeenCalledTimes(4);
+    expect(getDocs).toHaveBeenCalledTimes(2);
+    expect(getDocs.mock.calls[1][0].constraints[0]).toMatchObject({ field: "clientId", op: "==" });
   });
 
   it("knows whether what was read holds a window's sets", () => {

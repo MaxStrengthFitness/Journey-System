@@ -35,8 +35,15 @@ describe("the logs window", () => {
     expect(source).toMatch(/prev\.state === "ready" && state === "cache-only"/);
   });
 
-  it("counts as every session read only when the server answered", () => {
-    expect(source).toMatch(/const sessionsAllRead = logsWindow\?\.state === "ready" && !hasOlderToRead\(sessions, menuReadIds\);/);
+  it("counts as every session read only when the server answered, and only while the server holds no older ones", () => {
+    // The history-ready round (Oct 12 2026): the screen holds the newest 40 sessions and Load older's pages.
+    expect(source).toMatch(
+      /const sessionsAllRead =\s+sessionsServerFor === clientId && logsWindow\?\.state === "ready" && !hasOlderToRead\(menuSessions, menuReadIds\) && !sessionsMore;/,
+    );
+    // The window counts as every session only on the server's word, never a cache answer or one with a write pending.
+    expect(source).toMatch(/const proven = !snapshot\.metadata\?\.fromCache && !snapshot\.metadata\?\.hasPendingWrites;/);
+    // The briefing is handed the window alone, so it asks about the window alone.
+    expect(source).toMatch(/sessionsAreAll=\{!windowMayHaveMore\}/);
   });
 
   // The floor round, Oct 9 2026, F1: the Wrap-up's Today lines and its journey count the

@@ -586,12 +586,20 @@ export function WorkoutTrackerView({
      (the history-ready round, Oct 12 2026: a client with years of FileMaker
      history behind them had every session read at every Start). The window
      is the journal's own query, so the SDK holds one listener for both.
-     Whether the server may hold older ones (the window came back full), and
-     the older pages Load older on the machine card fetched, by cursor. */
-  const [sessionsMoreFor, setSessionsMoreFor] = useState<string | null>(null);
+     `windowWholeFor` names the client whose window is known to be every
+     session they have: the SERVER answered, with no write of ours pending,
+     and the window came back short of full. Until then (no answer yet, a
+     cache answer, a failed read, a full window) the server may hold more.
+     The older pages are Load older's on the machine card, fetched by cursor
+     from the window's end; they are dropped when that end moves (a new
+     session pushes one out of the window), so no session falls between the
+     two (the history-ready round's review), and `olderGenRef` keeps a page
+     that lands after that, or after a switch of client, out. */
+  const [windowWholeFor, setWindowWholeFor] = useState<string | null>(null);
   const [olderSessions, setOlderSessions] = useState<{ clientId: string; list: WorkoutSession[]; exhausted: boolean } | null>(null);
   const windowLastRef = useRef<{ clientId: string; doc: QueryDocumentSnapshot } | null>(null);
   const olderCursorRef = useRef<{ clientId: string; doc: QueryDocumentSnapshot } | null>(null);
+  const olderGenRef = useRef(0);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   /* The client's machine totals (the last set on each machine: Start's
      prefilled weights) have answered. They live in their own document since
@@ -1901,7 +1909,9 @@ export function WorkoutTrackerView({
          2026) this read every session the client ever had. */
       windowLastRef.current = null;
       olderCursorRef.current = null;
+      olderGenRef.current += 1;
       setOlderSessions(null);
+      setWindowWholeFor(null);
       const windowQuery = query(
         collection(db, "sessions"),
         where("clientId", "==", clientId),
@@ -2050,10 +2060,22 @@ export function WorkoutTrackerView({
           windowDocs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as WorkoutSession);
           // The server's answer has been heard for this client (the Wrap-up's comparisons wait on it after Who's this?).
           if (!snapshot.metadata?.fromCache) setSessionsServerFor((v) => (v === clientId ? v : clientId));
-          // A full window: the server may hold older sessions (Load older fetches them; nothing claims "every session").
+          /* Every session they have, only on the server's word: a full window
+             may have more behind it (Load older fetches them; nothing claims
+             "every session"), and a cache answer, or one with our own write
+             still pending (a discard about to be refilled), proves nothing. */
           const full = snapshot.size >= SESSION_WINDOW;
-          setSessionsMoreFor((v) => (full ? (v === clientId ? v : clientId) : v === null ? v : null));
+          const proven = !snapshot.metadata?.fromCache && !snapshot.metadata?.hasPendingWrites;
+          if (full) setWindowWholeFor((v) => (v === null ? v : null));
+          else if (proven) setWindowWholeFor((v) => (v === clientId ? v : clientId));
           const last = snapshot.docs[snapshot.docs.length - 1];
+          // The window's end moved: Load older's pages started after the old end, so they start again.
+          const before = windowLastRef.current;
+          if (before && before.doc.id !== last?.id) {
+            olderCursorRef.current = null;
+            olderGenRef.current += 1;
+            setOlderSessions((v) => (v === null ? v : null));
+          }
           windowLastRef.current = last ? { clientId, doc: last } : null;
           applySessions();
         },
@@ -5003,17 +5025,24 @@ export function WorkoutTrackerView({
     const ids = new Set(sessions.map((s) => s.id));
     return [...sessions, ...olderForClient.list.filter((s) => !ids.has(s.id))];
   }, [sessions, olderForClient]);
-  const sessionsMore = !!clientId && sessionsMoreFor === clientId && !olderForClient?.exhausted;
+  /* The window alone may not be every session (the briefing is handed the
+     window, so it asks this), and with the older pages too (the machine card,
+     which is handed both) more may still wait on the server. */
+  const windowMayHaveMore = !!clientId && windowWholeFor !== clientId;
+  const sessionsMore = windowMayHaveMore && !olderForClient?.exhausted;
   const loadOlderSessions = React.useCallback(async (): Promise<WorkoutSession[]> => {
     if (!clientId) return [];
     const after =
       (olderCursorRef.current?.clientId === clientId ? olderCursorRef.current.doc : null) ??
       (windowLastRef.current?.clientId === clientId ? windowLastRef.current.doc : null);
     if (!after) return [];
+    const gen = olderGenRef.current;
     // The server's answer only: a page this iPad's cache answered may be partial (older-read.ts).
     const snap = await getDocsFromServer(
       query(collection(db, "sessions"), where("clientId", "==", clientId), orderBy("date", "desc"), startAfter(after), limit(OLDER_PAGE)),
     );
+    // Another client on screen since, or the window's end moved: this page no longer follows on.
+    if (gen !== olderGenRef.current) return [];
     const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as WorkoutSession);
     const last = snap.docs[snap.docs.length - 1];
     if (last) olderCursorRef.current = { clientId, doc: last };
@@ -5031,7 +5060,8 @@ export function WorkoutTrackerView({
   /* Only a window the server answered counts: a cache-only one may be
      partial (offline, or the cache's first answer), so the Now Bar and the
      phone stay cautious with it, as the card does (useMachineMenuData). */
-  const sessionsAllRead = logsWindow?.state === "ready" && !hasOlderToRead(menuSessions, menuReadIds) && !sessionsMore;
+  const sessionsAllRead =
+    sessionsServerFor === clientId && logsWindow?.state === "ready" && !hasOlderToRead(menuSessions, menuReadIds) && !sessionsMore;
   const menuLogs = useMemo(() => Object.values(logs) as ExerciseLog[], [logs]);
   const menuFloorStudioId = currentSession?.hostedAtStudioId || contextActiveStudioId || null;
   const menuWatching =
@@ -5613,9 +5643,11 @@ export function WorkoutTrackerView({
           }
           sessions={sessions.filter((s) => s.status === "Completed")}
           /* The client's sessions are a window (the newest SESSION_WINDOW):
-             every one in Journey only while the window isn't full. Past it the
-             InBody count comes from the server (features/inbody/due.ts). */
-          sessionsAreAll={!sessionsMore}
+             every one in Journey only once the server said the window isn't
+             full. Otherwise the InBody count comes from the server
+             (features/inbody/due.ts). The window alone: the briefing is not
+             handed the machine card's older pages. */
+          sessionsAreAll={!windowMayHaveMore}
           /* Whether the routines' answer can be trusted (a failed or empty
              cache answer is not "no routine"): the briefing claims nothing
              about a client starting out until it is. */

@@ -14,7 +14,7 @@
  * never zero, and due.ts then counts the page it was given, as a floor.
  */
 import { useEffect, useState } from "react";
-import { collection, getCountFromServer, query, where } from "firebase/firestore";
+import { collection, getCountFromServer, orderBy, query, where } from "firebase/firestore";
 import { db } from "../../firebase";
 
 export function useInBodyCount(clientId: string | null | undefined, scanDay: string | null | undefined, enabled: boolean): number | null {
@@ -28,7 +28,10 @@ export function useInBodyCount(clientId: string | null | undefined, scanDay: str
     const failed = (err: unknown) => console.warn("[inbody] the count since the last scan was not read", err);
     try {
       const completed = [where("clientId", "==", clientId), where("status", "==", "Completed")];
-      const q = day ? query(collection(db, "sessions"), ...completed, where("date", ">", day)) : query(collection(db, "sessions"), ...completed);
+      // Ordered as the index is (date descending): a range on date is otherwise ordered ascending.
+      const q = day
+        ? query(collection(db, "sessions"), ...completed, where("date", ">", day), orderBy("date", "desc"))
+        : query(collection(db, "sessions"), ...completed);
       getCountFromServer(q)
         .then((snap) => {
           if (live) setAnswer({ key, count: snap.data().count });

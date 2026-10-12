@@ -28,6 +28,9 @@ type NextRead =
   | { kind: "pending" };
 let nextRead: NextRead = { kind: "missing" };
 const writes: string[] = [];
+// What getDocs answers, by collection, filtered by the query's where clauses (the history-ready round's test).
+const store: Record<string, Record<string, unknown>[]> = {};
+type Clause = { field: string; op: string; value: unknown };
 
 vi.mock("firebase/firestore", async (importOriginal) => {
   const real = await importOriginal<typeof import("firebase/firestore")>();
@@ -36,12 +39,21 @@ vi.mock("firebase/firestore", async (importOriginal) => {
     ...real,
     collection: (_db: unknown, ...parts: string[]) => ({ __path: path(...parts) }),
     doc: (_db: unknown, ...parts: string[]) => ({ __path: path(...parts), id: parts[parts.length - 1] }),
-    query: (coll: unknown) => coll,
-    where: () => ({}),
+    query: (coll: { __path: string }, ...clauses: unknown[]) => ({
+      ...coll,
+      __where: clauses.filter((c): c is Clause => !!c && typeof c === "object" && "field" in c),
+    }),
+    where: (field: string, op: string, value: unknown) => ({ field, op, value }),
     orderBy: () => ({}),
     limit: () => ({}),
     onSnapshot: () => () => {},
-    getDocs: async () => ({ docs: [], size: 0, empty: true }),
+    getDocs: async (q: { __path?: string; __where?: Clause[] }) => {
+      const rows = (store[q.__path ?? ""] ?? []).filter((row) =>
+        (q.__where ?? []).every((w) => (w.op === "in" ? (w.value as unknown[]).includes(row[w.field]) : row[w.field] === w.value)),
+      );
+      const docs = rows.map((row) => ({ id: String(row.id), data: () => row }));
+      return { docs, size: docs.length, empty: docs.length === 0 };
+    },
     getDoc: (ref: { id: string }) => {
       const read = nextRead;
       if (read.kind === "pending") return new Promise(() => {});
@@ -119,6 +131,7 @@ afterEach(() => {
   root = null;
   host = null;
   writes.length = 0;
+  for (const k of Object.keys(store)) delete store[k];
 });
 
 describe("ClientProgressReportView — whose report it opens", () => {
@@ -240,6 +253,42 @@ describe("ClientProgressReportView — the session tile and a client's past", ()
     await mountFor(bo);
     expect(text()).not.toContain("Total Sessions");
     expect(text()).not.toContain("First Session");
+  });
+
+  it("counts a window widened past what was read once the older sets are here, never the narrower window's totals", async () => {
+    // The history-ready round: a reopened report reads only its window's sets (from Jun 1).
+    store.sessions = [
+      { id: "s-jan", clientId: "client-bo", date: "2026-01-05", status: "Completed" },
+      { id: "s-jun", clientId: "client-bo", date: "2026-06-03", status: "Completed" },
+    ];
+    store.exerciseLogs = [
+      { id: "l-jan", clientId: "client-bo", sessionId: "s-jan", machineId: "m1", weight: "100", reps: "10", outcome: "performed" },
+      { id: "l-jun", clientId: "client-bo", sessionId: "s-jun", machineId: "m1", weight: "100", reps: "8", outcome: "performed" },
+    ];
+    nextRead = {
+      kind: "report",
+      data: {
+        ...filed.data,
+        status: "Draft",
+        attendance: { ...filed.data.attendance, customStartDate: "2026-06-01", firstSessionDate: "2026-01-05", toggles: { totalVolume: true, totalReps: true } },
+      },
+    };
+    await mountFor(bo, "complete");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    const useFirst = [...host!.querySelectorAll("button")].find((b) => /^Use First/i.test(b.textContent ?? ""));
+    expect(useFirst).toBeTruthy();
+    await act(async () => {
+      useFirst!.click();
+    });
+    // While January's sets are read, the set totals are not the June-only ones.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    // January (1,000 lb, 10 reps) and June (800 lb, 8 reps) together.
+    expect(text()).toMatch(/1,?800/);
+    expect(text()).toContain("18");
   });
 
   it("names the editor's count for what it is, too", async () => {
