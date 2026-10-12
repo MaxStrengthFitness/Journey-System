@@ -15,6 +15,7 @@ import {
   claimIsStillDue,
   decideSync,
   isFirstDeepOfWeek,
+  siteSlotOffsetMs,
   wantsDeepPull,
   withinPullHours,
   type SyncVerdict,
@@ -120,6 +121,9 @@ export function useAutoSync({
       online: typeof navigator === "undefined" ? true : navigator.onLine,
       configured: isSyncConfigured(studio, studios),
       withinPullHours: withinPullHours(now, timeZone, studio.shiftHours),
+      // The site's slots: every studio on one Mindbody site pulls at the same
+      // half-hour, so the proxy answers them from one read (Oct 12 2026).
+      slotOffsetMs: siteSlotOffsetMs(studio.mindbodySiteId, studio.syncIntervalMinutes),
     };
 
     const decision = decideSync(ctx);
@@ -162,6 +166,7 @@ export function useAutoSync({
             now,
             intervalMinutes: studio.syncIntervalMinutes,
             failures: fresh.scheduleSyncFailures ?? 0,
+            slotOffsetMs: ctx.slotOffsetMs,
           })
         ) {
           return;

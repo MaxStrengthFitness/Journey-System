@@ -78,6 +78,14 @@ export interface SyncContext {
    */
   withinPullHours?: boolean;
   /**
+   * Where this studio's half-hours fall (`siteSlotOffsetMs`). When given, a
+   * healthy pull is due at the next slot of its site rather than a full
+   * interval after the last one, so every studio on one Mindbody site pulls
+   * at the same moment and the proxy answers them all from one read (the
+   * Mindbody savings round, Oct 12 2026). Absent keeps the plain interval.
+   */
+  slotOffsetMs?: number | null;
+  /**
    * Site id present, and a location id too when the site is shared with
    * another studio. Exactly the check the manual Refresh button makes before
    * it will run.
@@ -122,9 +130,67 @@ export function intervalWithBackoff(
   return Math.min(MAX_BACKOFF_MS, base * 2 ** n);
 }
 
+/* ------------------------------------------------------------------ *
+ * THE SITE'S SLOTS (the Mindbody savings round, Oct 12 2026)
+ *
+ * Westlake, Strongsville and Willoughby share Mindbody site 29068, and every
+ * pull of one of them reads the whole site. Each studio used to pull thirty
+ * minutes after ITS last pull, so the three drifted apart and the site was
+ * read three times every half-hour. Now a healthy pull is due at the next
+ * slot of its site: the half-hours (or whatever the interval is) shifted by
+ * an offset taken from the site id. Studios on one site share the offset, so
+ * they pull within a minute of each other and the proxy's shared read
+ * (lib/mindbody-appointment-cache.ts) answers all of them from one Mindbody
+ * call. Different sites get different offsets, so seventy studios do not all
+ * call Mindbody at :00 and :30.
+ *
+ * Today's freshness is unchanged: a pull still comes at least every
+ * interval. The one exception is the first slot after a pull that landed
+ * just before one (under five minutes, or half the interval): that slot is
+ * skipped rather than pulling twice in a row, so once a day the gap can be
+ * up to five minutes longer than the interval. A failing pull keeps the old
+ * backoff from its own last attempt.
+ * ------------------------------------------------------------------ */
+
+/** The shortest gap the slots allow between two healthy pulls. */
+export const MIN_SLOT_GAP_MS = 5 * 60 * 1000;
+
+/**
+ * Where a site's slots fall inside the interval: a whole number of minutes
+ * from the hour's boundary, the same for every studio on the site. Null for a
+ * studio with no site (it never pulls anyway).
+ */
+export function siteSlotOffsetMs(
+  siteId: string | number | null | undefined,
+  intervalMinutes?: number | null,
+): number | null {
+  const site = siteId == null ? "" : String(siteId).trim();
+  if (!site) return null;
+  let h = 0;
+  for (let i = 0; i < site.length; i++) h = (h * 31 + site.charCodeAt(i)) >>> 0;
+  return (h % normaliseInterval(intervalMinutes)) * 60_000;
+}
+
+/** The first slot at or after `from`. */
+export function slotAtOrAfter(from: number, intervalMs: number, offsetMs: number): number {
+  const k = Math.ceil((from - offsetMs) / intervalMs);
+  return k * intervalMs + offsetMs;
+}
+
+/** When a healthy pull after `lastSyncAt` is due, on the site's slots. */
+export function nextSlotDue(lastSyncAt: number, intervalMinutes: number | null | undefined, offsetMs: number): number {
+  const interval = normaliseInterval(intervalMinutes) * 60_000;
+  const gap = Math.min(MIN_SLOT_GAP_MS, interval / 2);
+  return slotAtOrAfter(lastSyncAt + gap, interval, offsetMs);
+}
+
 /** When the next sync becomes due. Null when it has never run. */
 export function nextDueAt(ctx: SyncContext): number | null {
   if (ctx.lastSyncAt == null) return null;
+  const failures = ctx.failures ?? 0;
+  if (failures <= 0 && typeof ctx.slotOffsetMs === "number" && Number.isFinite(ctx.slotOffsetMs)) {
+    return nextSlotDue(ctx.lastSyncAt, ctx.intervalMinutes, ctx.slotOffsetMs);
+  }
   return ctx.lastSyncAt + intervalWithBackoff(ctx.intervalMinutes, ctx.failures);
 }
 
@@ -164,13 +230,22 @@ export function decideSync(ctx: SyncContext): SyncVerdict {
  */
 export function claimIsStillDue(
   freshLastSyncAt: number | null | undefined,
-  ctx: Pick<SyncContext, "now" | "intervalMinutes" | "failures">,
+  ctx: Pick<SyncContext, "now" | "intervalMinutes" | "failures" | "slotOffsetMs">,
 ): boolean {
   if (freshLastSyncAt == null) return true;
-  return (
-    ctx.now >=
-    freshLastSyncAt + intervalWithBackoff(ctx.intervalMinutes, ctx.failures)
-  );
+  const due = nextDueAt({
+    now: ctx.now,
+    enabled: true,
+    intervalMinutes: ctx.intervalMinutes,
+    lastSyncAt: freshLastSyncAt,
+    failures: ctx.failures,
+    inFlight: false,
+    visible: true,
+    online: true,
+    configured: true,
+    slotOffsetMs: ctx.slotOffsetMs,
+  });
+  return due == null || ctx.now >= due;
 }
 
 /* ------------------------------------------------------------------ *

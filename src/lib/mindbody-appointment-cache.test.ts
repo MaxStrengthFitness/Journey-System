@@ -228,3 +228,42 @@ describe("rowIsNewerThanAnswer", () => {
     expect(rowIsNewerThanAnswer(null, answer)).toBe(false);
   });
 });
+
+describe("SharedSiteReads.read — a sibling's wider read in flight", () => {
+  it("today and tomorrow wait for the month already being read, and take their days from it", async () => {
+    const c = new SharedSiteReads();
+    let release: (v: { read: SiteRead; complete: boolean }) => void = () => undefined;
+    const month = vi.fn(
+      () =>
+        new Promise<{ read: SiteRead; complete: boolean }>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const near = vi.fn(async () => ({ read: read(), complete: true }));
+    const a = c.read("29068", "2026-10-12", "2026-11-11", () => 1_000_000, month);
+    const b = c.read("29068", "2026-10-13", "2026-10-13", () => 1_000_000, near);
+    release({ read: read({ start: "2026-10-12", end: "2026-11-11" }), complete: true });
+    const [, rb] = await Promise.all([a, b]);
+    expect(near).not.toHaveBeenCalled();
+    expect(rb?.shared).toBe("joined");
+    expect(rb?.read.appointments.map((x: any) => x.Id)).toEqual([2, 3]);
+  });
+
+  it("a wider window never waits for a narrower read", async () => {
+    const c = new SharedSiteReads();
+    let release: (v: { read: SiteRead; complete: boolean }) => void = () => undefined;
+    const near = vi.fn(
+      () =>
+        new Promise<{ read: SiteRead; complete: boolean }>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const month = vi.fn(async () => ({ read: read({ end: "2026-11-11" }), complete: true }));
+    const a = c.read("29068", "2026-10-12", "2026-10-13", () => 1_000_000, near);
+    const b = await c.read("29068", "2026-10-12", "2026-11-11", () => 1_000_000, month);
+    expect(month).toHaveBeenCalledTimes(1);
+    expect(b?.shared).toBeNull();
+    release({ read: read(), complete: true });
+    await a;
+  });
+});

@@ -13,6 +13,13 @@
  * policy, and pins: when it looks, what each look decided, and when it
  * pulled. The same expectations held on the code before the change (run on
  * c20d2abe while this was written); only the render count moved.
+ *
+ * Since the Mindbody savings round (Oct 12 2026) a healthy pull is due at
+ * the next SLOT of its Mindbody site (syncPolicy.ts, `siteSlotOffsetMs`)
+ * rather than thirty minutes after its own last pull, so the three studios
+ * on site 29068 pull together and the proxy answers them from one read.
+ * Site 29068's slots fall at :25 and :55 past the hour; the pulls below moved
+ * onto them, still every thirty minutes.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
@@ -102,8 +109,8 @@ beforeEach(() => {
   fake.decisions = [];
   fake.pulls = [];
   fake.renders = 0;
-  // The last pull was claimed 25 minutes ago; this morning's month is done.
-  fake.lease = { lastScheduleSyncAt: T0 - 25 * MIN, scheduleSyncFailures: 0, lastDeepScheduleSyncAt: T0 - 60 * MIN };
+  // The last pull was claimed two minutes ago; this morning's month is done.
+  fake.lease = { lastScheduleSyncAt: T0 - 2 * MIN, scheduleSyncFailures: 0, lastDeepScheduleSyncAt: T0 - 60 * MIN };
   vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
   vi.setSystemTime(T0);
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -138,11 +145,11 @@ describe("the background pull's cadence (R6a)", () => {
     const looks = fake.decisions.map((d) => minutesOf(d.at));
     expect(looks).toEqual([0, 0, ...Array.from({ length: 120 }, (_, i) => i + 1)]);
 
-    // When it pulled: 30 minutes after the last claim, then every 30 minutes.
-    expect(fake.pulls.map(minutesOf)).toEqual([5, 35, 65, 95]);
+    // When it pulled: at the site's next slot (10:25), then every 30 minutes.
+    expect(fake.pulls.map(minutesOf)).toEqual([25, 55, 85, 115]);
 
     // What each look said: due on the pull minutes, not due in between.
-    const due = new Set([5, 35, 65, 95]);
+    const due = new Set([25, 55, 85, 115]);
     for (const d of fake.decisions) {
       const m = minutesOf(d.at);
       expect(d.run).toBe(due.has(m));
@@ -169,8 +176,8 @@ describe("the background pull's cadence (R6a)", () => {
     await act(async () => {
       hide("hidden");
     });
-    // Ten minutes hidden: no pull, though one fell due at minute 5.
-    for (let i = 0; i < 10; i++) {
+    // Thirty minutes hidden: no pull, though one fell due at minute 25.
+    for (let i = 0; i < 30; i++) {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(MIN);
       });
@@ -183,7 +190,7 @@ describe("the background pull's cadence (R6a)", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(fake.pulls.map(minutesOf)).toEqual([10]);
+    expect(fake.pulls.map(minutesOf)).toEqual([30]);
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
   });
 });

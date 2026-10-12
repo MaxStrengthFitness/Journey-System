@@ -83,12 +83,29 @@ export function bookingDay(appt: unknown): string | null {
 }
 
 /**
+ * A whole read narrowed to the days asked for. The same window comes back
+ * as it was; a narrower one keeps only bookings that start on those days (a
+ * booking with no readable day could be on any day, so it goes too).
+ */
+export function narrowTo<A>(read: SiteRead<A>, start: string, end: string): SiteRead<A> {
+  if (read.start === start && read.end === end) return read;
+  const appointments = read.appointments.filter((a) => {
+    const day = bookingDay(a);
+    return day !== null && day >= start && day <= end;
+  });
+  return { ...read, start, end, appointments, siteTotal: appointments.length };
+}
+
+/**
  * The cache. One per web-service process; a restart empties it, which costs
  * one fresh read and nothing else.
  */
 export class SharedSiteReads<A = unknown> {
   private reads: SiteRead<A>[] = [];
-  private inFlight = new Map<string, Promise<SiteRead<A> | null>>();
+  private inFlight = new Map<
+    string,
+    { siteId: string; start: string; end: string; done: Promise<SiteRead<A> | null> }
+  >();
 
   constructor(
     private readonly maxAgeMs: number = SHARED_READ_MS,
@@ -112,12 +129,7 @@ export class SharedSiteReads<A = unknown> {
       if (!best || r.fetchedAt > best.fetchedAt) best = r;
     }
     if (!best) return null;
-    if (best.start === start && best.end === end) return best;
-    const appointments = best.appointments.filter((a) => {
-      const day = bookingDay(a);
-      return day !== null && day >= start && day <= end;
-    });
-    return { ...best, start, end, appointments, siteTotal: appointments.length };
+    return narrowTo(best, start, end);
   }
 
   /** Keeps a WHOLE answer. A short one is refused, and says so. */
@@ -150,19 +162,32 @@ export class SharedSiteReads<A = unknown> {
     const kept = this.find(siteId, start, end, now());
     if (kept) return { read: kept, complete: true, shared: "kept" };
 
+    // A read on its way that covers these days (the same window, or a
+    // sibling's whole month while this one wants today and tomorrow).
     const key = `${siteId}|${start}|${end}`;
-    const waiting = this.inFlight.get(key);
+    let waiting: Promise<SiteRead<A> | null> | null = null;
+    for (const f of this.inFlight.values()) {
+      if (f.siteId === siteId && f.start <= start && f.end >= end) {
+        waiting = f.done;
+        break;
+      }
+    }
     if (waiting) {
       const joined = await waiting;
-      if (joined) return { read: joined, complete: true, shared: "joined" };
+      if (joined) {
+        const narrowed = narrowTo(joined, start, end);
+        return { read: narrowed, complete: true, shared: "joined" };
+      }
       // The read we joined came back short or refused: ask for ourselves.
     }
 
     let settle: (r: SiteRead<A> | null) => void = () => undefined;
-    const mine = new Promise<SiteRead<A> | null>((resolve) => {
+    const done = new Promise<SiteRead<A> | null>((resolve) => {
       settle = resolve;
     });
-    if (!waiting) this.inFlight.set(key, mine);
+    const mine = { siteId, start, end, done };
+    const registered = !this.inFlight.has(key);
+    if (registered) this.inFlight.set(key, mine);
     try {
       const got = await fetch();
       if (got && got.complete) this.keep(got.read, true);
@@ -172,7 +197,7 @@ export class SharedSiteReads<A = unknown> {
       settle(null);
       throw e;
     } finally {
-      if (this.inFlight.get(key) === mine) this.inFlight.delete(key);
+      if (registered && this.inFlight.get(key) === mine) this.inFlight.delete(key);
     }
   }
 
