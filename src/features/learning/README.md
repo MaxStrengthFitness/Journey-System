@@ -60,7 +60,7 @@ Every machine name on it is a link, so the front page is also the fastest route 
 - search;
 - the bell (`link.learning`);
 - announcements (Phase 6);
-- Planner notes (Phase 3);
+- the bell for a machine flagged on Relay (`studio-tasks/links.ts`, `machineLink`). Relay's own notes don't carry a Learning link (Phase 3 planned one; it was never built);
 - comments (Phase 5).
 
 Academy ids are slugs of the source files, so a rebuilt corpus can rename one. Every stored ref therefore carries its title, and a page that has moved says so ("This page has moved") instead of showing "Loading…" forever.

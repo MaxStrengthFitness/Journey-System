@@ -440,9 +440,9 @@ model is recorded on a roster entry — see `src/features/machine-fit/README.md`
 weight pooling is unaffected. Then: the twenty catalog machines still use the floor
 abbreviations (`CX (4 WAY NECK)`, `BICEP`) rather than the Academy's names, and
 whether to change that is one line in the generator; the rules do not enforce
-the machine template boundary (the app does, at the write and at the publish);
-two emptied files, `AdminMachineCreator.tsx` and `MachineDefinitionForm.tsx`,
-are unimported and can be deleted.
+the machine template boundary (the app does, at the write and at the publish).
+The two emptied files, `AdminMachineCreator.tsx` and `MachineDefinitionForm.tsx`,
+were deleted on Oct 12 2026.
 
 **The floor and the client profile** — `machineStats` first/last dates are not
 recomputed when a past session is edited; `sessionNumber` on a backfill comes
