@@ -21,8 +21,9 @@
  *               while the bookings are fresh; "Unknown" otherwise
  *   left        client-admin/account   sessionsSplit with the studio's own
  *                                      package table — never "0" unread
- *   total       lib/prior-history      the prior-history arithmetic, only
- *                                      when the number may be quoted
+ *   total       lib/session-total      before Journey + Journey's, the Hub
+ *                                      card's rule: Mindbody's count until a
+ *                                      trainer confirms it
  *   since       lib/client-since       only a date Mindbody or Journey can
  *                                      prove, never the day Journey met her
  *
@@ -39,14 +40,9 @@
  */
 import type { Client, KaizenRosterEntry, ScheduleEntry, WorkoutSession } from "../../types";
 import { clientDirectoryName, clientFirstName, clientInitials, goesByNickname } from "../../lib/client-name";
-import { canQuoteSessionNumber, coverageOfClient, homeCutoverOf } from "../../lib/client-coverage";
-import {
-  PRIOR_SOURCE_LABEL,
-  priorHistoryOf,
-  priorUncounted,
-  totalSessions,
-  type HistoryCoverage,
-} from "../../lib/prior-history";
+import { coverageOfClient, homeCutoverOf } from "../../lib/client-coverage";
+import { PRIOR_SOURCE_LABEL, priorHistoryOf, type HistoryCoverage } from "../../lib/prior-history";
+import { sessionTotalOf } from "../../lib/session-total";
 import { resolveClientSince } from "../../lib/client-since";
 import { formatStudioTime, studioDateKey, studioDayKeyOf, toDate } from "../../lib/studio-time";
 import { WEEK_AHEAD_DAYS } from "../../lib/schedule-window";
@@ -346,9 +342,11 @@ export interface DirectoryRow {
     state: KnownState;
     value: number | null;
     text: string;
-    /** "304 before Journey". */
+    /** "304 before Journey", or "From Mindbody" until a trainer confirms it. */
     sub: string | null;
     reason: string | null;
+    /** The total is Mindbody's, not yet confirmed by a trainer. */
+    fromMindbody: boolean;
   };
   since: { year: number | null; at: number | null; text: string; label: string | null };
   /**
@@ -629,28 +627,40 @@ function leftOf(client: Client, ctx: DirectoryContext): DirectoryRow["left"] {
 
 /* ---- total ---- */
 
+/**
+ * Her total, before Journey plus Journey's, by the one rule the Hub card,
+ * the header and the briefing say it by (lib/session-total.ts). AJ, Oct 12
+ * 2026: "on client directory total sessions needs to show total mindbody
+ * sessions". Until then this cell said Unknown for anyone nobody had
+ * confirmed, which during the migration was nearly everyone; it now shows
+ * Mindbody's count the way the Hub card does, marked "From Mindbody" until
+ * a trainer confirms it on Account. Still never "1" or "new" off Journey's
+ * count alone for a client whose story began before Journey, and never a
+ * number the Hub card would not say.
+ */
 function totalOf(client: Client, coverage: HistoryCoverage): DirectoryRow["total"] {
-  const count = typeof client.sessionCount === "number" && Number.isFinite(client.sessionCount) ? Math.max(0, Math.trunc(client.sessionCount)) : null;
-  // The Hub card's own gate: never "#1" or "new" off Journey's count for a
-  // client whose story began before Journey.
-  if (!canQuoteSessionNumber(client, coverage)) {
-    return { state: "unknown", value: null, text: "Unknown", sub: null, reason: "Sessions before Journey aren't recorded yet, so a total would be too low." };
+  const t = sessionTotalOf(client, coverage);
+  const total = t.total;
+  if (total === null) {
+    return {
+      state: "unknown",
+      value: null,
+      text: "Unknown",
+      sub: null,
+      reason:
+        t.basis === "journey-only"
+          ? "Mindbody hasn't sent a visit count yet, and sessions before Journey aren't recorded, so a total would be too low."
+          : "Not counted yet. Opening the profile counts it.",
+      fromMindbody: false,
+    };
   }
-  if (count === null) {
-    return { state: "unknown", value: null, text: "Unknown", sub: null, reason: "Not counted yet. Opening the profile counts it." };
-  }
-  const prior = priorHistoryOf(client);
-  const uncounted = priorUncounted(prior);
-  // `sessionCount` already carries the prior record once the profile has
-  // reconciled it; a count below the prior part cannot, so it is Journey's
-  // alone and the arithmetic adds the rest.
-  const total = prior && count < uncounted ? (totalSessions(count, prior) as number) : count;
   return {
     state: "known",
     value: total,
     text: total === 0 ? "None yet" : String(total),
-    sub: uncounted > 0 ? `${uncounted} before Journey` : null,
+    sub: t.basis === "mindbody" ? "From Mindbody" : t.basis === "confirmed" && t.before ? `${t.before} before Journey` : null,
     reason: null,
+    fromMindbody: t.basis === "mindbody",
   };
 }
 

@@ -209,7 +209,10 @@ function sortedLead(row: DirectoryRow, key: SortKey, wide: Set<ExtraColumn>): st
     case "height":
       return wide.has("height") ? null : row.height.inches === null ? null : row.height.text;
     case "total":
-      return wide.has("total") ? null : row.total.value === null ? null : `${row.total.text} sessions`;
+      // Narrow, the Total column is not on screen: its number leads the
+      // line, and a guess still says where it came from (Oct 12 2026).
+      if (wide.has("total") || row.total.value === null) return null;
+      return `${row.total.value === 0 ? "No sessions yet" : `${row.total.text} sessions`}${row.total.fromMindbody ? " · from Mindbody" : ""}`;
     case "renews":
       return wide.has("renews") ? null : row.renews.day ? `${row.renews.sub ?? "Renews"} ${row.renews.text}` : null;
     case "since":

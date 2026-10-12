@@ -252,14 +252,36 @@ describe("total sessions", () => {
     expect(row.total.value).toBe(312);
   });
 
-  it("a migrated client never reads new or #1", () => {
-    const counted = buildDirectoryRow(makeClient({ id: "a", sessionCount: 1, clientsNumberOfVisitsAtSite: 212 }), makeContext());
-    expect(counted.total).toMatchObject({ state: "unknown", value: null, text: "Unknown" });
+  it("shows Mindbody's total until it is confirmed (AJ, Oct 12 2026: \"total sessions needs to show total mindbody sessions\")", () => {
+    // 212 visits in Mindbody, one of them logged in Journey: 211 before + 1.
+    const row = buildDirectoryRow(makeClient({ id: "a", sessionCount: 1, clientsNumberOfVisitsAtSite: 212 }), makeContext());
+    expect(row.total).toMatchObject({ state: "known", value: 212, text: "212", sub: "From Mindbody", reason: null, fromMindbody: true });
+  });
+
+  it("never a number the Hub card would not say: Journey's own count unknown is Unknown", () => {
+    const row = buildDirectoryRow(makeClient({ id: "a", sessionCount: undefined, clientsNumberOfVisitsAtSite: 87 }), makeContext());
+    expect(row.total).toMatchObject({ state: "unknown", value: null, text: "Unknown", reason: "Not counted yet. Opening the profile counts it." });
+  });
+
+  it("Journey's count is never her total while Mindbody holds more of the story", () => {
+    // Journey has logged 3, Mindbody counts 40: the 40 is the total, never 3.
+    const row = buildDirectoryRow(makeClient({ id: "a", sessionCount: 3, clientsNumberOfVisitsAtSite: 40 }), makeContext());
+    expect(row.total.value).toBe(40);
+  });
+
+  it("a migrated client with no Mindbody count never reads new or #1", () => {
     const unsynced = buildDirectoryRow(makeClient({ id: "b", sessionCount: 1 }), makeContext());
-    expect(unsynced.total.state).toBe("unknown");
-    for (const row of [counted, unsynced]) {
-      expect(row.total.text).not.toMatch(/^1$|new|#1/i);
-    }
+    expect(unsynced.total).toMatchObject({ state: "unknown", value: null, text: "Unknown" });
+    expect(unsynced.total.reason).toMatch(/Mindbody hasn't sent a visit count/);
+    expect(unsynced.total.text).not.toMatch(/^1$|new|#1/i);
+  });
+
+  it("a confirmed count says nothing about Mindbody", () => {
+    const row = buildDirectoryRow(
+      makeClient({ id: "a", sessionCount: 312, clientsNumberOfVisitsAtSite: 400, priorHistory: { sessions: 304, through: "2026-08-31", source: "mindbody" } }),
+      makeContext(),
+    );
+    expect(row.total).toMatchObject({ state: "known", value: 312, sub: "304 before Journey", fromMindbody: false });
   });
 
   it("a genuinely new client whose whole story is in Journey is counted", () => {
