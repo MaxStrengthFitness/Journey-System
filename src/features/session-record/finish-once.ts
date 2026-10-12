@@ -225,6 +225,19 @@ export function finishRefusedAgainWords(name?: string | null): string {
   return `${finishRefusedWords(name)} If it still won't save, tell your studio leader.`;
 }
 
+/** How a Finish that reached the Wrap-up was refused, if it was. */
+export type FinishRefused = "elsewhere" | "gone" | "refused";
+
+/** The Wrap-up's one line under its header for a refused Finish. */
+export function wrapUpRefusedLine(kind: FinishRefused, name?: string | null): string {
+  if (kind === "elsewhere") return "Already finished on another iPad · it counts once";
+  if (kind === "gone") return "Not saved · this session was discarded on another iPad.";
+  const first = firstOf(name);
+  return first
+    ? `Not saved yet · open ${first}'s profile and tap Resume or finish.`
+    : "Not saved yet · open the client's profile and tap Resume or finish.";
+}
+
 /** "Finish it as it was" on a session another iPad already finished. */
 export function staleFinishedElsewhereWords(name?: string | null): string {
   const first = firstOf(name);

@@ -35,6 +35,7 @@ import {
 } from "../features/renewals";
 import { getBroadMuscleGroup } from "../lib/clinical-review-utils";
 import { SEND_SETS_NOW_EVENT } from "../features/session-record/sign-out-check";
+import { wrapUpRefusedLine, type FinishRefused } from "../features/session-record/finish-once";
 import { performedOnly, SKIP_REASON_SHORT } from "../lib/set-outcome";
 import { studioTodayKey } from "../lib/studio-time";
 import {
@@ -362,6 +363,13 @@ export interface WrapUpScreenProps {
    * would be a claim about the studio's records that is not true yet.
    */
   savedOnThisIpad?: boolean;
+  /**
+   * The Finish was refused on its way to the database, after this screen
+   * came up (the sessions round, Oct 12 2026): finished on another iPad
+   * already (it counts once), discarded there, or refused. One line under
+   * the header says which; "saved" is never claimed over a refusal.
+   */
+  refused?: FinishRefused | null;
   machines?: Machine[];
   rightControls?: React.ReactNode;
   trainerDropdown?: React.ReactNode;
@@ -489,6 +497,7 @@ export function WrapUpScreen({
   nextTrainerNote = null,
   journalStream,
   savedOnThisIpad = false,
+  refused = null,
   machines = [],
   rightControls,
   trainerDropdown,
@@ -848,12 +857,28 @@ export function WrapUpScreen({
           {/* title */}
           <div className="wu-drop px-6 pt-4 pb-1">
             <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-ink-d2 break-words">
-              {savedOnThisIpad ? "Wrap-up · session saved on this iPad" : "Wrap-up · session saved"}
+              {refused === "gone" || refused === "refused"
+                ? "Wrap-up · not saved"
+                : savedOnThisIpad && !refused
+                  ? "Wrap-up · session saved on this iPad"
+                  : "Wrap-up · session saved"}
             </div>
             <h1 className="font-display font-extrabold text-ink-d1 text-[30px] leading-[1.04] mt-2 mb-2 break-words">
               {congratulation(session.id ?? `${client.id}-${todayKey}`, clientFirstName(client))}
             </h1>
-            {savedOnThisIpad && (
+            {refused && (
+              <p
+                role="status"
+                className={
+                  refused === "elsewhere"
+                    ? "text-ink-d2 text-[14px] mb-1 break-words"
+                    : "text-ink-d1 text-[14px] mb-1 break-words rounded-xl border border-(--eq-warn)/40 bg-(--eq-warn-fill) px-3 py-2"
+                }
+              >
+                {wrapUpRefusedLine(refused, clientFirstName(client))}
+              </p>
+            )}
+            {savedOnThisIpad && !refused && (
               <p className="text-ink-d2 text-[14px] mb-1" role="status">
                 It sends to the studio's records when the connection is back. Nothing more to do.
               </p>

@@ -27,6 +27,7 @@ import {
   readFromServer,
   sessionGoneWords,
   staleFinishedElsewhereWords,
+  wrapUpRefusedLine,
   type ServerRead,
 } from "./finish-once";
 
@@ -168,6 +169,13 @@ describe("the words", () => {
     );
     expect(finishRefusedAgainWords("Judy")).toMatch(/Finish again\. If it still won't save, tell your studio leader\.$/);
     expect(staleFinishedElsewhereWords("Judy")).toBe("Judy's unfinished session was already finished on another iPad. Nothing more to do.");
+  });
+
+  it("give the Wrap-up one line for each refusal", () => {
+    expect(wrapUpRefusedLine("elsewhere", "Judy")).toBe("Already finished on another iPad · it counts once");
+    expect(wrapUpRefusedLine("gone", "Judy")).toBe("Not saved · this session was discarded on another iPad.");
+    expect(wrapUpRefusedLine("refused", "Judy Daus")).toBe("Not saved yet · open Judy's profile and tap Resume or finish.");
+    expect(wrapUpRefusedLine("refused", null)).toBe("Not saved yet · open the client's profile and tap Resume or finish.");
   });
 
   it("say it without a name, and never guess a pronoun", () => {

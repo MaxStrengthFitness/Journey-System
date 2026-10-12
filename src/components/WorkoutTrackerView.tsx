@@ -57,6 +57,16 @@ import { useSendState } from "../features/session-record/useSendState";
 import { SendStatusStrip } from "../features/session-record/SendStatusStrip";
 import { finishedElsewhereAtTap, settleOrQueue } from "../features/session-record/finish-wait";
 import {
+  finishRefusedAgainWords,
+  finishRefusedWords,
+  finishedElsewhereWords,
+  isFinishedElsewhere,
+  isSessionGone,
+  sessionGoneWords,
+  staleFinishedElsewhereWords,
+  type FinishRefused,
+} from "../features/session-record/finish-once";
+import {
   cleanPayload,
   discardLogIds,
   followUpList,
@@ -149,6 +159,12 @@ interface PostSessionSnapshot {
    * this goes false when the answer comes.
    */
   queued?: boolean;
+  /**
+   * The Finish was refused (the sessions round, Oct 12 2026): finished on
+   * another iPad first ("elsewhere", it counts once), discarded there
+   * ("gone"), or refused ("refused"). Null when it was not.
+   */
+  refused?: FinishRefused | null;
   /**
    * The Wrap-up's Next time (the first-session design round, Oct 8 2026,
    * §4.7): the session's routine, that routine's machines and its plan, and
@@ -937,6 +953,13 @@ export function WorkoutTrackerView({
     const day = sessionDayWords(s, studioTodayKey()) ?? "the day it was started";
     setDeclinedStaleId(s.id);
     setStaleSession(null);
+    /* The client's sessions stream already says another iPad finished it:
+       nothing more to write (the sessions round, Oct 12 2026). A finish that
+       races one is refused by the finish marker, and said the same way. */
+    if (streamStatusRef.current.get(s.id) === "Completed") {
+      toastInfo(staleFinishedElsewhereWords(clientFirstName(selectedClient, "")));
+      return;
+    }
     completeWorkoutSession(
       db,
       s,
@@ -954,6 +977,14 @@ export function WorkoutTrackerView({
         if (r.totalsSaved === false) toastError(`${name}'s session count didn't update for it.`);
       },
       (error) => {
+        if (isFinishedElsewhere(error)) {
+          toastInfo(staleFinishedElsewhereWords(clientFirstName(selectedClient, "")));
+          return;
+        }
+        if (isSessionGone(error)) {
+          toastError(sessionGoneWords(clientFirstName(selectedClient, "")));
+          return;
+        }
         console.error("[stale] finishing the old session was refused", error);
         toastError(`${name}'s unfinished session couldn't be finished. It is still on the profile.`);
       },
@@ -3003,6 +3034,9 @@ export function WorkoutTrackerView({
   const streamStatusRef = useRef<Map<string, string | null>>(new Map());
   /* The "already finished?" read started when the End Session dialog opened (R9). */
   const finishCheckRef = useRef<{ sessionId: string; read: Promise<string | null> } | null>(null);
+  /* Sessions whose Finish this iPad has seen refused once: a second refusal
+     adds "tell your studio leader" (the sessions round, Oct 12 2026). */
+  const refusedFinishIdsRef = useRef<Set<string>>(new Set());
 
   const commitEndSession = async () => {
     if (!currentSession?.id || !selectedClient) return;
@@ -3083,7 +3117,7 @@ export function WorkoutTrackerView({
          (features/session-record/finish-wait.ts). */
       const early = finishCheckRef.current?.sessionId === sessionId ? finishCheckRef.current.read : null;
       finishCheckRef.current = null;
-      const alreadyFinished = await finishedElsewhereAtTap({
+      let alreadyFinished = await finishedElsewhereAtTap({
         streamStatus: streamStatusRef.current.get(sessionId) ?? null,
         early,
         readStatus: () =>
@@ -3104,8 +3138,30 @@ export function WorkoutTrackerView({
         }
       };
       let queued = false;
+      /* How the Finish was refused, if it was (the sessions round, Oct 12
+         2026; features/session-record/finish-once.ts). Another iPad finished
+         it first: said in reassurance, and the Wrap-up comes as it does for
+         a finish the check above caught. Discarded there: said, and the
+         Wrap-up says it isn't saved. Either way no pain notes and no Next
+         time are filed from here. */
+      let refused: FinishRefused | null = null;
+      const firstName = clientFirstName(selectedClient, "");
+      /** A refusal that came after the Wrap-up was up: said, and shown there. */
+      const lateRefusal = (error: unknown) => {
+        const kind: FinishRefused = isFinishedElsewhere(error) ? "elsewhere" : isSessionGone(error) ? "gone" : "refused";
+        if (kind === "elsewhere") toastInfo(finishedElsewhereWords(firstName));
+        else if (kind === "gone") toastError(sessionGoneWords(firstName));
+        else {
+          console.error("[finish] the session was refused when it reached the database", error);
+          const again = refusedFinishIdsRef.current.has(sessionId);
+          refusedFinishIdsRef.current.add(sessionId);
+          toastError(again ? finishRefusedAgainWords(firstName) : finishRefusedWords(firstName));
+        }
+        setPostSession((ps) => (ps && ps.session.id === sessionId ? { ...ps, queued: false, refused: kind } : ps));
+      };
       if (alreadyFinished) {
-        toastInfo("This session was already finished on another iPad, so nothing was counted twice.");
+        refused = "elsewhere";
+        toastInfo(finishedElsewhereWords(firstName));
       } else {
         /* The writes are on this iPad the moment this is called; what can take
            forever is the database's answer. Wait a moment for it, not at all
@@ -3126,8 +3182,19 @@ export function WorkoutTrackerView({
           { settingsOnFileKnown: settingsServerRead || createdHere, newClient: createdHere },
         );
         const outcome = await settleOrQueue(finishing, sendState.online);
-        if (outcome.kind === "failed") throw outcome.error;
-        if (outcome.kind === "saved") {
+        if (outcome.kind === "failed") {
+          if (isFinishedElsewhere(outcome.error)) {
+            refused = "elsewhere";
+            alreadyFinished = true;
+            toastInfo(finishedElsewhereWords(firstName));
+          } else if (isSessionGone(outcome.error)) {
+            refused = "gone";
+            alreadyFinished = true;
+            toastError(sessionGoneWords(firstName));
+          } else {
+            throw outcome.error;
+          }
+        } else if (outcome.kind === "saved") {
           reportTotals(outcome.value);
         } else {
           queued = true;
@@ -3136,12 +3203,7 @@ export function WorkoutTrackerView({
               reportTotals(finished);
               setPostSession((ps) => (ps && ps.session.id === sessionId ? { ...ps, queued: false } : ps));
             },
-            (error) => {
-              console.error("[finish] the session was refused when it reached the database", error);
-              toastError(
-                "This session didn't reach the studio's records, but its sets are saved. Open the client, resume the session and press Finish again.",
-              );
-            },
+            lateRefusal,
           );
         }
       }
@@ -3336,6 +3398,7 @@ export function WorkoutTrackerView({
         draft: hasDraftText(noteDraft) ? noteDraft : null,
         nextTrainerNote: nextTrainerNote ? { id: null, body: nextTrainerNote } : null,
         queued,
+        refused,
         nextTime,
         nextTimeLater,
       });
@@ -4914,6 +4977,7 @@ export function WorkoutTrackerView({
            it is this client's: otherwise the Wrap-up reads them itself. */
         journalStream={selectedClient?.id === postSession.client.id ? flagJournalStream : undefined}
         savedOnThisIpad={!!postSession.queued}
+        refused={postSession.refused ?? null}
         machines={floorMachines}
         rightControls={rightControls}
         trainerDropdown={trainerDropdown}
