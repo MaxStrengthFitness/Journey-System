@@ -126,7 +126,7 @@ export function ModelEditor({
       <AdminNotice tone="info">
         Settings pool per model in the weekly count: a seat 4 on one maker&apos;s unit is not a seat
         4 on another&apos;s. Weights keep pooling per movement. A studio names its unit&apos;s model
-        under Its size, on the machine&apos;s page in My Studio → Machines.
+        under Its size, on the machine&apos;s page in My Studio → Machines, or under Arrange the floor → Sizes.
       </AdminNotice>
 
       <AdminPanel title="The model">

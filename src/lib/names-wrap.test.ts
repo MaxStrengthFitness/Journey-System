@@ -72,6 +72,11 @@ const NAME_RULES: { file: string; cls: string; exact?: string; what: string }[] 
   { file: "features/calendar/calendar.css", cls: "cal-wbk__name", what: "a client booked on the Calendar's Week" },
   { file: "features/calendar/calendar.css", cls: "cal-wbk__with", what: "who a booking on the Week is with" },
   { file: "features/client-history/client-history.css", cls: "hist-who__name", what: "the trainer on a history row" },
+  // The studio map (Oct 2026): Arrange the floor's names.
+  { file: "features/studio-map/studio-map.css", cls: "smap-chip__name", what: "a machine not placed yet, on the editor's chips" },
+  { file: "features/studio-map/studio-map.css", cls: "smap-item__name", what: "the selected machine, box or place in the editor" },
+  { file: "features/studio-map/studio-map.css", cls: "smap-sizes__name", what: "a machine on the Sizes sheet" },
+  { file: "features/studio-map/studio-map.css", cls: "smap-list__name", what: "a machine in the floor's walking order beside the map" },
   { file: "features/client-history/client-history.css", cls: "hsd-set__name", what: "a machine in the session pop-up" },
   { file: "features/trainer-profile/trainer-profile.css", cls: "tp-row__name", what: "a person or client on a My Profile row" },
   { file: "features/client-profile/profile-nav.css", cls: "psub__label", what: "a profile sub-tab's label (two words wrap, as its comment says)" },

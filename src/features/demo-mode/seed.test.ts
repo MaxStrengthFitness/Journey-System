@@ -9,6 +9,7 @@ import {
   onTheStack,
 } from "./loads";
 import { DEMO_CLIENTS, DEMO_TRAINERS, totalSessionsFor } from "./roster";
+import { IMAGINE_STRENGTH_MODELS } from "../studio-map/imagine-strength";
 import { outcomeOf, isPerformedLog } from "../../lib/set-outcome";
 import { totalSessions, priorHistoryOf } from "../../lib/prior-history";
 import { coverageOfClient } from "../../lib/client-coverage";
@@ -79,6 +80,14 @@ describe("what it lays down", () => {
       // resolveMachine() returns null without this, and the machine vanishes
       // from the floor with no error anywhere.
       expect(entry.data.basedOn).toBe(entry.data.machineId);
+    }
+  });
+
+  it("names each machine's Imagine Strength model, so the practice studio's map draws true sizes (the studio map, Oct 2026)", () => {
+    const roster = seed.docs.filter((d) => d.path.includes("/roster/"));
+    for (const entry of roster) {
+      const model = IMAGINE_STRENGTH_MODELS.find((m) => m.movementId === entry.data.machineId);
+      expect(entry.data.modelId, String(entry.data.machineId)).toBe(model?.id);
     }
   });
 

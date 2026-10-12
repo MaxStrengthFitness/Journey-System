@@ -198,6 +198,12 @@ const NAME_CLASSES = [
   "op-person__name", // a person on Openings' Who's usually in
   "fn-note__meta", // who wrote a floor note, and when
   "fn-note__body", // a floor note's words
+  // The studio map (Oct 2026): a machine not placed yet, the selected thing,
+  // a row of Sizes, a row of the floor in walking order.
+  "smap-chip__name",
+  "smap-item__name",
+  "smap-sizes__name",
+  "smap-list__name",
 ] as const;
 
 describe("names in My Studio", () => {
@@ -309,6 +315,14 @@ const TAP_CLASSES = [
   "srt-pick", // the template editor's Day one picks
   "srt-word", // a word that suggests a starting routine, tapped to take it out
   "srt-switch", // Offer as a starting routine, Head office's default
+  // The studio map (Oct 2026): the editor's tool switch, zoom, the Not placed
+  // yet chips, the room's palette, a Sizes tick, a row of the floor list.
+  "smap-tool__btn",
+  "smap-zoom__btn",
+  "smap-chip",
+  "smap-palette__chip",
+  "smap-sizes__tick",
+  "smap-list__row",
 ] as const;
 
 const px = (v: string) => (/^\d+(?:\.\d+)?px$/.test(v.trim()) ? parseFloat(v) : null);
@@ -383,7 +397,7 @@ const BUTTON_CLASSES = [
   "fn-btn",
   "fn-fold",
 ] as const;
-const CHIP_CLASSES = ["stq__kind", "sh__chip", "rls__chip", "ne__kind", "op-chip"] as const;
+const CHIP_CLASSES = ["stq__kind", "sh__chip", "rls__chip", "ne__kind", "op-chip", "smap-chip", "smap-palette__chip"] as const;
 
 /** Every plain `.cls { ... }` rule, media queries included, as one body. */
 const definition = (cls: string) => {

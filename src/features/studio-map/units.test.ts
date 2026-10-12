@@ -9,6 +9,8 @@ import {
   mmFromFtIn,
   parseFtIn,
   sizeLine,
+  sqFtOf,
+  sqFtWords,
 } from "./units";
 
 describe("lengths in feet and inches", () => {

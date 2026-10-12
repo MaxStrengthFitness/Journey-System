@@ -14,6 +14,21 @@ export const MM_PER_IN = 25.4;
 export const MM_PER_FT = 304.8;
 /** A move's step: 6 in. */
 export const SNAP_MM = 152.4;
+/** The room tool's step: 1 ft. Boxes sit on whole feet. */
+export const BOX_SNAP_MM = 304.8;
+/** One square foot in square millimetres. */
+const MM2_PER_SQFT = 92_903.04;
+
+/** Whole square feet, rounded. */
+export function sqFtOf(mm2: number): number {
+  return Number.isFinite(mm2) && mm2 > 0 ? Math.round(mm2 / MM2_PER_SQFT) : 0;
+}
+
+/** "1,800 sq ft": the thousands comma, never metric. */
+export function sqFtWords(n: number): string {
+  const whole = Math.max(0, Math.round(n));
+  return `${String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ",")} sq ft`;
+}
 
 /** Feet and inches as whole millimetres. */
 export function mmFromFtIn(ft: number, inch: number): number {

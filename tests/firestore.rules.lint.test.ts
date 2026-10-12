@@ -184,3 +184,45 @@ describe("the studio map's sizes", () => {
     expect(model).toContain(`s.get('note', '').size() <= ${MODEL_LIMITS.sizeNote}`);
   });
 });
+
+/**
+ * THE STUDIO MAP'S LAYOUT (Oct 2026, phase 2): studios/{s}/floorPlans. A
+ * rule can't loop over a list, so each box, place and placement is the app's
+ * to check (layout.ts planProblems before a write, readPlan after a read);
+ * the rule holds the shape, the caps, the slots, the rev and the writer. The
+ * caps here and the app's PLAN_LIMITS are one set of numbers: change them
+ * together.
+ */
+describe("the studio map's layout", () => {
+  const block = () => {
+    const m = /match \/floorPlans\/\{planId\} \{([\s\S]*?)\n {6}\}/.exec(SOURCE);
+    expect(m, "match /floorPlans/{planId}").toBeTruthy();
+    return m![1];
+  };
+
+  it("is there, read by the studio's people, written by its leaders, and never deleted", () => {
+    const b = block();
+    expect(b).toContain("allow read: if isAuthenticated() && writesForStudio(studioId);");
+    expect(b).toContain("allow delete: if false;");
+    expect(b).toContain("trainerLeads(r, callerTrainer(), studioId)");
+  });
+
+  it("holds the same caps and slots as the app", async () => {
+    const { PLAN_LIMITS, DRAFT_SLOTS } = await import("../src/features/studio-map/layout");
+    const b = block();
+    expect(b).toContain(`d.room.boxes.size() >= ${PLAN_LIMITS.boxesMin} && d.room.boxes.size() <= ${PLAN_LIMITS.boxes}`);
+    expect(b).toContain(`d.room.places.size() <= ${PLAN_LIMITS.places}`);
+    expect(b).toContain(`d.placements.size() <= ${PLAN_LIMITS.placements}`);
+    expect(b).toContain(`d.name.size() <= ${PLAN_LIMITS.name}`);
+    expect(b).toContain(`d.room.areaSqFt >= ${PLAN_LIMITS.sqFtMin} && d.room.areaSqFt <= ${PLAN_LIMITS.sqFtMax}`);
+    expect(DRAFT_SLOTS).toEqual(["d-1", "d-2", "d-3", "d-4", "d-5"]);
+    expect(b).toContain("planId.matches('d-[1-5]')");
+  });
+
+  it("is the room as boxes: no outline, doors or fixtures from the first design", () => {
+    const code = stripRulesComments(block());
+    for (const old of ["outline", "'doors'", "fixtures"]) expect(code, old).not.toContain(old);
+    expect(code).toContain("'boxes'");
+  });
+});
+

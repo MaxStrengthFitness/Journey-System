@@ -106,6 +106,19 @@ vi.mock("../admin/machines/StudioInventoryManager", () => ({
   ),
 }));
 
+// Arrange the floor (the studio map, phase 2): the editor itself is held by
+// its own render test; here, only that the section opens it in place.
+vi.mock("../studio-map/lazy", () => ({
+  LazyLayoutView: ({ studioName, canLead, onDone }: { studioName: string; canLead: boolean; onDone: () => void }) => (
+    <div data-testid="layout-editor">
+      Editing {studioName}'s floor {canLead ? "as a leader" : ""}
+      <button type="button" onClick={onDone}>
+        Done arranging
+      </button>
+    </div>
+  ),
+}));
+
 import { ToastProvider } from "../../contexts/ToastContext";
 import { UnsavedChangesProvider } from "../unsaved-changes";
 import type { Trainer } from "../../types";
@@ -257,5 +270,30 @@ describe("the door's Local set-up, for a leader", () => {
     await click("Open Hip Sled");
     expect(doorTitle()).toContain("Hip Sled");
     expect(doorButtons()).not.toContain("Local set-up");
+  });
+});
+
+describe("Arrange the floor (the studio map, phase 2)", () => {
+  it("is not a trainer's button", () => {
+    expect([...host.querySelectorAll("button")].some((b) => b.textContent?.includes("Arrange the floor"))).toBe(false);
+  });
+
+  describe("for a leader", () => {
+    beforeAll(() => {
+      lead.value = true;
+    });
+    afterAll(() => {
+      lead.value = false;
+    });
+
+    it("sits in the floor panel's actions, and opens the editor in place of the list until Done", async () => {
+      expect(host.querySelector('[data-testid="layout-editor"]')).toBeNull();
+      await click("Arrange the floor");
+      expect(host.querySelector('[data-testid="layout-editor"]')?.textContent).toContain("Editing Solon's floor as a leader");
+      expect([...host.querySelectorAll("button")].some((b) => b.textContent === "Open Leg Press")).toBe(false);
+      await click("Done arranging");
+      expect(host.querySelector('[data-testid="layout-editor"]')).toBeNull();
+      expect(byText("Open Leg Press")).toBeTruthy();
+    });
   });
 });

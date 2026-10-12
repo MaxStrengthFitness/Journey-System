@@ -18,10 +18,16 @@ import { sizeOfUnit, type UnitFacts, type UnitSizeRead } from "./sizes";
 
 export { IMAGINE_STRENGTH_BRAND };
 
-/** A machine on the floor, in walking order (`onFloor`'s answer, reduced to what a row needs). */
+/**
+ * A machine on the floor, in walking order (`onFloor`'s answer, reduced to
+ * what a row needs). `source` is the roster entry's own field, so a catalog
+ * copy can be told from a studio's own machine that happens to name a
+ * movement.
+ */
 export interface FloorMachine {
   machineId: string;
   name: string;
+  source?: "catalog" | "custom" | string | null;
 }
 
 export interface SizeRow {
@@ -29,6 +35,7 @@ export interface SizeRow {
   name: string;
   /** 1-based, the walking order. */
   order: number;
+  source: FloorMachine["source"];
   /** basedOn, or the definition's basedOn; null for a machine with no MSF movement. */
   movementId: string | null;
   size: UnitSizeRead;
@@ -63,6 +70,7 @@ export function sizeRows(floor: readonly FloorMachine[], units: Readonly<Record<
       machineId: m.machineId,
       name: m.name,
       order: i + 1,
+      source: m.source ?? null,
       movementId,
       size,
       models: mine,
@@ -97,4 +105,16 @@ export function linksFor(rows: readonly SizeRow[], ticked: ReadonlySet<string>):
 /** A link whose model is for another movement than its unit's: the store drops it. */
 export function linkMismatched(link: ModelLink): boolean {
   return !link.unitMovementId || link.unitMovementId !== link.modelMovementId;
+}
+
+/**
+ * The ticks the Sizes sheet opens with (AJ, Oct 11 2026, asked whether
+ * Solon's and Strongsville's machines are Imagine Strength: "Yes, nearly
+ * all"): every row that offers Imagine Strength AND is a catalog copy. A
+ * studio's own machine starts unticked even when it names a movement. A
+ * pre-tick writes nothing: only Mark {n} does, with every ticked row on
+ * screen.
+ */
+export function initialTicks(rows: readonly SizeRow[]): Set<string> {
+  return new Set(rows.filter((r) => r.isOffer && r.source === "catalog").map((r) => r.machineId));
 }

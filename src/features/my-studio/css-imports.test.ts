@@ -61,6 +61,13 @@ const HOSTS = [
   "features/studio-map/ui/UnitSizeCard.tsx",
   "features/studio-map/ui/SizeForm.tsx",
   "features/studio-map/ui/UnitModelField.tsx",
+  // Arrange the floor and its drawing (phase 2), mounted inside Machines' panel.
+  "features/studio-map/lazy.tsx",
+  "features/studio-map/ui/LayoutView.tsx",
+  "features/studio-map/ui/StudioRoom.tsx",
+  "features/studio-map/ui/ItemPanel.tsx",
+  "features/studio-map/ui/MovePad.tsx",
+  "features/studio-map/ui/SizesSheet.tsx",
 ] as const;
 
 /**

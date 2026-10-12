@@ -8992,7 +8992,201 @@ describe("the franchise partition: an owner runs their own studios and no other"
       });
     });
 
+    describe("the layout (floorPlans)", () => {
+      const ft = (n: number) => Math.round(n * 304.8);
+      const ROOM = {
+        areaSqFt: 1800,
+        boxes: [{ id: "bx-1", x: 0, y: 0, w: ft(60), h: ft(30) }],
+        places: [
+          { id: "pc-1", kind: "door", x: -76, y: ft(22), w: 152, h: ft(3) },
+          { id: "pc-2", kind: "aed", x: 0, y: ft(20), w: 305, h: 305 },
+        ],
+      };
+      const PLACED = [
+        { machineId: LP, x: 3000, y: 3000, rotationDeg: 0 },
+        { machineId: "sm-unit-0", x: 6000, y: 3000, rotationDeg: 90 },
+      ];
+      const plan = (uid: string, rev: number, over: Record<string, unknown> = {}) => ({
+        v: 1,
+        name: "The layout",
+        room: ROOM,
+        placements: PLACED,
+        rev,
+        updatedAt: serverTimestamp(),
+        updatedBy: uid,
+        ...over,
+      });
+      const fp = (db: Db, studioId: string, id = "current") => doc(db, "studios", studioId, "floorPlans", id);
+      /** A layout already on file, written past the rules. */
+      const seed = async (studioId: string, id: string, rev: number, over: Record<string, unknown> = {}) => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(fp(context.firestore(), studioId, id), { ...plan("seed", rev), updatedAt: new Date("2026-10-01T12:00:00Z"), ...over });
+        });
+      };
+
+      it("P1, P2, P3: is read by everyone who works at the studio, and by no one else", async () => {
+        await seed(A, "current", 1);
+        for (const uid of ["trainerA", "guestA", "leaderA", "franchiseA", "adminP"]) {
+          await assertSucceeds(getDoc(fp(ctx(uid), A)));
+        }
+        for (const uid of ["trainerB", "franchiseB"]) await assertFails(getDoc(fp(ctx(uid), A)));
+        await assertFails(getDoc(fp(testEnv.unauthenticatedContext().firestore(), A)));
+        await assertSucceeds(getDocs(collection(ctx("trainerA"), "studios", A, "floorPlans")));
+      });
+
+      it("P4, P5, P6: is created at rev 1 and moves up by exactly one a write, so a save from an old copy is refused", async () => {
+        const leader = ctx("leaderA");
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 2)));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 1)));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1)));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 3)));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 2)));
+        // Two saves from one base (rev 2): the first lands, the second is refused.
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 3, { name: "The layout" })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 3, { placements: [] })));
+      });
+
+      it("P7, P8, P9, P10: is written by the studio's leaders, an owner at their studios, the grant and an administrator", async () => {
+        await assertFails(setDoc(fp(ctx("trainerA"), A), plan("trainerA", 1)));
+        await seed(A, "current", 1);
+        await assertFails(setDoc(fp(ctx("trainerA"), A), plan("trainerA", 2)));
+        await assertSucceeds(setDoc(fp(ctx("franchiseAB"), B), plan("franchiseAB", 1)));
+        await assertFails(setDoc(fp(ctx("franchiseB"), A), plan("franchiseB", 2)));
+        await assertSucceeds(setDoc(fp(ctx("grantA2"), A), plan("grantA2", 2)));
+        await assertSucceeds(setDoc(fp(ctx("adminP"), C), plan("adminP", 1)));
+      });
+
+      it("P11: holds 1 to 12 boxes, 40 places and 120 placements", async () => {
+        const leader = ctx("leaderA");
+        const box = (i: number) => ({ id: `bx-${i}`, x: 0, y: 0, w: 1000, h: 1000 });
+        const place = (i: number) => ({ id: `pc-${i}`, kind: "pillar", x: 0, y: 0, w: 300, h: 300 });
+        const unit = (i: number) => ({ machineId: `m-${i}`, x: 1000, y: 1000, rotationDeg: 0 });
+        const room = (boxes: number, places: number) => ({ areaSqFt: 1800, boxes: Array.from({ length: boxes }, (_, i) => box(i + 1)), places: Array.from({ length: places }, (_, i) => place(i)) });
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: room(0, 0) })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: room(13, 0) })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: room(1, 41) })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { placements: Array.from({ length: 121 }, (_, i) => unit(i)) })));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 1, { room: room(12, 40), placements: Array.from({ length: 120 }, (_, i) => unit(i)) })));
+      });
+
+      it("P12, P12a, P13: refuses a key it doesn't know, an old shape, a long name, another version, a rev that isn't a number, a square footage out of range, and a stamp it didn't set", async () => {
+        const leader = ctx("leaderA");
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { ceilingMm: 3000 })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: { ...ROOM, outline: [{ x: 0, y: 0 }] } })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { name: "n".repeat(61) })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { v: 2 })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { rev: "1" })));
+        for (const areaSqFt of [150, 25000, "1800", 1800.5, null]) {
+          await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: { ...ROOM, areaSqFt } })));
+        }
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { updatedBy: "x" })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { updatedAt: new Date() })));
+        const { areaSqFt: _a, ...noArea } = ROOM;
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 1, { room: noArea })));
+      });
+
+      it("P14: takes `current` and the five draft slots, and no other id", async () => {
+        const leader = ctx("leaderA");
+        await assertSucceeds(setDoc(fp(leader, A, "d-1"), plan("leaderA", 1, { name: "Remodel 1" })));
+        await assertSucceeds(setDoc(fp(leader, A, "d-5"), plan("leaderA", 1, { name: "Remodel 5" })));
+        for (const id of ["d-6", "d-0", "d-12", "d-lzx1a", "Bad Id", "x-1"]) {
+          await assertFails(setDoc(fp(leader, A, id), plan("leaderA", 1, { name: "Remodel" })));
+        }
+      });
+
+      it("P15: never deletes a layout or a draft", async () => {
+        await seed(A, "current", 1);
+        await seed(A, "d-1", 1, { name: "Remodel 1" });
+        for (const uid of ["adminP", "leaderA"]) {
+          await assertFails(deleteDoc(fp(ctx(uid), A)));
+          await assertFails(deleteDoc(fp(ctx(uid), A, "d-1")));
+        }
+      });
+
+      it("P16: retires a draft and brings it back, never retires `current`, and never by a trainer", async () => {
+        const leader = ctx("leaderA");
+        await seed(A, "current", 1);
+        await seed(A, "d-1", 1, { name: "Remodel 1" });
+        await assertFails(setDoc(fp(ctx("trainerA"), A, "d-1"), plan("trainerA", 2, { name: "Remodel 1", retired: true })));
+        await assertSucceeds(setDoc(fp(leader, A, "d-1"), plan("leaderA", 2, { name: "Remodel 1", retired: true })));
+        await assertSucceeds(setDoc(fp(leader, A, "d-1"), plan("leaderA", 3, { name: "Remodel 1" })));
+        await assertFails(setDoc(fp(leader, A, "d-1"), plan("leaderA", 4, { name: "Remodel 1", retired: false })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 2, { retired: true })));
+      });
+
+      it("P19, P20: lets anyone with a trainer document arrange the Demo Mode floor, in its slots only", async () => {
+        const demo = ctx("demoTrainer");
+        await assertSucceeds(setDoc(fp(demo, DEMO), plan("demoTrainer", 1)));
+        await assertSucceeds(setDoc(fp(demo, DEMO), plan("demoTrainer", 2)));
+        await assertFails(setDoc(fp(demo, DEMO, "d-6"), plan("demoTrainer", 1, { name: "Remodel" })));
+      });
+
+      it("P21: a stale copy can't delete a draft or write it again at rev 1", async () => {
+        await seed(A, "d-2", 4, { name: "Remodel 2" });
+        await assertFails(deleteDoc(fp(ctx("grantA2"), A, "d-2")));
+        await assertFails(setDoc(fp(ctx("leaderA"), A, "d-2"), plan("leaderA", 1, { name: "Remodel 2" })));
+      });
+
+      it("P22: leaves what is inside the lists to the app (a path for a machine, a string coordinate, an unknown place, a machine still to buy)", async () => {
+        const leader = ctx("leaderA");
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 1, { placements: [{ machineId: `studios/${B}/roster/${LP}`, x: 1, y: 1, rotationDeg: 0 }] })));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 2, { room: { ...ROOM, boxes: [{ id: "bx-1", x: "0", y: 0, w: 1000, h: 1000 }] } })));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 3, { room: { ...ROOM, places: [{ id: "pc-1", kind: "trampoline", x: 0, y: 0, w: 1, h: 1 }] } })));
+        await assertSucceeds(
+          setDoc(
+            fp(leader, A),
+            plan("leaderA", 4, { placements: [{ kind: "planned", id: "pm-1", label: "Hip Abductor", movementId: "m-hip-abd", modelId: null, x: 1, y: 1, rotationDeg: 0 }] }),
+          ),
+        );
+      });
+    });
+
     describe("inside the rules' budget", () => {
+      it("B3: fits the fullest layout the grant writes: 12 boxes, 40 places and 120 placements", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(doc(context.firestore(), "studios", A, "floorPlans", "current"), {
+            v: 1,
+            name: "The layout",
+            room: { boxes: [{ id: "bx-1", x: 0, y: 0, w: 1000, h: 1000 }], places: [] },
+            placements: [],
+            rev: 1,
+            updatedAt: new Date("2026-10-01T12:00:00Z"),
+            updatedBy: "seed",
+          });
+        });
+        const full = {
+          v: 1,
+          name: "The layout",
+          room: {
+            areaSqFt: 20000,
+            boxes: Array.from({ length: 12 }, (_, i) => ({ id: `bx-${i + 1}`, x: i * 3048, y: 0, w: 3048, h: 3048 })),
+            places: Array.from({ length: 40 }, (_, i) => ({ id: `pc-${i}`, kind: "desk", x: i * 300, y: 300, w: 1000, h: 600, label: "l".repeat(40) })),
+          },
+          placements: Array.from({ length: 120 }, (_, i) => ({ machineId: `m-${"x".repeat(150)}-${i}`, x: i * 100, y: 2000, rotationDeg: 270 })),
+          rev: 2,
+          updatedAt: serverTimestamp(),
+          updatedBy: "grantA2",
+        };
+        await assertSucceeds(
+          measured("floorPlans update: grantA2, 12 boxes, 40 places, 120 placements", () => setDoc(doc(ctx("grantA2"), "studios", A, "floorPlans", "current"), full)),
+        );
+      }, BUDGET_TIMEOUT);
+
+      it("B4: fits a guest's read of the layout (the guest list found last)", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(doc(context.firestore(), "studios", A, "floorPlans", "current"), {
+            v: 1,
+            name: "The layout",
+            room: { boxes: [{ id: "bx-1", x: 0, y: 0, w: 1000, h: 1000 }], places: [] },
+            placements: [],
+            rev: 1,
+            updatedAt: new Date("2026-10-01T12:00:00Z"),
+            updatedBy: "seed",
+          });
+        });
+        await assertSucceeds(measured("floorPlans read: guestA", () => getDoc(doc(ctx("guestA"), "studios", A, "floorPlans", "current"))));
+      }, BUDGET_TIMEOUT);
+
       /** The four writes the app sends to a roster entry, one kind at a time, each as its store sends it. */
       const writes = (uid: string) =>
         [

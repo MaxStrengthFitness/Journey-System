@@ -2394,6 +2394,39 @@ service cloud.firestore {
              && (isSuperAdmin() || isStudioOwnerOrHeadTrainer(studioId));
       }
 
+      // STUDIO MAP (Oct 2026): the layout. `current` and five draft slots d-1..d-5.
+      // Shape and caps here; each box, place and placement is checked by
+      // features/studio-map/layout.ts. rev goes up by exactly one a write, so a save
+      // made from an old copy is refused, and nothing is ever deleted.
+      match /floorPlans/{planId} {
+        function floorPlanValid(d) {
+          return d.keys().hasOnly(['v', 'name', 'room', 'placements', 'retired', 'rev', 'updatedAt', 'updatedBy'])
+              && d.v == 1
+              && (!('retired' in d) || (d.retired == true && planId != 'current'))
+              && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+              && d.room is map && d.room.keys().hasOnly(['areaSqFt', 'boxes', 'places'])
+              && (!('areaSqFt' in d.room)
+                  || (d.room.areaSqFt is int && d.room.areaSqFt >= 200 && d.room.areaSqFt <= 20000))
+              && d.room.boxes is list && d.room.boxes.size() >= 1 && d.room.boxes.size() <= 12
+              && d.room.places is list && d.room.places.size() <= 40
+              && d.placements is list && d.placements.size() <= 120
+              && d.rev is int
+              && d.rev == (resource == null ? 1 : resource.data.rev + 1)
+              && d.updatedAt == request.time
+              && d.updatedBy == request.auth.uid;
+        }
+        function floorPlanWriter() {
+          let r = getRole();
+          return roleIsSuper(r) || trainerLeads(r, callerTrainer(), studioId);
+        }
+        allow read: if isAuthenticated() && writesForStudio(studioId);
+        allow create, update: if isAuthenticated()
+                              && (planId == 'current' || planId.matches('d-[1-5]'))
+                              && floorPlanValid(request.resource.data)
+                              && floorPlanWriter();
+        allow delete: if false;
+      }
+
       // Why: docs/ops/RULES-NOTES.md#studios-studioid-machinenotes-machineid
       match /machineNotes/{machineId} {
         allow read: if isAuthenticated() && writesForStudio(studioId);

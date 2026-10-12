@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { LoadedPlan, Placement, PlannedPlacement, PlanRoom } from "./layout";
 
 vi.mock("../../firebase", () => ({ db: {} }));
 
 const writes: { kind: string; path: string; data: Record<string, unknown> }[] = [];
 let commits = 0;
+let serverRev: number | null = null;
+let refuse = false;
 
 vi.mock("firebase/firestore", () => ({
   doc: (...parts: unknown[]) => ({ path: parts.filter((p) => typeof p === "string").join("/") }),
@@ -12,11 +15,18 @@ vi.mock("firebase/firestore", () => ({
   updateDoc: async (ref: { path: string }, data: Record<string, unknown>) => {
     writes.push({ kind: "update", path: ref.path, data });
   },
+  setDoc: async (ref: { path: string }, data: Record<string, unknown>) => {
+    if (refuse) throw Object.assign(new Error("denied"), { code: "permission-denied" });
+    writes.push({ kind: "set", path: ref.path, data });
+  },
+  getDocFromServer: async () => ({ exists: () => serverRev !== null, data: () => ({ rev: serverRev, updatedBy: "uid-marina" }) }),
   writeBatch: () => {
     const pending: typeof writes = [];
     return {
       update: (ref: { path: string }, data: Record<string, unknown>) => pending.push({ kind: "batch-update", path: ref.path, data }),
+      set: (ref: { path: string }, data: Record<string, unknown>) => pending.push({ kind: "batch-set", path: ref.path, data }),
       commit: async () => {
+        if (refuse) throw Object.assign(new Error("denied"), { code: "permission-denied" });
         commits += 1;
         writes.push(...pending);
       },
@@ -24,7 +34,8 @@ vi.mock("firebase/firestore", () => ({
   },
 }));
 
-const { linkModels, setUnitModel, setUnitSize, unlinkModels, AnotherMachinesModel } = await import("./store");
+const { linkModels, setUnitModel, setUnitSize, unlinkModels, AnotherMachinesModel, saveLayout, useThisLayout, undoUseThisLayout } = await import("./store");
+const { useLayoutOps } = await import("./layout");
 
 /** Every value in a written object, deep, so an undefined anywhere is caught. */
 const undefinedIn = (v: unknown): boolean =>
@@ -33,6 +44,8 @@ const undefinedIn = (v: unknown): boolean =>
 beforeEach(() => {
   writes.length = 0;
   commits = 0;
+  serverRev = null;
+  refuse = false;
 });
 
 describe("a unit's size", () => {
@@ -105,5 +118,76 @@ describe("Mark {n} as Imagine Strength", () => {
     await unlinkModels("solon", ["m-leg-press", "m-neck"]);
     expect(commits).toBe(1);
     expect(writes.map((w) => w.data)).toEqual([{ modelId: "__delete__" }, { modelId: "__delete__" }]);
+  });
+});
+
+describe("the layout's writes", () => {
+  const room: PlanRoom = { areaSqFt: 1800, boxes: [{ id: "bx-1", x: 0, y: 0, w: 18288, h: 9144 }], places: [] };
+  const unit = (machineId: string): Placement => ({ machineId, x: 3000, y: 3000, rotationDeg: 0 });
+  const planned: PlannedPlacement = { kind: "planned", id: "pm-1", label: "Hip Abductor", movementId: "m-hip-abd", modelId: null, x: 5000, y: 5000, rotationDeg: 0 };
+  const loaded = (id: string, rev: number, placements: Placement[], retired = false): LoadedPlan => ({
+    id,
+    name: id === "current" ? "The layout" : `Remodel ${id.slice(2)}`,
+    rev,
+    retired,
+    room,
+    placements,
+    updatedAtMs: 0,
+    updatedBy: "u",
+  });
+
+  it("saves the layout at rev + 1, whole", async () => {
+    const out = await saveLayout("solon", "current", { room, placements: [unit("m-a")], gone: [] }, "The layout", 4, "uid-aj");
+    expect(out).toEqual({ ok: true, rev: 5 });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ kind: "set", path: "studios/solon/floorPlans/current", data: { rev: 5, updatedBy: "uid-aj", updatedAt: "__now__" } });
+  });
+
+  it("never writes a machine still to buy to the layout itself", async () => {
+    const out = await saveLayout("solon", "current", { room, placements: [unit("m-a"), planned], gone: [] }, "The layout", 4, "uid-aj");
+    expect(out).toEqual({ ok: false, why: "invalid", problem: "A machine still to buy goes on a draft, not the layout." });
+    expect(writes).toEqual([]);
+  });
+
+  it("tells a save someone else beat apart from a refusal", async () => {
+    refuse = true;
+    serverRev = 6;
+    expect(await saveLayout("solon", "current", { room, placements: [], gone: [] }, "The layout", 4, "uid-aj")).toEqual({
+      ok: false,
+      why: "changed",
+      by: "uid-marina",
+    });
+    serverRev = 4;
+    expect(await saveLayout("solon", "current", { room, placements: [], gone: [] }, "The layout", 4, "uid-aj")).toEqual({ ok: false, why: "refused" });
+  });
+
+  it("Use this layout with machines still to buy sends three sets: the units, the draft unchanged, the old layout kept", async () => {
+    const current = loaded("current", 4, [unit("m-a")]);
+    const draft = loaded("d-1", 2, [unit("m-b"), planned]);
+    const out = await useThisLayout("solon", current, draft, [draft], "uid-aj", Date.UTC(2026, 9, 12, 19, 40));
+    expect(out.ok).toBe(true);
+    expect(commits).toBe(1);
+    expect(writes.map((w) => [w.kind, w.path, w.data.rev])).toEqual([
+      ["batch-set", "studios/solon/floorPlans/current", 5],
+      ["batch-set", "studios/solon/floorPlans/d-1", 3],
+      ["batch-set", "studios/solon/floorPlans/d-2", 1],
+    ]);
+    expect((writes[0].data.placements as Record<string, unknown>[]).some((p) => p.kind === "planned")).toBe(false);
+  });
+
+  it("with no free slot, two", async () => {
+    const current = loaded("current", 4, [unit("m-a")]);
+    const slots = ["d-1", "d-2", "d-3", "d-4", "d-5"].map((id) => loaded(id, 1, id === "d-1" ? [planned] : [unit("m-z")]));
+    await useThisLayout("solon", current, slots[0], slots, "uid-aj", 0);
+    expect(writes).toHaveLength(2);
+  });
+
+  it("refuses a composed layout that would carry a machine still to buy, sending nothing", async () => {
+    // An Undo whose "before" layout holds one (only a bug could make it).
+    const { record } = useLayoutOps(loaded("current", 4, [planned]), loaded("d-1", 2, [unit("m-b")]), null, 0);
+    await expect(undoUseThisLayout("solon", record, { current: 5, slot: 3, before: null }, "uid-aj")!).rejects.toThrow(
+      "A machine still to buy goes on a draft, not the layout.",
+    );
+    expect(writes).toEqual([]);
   });
 });

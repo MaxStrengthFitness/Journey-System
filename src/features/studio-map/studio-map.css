@@ -1,9 +1,12 @@
 @import "../equipment/equipment.tokens.css";
 /* The studio map (Oct 2026): a machine's size on its door (Its size), the
-   form that measures one, and which model a unit is. In equipment.tokens.css's
-   colours, no new palette; every class starts smap-. Held by
-   my-studio/look.test.ts and studio-map/look.test.ts (no hex, 40px controls,
-   the type scale, words never cut short). */
+   form that measures one, which model a unit is, the drawing every door
+   shows, and the leaders' editor (Arrange the floor). In
+   equipment.tokens.css's colours, no new palette; every class starts smap-.
+   Plum (--eq-warn) is caution here (an overlap), blue (--eq-live) is
+   selection; no orange and no crimson. Held by my-studio/look.test.ts and
+   studio-map/look.test.ts (no hex, 40px controls, the type scale, words
+   never cut short). */
 
 .smap-size {
   display: flex;
@@ -79,7 +82,7 @@
   margin: 0;
   font-size: 14px;
   font-weight: 700;
-  color: var(--eq-alert);
+  color: var(--eq-warn);
 }
 
 .smap-form__actions {
@@ -93,4 +96,557 @@
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * The drawing (ui/StudioRoom.tsx): every element a class, no colour
+ * attribute. Bottom to top: floor, grid, walls, doors, places, machines,
+ * labels, the safety layer, the handles.
+ * ------------------------------------------------------------------ */
+
+.smap-svg {
+  display: block;
+  max-width: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.smap-floor {
+  fill: var(--eq-bg);
+  stroke: none;
+}
+
+.smap-grid {
+  fill: none;
+  stroke: var(--eq-divider);
+  stroke-width: 1;
+}
+
+.smap-wall {
+  fill: none;
+  stroke: var(--eq-ink-2);
+  stroke-width: 3;
+  stroke-linecap: square;
+}
+
+.smap-door {
+  fill: none;
+  stroke: var(--eq-ink-2);
+  stroke-width: 1.5;
+}
+
+.smap-place {
+  fill: var(--eq-surface-2);
+  stroke: var(--eq-border);
+  stroke-width: 1;
+}
+
+.smap-place--pillar {
+  fill: var(--eq-ink-2);
+  stroke: none;
+}
+
+.smap-place__name {
+  fill: var(--eq-ink-2);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.smap-box {
+  fill: none;
+  stroke: var(--eq-border-strong);
+  stroke-width: 1;
+  stroke-dasharray: 6 4;
+}
+
+.smap-m__body {
+  fill: var(--eq-raised);
+  stroke: var(--eq-border-strong);
+  stroke-width: 1.5;
+}
+
+.smap-m__lift {
+  fill: var(--eq-edge);
+}
+
+.smap-m__back {
+  fill: var(--eq-ink-2);
+}
+
+.smap-m__hit {
+  fill: transparent;
+}
+
+.smap-m:focus-visible {
+  outline: none;
+}
+
+.smap-m:focus-visible .smap-m__body {
+  stroke: var(--eq-focus-ring);
+  stroke-width: 3;
+}
+
+.smap-m--marker .smap-m__body {
+  stroke-dasharray: 4 3;
+}
+
+.smap-m--planned .smap-m__body {
+  fill: var(--eq-surface-2);
+  stroke-dasharray: 6 4;
+}
+
+.smap-m--sel .smap-m__body {
+  stroke: var(--eq-live);
+  stroke-width: 3;
+}
+
+.smap-m--over .smap-m__body {
+  stroke: var(--eq-warn);
+  stroke-width: 2;
+}
+
+.smap-m--sel.smap-m--over .smap-m__body {
+  stroke: var(--eq-live);
+  stroke-width: 3;
+}
+
+.smap-m--dim {
+  opacity: 0.35;
+}
+
+.smap-m__code {
+  fill: var(--eq-ink);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.smap-safety__box {
+  fill: var(--eq-raised);
+  stroke: var(--eq-border-strong);
+  stroke-width: 1.5;
+}
+
+.smap-safety__glyph {
+  color: var(--eq-ink);
+}
+
+.smap-safety__name {
+  fill: var(--eq-ink);
+  font-size: 12px;
+  font-weight: 700;
+  stroke: var(--eq-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+.smap-sel-edge {
+  fill: transparent;
+  stroke: var(--eq-live);
+  stroke-width: 2;
+}
+
+.smap-handle {
+  fill: var(--eq-live);
+}
+
+.smap-handle--hit {
+  fill: transparent;
+}
+
+/* ------------------------------------------------------------------ *
+ * The editor (ui/LayoutView.tsx)
+ * ------------------------------------------------------------------ */
+
+.smap-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.smap-quiet {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--eq-ink-2);
+}
+
+.smap-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--eq-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.smap-start {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 28rem;
+}
+
+.smap-start__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--eq-ink);
+}
+
+.smap-start__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.smap-num {
+  width: 6.5rem;
+  min-height: 40px;
+}
+
+.smap-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.smap-bar__gap {
+  flex: 1;
+}
+
+.smap-tool {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--eq-border-strong);
+  border-radius: 12px;
+  background: var(--eq-tray);
+}
+
+.smap-tool__btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--eq-ink-2);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.smap-tool__btn[aria-pressed="true"] {
+  background: var(--eq-live);
+  color: var(--eq-live-on);
+}
+
+.smap-tool__btn:focus-visible {
+  outline: 2px solid var(--eq-focus-ring);
+  outline-offset: -2px;
+}
+
+.smap-area {
+  margin: 0;
+  font-size: 14px;
+  color: var(--eq-ink-2);
+}
+
+.smap-stage {
+  position: relative;
+  min-width: 0;
+}
+
+.smap-frame {
+  overflow: auto;
+  max-height: calc(100dvh - var(--smap-chrome, 12rem) - 220px);
+  min-height: 320px;
+  border: 1px solid var(--eq-border);
+  border-radius: 12px;
+  background: var(--eq-tray);
+  touch-action: pan-x pan-y;
+}
+
+.smap-frame--machines .smap-m,
+.smap-frame--room .smap--sel,
+.smap-frame--room .smap-handle {
+  touch-action: none;
+}
+
+.smap-frame--machines .smap-m {
+  cursor: grab;
+}
+
+.smap-zoom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--eq-border-strong);
+  border-radius: 10px;
+  background: var(--eq-raised);
+  box-shadow: var(--eq-elev-1);
+}
+
+.smap-zoom__btn {
+  min-width: 40px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--eq-ink);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.smap-zoom__btn:disabled {
+  color: var(--eq-ink-muted);
+  cursor: default;
+}
+
+.smap-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--eq-surface-2);
+  min-width: 0;
+}
+
+.smap-item__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--eq-ink);
+  overflow-wrap: anywhere;
+}
+
+.smap-item__meta {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--eq-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.smap-item__line {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--eq-ink-2);
+}
+
+.smap-item__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.smap-pad {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.smap-row-label {
+  min-width: 4.5rem;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--eq-ink-2);
+}
+
+.smap-h {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--eq-ink-2);
+}
+
+.smap-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.smap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--eq-border-strong);
+  border-radius: 999px;
+  background: var(--eq-raised);
+  color: var(--eq-ink);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.smap-chip__name {
+  overflow-wrap: anywhere;
+}
+
+.smap-palette__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--eq-border-strong);
+  border-radius: 999px;
+  background: var(--eq-raised);
+  color: var(--eq-ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.smap-chip:focus-visible,
+.smap-palette__chip:focus-visible,
+.smap-list__row:focus-visible,
+.smap-sizes__tick:focus-visible {
+  outline: 2px solid var(--eq-focus-ring);
+  outline-offset: 2px;
+}
+
+.smap-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.smap-list__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--eq-divider);
+  background: transparent;
+  color: var(--eq-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.smap-list__row[aria-pressed="true"] {
+  background: var(--eq-live-fill);
+}
+
+.smap-list__name {
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.smap-list__meta {
+  font-size: 12px;
+  color: var(--eq-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.smap-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--eq-warn);
+}
+
+.smap-sizes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.smap-sizes__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.smap-sizes__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 60dvh;
+  overflow: auto;
+}
+
+.smap-sizes__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 0.75rem;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--eq-surface-2);
+}
+
+.smap-sizes__tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  min-height: 40px;
+  border: 1px solid var(--eq-border-strong);
+  border-radius: 10px;
+  background: var(--eq-raised);
+  color: var(--eq-live-on);
+  cursor: pointer;
+}
+
+.smap-sizes__tick[aria-pressed="true"] {
+  background: var(--eq-live);
+  border-color: var(--eq-live);
+}
+
+.smap-sizes__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.smap-sizes__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--eq-ink);
+  overflow-wrap: anywhere;
+}
+
+.smap-sizes__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
 }

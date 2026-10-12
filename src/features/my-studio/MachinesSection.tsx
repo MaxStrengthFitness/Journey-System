@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDoc, collection, doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
-import { Dumbbell, Network, Sparkles, Upload } from "lucide-react";
+import { Dumbbell, Map as MapIcon, Network, Sparkles, Upload } from "lucide-react";
 import { auth, db } from "../../firebase";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
 import { useToast } from "../../contexts/ToastContext";
@@ -32,6 +32,9 @@ import { ContextPanel } from "../relay/board/ContextPanel";
 import { useRelayMaybe } from "../relay/board/RelayContext";
 import { leadsHere } from "../relay/leads";
 import { UnitSizeCard } from "../studio-map/ui/UnitSizeCard";
+import { LazyLayoutView } from "../studio-map/lazy";
+import { usePhone } from "../phone/device";
+import { DEMO_STUDIO_ID } from "../demo-mode/constants";
 import { UnsavedChangesScope, useLeaveScope } from "../unsaved-changes";
 import {
   buildSubmission,
@@ -160,6 +163,12 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
   // tap on another machine in the list beside it. Each asks first (a leave
   // scope, unsaved-changes), as My Studio's sections and the bottom bar do.
   const doorScope = useLeaveScope();
+  // Arrange the floor (the studio map, Oct 2026): the leaders' editor, rare
+  // and behind one button, in place of the floor list inside the same panel.
+  // Leaving it while it holds unsaved work asks (its own leave scope).
+  const phone = usePhone();
+  const [arranging, setArranging] = useState(false);
+  const viewScope = useLeaveScope();
   const [seeding, setSeeding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -318,8 +327,29 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
               ? "What this location has, in the order trainers see it. Tap a machine for its settings, notes, local set-up and upkeep."
               : "What this location has, in the order you see it. Tap a machine for the studio's standard settings and the floor's notes."
           }
+          actions={
+            canLead && !phone && !arranging && !floorEmpty ? (
+              <AdminButton onClick={() => setArranging(true)}>
+                <MapIcon className="w-3.5 h-3.5" />
+                Arrange the floor
+              </AdminButton>
+            ) : undefined
+          }
         >
-          {floorEmpty && !canLead ? (
+          {arranging && canLead ? (
+            <UnsavedChangesScope scope={viewScope}>
+              <LazyLayoutView
+                studioId={studioId}
+                studioName={studioName}
+                canLead={canLead}
+                authUid={auth.currentUser?.uid ?? null}
+                authorName={authTrainer?.fullName ?? null}
+                isDemo={studioId === DEMO_STUDIO_ID}
+                nameOf={(uid) => trainers?.find((t) => t.id === uid || t.authUid === uid)?.fullName ?? null}
+                onDone={() => viewScope.guard(() => setArranging(false))}
+              />
+            </UnsavedChangesScope>
+          ) : floorEmpty && !canLead ? (
             <AdminEmpty title="No floor set up yet">
               A studio leader adopts the MSF standard set from here; until then the Catalog shows every MSF machine.
             </AdminEmpty>

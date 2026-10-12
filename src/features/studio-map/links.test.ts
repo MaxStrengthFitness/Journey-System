@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MACHINE_DEFINITIONS } from "../../data/machine-definitions";
 import { modelsReadOf } from "../catalog/models";
 import { IMAGINE_STRENGTH_MODELS, seedModelDocument } from "./imagine-strength";
-import { linkMismatched, linksFor, sizeRows, sizesHeading, type FloorMachine } from "./links";
+import { initialTicks, linkMismatched, linksFor, sizeRows, sizesHeading, type FloorMachine } from "./links";
 import { sizeSourceWords, type UnitFacts } from "./sizes";
 
 const TWENTY = Object.keys(MACHINE_DEFINITIONS);
@@ -97,5 +97,42 @@ describe("the Sizes sheet's rows", () => {
       isModels,
     );
     expect(sizesHeading(all)).toBe("Every machine has a size");
+  });
+});
+
+describe("which rows start ticked (AJ, Oct 11 2026: Yes, nearly all)", () => {
+  const catalogFloor = (ids: readonly string[]) => floorOf(ids).map((m) => ({ ...m, source: "catalog" as const }));
+
+  it("every catalog copy that offers Imagine Strength: Solon's twenty, all ticked", () => {
+    const rows = sizeRows(catalogFloor(TWENTY), unitsOf(TWENTY), isModels);
+    expect([...initialTicks(rows)].sort()).toEqual([...TWENTY].sort());
+    expect(linksFor(rows, initialTicks(rows))).toHaveLength(20);
+  });
+
+  it("a studio's own machine based on a movement offers a tick but starts unticked", () => {
+    const own: FloorMachine = { machineId: "sm-solon-leg-press-2", name: "LEG PRESS 2", source: "custom" };
+    const rows = sizeRows([own], { [own.machineId]: { unitSize: null, modelId: null, movementId: "m-leg-press" } }, isModels);
+    expect(rows[0].isOffer).not.toBeNull();
+    expect(initialTicks(rows).size).toBe(0);
+  });
+
+  it("Strongsville's twenty ticked, its own machine with no movement offered Measure only", () => {
+    const ids = [...TWENTY, "sm-strongsville-hammer-sled"];
+    const floor = [...catalogFloor(TWENTY), { machineId: "sm-strongsville-hammer-sled", name: "Hammer sled", source: "custom" }];
+    const rows = sizeRows(floor, unitsOf(ids), isModels);
+    expect(initialTicks(rows).size).toBe(20);
+    expect(initialTicks(rows).has("sm-strongsville-hammer-sled")).toBe(false);
+  });
+
+  it("nothing is ticked that already names a model or has a measured size", () => {
+    const rows = sizeRows(
+      catalogFloor(["m-leg-press", "m-neck"]),
+      unitsOf(["m-leg-press", "m-neck"], {
+        "m-leg-press": { modelId: "mm-hoist-roc-it-leg-press" },
+        "m-neck": { unitSize: { lengthMm: 1120, widthMm: 1160, by: "u", at: new Date() } },
+      }),
+      isModels,
+    );
+    expect(initialTicks(rows).size).toBe(0);
   });
 });

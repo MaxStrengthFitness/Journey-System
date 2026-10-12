@@ -692,7 +692,8 @@ describe("8. Operations' buttons speak the button voice, 14/700 in the label's o
   }
 
   /** Names the words may capitalise mid-label: a place (My Studio, Relay's Journal), the company, a system, an acronym, "I". */
-  const PROPER = /^(?:My Studio|Journal|Max Strength(?:'s)?|Mindbody|MSF|CSV|URL|I)\b/;
+  // Imagine Strength: the maker's name (the studio map's "Mark 18 as Imagine Strength", Oct 2026).
+  const PROPER = /^(?:My Studio|Journal|Max Strength(?:'s)?|Mindbody|MSF|Imagine Strength|CSV|URL|I)\b/;
 
   /** What in a label shows it was written for the capitals: a shouted word, or a word capitalised mid-phrase. */
   function notSentenceCase(label: string): string[] {
