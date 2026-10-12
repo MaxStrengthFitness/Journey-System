@@ -8,7 +8,9 @@ import { modelsReadOf, type ModelsRead } from "./models";
  * for them (wave 2 of the Machine Catalog room, Catalog R4).
  *
  * `enabled` false costs nothing: the floor asks only when one of its units
- * names a model, and All MSF only while a movement's page is open. One
+ * names a model or takes its Imagine Strength size, not confirmed (the
+ * studio map's `sizeNeedsModels`, Oct 12 2026), and All MSF only while a
+ * movement's page is open. One
  * listener on a small collection, everyone signed in may read it (the
  * Machine Codex's rules). A read that fails — the collection's rules not
  * deployed yet, or offline with nothing cached — is "unreadable", and every

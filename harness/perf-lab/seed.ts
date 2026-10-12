@@ -211,7 +211,13 @@ const MACHINES = MACHINE_DEFINITION_LIST.filter((m) => m.inStandardSet !== false
   (a, b) => (a.defaultOrder ?? 999) - (b.defaultOrder ?? 999),
 );
 const HOLD = new Set(["m-lumbar", "m-abs"]);
-/** The studio map: each movement's Imagine Strength model, and the two units left unsized (round markers on the map). */
+/**
+ * The studio map: each movement's Imagine Strength model, and the two units
+ * that name none. Since Oct 12 2026 (AJ: "Fill them in") a catalog copy that
+ * names no model is drawn at its movement's Imagine Strength size, not
+ * confirmed, so these two are no longer round markers: they are the editor's
+ * "2 sizes not confirmed yet" and the Sizes sheet's two ticks.
+ */
 const IS_MODEL_BY_MOVEMENT = new Map(IMAGINE_STRENGTH_MODELS.map((r) => [r.movementId, r]));
 const UNSIZED = new Set(["m-neck", "m-hip-add"]);
 const modelIdOf = (machineId: string): string | null => (UNSIZED.has(machineId) ? null : (IS_MODEL_BY_MOVEMENT.get(machineId)?.id ?? null));
@@ -350,10 +356,11 @@ function buildFloorMap(): void {
     const row = id ? IMAGINE_STRENGTH_MODELS.find((r) => r.id === id) : null;
     return row ? { lengthMm: row.lengthMm, widthMm: row.widthMm } : null;
   };
-  // The two unsized units are left off the map (the editor's Not placed yet, and its Sizes line). Placed, each
-  // would be a 2 ft round marker, and one marker under 24 px makes a door show its list instead of the map: on a
-  // 60 ft room that is every iPad in portrait (the round document's residual risks, measured here on Oct 12 2026).
-  // PERF_LAB_MAP_MARKERS=1 places them, to see it.
+  // The two units that name no model are left off the map (the editor's Not placed yet, and its Sizes line).
+  // Until Oct 12 2026 each was a 2 ft round marker placed, and one marker under 24 px makes a door show its list
+  // instead of the map: on a 60 ft room that is every iPad in portrait (the round document's residual risks). Now
+  // they take their Imagine Strength size, so PERF_LAB_MAP_MARKERS=1 places them at that size; a marker needs a
+  // studio's own machine with no size.
   const markersOnMap = process.env.PERF_LAB_MAP_MARKERS === "1";
   const layout = practiceLayout(
     MACHINES.filter((m) => markersOnMap || !UNSIZED.has(m.id)).map((m) => ({ machineId: m.id, basedOn: m.id })),

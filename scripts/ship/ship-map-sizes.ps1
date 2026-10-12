@@ -53,7 +53,7 @@ $RestoreTag = 'restore/2026-10-12-before-map-sizes'
 $TscBaseline = 2
 # What this branch may change. Anything else (rules, indexes, functions, the
 # server, the packages) means it is not the round Claude built.
-$Allowed = '^(src/|docs/|scripts/ship/ship-map-sizes\.ps1$)'
+$Allowed = '^(src/|docs/|harness/perf-lab/seed\.ts$|scripts/ship/ship-map-sizes\.ps1$)'
 
 function Log {
   param([string]$m, [string]$c = 'Gray')
@@ -190,5 +190,5 @@ Log 'LIVE ON GITHUB. One more step by hand:' 'Green'
 Log '  Render -> the web service -> Manual Deploy -> Deploy latest commit. (The cron jobs did not change.)' 'White'
 Log '  Then open https://maxstrength-app-beta.onrender.com/version.json: it names the new commit.' 'White'
 Log '  Check: My Studio -> Machines -> Arrange the floor. The machines have their sizes, and the line under the drawing says "N sizes not confirmed yet." beside Sizes.' 'White'
-Log "If you ever need to undo the code: git revert --no-edit $CodeCommit, then push master. Ask Claude first." 'White'
+Log "If you ever need to undo it: git revert --no-edit $($BuiltOn)..$($BranchSha.Substring(0, 8)), then push master. Ask Claude first." 'White'
 exit 0

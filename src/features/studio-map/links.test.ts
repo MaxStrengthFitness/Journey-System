@@ -162,6 +162,11 @@ describe("the sheet over sizes not confirmed (AJ, Oct 12 2026: Fill them in)", (
     expect(sizesHeading(sizeRows(floorOf(TWENTY), copies(TWENTY, named), isModels))).toBe("Every machine has a size");
   });
 
+  it("never says 'no size' off a read that hasn't answered or failed", () => {
+    expect(sizesHeading(sizeRows(floorOf(TWENTY), copies(TWENTY), { state: "loading" }))).toBe("Checking the sizes…");
+    expect(sizesHeading(sizeRows(floorOf(TWENTY), copies(TWENTY), { state: "unreadable" }))).toBe("The sizes couldn't be read");
+  });
+
   it("ticks a row whose roster entry says no source, the same rule that draws it at its Imagine Strength size", () => {
     const rows = sizeRows(floorOf(["m-leg-press"]).map((m) => ({ ...m, source: null })), copies(["m-leg-press"]), isModels);
     expect(initialTicks(rows).has("m-leg-press")).toBe(true);

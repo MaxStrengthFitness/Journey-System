@@ -328,9 +328,23 @@ describe("sizes", () => {
     expect((fx.links[0][1] as unknown[]).length).toBe(3);
   });
 
+  it("never say a machine has no size while the models haven't answered, or couldn't be read", () => {
+    layout(0);
+    fx.models = { state: "loading" };
+    let el = mount();
+    expect(el.textContent).not.toMatch(/no size yet|not confirmed/);
+    expect(el.textContent).toContain("Checking the size…");
+    act(() => root!.unmount());
+    host!.remove();
+    fx.models = { state: "unreadable" };
+    el = mount();
+    expect(el.textContent).not.toMatch(/no size yet|Size not known/);
+    expect(el.textContent).toContain("Size couldn't be read");
+  });
+
   it("never give a studio's own machine a size it wasn't given: it says it has none", () => {
     layout(0);
-    fx.roster = fx.roster.map((e, i) => (i === 0 ? { ...e, source: "custom" } : e));
+    fx.roster = fx.roster.map((e, i) => (i === 0 ? { ...(e as Record<string, unknown>), source: "custom" } : e));
     const el = mount();
     expect(el.textContent).toContain("1 machine has no size yet.");
     expect(el.textContent).not.toContain("sizes not confirmed");

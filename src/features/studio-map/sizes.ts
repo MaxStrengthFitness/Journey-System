@@ -32,6 +32,7 @@ import type { KnownSize, StudioMachineRosterEntry } from "../../types/machines";
 import { modelsOfMovement, type MachineModel, type ModelsRead } from "../catalog/models";
 import { MODEL_LIMITS } from "../machine-codex/models";
 import { IMAGINE_STRENGTH_BRAND } from "./imagine-strength";
+import { canonicalMachineId } from "../catalog/machine-identity";
 import { formatStudioDate } from "../../lib/studio-time";
 
 export type UnitSizeRead =
@@ -168,11 +169,17 @@ export function sizeNeedsModels(unit: UnitFacts): boolean {
   return unit.catalogCopy === true && !!unit.movementId?.trim();
 }
 
-/** The unit's MSF movement: its lineage, or its definition's, the way StudioMachineEditor derives it. */
+/**
+ * The unit's MSF movement: its lineage, or its definition's, the way
+ * StudioMachineEditor derives it, made canonical (a legacy id such as
+ * `leg_press` is `m-leg-press`) so every door names the same movement the
+ * Catalog's `movementOf` does, and a model's `movementId` can match it.
+ */
 export function movementOfEntry(entry: StudioMachineRosterEntry): string | null {
   const e = entry as { basedOn?: unknown; definition?: { basedOn?: unknown } };
   const id = typeof e.basedOn === "string" && e.basedOn ? e.basedOn : typeof e.definition?.basedOn === "string" ? e.definition.basedOn : "";
-  return id.trim() || null;
+  const trimmed = id.trim();
+  return trimmed ? canonicalMachineId(trimmed) || trimmed : null;
 }
 
 /** Whether a roster entry is a copy of an MSF catalog machine: anything but the studio's own (`source: "custom"`). */

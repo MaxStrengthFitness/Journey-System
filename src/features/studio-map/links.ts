@@ -89,6 +89,9 @@ export function sizeRows(floor: readonly FloorMachine[], units: Readonly<Record<
 export function sizesHeading(rows: readonly SizeRow[]): string {
   const n = rows.length;
   if (n === 0) return "No machines on the floor yet";
+  // A read that failed or hasn't answered is unknown, never "no size".
+  if (rows.some((r) => r.size.state === "unreadable")) return "The sizes couldn't be read";
+  if (rows.some((r) => r.size.state === "loading")) return "Checking the sizes…";
   const k = rows.filter((r) => r.size.state === "known").length;
   const a = rows.filter((r) => isAssumed(r.size)).length;
   if (k === n && a === 0) return "Every machine has a size";

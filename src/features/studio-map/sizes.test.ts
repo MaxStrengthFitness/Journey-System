@@ -242,6 +242,15 @@ describe("a roster entry's facts", () => {
     expect(unitFactsOfEntry(undefined)).toEqual({ unitSize: null, modelId: null, movementId: null });
   });
 
+  it("names the movement the Catalog does: a legacy id is made canonical, a studio's own id kept", () => {
+    expect(unitFactsOfEntry(entry({ source: "catalog", basedOn: "leg_press" })).movementId).toBe("m-leg-press");
+    expect(unitFactsOfEntry(entry({ source: "catalog", basedOn: "m-leg-press" })).movementId).toBe("m-leg-press");
+    expect(unitFactsOfEntry(entry({ source: "custom", basedOn: "sm-solon-sled" })).movementId).toBe("sm-solon-sled");
+    expect(unitFactsOfEntry(entry({ source: "catalog", basedOn: "  " })).movementId).toBeNull();
+    // So a copy filed under the legacy id takes its Imagine Strength size like any other.
+    expect(sizeOfUnit(unitFactsOfEntry(entry({ source: "catalog", basedOn: "leg_press" })), ready)).toMatchObject({ from: "assumed", modelId: IS_LP.id });
+  });
+
   it("counts anything but a studio's own machine as a catalog copy", () => {
     expect(isCatalogCopy("catalog")).toBe(true);
     expect(isCatalogCopy(undefined)).toBe(true);

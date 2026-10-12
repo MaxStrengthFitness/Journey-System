@@ -638,7 +638,8 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
 
   /* ── Sizes, the square footage, the practice layout ─────────────── */
   const [sizesOpen, setSizesOpen] = useState(false);
-  const noSize = floor.filter((m) => !sizes.get(m.machineId)).length;
+  // Only a size known to be missing: a read still loading or that failed is unknown, never "no size".
+  const noSize = floor.filter((m) => sizeReads.get(m.machineId)?.state === "unknown").length;
   // Drawn at their Imagine Strength size, which nobody here has confirmed yet (AJ, Oct 12 2026: "Fill them in").
   const notConfirmed = floor.filter((m) => {
     const r = sizeReads.get(m.machineId);
@@ -1002,6 +1003,14 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
         <ul className="smap-list">
           {floorUnits.map((u, i) => {
             const size = sizes.get(u.machineId);
+            const read = sizeReads.get(u.machineId);
+            const sizeWords = size
+              ? sizeLine(size)
+              : read?.state === "loading"
+                ? "Checking the size…"
+                : read?.state === "unreadable"
+                  ? "Size couldn't be read"
+                  : "Size not known";
             const over = checks.warnIds.has(u.machineId);
             const lines = checks.linesById.get(u.machineId)?.map((l) => l.text) ?? [];
             return (
@@ -1010,7 +1019,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
                   type="button"
                   className="smap-list__row"
                   aria-pressed={sel === u.machineId}
-                  aria-label={[`${i + 1} · ${u.name}`, size ? sizeLine(size) : "size not known", ...(placedIds.has(u.machineId) ? [] : ["not placed yet"]), ...lines].join(", ")}
+                  aria-label={[`${i + 1} · ${u.name}`, size ? sizeWords : sizeWords.toLowerCase(), ...(placedIds.has(u.machineId) ? [] : ["not placed yet"]), ...lines].join(", ")}
                   onClick={() => {
                     dispatch({ type: "tool", tool: "machines" });
                     dispatch({ type: "select", id: u.machineId });
@@ -1021,7 +1030,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
                     {i + 1} · {u.name}
                   </span>
                   <span className="smap-list__meta">
-                    {size ? sizeLine(size) : "Size not known"}
+                    {sizeWords}
                     {!placedIds.has(u.machineId) && " · Not placed yet"}
                   </span>
                 </button>
