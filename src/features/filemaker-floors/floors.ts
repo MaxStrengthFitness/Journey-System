@@ -23,11 +23,16 @@
  *    records the weight with every set);
  *  - a label with no letters (westlake Calf's "-");
  *  - westlake ABD VR2's Setting 3, a keyboard-mash ("hymm,,mjmftr,..."), and
- *    its Setting 6 "J,", where that client's chart says "GP": asked of AJ;
- *  - labels a client's CHART carries that the machine list does not
- *    (westlake Pulldown SSS "Handl", LR B and G, Ab MX G and SP; Willoughby
- *    "Prefer", "Stool", "Neutra", "Hands"): a chart keeps its own copy of
- *    the labels, so these are one client's, asked of AJ.
+ *    its Setting 6 "J,", where that client's chart says "GP" (GP is added,
+ *    below).
+ * Added from the client's CHART, which keeps its own copy of the labels and
+ * carries some the machine list does not (AJ, Oct 12 2026: "Add them"; the
+ * trainers fill them in, "Hands Down", "SP No"), each after the list's own
+ * and in the chart's order: westlake ABD VR2 GP, Pulldown SSS Handle (the
+ * chart's "Handl", cut short), LR B and G, Ab MX G and SP; Willoughby Leg
+ * Press Nt Prefer, Pulldown Imag. and Overhead Imag. Stool, Chest Press Hoist
+ * Neutral (the chart's "Neutra"), Rowing Back Hands. The chart's "Block" is
+ * the list's "Blocks", one label.
  * Not sure even on the list: Willoughby Lumbar's Setting 3 reads "Ft-"
  * (perhaps "Fl-"), asked of AJ.
  *
@@ -63,7 +68,7 @@ export const WESTLAKE: FilemakerFloor = {
   studioId: "A4uvDltWoJuCas0hqEkG",
   studioName: "westlake",
   units: [
-    { fm: "ABD VR2", movement: "m-hip-abd", dials: ["F", "R"] },
+    { fm: "ABD VR2", movement: "m-hip-abd", dials: ["F", "R", "GP"] },
     { fm: "ABD CBX", movement: "m-hip-abd", dials: ["F", "R"] },
     { fm: "ADD VR2", movement: "m-hip-add", dials: ["F", "R"] },
     { fm: "ADD CBX", movement: "m-hip-add", dials: ["F", "R"] },
@@ -78,7 +83,7 @@ export const WESTLAKE: FilemakerFloor = {
     { fm: "CR CBX", movement: "m-compound-row", dials: ["S", "C"] },
     { fm: "CR MX", movement: "m-compound-row", dials: ["S", "G"] },
     { fm: "CR A90", movement: "m-compound-row", dials: ["S", "G"] },
-    { fm: "Pulldown SSS", movement: "m-pulldown", dials: ["S"] },
+    { fm: "Pulldown SSS", movement: "m-pulldown", dials: ["S", "Handle"] },
     { fm: "Pulldown MX", movement: "m-pulldown", dials: ["S", "B", "G"] },
     { fm: "PO", movement: "m-pullover", dials: ["S"] },
     { fm: "Bicep", movement: "m-bicep", dials: ["S", "G"] },
@@ -91,9 +96,9 @@ export const WESTLAKE: FilemakerFloor = {
     { fm: "Overhead SSS", movement: "m-overhead-press", dials: ["S"] },
     { fm: "Overhead CBX", movement: "m-overhead-press", dials: ["S", "H"] },
     { fm: "Overhead MX", movement: "m-overhead-press", dials: ["S", "G"] },
-    { fm: "LR", movement: "m-lateral-raise", dials: ["S"] },
+    { fm: "LR", movement: "m-lateral-raise", dials: ["S", "B", "G"] },
     { fm: "Seated Dip", movement: "m-dip", dials: ["S", "B", "G"] },
-    { fm: "Ab MX", movement: "m-abs", dials: ["S"] },
+    { fm: "Ab MX", movement: "m-abs", dials: ["S", "G", "SP"] },
     { fm: "Ab H", movement: "m-abs", dials: ["G"] },
     { fm: "Ab T/R", movement: "m-torso-rotation", dials: ["K", "F", "R"] },
     { fm: "Lumbar ROM", movement: "m-lumbar", dials: ["K", "F", "ROM"] },
@@ -112,22 +117,22 @@ export const WILLOUGHBY: FilemakerFloor = {
     { fm: "Hip ABD", movement: "m-hip-abd", dials: ["S", "Pads", "Blocks"] },
     { fm: "Leg Curl", movement: "m-leg-curl", dials: ["S", "Sh", "Gap"] },
     { fm: "Leg Ext.", movement: "m-ext", dials: ["S", "G"] },
-    { fm: "Leg Press Nt", movement: "m-leg-press", dials: ["B", "S"] },
+    { fm: "Leg Press Nt", movement: "m-leg-press", dials: ["B", "S", "Prefer"] },
     { fm: "Leg Press Imag.", movement: "m-leg-press", dials: ["G", "S"], imagineStrength: true },
     { fm: "Pulldown Hoist", movement: "m-pulldown", dials: ["H", "S"] },
-    { fm: "Pulldown Imag.", movement: "m-pulldown", dials: ["B", "S", "G"], imagineStrength: true },
-    { fm: "Chest Press Hoist", movement: "m-chest-press", dials: ["S", "Blocks"] },
+    { fm: "Pulldown Imag.", movement: "m-pulldown", dials: ["B", "S", "G", "Stool"], imagineStrength: true },
+    { fm: "Chest Press Hoist", movement: "m-chest-press", dials: ["S", "Blocks", "Neutral"] },
     { fm: "Chest Press Imagine", movement: "m-chest-press", dials: ["B", "S", "G"], imagineStrength: true },
     { fm: "Comp. Row Hoist", movement: "m-compound-row", dials: [] },
     { fm: "Compound Row Imagine", movement: "m-compound-row", dials: ["H", "S", "G", "Pad"], imagineStrength: true },
     { fm: "Overhead Hoist", movement: "m-overhead-press", dials: ["S", "Blocks"] },
-    { fm: "Overhead Imag.", movement: "m-overhead-press", dials: ["S", "G"], imagineStrength: true },
+    { fm: "Overhead Imag.", movement: "m-overhead-press", dials: ["S", "G", "Stool"], imagineStrength: true },
     { fm: "Pullover", movement: "m-pullover", dials: ["E", "S", "G", "Pad"] },
     { fm: "Seated Dip", movement: "m-dip", dials: ["H", "S", "B", "Blocks"] },
     { fm: "Bicep", movement: "m-bicep", dials: ["Blocks", "S", "G"] },
     { fm: "Chest Flys", movement: "m-chest-fly", dials: ["S", "B", "G"] },
     { fm: "Shoulder Extensions", movement: null, dials: [] },
-    { fm: "Rowing Back", movement: "m-simple-row", dials: ["C", "S", "G"] },
+    { fm: "Rowing Back", movement: "m-simple-row", dials: ["C", "S", "G", "Hands"] },
     { fm: "Lateral Raise", movement: "m-lateral-raise", dials: ["S", "H", "G", "B"] },
     { fm: "Lumbar", movement: "m-lumbar", dials: ["S", "Ft"] },
     { fm: "Torso Rotation", movement: "m-torso-rotation", dials: ["S"] },

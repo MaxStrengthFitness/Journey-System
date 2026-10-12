@@ -213,7 +213,7 @@ describe("the dials, both sets (AJ: decide later, build both)", () => {
     expect(copy.settingFields.map((f) => f.label)).toEqual(["SH", "UT", "LT", "HP", "P", "F"]);
     expect(copy.settingFields[0]).toEqual({ key: "sh", label: "SH", type: "text" });
     const second = unit(WILLOUGHBY, "Chest Press Hoist", "filemaker").doc.definition as { settingFields: { key: string }[] };
-    expect(second.settingFields.map((f) => f.key)).toEqual(["s", "blocks"]);
+    expect(second.settingFields.map((f) => f.key)).toEqual(["s", "blocks", "neutral"]);
   });
 
   it("a unit FileMaker shows no dials for: a copy keeps the standard's, a second unit has none", () => {
@@ -264,7 +264,7 @@ describe("what a trainer's screens would show (resolveMachine, then the session'
     const list = floorOf(WILLOUGHBY, "filemaker");
     const at = (name: string) => list.find((m) => m.name === name)!;
     expect(at("Leg Press Imag.").settingOptions).toEqual(["G", "S"]);
-    expect(at("Leg Press Nt").settingOptions).toEqual(["B", "S"]);
+    expect(at("Leg Press Nt").settingOptions).toEqual(["B", "S", "Prefer"]);
     expect(at("Ab Hoist").settingOptions ?? []).toEqual([]);
     expect(at("Abs Imagine").settingOptions).toEqual(["S", "G", "Blocks"]);
   });
@@ -283,6 +283,7 @@ describe("switching the dials on a floor the script built", () => {
       "definition.settingFields": [
         { key: "b", label: "B", type: "text" },
         { key: "s", label: "S", type: "text" },
+        { key: "prefer", label: "Prefer", type: "text" },
       ],
       "definition.defaultSettings": {},
     });
