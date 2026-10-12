@@ -19,7 +19,7 @@ import { createRoot, type Root } from "react-dom/client";
 type Data = Record<string, unknown>;
 const fs = vi.hoisted(() => ({
   data: {} as Record<string, Record<string, Data>>,
-  listeners: [] as { path: string; live: boolean }[],
+  listeners: [] as { path: string; live: boolean; next?: (x: unknown) => void }[],
   batches: [] as { path: string; data: Data }[][],
   hold: null as Promise<void> | null,
   /** Paths whose listener answers with an error. */
@@ -55,7 +55,7 @@ vi.mock("firebase/firestore", async (importOriginal) => {
     limit: () => ({}),
     onSnapshot: (ref: { path: string }, ...rest: unknown[]) => {
       const fns = rest.filter((x) => typeof x === "function") as ((x: unknown) => void)[];
-      const l = { path: ref.path, live: true };
+      const l = { path: ref.path, live: true, next: fns[0] };
       fs.listeners.push(l);
       if (fs.fail.has(ref.path)) fns[1]?.(new Error("permission-denied"));
       else if (!fs.silent.has(ref.path)) fns[0]?.(snapOf(ref.path));
@@ -72,6 +72,21 @@ vi.mock("firebase/firestore", async (importOriginal) => {
         delete() {},
         commit: () => {
           fs.batches.push(ops);
+          // Firestore shows a write to this iPad's listeners at once (latency compensation), sent or not.
+          const touched = new Set<string>();
+          for (const op of ops) {
+            const segs = op.path.split("/");
+            const col = segs.slice(0, -1).join("/");
+            if (!col.endsWith("machineCare")) continue;
+            const id = segs[segs.length - 1];
+            fs.data[col] = { ...(fs.data[col] ?? {}), [id]: { ...(fs.data[col]?.[id] ?? {}), ...op.data } };
+            touched.add(col);
+          }
+          if (touched.size > 0) {
+            queueMicrotask(() => {
+              for (const l of fs.listeners) if (l.live && touched.has(l.path) && !fs.fail.has(l.path) && !fs.silent.has(l.path)) l.next?.(snapOf(l.path));
+            });
+          }
           return fs.hold ?? Promise.resolve();
         },
       };
@@ -291,6 +306,27 @@ describe("Cleaning", () => {
     await act(async () => root.render(<></>));
     await mount({ door: "relay" });
     expect(button("Look up")?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("draws an empty box on every in-service machine still to wipe, so Cleaning never looks like Look up; Look up draws none", async () => {
+    delete fs.data["studios/solon/machineCare"]["m-leg-press"];
+    await mount({ door: "relay" });
+    expect(button("Cleaning")?.getAttribute("aria-pressed")).toBe("true");
+    // Nothing wiped: one empty box a machine in service, none on the one out of service, no tick.
+    expect([...host.querySelectorAll(".smap-m__box")].map((b) => b.closest(".smap-m")?.getAttribute("data-id"))).toEqual(["m-leg-press", "m-chest-press"]);
+    expect(host.querySelector(".smap-m__tick")).toBeNull();
+    expect(host.querySelector('[data-id="m-chest-press"].smap-m')?.getAttribute("aria-label")).toMatch(/, tap when it's wiped$/);
+    await click(button("Look up"));
+    expect(host.querySelector(".smap-m__box")).toBeNull();
+    expect(host.querySelector('[data-id="m-chest-press"].smap-m')?.getAttribute("aria-label")).not.toContain("tap when it's wiped");
+  });
+
+  it("says it is reading the marks while the care read hasn't answered, never that it can't", async () => {
+    fs.silent.add("studios/solon/machineCare");
+    await mount({ door: "relay" });
+    expect(host.querySelector(".smap-head")?.textContent).toContain("Reading the cleaning marks…");
+    expect(host.querySelector(".smap-head")?.textContent).not.toContain("Can't read");
+    expect(host.querySelector(".smap-m__box, .smap-m__tick")).toBeNull();
   });
 
   it("never says who, a minute, or Due", async () => {

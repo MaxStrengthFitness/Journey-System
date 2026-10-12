@@ -20,7 +20,12 @@ const writes = vi.hoisted(() => ({
   batches: [] as { path: string; data: Record<string, unknown> }[][],
   /** The studio's care records the one live read answers with (the studio map, phase 4). */
   care: {} as Record<string, Record<string, unknown>>,
+  /** The live care listeners: a committed care write reaches them, as Firestore's own write does. */
+  careListeners: [] as ((snap: unknown) => void)[],
 }));
+const careSnap = () => ({ forEach: (fn: (d: unknown) => void) => Object.entries(writes.care).forEach(([id, data]) => fn({ id, data: () => data })) });
+/** Another iPad's write (or this one's, echoed): every live care listener hears it. */
+const pushCare = () => writes.careListeners.forEach((l) => l(careSnap()));
 vi.mock("../../../firebase", () => ({ db: {}, auth: { currentUser: { uid: "t-ioreth" } }, functions: {} }));
 vi.mock("../../../contexts/ActiveStudioContext", () => ({
   useActiveStudio: () => ({ activeStudioId: "s1", activeStudio: { id: "s1", name: "Westlake" }, network: null, studios: [] }),
@@ -49,7 +54,11 @@ vi.mock("firebase/firestore", () => {
     onSnapshot: (ref: { path: string }, a: unknown, b: unknown) => {
       const next = (typeof a === "function" ? a : b) as ((snap: unknown) => void) | undefined;
       if (ref.path.endsWith("machineCare") && next) {
-        next({ forEach: (fn: (d: unknown) => void) => Object.entries(writes.care).forEach(([id, data]) => fn({ id, data: () => data })) });
+        writes.careListeners.push(next);
+        next(careSnap());
+        return () => {
+          writes.careListeners = writes.careListeners.filter((l) => l !== next);
+        };
       }
       return () => {};
     },
@@ -73,6 +82,15 @@ vi.mock("firebase/firestore", () => {
         delete() {},
         commit: async () => {
           writes.batches.push(ops);
+          // Firestore shows a write to this iPad's listeners at once (latency compensation).
+          let cared = false;
+          for (const op of ops) {
+            const m = /machineCare\/([^/]+)$/.exec(op.path);
+            if (!m) continue;
+            writes.care[m[1]] = { ...(writes.care[m[1]] ?? {}), ...op.data };
+            cared = true;
+          }
+          if (cared) queueMicrotask(pushCare);
         },
       };
     },
@@ -81,10 +99,11 @@ vi.mock("firebase/firestore", () => {
 
 import { ToastProvider } from "../../../contexts/ToastContext";
 import { Board } from "./Board";
+import { MARK_WRITES, markWiped } from "./machine-care-store";
 import { RelayProvider, type PanelContent, type RelayContextValue } from "./RelayContext";
 import { nowContext, type NowSession } from "./now-context";
 import { BEREGOND, IORETH, MABLUNG, TODAY, ask, booking, row, template } from "./fixtures";
-import type { TaskRow } from "../../studio-tasks/types";
+import type { StudioTaskCategory, TaskRow } from "../../studio-tasks/types";
 import type { TaskActions } from "../../studio-tasks/useTaskActions";
 
 let root: Root | null = null;
@@ -96,6 +115,7 @@ beforeEach(() => {
   writes.adds = [];
   writes.batches = [];
   writes.care = {};
+  writes.careListeners = [];
 });
 afterEach(() => {
   act(() => root?.unmount());
@@ -175,6 +195,7 @@ async function render(
     /** Replaces the default rows (the studio map's wipe chore cases). */
     only?: TaskRow[];
     outOfServiceIds?: Set<string>;
+    categories?: StudioTaskCategory[];
   } = {},
 ) {
   const actions = fakeActions();
@@ -197,6 +218,7 @@ async function render(
               ]
             }
             outOfServiceIds={props.outOfServiceIds}
+            categories={props.categories}
             jobs={[]}
             requests={props.requests ?? []}
             actions={actions}
@@ -413,6 +435,25 @@ describe("the wipe chore (the studio map, phase 4)", () => {
     expect(undo.filter((w) => w.path.includes("taskInstances")).every((w) => w.data.status === "open")).toBe(true);
   });
 
+  it("Mark all's Undo keeps a wipe another iPad made since, and its row, and puts the others back", async () => {
+    care();
+    const { h } = await render({ only: rows(), outOfServiceIds: out });
+    await click(cardTitled(h, "Wipe down every machine")?.querySelector(".rbc__box"));
+    expect(writes.batches).toHaveLength(1);
+    // A second iPad wipes the Chest Press after this one's Mark all.
+    const later = Date.now() + 1000;
+    await act(async () => {
+      writes.care.cp = { ...writes.care.cp, lastWipedAt: later, lastWipedBy: { id: MABLUNG.id, name: MABLUNG.name } };
+      pushCare();
+    });
+    await click(h.querySelector(".rbd-undo__btn"));
+    const undo = writes.batches[1];
+    expect(undo.some((w) => w.path.endsWith("machineCare/cp"))).toBe(false);
+    expect(undo.some((w) => w.path.includes("taskInstances") && w.data.machineId === "cp")).toBe(false);
+    expect(undo.find((w) => w.path.endsWith("machineCare/cr"))?.data).toMatchObject({ lastWipedAt: null, lastWipedBy: null });
+    expect(undo.filter((w) => w.path.includes("taskInstances")).map((w) => [w.data.machineId, w.data.status])).toEqual([["cr", "open"]]);
+  });
+
   it("its panel says the line, Mark all and Show the floor, no machine rows with names, and a leader's Put a name on it stays", async () => {
     care();
     const onAssign = vi.fn();
@@ -426,6 +467,37 @@ describe("the wipe chore (the studio map, phase 4)", () => {
     const labels = [...box.querySelectorAll("button")].map((b) => b.textContent?.trim());
     expect(labels).toEqual(expect.arrayContaining(["Mark all 2 wiped", "Show the floor", "Put a name on it"]));
     expect(labels.some((l) => l?.includes("I'm on it"))).toBe(false);
+    unmount();
+  });
+
+  it("a wipe chore in a cleaning category the studio made: a tile's tick completes its row", async () => {
+    const wipeDowns: StudioTaskCategory = { id: "wipe-downs", label: "Wipe-downs", upkeepRole: "cleaning", order: 5 };
+    const authored = template("evening-wipe", { title: "Evening wipe", category: "wipe-downs" as never });
+    const { h } = await render({
+      only: [row(authored, "cp", "open", { machineName: "Chest Press" })],
+      categories: [wipeDowns],
+      relay: { machines: [{ id: "cp", name: "Chest Press" }] as never },
+    });
+    // The Board counts it as the wipe chore.
+    expect(cardTitled(h, "Evening wipe")?.querySelector(".rbc__line")?.textContent).toContain("None wiped yet today");
+    if (h.querySelector(".fm__head")?.getAttribute("aria-expanded") !== "true") await click(h.querySelector(".fm__head"));
+    await click([...h.querySelectorAll(".fm__view")].find((b) => b.textContent === "Cleaning"));
+    await click([...h.querySelectorAll(".fm__tile")].find((b) => b.textContent?.includes("Chest Press")));
+    const batch = writes.batches[0];
+    expect(batch.map((w) => w.path)).toEqual(["studios/s1/machineCare/cp", expect.stringContaining("taskInstances")]);
+    expect(batch[1].data).toMatchObject({ machineId: "cp", status: "done" });
+  });
+
+  it("an assigned wipe chore's panel names the person once", async () => {
+    care();
+    const assigned = rows().map((r) => ({ ...r, instance: { ...(r.instance ?? {}), assignedTo: { id: MABLUNG.id, name: MABLUNG.name } } as never }));
+    const { h, relay } = await render({ only: assigned, outOfServiceIds: out });
+    await click(cardTitled(h, "Wipe down every machine")?.querySelector(".rbc__main"));
+    const { box, unmount } = await drawPanel(relay);
+    expect(box.textContent).toContain("For Mablung");
+    expect(box.textContent).toContain("Anyone can mark a machine.");
+    expect(box.textContent?.split("Mablung").length).toBeLessThanOrEqual(2);
+    expect(box.textContent).not.toContain("heads-up, not a lock");
     unmount();
   });
 
@@ -445,5 +517,26 @@ describe("the wipe chore (the studio map, phase 4)", () => {
     expect(h.querySelector(".fm__head")?.getAttribute("aria-expanded")).toBe("true");
     expect([...h.querySelectorAll(".fm__view")].find((b) => b.getAttribute("aria-pressed") === "true" && b.textContent === "Cleaning")).toBeTruthy();
     expect(h.textContent).toContain("Tap a machine when it's wiped.");
+  });
+});
+
+describe("markWiped's batches (phase 4 review fixes)", () => {
+  it("sends at most MARK_WRITES writes a batch, one row a machine, each machine beside its row", async () => {
+    const t = template("wipe-down", { title: "Wipe down every machine" });
+    const ids = Array.from({ length: 300 }, (_, i) => `m${i}`);
+    // Two shifts' rows a machine: a wipe completes only the one for now.
+    const rowsAll = ids.flatMap((id) => [row(t, id, "open", { id: `am__${id}`, shift: "am" }), row(t, id, "open", { id: `pm__${id}`, shift: "pm" })]);
+    const res = markWiped({ studioId: "s1", machineIds: ids, floorIds: new Set(ids), author: { id: "u1", name: "Ioreth" }, before: null, rows: rowsAll, shiftNow: "pm" });
+    await res.done;
+    const batches = writes.batches.filter((b) => b.some((w) => w.path.includes("machineCare")));
+    expect(batches.every((b) => b.length <= MARK_WRITES)).toBe(true);
+    const all = batches.flat();
+    expect(all.filter((w) => w.path.includes("taskInstances"))).toHaveLength(300);
+    expect(all.filter((w) => w.path.includes("taskInstances")).every((w) => String(w.path).includes("pm__"))).toBe(true);
+    for (const b of batches) {
+      const cared = new Set(b.filter((w) => w.path.includes("machineCare")).map((w) => w.path.split("/").pop()));
+      for (const w of b.filter((x) => x.path.includes("taskInstances"))) expect(cared.has(String(w.data.machineId))).toBe(true);
+    }
+    expect(res.undo).toBeNull();
   });
 });

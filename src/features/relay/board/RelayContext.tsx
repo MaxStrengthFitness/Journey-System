@@ -4,6 +4,14 @@ import type { ClientTaskAction, TaskRow } from "../../studio-tasks/types";
 import type { NowContext } from "./now-context";
 import type { CapturePreset } from "./capture";
 import type { AskPreset } from "./ask";
+import type { CardCleaning, CardFloor } from "../../machine-card/useMachineCardReads";
+
+/** What Relay's floor already reads, for a card in the panel. */
+export interface FloorReads {
+  studioId: string;
+  floor: CardFloor;
+  cleaning: CardCleaning;
+}
 
 /**
  * RELAY CONTEXT — what every Relay tab can reach without prop-threading.
@@ -87,15 +95,24 @@ export interface RelayContextValue {
    */
   slots?: { news: HTMLElement | null; subhead: HTMLElement | null };
   /**
-   * Today's task rows, published by the Board's host while it is mounted
-   * (the studio map, phase 4), so a machine's card opened in the panel
-   * completes today's wipe-chore row from the same live rows without a
-   * second read. Null when no Board is mounted; absent outside the shell.
+   * Today's WIPE-CHORE rows (already filtered with the studio's own
+   * categories), published by the Board's host while it is mounted (the
+   * studio map, phase 4), so a machine's card opened in the panel completes
+   * today's wipe-chore row from the same live rows without a second read.
+   * Null when no Board is mounted; absent outside the shell.
    */
-  dayRows?: readonly TaskRow[] | null;
+  wipeRows?: readonly TaskRow[] | null;
+  publishWipeRows?: (rows: readonly TaskRow[] | null) => void;
+  /**
+   * The floor and its cleaning settings, published by Relay's floor while it
+   * is mounted (phase 4 review fixes, Oct 12 2026), so a card opened in the
+   * panel reads them live instead of opening its own roster and settings
+   * listeners. Null when Relay's floor isn't mounted.
+   */
+  floorReads?: FloorReads | null;
+  publishFloorReads?: (reads: FloorReads | null) => void;
   /** A machine's Catalog page in Learning (the card's Learn, the studio map, phase 4); absent outside the shell. */
   openCatalogMachine?: (machineId: string) => void;
-  publishDayRows?: (rows: readonly TaskRow[] | null) => void;
 }
 
 const RelayCtx = createContext<RelayContextValue | null>(null);

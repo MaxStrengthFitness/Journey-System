@@ -206,8 +206,18 @@ describe("the wipe chore (the studio map, phase 4)", () => {
     for (const who of ["Beregond", "Mablung", "You", "AM", "PM"]) expect(card.line).not.toContain(who);
   });
 
-  it("says it can't count while the care read hasn't answered", () => {
-    expect(one(input({ rows: rows(), wipedTodayIds: null }), ID)).toMatchObject({ state: "todo", line: "Can't read the cleaning marks right now" });
+  it("says it is reading the marks while the care read hasn't answered, and draws no bar (unknown is never none)", () => {
+    const card = one(input({ rows: rows(), wipedTodayIds: null, careRead: "loading" }), ID);
+    expect(card).toMatchObject({ state: "todo", line: "Reading the cleaning marks…" });
+    expect(card.parts).toBeNull();
+    // Absent means loading too: a normal open never says it failed.
+    expect(one(input({ rows: rows(), wipedTodayIds: null }), ID).line).toBe("Reading the cleaning marks…");
+  });
+
+  it("says it can't read the marks only when the care read failed, with no bar", () => {
+    const card = one(input({ rows: rows(), wipedTodayIds: null, careRead: "failed" }), ID);
+    expect(card).toMatchObject({ state: "todo", line: "Can't read the cleaning marks right now" });
+    expect(card.parts).toBeNull();
   });
 
   it("says whose it is when a leader put a name on it", () => {

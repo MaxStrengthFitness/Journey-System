@@ -68,6 +68,20 @@ vi.mock("firebase/firestore", async (importOriginal) => {
         delete() {},
         commit: () => {
           fs.batches.push(ops);
+          // Firestore shows a write to this iPad's listeners at once (latency compensation), sent or not.
+          const touched = new Set<string>();
+          for (const op of ops) {
+            const segs = op.path.split("/");
+            const col = segs.slice(0, -1).join("/");
+            if (!col.endsWith("machineCare")) continue;
+            fs.data[col] = { ...(fs.data[col] ?? {}), [segs[segs.length - 1]]: { ...(fs.data[col]?.[segs[segs.length - 1]] ?? {}), ...op.data } };
+            touched.add(col);
+          }
+          if (touched.size > 0) {
+            queueMicrotask(() => {
+              for (const l of fs.listeners) if (l.live && touched.has(l.path)) l.next?.(snapOf(l.path));
+            });
+          }
           return fs.hold ?? Promise.resolve();
         },
       };
@@ -145,7 +159,7 @@ const push = (path: string) => {
   })());
 };
 
-function Shell({ children, relay }: { children: ReactNode; relay?: boolean }) {
+function Shell({ children, relay, relayOver }: { children: ReactNode; relay?: boolean; relayOver?: Record<string, unknown> }) {
   const inner = (
     <MachineCareProvider studioId="solon">
       {relay ? (
@@ -167,7 +181,8 @@ function Shell({ children, relay }: { children: ReactNode; relay?: boolean }) {
               openCapture: () => {},
               openPanel: () => {},
               closePanel: () => {},
-              dayRows: [],
+              wipeRows: [],
+              ...relayOver,
             } as never
           }
         >
@@ -265,7 +280,61 @@ describe("Clean", () => {
   });
 });
 
+describe("Wiped's Undo, after the card has closed", () => {
+  it("keeps a wipe another iPad made since, and puts this one's back when it is still the last", async () => {
+    // The card unmounts on Wiped, as every host closes it; the screen's care read outlives it.
+    function Host() {
+      const [open, setOpen] = useState(true);
+      return open ? <MachineCard door="relay" mode="machines" studioId="solon" studioName="Solon" machineId="m-leg-press" authTrainer={SARA} onClose={() => setOpen(false)} /> : null;
+    }
+    const before = fs.data["studios/solon/machineCare"]["m-leg-press"];
+    await act(async () => root.render(<Shell relay><Host /></Shell>));
+    await click(button("Wiped"));
+    expect(host.querySelector(".mdc")).toBeNull();
+    // A second iPad wipes it a second later.
+    fs.data["studios/solon/machineCare"]["m-leg-press"] = { ...fs.data["studios/solon/machineCare"]["m-leg-press"], lastWipedAt: Date.now() + 1000, lastWipedBy: GLORF };
+    await act(async () => push("studios/solon/machineCare"));
+    const sent = fs.batches.length;
+    await click(document.querySelector("[data-toast-action]"));
+    // Nothing written over Glorfindel's later wipe.
+    expect(fs.batches.slice(sent).flat().some((w) => w.path.endsWith("machineCare/m-leg-press"))).toBe(false);
+
+    // Again, with no later wipe: Undo puts Marina's back.
+    fs.data["studios/solon/machineCare"]["m-leg-press"] = before;
+    await act(async () => push("studios/solon/machineCare"));
+    await act(async () => root.render(<Shell relay><></></Shell>));
+    await act(async () => root.render(<Shell relay><Host /></Shell>));
+    await click(button("Wiped"));
+    const at = fs.batches.length;
+    await click([...document.querySelectorAll("[data-toast-action]")].at(-1));
+    expect(fs.batches.slice(at).flat().find((w) => w.path.endsWith("machineCare/m-leg-press"))?.data).toMatchObject({ lastWipedAt: before.lastWipedAt, lastWipedBy: MARINA });
+  });
+});
+
 describe("Maintain", () => {
+  it("Out of service's Save closes a guarded card at once, never asking about the reason it saved", async () => {
+    function Host() {
+      const scope = useLeaveScope();
+      const [open, setOpen] = useState(true);
+      return open ? (
+        <UnsavedChangesScope scope={scope}>
+          <MachineCard door="my-studio" mode="machines" studioId="solon" studioName="Solon" machineId="m-leg-press" authTrainer={LEAD} onClose={() => scope.guard(() => setOpen(false))} />
+        </UnsavedChangesScope>
+      ) : null;
+    }
+    await act(async () => root.render(<Shell><Host /></Shell>));
+    await unfold("maintain");
+    await click(button("Take it out of service"));
+    const input = host.querySelector(".mdc-report input") as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "A new cable is on order");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await click(button("Save"));
+    expect(document.body.querySelector("[role='alertdialog']")).toBeNull();
+    expect(host.querySelector(".mdc")).toBeNull();
+  });
+
   it("opens with Report a problem, which asks before the card closes over its typing", async () => {
     function Host() {
       const scope = useLeaveScope();
@@ -357,6 +426,41 @@ describe("the card's reads", () => {
     expect(withSetup).toBeLessThanOrEqual(2);
     await unfold("setup");
     expect(own()).toEqual(atClean);
+  });
+});
+
+describe("a card in Relay's panel reads the floor Relay already reads", () => {
+  it("opens no roster or settings read of its own at Clean when Relay's floor published them", async () => {
+    const floorReads = {
+      studioId: "solon",
+      floor: {
+        rosterEntries: [fs.data["studios/solon/roster"]["m-leg-press"]],
+        byId: { "m-leg-press": { machineId: "m-leg-press", name: "LEG PRESS", comparisonKey: "m-leg-press", primaryMuscles: [], rosterStatus: "active" } },
+        catalog: [],
+        loading: false,
+      },
+      cleaning: { deepDays: 14, wipeAfter: 4, weeklyDay: null },
+    };
+    await act(async () =>
+      root.render(
+        <Shell relay relayOver={{ floorReads }}>
+          <MachineCard door="relay" mode="machines" studioId="solon" studioName="Solon" machineId="m-leg-press" authTrainer={SARA} onClose={() => {}} />
+        </Shell>,
+      ),
+    );
+    expect(isOpen("clean")).toBe(true);
+    expect(live().filter((p) => p !== "machines" && p !== "system/studioDefaults")).toEqual(["studios/solon/machineCare"]);
+  });
+});
+
+describe("the header's chips", () => {
+  it("Out of service opens Maintain, where its reason and Back in service are", async () => {
+    fs.data["studios/solon/roster"]["m-leg-press"] = { ...fs.data["studios/solon/roster"]["m-leg-press"], status: "maintenance", outOfService: { reason: "A new cable is on order", by: { uid: "u", name: "Elrond" } } };
+    await mount({ authTrainer: LEAD });
+    expect(isOpen("maintain")).toBe(false);
+    const chip = [...host.querySelectorAll(".mdc-head__flags button")].find((b) => b.textContent?.startsWith("Out of service"));
+    await click(chip);
+    expect(isOpen("maintain")).toBe(true);
   });
 });
 

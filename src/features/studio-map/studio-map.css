@@ -797,6 +797,13 @@
   fill: var(--eq-warn);
 }
 
+/* Cleaning: the empty box a machine not wiped today carries, where its tick will go. */
+.smap-m__box {
+  fill: var(--eq-raised);
+  stroke: var(--eq-border-strong);
+  stroke-width: 1.5;
+}
+
 .smap-map {
   display: flex;
   flex-direction: column;
@@ -869,16 +876,26 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  /* Refined Lift 2A: a raised face, a small lift and a white top light. */
+  box-shadow: var(--eq-elev-1), inset 0 1px 0 var(--eq-highlight);
 }
 
 .smap-btn--primary {
   border-color: var(--eq-live);
   background: var(--eq-live);
   color: var(--eq-live-on);
+  box-shadow: var(--eq-glow-live), var(--eq-solid-light);
 }
 
 .smap-btn--primary:hover {
   background: var(--eq-live);
+  box-shadow: var(--eq-glow-live), var(--eq-solid-light);
+}
+
+/* The press: a pixel down into an inset (a transform, never an animated shadow). */
+.smap-btn:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--eq-press);
 }
 
 .smap-clean {

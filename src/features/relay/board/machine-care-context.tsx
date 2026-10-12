@@ -1,4 +1,5 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import type { MachineCare } from "./machine-care";
 import { useMachineCare, type MachineCareState } from "./machine-care-store";
 
 /**
@@ -28,6 +29,8 @@ import { useMachineCare, type MachineCareState } from "./machine-care-store";
 interface CareValue {
   studioId: string | null;
   read: MachineCareState;
+  /** The read as it is now, for a callback that runs after its component has gone (a toast's Undo). */
+  latest: () => MachineCareState;
 }
 
 const CareCtx = createContext<CareValue | null>(null);
@@ -43,7 +46,14 @@ export function MachineCareProvider({
   children: ReactNode;
 }) {
   const own = useMachineCare(read ? null : studioId);
-  return <CareCtx.Provider value={{ studioId, read: read ?? own }}>{children}</CareCtx.Provider>;
+  const value = read ?? own;
+  const ref = useRef(value);
+  useLayoutEffect(() => {
+    ref.current = value;
+  });
+  const latest = useCallback(() => ref.current, []);
+  const ctx = useMemo(() => ({ studioId, read: value, latest }), [studioId, value, latest]);
+  return <CareCtx.Provider value={ctx}>{children}</CareCtx.Provider>;
 }
 
 /** The studio's care read: the provider's when one is mounted for this studio, else this component's own. */
@@ -52,6 +62,27 @@ export function useCareRead(studioId: string | null): MachineCareState {
   const shared = Boolean(ctx && studioId && ctx.studioId === studioId);
   const own = useMachineCare(shared ? null : studioId);
   return shared && ctx ? ctx.read : own;
+}
+
+/**
+ * The care read as it is WHEN CALLED, for an Undo tapped seconds later
+ * (phase 4 review fixes, Oct 12 2026): `markWiped`'s undo puts back only the
+ * machines whose wipe is still its own, so it must see a later wipe from
+ * another iPad. From the provider when one is mounted for this studio (it
+ * outlives a card that closed on Wiped), else from the caller's own `read`.
+ * Null while the read is loading or failed: unknown.
+ */
+export function useLiveCare(studioId: string | null, read: MachineCareState): () => Record<string, MachineCare> | null {
+  const ctx = useContext(CareCtx);
+  const shared = ctx && studioId && ctx.studioId === studioId ? ctx.latest : null;
+  const ref = useRef(read);
+  useLayoutEffect(() => {
+    ref.current = read;
+  });
+  return useCallback(() => {
+    const r = shared ? shared() : ref.current;
+    return careReadState(r) === "ready" ? r.byMachineId : null;
+  }, [shared]);
 }
 
 /** The read's state in the checklist's words: an error is "failed", an unanswered read "loading". */

@@ -23,6 +23,7 @@ import type { MapMode } from "../machine-card/parts";
 import { ContextPanel } from "../relay/board/ContextPanel";
 import { MachineCareProvider } from "../relay/board/machine-care-context";
 import { useRelayMaybe } from "../relay/board/RelayContext";
+import { useWipeRows } from "../relay/board/useWipeRows";
 import { leadsHere } from "../relay/leads";
 import { useFloorPlan } from "../studio-map/hooks";
 import { reconcile } from "../studio-map/layout";
@@ -190,7 +191,16 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
       setPicked(next);
     });
   };
-  const hasMap = layout.state === "ready";
+  // Draw or Arrange only once the layout read has answered: never "Draw the floor" over a map still loading.
+  const mapAnswer: "ready" | "empty" | null = layout.state === "ready" ? "ready" : layout.state === "empty" ? "empty" : null;
+  /*
+   * Today's wipe-chore rows for the map in Cleaning and its card (phase 4
+   * review fixes): read here once, so the card opened from the map in
+   * Cleaning completes its row from the same read instead of a second one.
+   */
+  const [mapCleaning, setMapCleaning] = useState(false);
+  const wipeOn = Boolean(studioId) && !phone && shownView === "map" && (mapCleaning || door?.mode === "cleaning");
+  const wipeRows = useWipeRows(wipeOn ? studioId : null);
   const [seeding, setSeeding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -367,10 +377,10 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
                     ))}
                   </div>
                 )}
-                {canLead && !floorEmpty && (
+                {canLead && !floorEmpty && mapAnswer && (
                   <AdminButton onClick={() => viewScope.guard(() => setArranging(true))}>
                     <MapIcon className="w-3.5 h-3.5" />
-                    {hasMap ? "Arrange the floor" : "Draw the floor"}
+                    {mapAnswer === "ready" ? "Arrange the floor" : "Draw the floor"}
                   </AdminButton>
                 )}
               </span>
@@ -401,6 +411,8 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
                 studioId={studioId}
                 studioName={studioName}
                 authTrainer={authTrainer ?? null}
+                rows={wipeOn ? wipeRows : undefined}
+                onModeChange={(m) => setMapCleaning(m === "cleaning")}
                 onOpenCard={openDoor}
                 onDone={() => pickView("list")}
               />
@@ -484,6 +496,7 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
                         overlayFor,
                         upkeep: { events: upkeep.events, state: upkeep.state },
                       }}
+                      rows={wipeOn ? wipeRows : undefined}
                       onOpenCatalogPage={relay?.openCatalogMachine}
                       onClose={() => doorScope.guard(() => setDoor(null))}
                       nameShown={false}

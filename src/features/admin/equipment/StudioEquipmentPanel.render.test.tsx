@@ -79,10 +79,17 @@ vi.mock("../../studio-map/hooks", () => ({
   useFloorPlan: (_s: string | null, opts: { enabled: boolean }) => (opts.enabled ? plan.value : { state: "off", plan: null, fromCache: false, dropped: 0 }),
 }));
 vi.mock("../../machine-card/MachineCard", () => ({
-  MachineCard: ({ door, mode, machineId }: { door: string; mode: string; machineId: string }) => (
-    <div data-testid="card">
-      The card for {machineId}, from {door}, in {mode}
-    </div>
+  MachineCard: ({ door, mode, machineId, onOpenCatalogPage }: { door: string; mode: string; machineId: string; onOpenCatalogPage?: (id: string) => void }) => (
+    <>
+      <div data-testid="card">
+        The card for {machineId}, from {door}, in {mode}
+      </div>
+      {onOpenCatalogPage && (
+        <button type="button" onClick={() => onOpenCatalogPage(machineId)}>
+          Open its Catalog page
+        </button>
+      )}
+    </>
   ),
 }));
 
@@ -97,12 +104,12 @@ afterEach(async () => {
   host.remove();
 });
 
-async function mount(authTrainer: Trainer | null = null) {
+async function mount(authTrainer: Trainer | null = null, onOpenCatalogMachine?: (id: string) => void) {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root.render(<StudioEquipmentPanel studio={{ id: "solon", name: "Solon" } as Studio} authTrainer={authTrainer} />);
+    root.render(<StudioEquipmentPanel studio={{ id: "solon", name: "Solon" } as Studio} authTrainer={authTrainer} onOpenCatalogMachine={onOpenCatalogMachine} />);
   });
 }
 
@@ -178,7 +185,8 @@ describe("the map and the card on Admins → a studio → Floor (the studio map,
       fromCache: false,
       dropped: 0,
     };
-    await mount(admin);
+    const toCatalog = vi.fn();
+    await mount(admin, toCatalog);
     expect(host.querySelector('[data-testid="the-map"]')?.getAttribute("data-door")).toBe("admins");
     expect(tab("Map")?.getAttribute("aria-selected")).toBe("true");
     expect(button("Arrange the floor")).toBeTruthy();
@@ -186,6 +194,9 @@ describe("the map and the card on Admins → a studio → Floor (the studio map,
     await act(async () => button("LEG PRESS on the map")!.click());
     expect(host.querySelector('[data-testid="card"]')?.textContent).toBe("The card for m-leg-press, from admins, in machines");
     expect(host.querySelector(".cp__title")?.textContent).toContain("LEG PRESS");
+    // Learn's door: the catalog editor's page for the machine it is based on.
+    await act(async () => button("Open its Catalog page")!.click());
+    expect(toCatalog).toHaveBeenCalledWith("m-leg-press");
     // The list is one tap away, with its rows.
     await act(async () => tab("List")!.click());
     expect(host.querySelector('[data-testid="the-map"]')).toBeNull();

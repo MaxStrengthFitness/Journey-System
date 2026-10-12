@@ -35,6 +35,7 @@ import { JobSheet } from "../relay/jobs/JobSheet";
 import { Board } from "../relay/board/Board";
 import { SinceYouWereIn } from "../relay/board/SinceYouWereIn";
 import { publishPulse, pulseEvents } from "../relay/board/pulse";
+import { wipeRowsOf } from "../relay/board/cleaning";
 import { leadsHere } from "../relay/leads";
 import { useRelayMaybe } from "../relay/board/RelayContext";
 import type { TeamJob } from "../relay/jobs/types";
@@ -113,15 +114,18 @@ export function StudioHubView({ authTrainer, clients, trainers, onOpenClientTask
    */
   const settings = useStudioSettings(relay ? (activeStudioId ?? null) : null, activeStudio);
   /*
-   * Today's rows, published to the shell while the Board is mounted (the
-   * studio map, phase 4): a machine's card opened in the panel completes
-   * today's wipe-chore row from these, live, with no second read.
+   * Today's wipe-chore rows, published to the shell while the Board is
+   * mounted (the studio map, phase 4): a machine's card opened in the panel
+   * completes today's wipe-chore row from these, live, with no second read.
+   * Filtered here with the studio's own categories, so a chore in a
+   * cleaning category the studio made counts as the wipe chore everywhere.
    */
-  const publishDayRows = relay?.publishDayRows;
+  const wipeRows = useMemo(() => wipeRowsOf(rows, categories), [rows, categories]);
+  const publishWipeRows = relay?.publishWipeRows;
   useEffect(() => {
-    publishDayRows?.(rows);
-  }, [publishDayRows, rows]);
-  useEffect(() => () => publishDayRows?.(null), [publishDayRows]);
+    publishWipeRows?.(wipeRows);
+  }, [publishWipeRows, wipeRows]);
+  useEffect(() => () => publishWipeRows?.(null), [publishWipeRows]);
   const quietFloor = settings.value("quietFloorSessions");
   const [openJobKey, setOpenJobKey] = useState<string | null>(null);
   const openJob: TeamJob | null = useMemo(() => teamJobs.jobs.find((j) => j.id === openJobKey) ?? null, [teamJobs.jobs, openJobKey]);

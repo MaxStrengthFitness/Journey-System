@@ -2,10 +2,10 @@ import { Check, Sparkles } from "lucide-react";
 import { useToast } from "../../contexts/ToastContext";
 import type { Trainer } from "../../types";
 import { AdminButton } from "../admin/primitives";
-import { useStudioTasks } from "../studio-tasks/useStudioTasks";
 import type { TaskRow } from "../studio-tasks/types";
-import { careLines, wipeRowsOf } from "../relay/board/cleaning";
-import { careReadState } from "../relay/board/machine-care-context";
+import { careLines } from "../relay/board/cleaning";
+import { careReadState, useLiveCare } from "../relay/board/machine-care-context";
+import { useShiftNow, useWipeRows } from "../relay/board/useWipeRows";
 import { wearOf, weeklyMaintenanceLine } from "../relay/board/machine-care";
 import type { WorkoutSession } from "../../types";
 import { careActor, markWiped, recordCare, type MachineCareState } from "../relay/board/machine-care-store";
@@ -50,6 +50,7 @@ export function CleanPart({
   sessions: readonly Pick<WorkoutSession, "sessionMachineIds" | "startTime" | "createdAt" | "status">[] | null;
   todayKey: string;
   have?: CardCleaning;
+  /** Today's wipe-chore rows, already filtered with the studio's categories (`wipeRowsOf`). */
   rows?: readonly TaskRow[];
   floorIds: ReadonlySet<string>;
   authTrainer: Trainer | null;
@@ -60,11 +61,12 @@ export function CleanPart({
   const relay = useRelayMaybe();
   const { toast, error: toastError, success: toastSuccess } = useToast();
   const cleaning = useCardCleaning(studioId, have);
-  // Today's rows: the host's, else the shell's live ones, else this part's own read while it is open.
-  const shellRows = relay?.studioId === studioId ? relay.dayRows : null;
-  const own = useStudioTasks(rows || shellRows ? null : studioId);
-  // Only the wipe chore's rows: a wipe never completes another machine chore.
-  const dayRows = wipeRowsOf(rows ?? shellRows ?? own.rows);
+  // Today's wipe-chore rows: the host's, else the shell's live ones, else this part's own read while it is open.
+  const shellRows = relay?.studioId === studioId ? relay.wipeRows : null;
+  const own = useWipeRows(rows || shellRows ? null : studioId);
+  const dayRows = rows ?? shellRows ?? own;
+  const shiftNow = useShiftNow(studioId);
+  const live = useLiveCare(studioId, care);
   const known = careReadState(care) === "ready";
   const record = known ? care.byMachineId[machineId] : undefined;
   const weekly = weeklyMaintenanceLine(cleaning.weeklyDay, todayKey);
@@ -84,7 +86,9 @@ export function CleanPart({
       author: careActor(uid, authTrainer?.fullName),
       taskAuthor: authTrainer?.id ? { id: authTrainer.id, name: authTrainer.fullName ?? "A trainer" } : null,
       before: known ? care.byMachineId : null,
+      live,
       rows: dayRows,
+      shiftNow,
     });
     res.done.catch((err: unknown) => {
       console.warn("[machine card] wipe failed:", err);

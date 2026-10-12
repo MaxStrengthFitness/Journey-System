@@ -4,7 +4,7 @@ import { useActiveStudio } from "../../../contexts/ActiveStudioContext";
 import { useToast } from "../../../contexts/ToastContext";
 import { useStudioMachines } from "../../../hooks/useStudioMachines";
 import { cn } from "../../../lib/utils";
-import type { TaskRow } from "../../studio-tasks/types";
+import type { StudioTaskCategory, TaskRow } from "../../studio-tasks/types";
 import { MachineCard } from "../../machine-card/MachineCard";
 import type { MapMode } from "../../machine-card/parts";
 import { useFloorPlan } from "../../studio-map/hooks";
@@ -24,7 +24,8 @@ import {
   type MachineWear,
 } from "./machine-care";
 import { CLEAN_WORDS, checklistLine, cleanStateOf, markAllTargets, wipeRowsOf, type CleanState } from "./cleaning";
-import { careReadState, useCareRead } from "./machine-care-context";
+import { careReadState, useCareRead, useLiveCare } from "./machine-care-context";
+import { useShiftNow } from "./useWipeRows";
 import { careActor, markWiped } from "./machine-care-store";
 import { relayFloorView, rememberRelayFloorView, type RelayFloorView } from "./floor-view-memory";
 import { useStudioSettings } from "../../studio-settings";
@@ -59,15 +60,26 @@ import "./relay.css";
  * opens it by itself, and the wipe chore's Show the floor opens it in
  * Cleaning. A tap on the line opens or folds it either way.
  */
-export function FloorMap({ rows, showCleaning = 0 }: { rows: TaskRow[]; showCleaning?: number }) {
+export function FloorMap({
+  rows,
+  categories,
+  showCleaning = 0,
+}: {
+  rows: TaskRow[];
+  /** The studio's own task categories: a chore in a cleaning category the studio made is the wipe chore too. */
+  categories?: StudioTaskCategory[];
+  showCleaning?: number;
+}) {
   const relay = useRelay();
   const studioId = relay.studioId;
   const { activeStudio } = useActiveStudio();
   const { error: toastError, toast } = useToast();
   const phone = usePhone();
-  const { machines, source, loading: machinesLoading, failed: machinesFailed } = useStudioMachines(studioId, { bridgeWhenRosterEmpty: true });
+  const { machines, source, loading: machinesLoading, failed: machinesFailed, rosterEntries, byId, catalog } = useStudioMachines(studioId, { bridgeWhenRosterEmpty: true });
   const care = useCareRead(studioId);
   const careState = careReadState(care);
+  const live = useLiveCare(studioId, care);
+  const shiftNow = useShiftNow(studioId);
   /*
    * THE STUDIO'S OWN CLEANING LOG (the second wave, Sep 28 2026): the deep
    * clean's interval, the wipe-after number and the weekly maintenance day
@@ -76,7 +88,8 @@ export function FloorMap({ rows, showCleaning = 0 }: { rows: TaskRow[]; showClea
   const settings = useStudioSettings(studioId, activeStudio);
   const deepDays = settings.value("deepCleanDays") ?? DEFAULT_DEEP_CLEAN_DAYS;
   const wipeAfter = settings.value("wipeAfterSessions") ?? DEFAULT_WIPE_AFTER_SESSIONS;
-  const weekly = weeklyMaintenanceLine(settings.value("weeklyMaintenanceDay"), relay.now.todayKey);
+  const weeklyDay = settings.value("weeklyMaintenanceDay");
+  const weekly = weeklyMaintenanceLine(weeklyDay, relay.now.todayKey);
 
   /* The map, when there is one to draw. */
   const plan = useFloorPlan(studioId, { enabled: !phone });
@@ -133,7 +146,23 @@ export function FloorMap({ rows, showCleaning = 0 }: { rows: TaskRow[]; showClea
   const ordered = useMemo(() => order.map((m) => ({ machineId: m.id, state: states.get(m.id) ?? ("unknown" as CleanState) })), [order, states]);
   const checklist = checklistLine(ordered.map((r) => r.state));
   const targets = markAllTargets(ordered);
-  const wipeRows = useMemo(() => wipeRowsOf(rows), [rows]);
+  const wipeRows = useMemo(() => wipeRowsOf(rows, categories), [rows, categories]);
+
+  /*
+   * What this floor already reads, published for a card in the panel (phase 4
+   * review fixes): the card at Clean then opens no roster or settings read of
+   * its own. Taken back when the floor goes.
+   */
+  const publishFloorReads = relay.publishFloorReads;
+  useEffect(() => {
+    if (!publishFloorReads || !studioId) return;
+    publishFloorReads({
+      studioId,
+      floor: { rosterEntries, byId, catalog, loading: machinesLoading },
+      cleaning: { deepDays, wipeAfter, weeklyDay: typeof weeklyDay === "number" ? weeklyDay : null },
+    });
+  }, [publishFloorReads, studioId, rosterEntries, byId, catalog, machinesLoading, deepDays, wipeAfter, weeklyDay]);
+  useEffect(() => () => publishFloorReads?.(null), [publishFloorReads]);
 
   /* The card, in the Context Panel: ids and callbacks only (its reads are its own, live). */
   const cardScope = useLeaveScope();
@@ -179,7 +208,9 @@ export function FloorMap({ rows, showCleaning = 0 }: { rows: TaskRow[]; showClea
       author: careActor(relay.uid, relay.authTrainer?.fullName),
       taskAuthor: relay.authTrainer?.id ? { id: relay.authTrainer.id, name: relay.authTrainer.fullName ?? "A trainer" } : null,
       before: careState === "ready" ? care.byMachineId : null,
+      live,
       rows: wipeRows,
+      shiftNow,
     });
     if (res.written.length === 0) return;
     res.done.catch((err: unknown) => {
@@ -220,11 +251,12 @@ export function FloorMap({ rows, showCleaning = 0 }: { rows: TaskRow[]; showClea
   const cleaning = mode === "cleaning";
   // On the map, its own row says the checklist; the fold's line keeps the floor's counts.
   const sayChecklist = cleaning && shownView === "tiles";
-  const sub = care.error
-    ? "Can't read the cleaning marks right now."
-    : sayChecklist
-      ? (checklist ?? "Can't read the cleaning marks right now.")
-      : [
+  const sub =
+    careState === "failed"
+      ? "Can't read the cleaning marks right now."
+      : sayChecklist
+        ? (checklist ?? (careState === "loading" ? "Reading the cleaning marks…" : "Can't read the cleaning marks right now."))
+        : [
           wantWipe ? `${wantWipe} ${wantWipe === 1 ? "wants" : "want"} a wipe` : null,
           hot && !wantWipe ? `${hot} running hot` : null,
           flagged ? `${flagged} flagged` : null,
@@ -264,7 +296,7 @@ export function FloorMap({ rows, showCleaning = 0 }: { rows: TaskRow[]; showClea
               door="relay"
               studioId={studioId}
               studioName={relay.studioName}
-              rows={rows}
+              rows={wipeRows}
               sessions={relay.sessions}
               authTrainer={relay.authTrainer}
               onOpenCard={openCardById}

@@ -77,7 +77,7 @@ export function MaintainPart({
   const [reason, setReason] = useState("");
   const [reasonProblem, setReasonProblem] = useState<string | null>(null);
   useUnsavedChanges(note.trim().length > 0, `the problem report on ${name}`, { onDiscard: () => setNote("") });
-  useUnsavedChanges(askingOut && reason.trim().length > 0, `the out of service reason for ${name}`, { onDiscard: () => setReason("") });
+  const reasonUnsaved = useUnsavedChanges(askingOut && reason.trim().length > 0, `the out of service reason for ${name}`, { onDiscard: () => setReason("") });
 
   const flag = flagLine(care);
   const out = entry.status === "maintenance";
@@ -124,6 +124,8 @@ export function MaintainPart({
     setReason("");
     setAskingOut(false);
     toastSuccess(`${name} is out of service. Trainers see why.`);
+    // Saved and leaving in one tap: clean now, or the host's guard asks about the reason it just saved.
+    reasonUnsaved.release();
     onClose();
   };
 

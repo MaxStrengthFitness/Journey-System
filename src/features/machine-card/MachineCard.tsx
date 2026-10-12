@@ -70,7 +70,7 @@ export interface MachineCardProps {
   trainers?: readonly Trainer[];
   /** What the host already reads; the card reads the rest. Never passed through relay.openPanel. */
   reads?: Partial<CardReads>;
-  /** Today's task rows when the host renders the card itself (My Studio's map in Cleaning). */
+  /** Today's wipe-chore rows, filtered with the studio's categories, when the host renders the card itself (My Studio's map in Cleaning). */
   rows?: readonly TaskRow[];
   /** Learn's door to the method (each host routes it); with none, Learn shows its lines and no button. */
   onOpenCatalogPage?: (machineId: string) => void;
@@ -101,7 +101,9 @@ export function MachineCard({
   openOffer = false,
 }: MachineCardProps) {
   const relay = useRelayMaybe();
-  const floor = useCardFloor(studioId, reads?.floor);
+  // Relay's floor publishes its roster and cleaning settings while it is mounted: a panel card reads those, live.
+  const shellReads = relay?.floorReads && relay.floorReads.studioId === studioId ? relay.floorReads : null;
+  const floor = useCardFloor(studioId, reads?.floor ?? shellReads?.floor);
   const care = useCareRead(studioId);
   const careState = careReadState(care);
   const record = careState === "ready" ? care.byMachineId[machineId] : undefined;
@@ -206,7 +208,7 @@ export function MachineCard({
         care={care}
         sessions={sessions}
         todayKey={todayKey}
-        have={reads?.cleaning}
+        have={reads?.cleaning ?? shellReads?.cleaning}
         rows={rows}
         floorIds={floorIds}
         authTrainer={authTrainer}
@@ -266,7 +268,10 @@ export function MachineCard({
         {(outOf || entry?.status === "maintenance" || flag || (openNotes !== null && openNotes > 0)) && (
           <div className="mdc-head__flags">
             {entry?.status === "maintenance" && (
-              <span className="mdc-flag mdc-flag--read">{outOf ? `Out of service: ${outOfServiceShort(outOf)}` : "Out of service"}</span>
+              // Its reason and Back in service live in Maintain: the chip opens it, as the flag's does.
+              <button type="button" className="mdc-flag" onClick={() => show("maintain")}>
+                {outOf ? `Out of service: ${outOfServiceShort(outOf)}` : "Out of service"}
+              </button>
             )}
             {flag && (
               <button type="button" className="mdc-flag" onClick={() => show("maintain")}>
@@ -275,7 +280,7 @@ export function MachineCard({
               </button>
             )}
             {openNotes !== null && openNotes > 0 && (
-              <button type="button" className="mdc-flag" onClick={() => show("maintain")}>
+              <button type="button" className="mdc-flag mdc-flag--notes" onClick={() => show("maintain")}>
                 <StickyNote className="w-3.5 h-3.5" aria-hidden />
                 {`${openNotes} open ${openNotes === 1 ? "note" : "notes"}`}
               </button>

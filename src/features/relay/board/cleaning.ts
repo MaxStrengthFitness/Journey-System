@@ -26,8 +26,9 @@
  * PURE MODULE — no React, no Firestore.
  */
 import { formatStudioDate, studioDateKey } from "../../../lib/studio-time";
-import { upkeepRoleOf, type StudioTaskCategory, type TaskTemplate } from "../../studio-tasks/types";
+import { upkeepRoleOf, type StudioTaskCategory, type TaskShift, type TaskTemplate } from "../../studio-tasks/types";
 import type { CareActor, MachineCare, MachineWear } from "./machine-care";
+import type { ShiftPhase } from "./now-context";
 
 export type CleanState = "wiped" | "used" | "open" | "out" | "unknown";
 
@@ -96,7 +97,8 @@ const shortDate = (ms: number) => formatStudioDate(ms, { month: "short", day: "n
 
 /**
  * The card's Clean part, in lines: no names, no minutes.
- *   "Wiped today" · "Last wiped Oct 9" · "No wipe on record";
+ *   "Wiped today" · "Last wiped Oct 9" · "No wipe on record" ·
+ *   "Can't tell when it was last wiped" (a wipe time in the future: unknown, never "none");
  *   "Deep cleaned today" · "Deep cleaned Oct 3 · due in 6 days" · "Deep clean due" · "No deep clean on record";
  *   "Wants a wipe: 5 sessions since the last one." (when the sessions say so).
  */
@@ -110,7 +112,8 @@ export function careLines(
   const out: string[] = [];
   const wiped = care?.lastWipedAt ?? null;
   const today = wipedToday(care, todayKey, nowMs);
-  if (wiped === null || today === null) out.push("No wipe on record");
+  if (wiped === null) out.push("No wipe on record");
+  else if (today === null) out.push("Can't tell when it was last wiped");
   else if (today) out.push("Wiped today");
   else out.push(`Last wiped ${shortDate(wiped)}`);
 
@@ -179,6 +182,59 @@ export interface UndoWipe {
   machineId: string;
   lastWipedAt: number | null;
   lastWipedBy: CareActor | null;
+}
+
+/** The chore shift a wipe now belongs to: the Board's part of the day (`partNow`), Opening, Between clients or Close. */
+export function shiftNowOf(phase: ShiftPhase): TaskShift {
+  if (phase === "opening") return "am";
+  if (phase === "mid") return "any";
+  return "pm";
+}
+
+const SHIFT_ORDER: Record<TaskShift, number> = { am: 0, any: 1, pm: 2 };
+
+/**
+ * ONE ROW PER MACHINE PER WIPE (phase 4 review fixes, Oct 12 2026). A wipe
+ * completes one open wipe-chore row for each machine: the row of the shift
+ * it is now when there is one, else the earliest still open (Opening, then
+ * Between clients, then Close). So a 7 AM wipe never closes the Close
+ * shift's row too, a studio with a single wipe chore still gets its row done
+ * whenever it is wiped, and a batch carries at most two writes a machine.
+ * The Board's Mark all passes one shift's rows, so it picks that shift's.
+ */
+export function rowsForWipe<R extends { machineId?: string; status: string; kind?: string; shift: TaskShift }>(
+  rows: readonly R[],
+  ids: readonly string[],
+  shiftNow: TaskShift | null,
+): Map<string, R> {
+  const wanted = new Set(ids);
+  const out = new Map<string, R>();
+  for (const r of rows) {
+    if (r.kind !== "machine" || r.status !== "open" || !r.machineId || !wanted.has(r.machineId)) continue;
+    const had = out.get(r.machineId);
+    if (!had) {
+      out.set(r.machineId, r);
+      continue;
+    }
+    const rank = (x: R) => (x.shift === shiftNow ? -1 : SHIFT_ORDER[x.shift] ?? 3);
+    if (rank(r) < rank(had)) out.set(r.machineId, r);
+  }
+  return out;
+}
+
+/**
+ * Which machines an Undo may put back (phase 4 review fixes, Oct 12 2026):
+ * only those whose live wipe is still the one this mark wrote (its time and
+ * its author). A machine another iPad wiped since keeps that later wipe, and
+ * its row stays as it is. Read from the live care read when Undo is tapped.
+ */
+export function undoTargetsOf(
+  live: Record<string, MachineCare | undefined>,
+  ids: readonly string[],
+  at: number,
+  authorId: string,
+): string[] {
+  return ids.filter((id) => live[id]?.lastWipedAt === at && live[id]?.lastWipedBy?.id === authorId);
 }
 
 /** What each machine's last wipe was before a mark, nulls kept, for its Undo. */

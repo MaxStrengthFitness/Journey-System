@@ -114,6 +114,13 @@ export interface CardsInput {
    * then says it can't count yet.
    */
   wipedTodayIds?: ReadonlySet<string> | null;
+  /**
+   * Why `wipedTodayIds` is null (phase 4 review fixes): "loading" while the
+   * care read hasn't answered ("Reading the cleaning marks…"), "failed" when
+   * it can't be read ("Can't read the cleaning marks right now"). Absent
+   * means loading: a normal open never says it failed.
+   */
+  careRead?: "loading" | "failed";
   outOfServiceIds?: ReadonlySet<string>;
 }
 
@@ -210,7 +217,7 @@ function wipeChoreCard(g: ShiftGroup, input: CardsInput, me: Set<string>): Board
   let line: string;
   if (!wiped) {
     state = laterIn(part, input.phase) ? "later" : "todo";
-    line = "Can't read the cleaning marks right now";
+    line = input.careRead === "failed" ? "Can't read the cleaning marks right now" : "Reading the cleaning marks…";
   } else {
     const states: CleanState[] = [];
     const seen = new Set<string>();
@@ -234,7 +241,8 @@ function wipeChoreCard(g: ShiftGroup, input: CardsInput, me: Set<string>): Board
     glyph: null,
     state,
     line,
-    parts: counted.total > 0 ? { done: counted.done, total: counted.total } : null,
+    // Unknown is never drawn as "none wiped": no bar until the marks are read.
+    parts: wiped && counted.total > 0 ? { done: counted.done, total: counted.total } : null,
     estMinutes: state === "done" ? null : est,
     mine: assignedMe,
     box: "done",

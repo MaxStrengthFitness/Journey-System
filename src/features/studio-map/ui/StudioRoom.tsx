@@ -330,22 +330,32 @@ const MachineG = memo(
 
 /**
  * The cleaning checklist's two looks on a machine (the studio map, phase 4):
- * a tick in the body's corner for Wiped today, a small plum dot for Used
- * since its wipe (information, never a verdict; never orange). Drawn only
- * for the classes the map's Cleaning mode gives (`markOf`); nothing for an
- * unknown state.
+ * a tick in the body's corner for Wiped today, an EMPTY BOX in the same spot
+ * for a machine still to wipe (phase 4 review fixes: without it Cleaning drew
+ * the same picture as Look up until something was wiped), and a small plum
+ * dot beside the box for Used since its wipe (information, never a verdict;
+ * never orange). Drawn only for the classes the map's Cleaning mode gives
+ * (`markOf`); nothing for an unknown state or a machine out of service.
  */
 function CleanMark({ m, frame, markClass }: { m: MapMachine; frame: Frame; markClass: string | undefined }) {
   if (!markClass) return null;
   const classes = markClass.split(" ");
   const wiped = classes.includes("smap-m--wiped");
   const used = !wiped && classes.includes("smap-m--used");
-  if (!wiped && !used) return null;
+  const open = !wiped && (used || classes.includes("smap-m--open"));
+  if (!wiped && !open) return null;
   const f = frame;
-  const r = wiped ? 7 : 4;
+  const r = 7;
   const x = m.size ? (m.size.widthMm / 2) * f.s - r - 3 : ((MARKER_MM / 2) * f.s) * 0.7;
   const y = m.size ? (-m.size.lengthMm / 2) * f.s + r + 5 : -((MARKER_MM / 2) * f.s) * 0.7;
-  if (used) return <circle className="smap-m__used" cx={x} cy={y} r={r} />;
+  if (open) {
+    return (
+      <g className="smap-m__open">
+        <rect className="smap-m__box" x={x - r} y={y - r} width={2 * r} height={2 * r} rx={3} />
+        {used && <circle className="smap-m__used" cx={x - r - 7} cy={y} r={4} />}
+      </g>
+    );
+  }
   return (
     <g className="smap-m__wiped">
       <circle className="smap-m__tick-bg" cx={x} cy={y} r={r} />

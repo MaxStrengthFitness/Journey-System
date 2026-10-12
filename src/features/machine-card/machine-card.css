@@ -66,8 +66,10 @@
   cursor: pointer;
 }
 
-.mdc-flag--read {
-  cursor: default;
+/* Open notes are not a caution: a neutral tappable chip on the firm 3:1 control edge. Plum stays for Flagged and Out of service. */
+.mdc-flag--notes {
+  border-color: var(--eq-border-strong);
+  background: var(--eq-raised);
 }
 
 .mdc-flag:focus-visible {

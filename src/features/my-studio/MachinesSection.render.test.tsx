@@ -128,13 +128,27 @@ vi.mock("../studio-map/lazy", () => ({
       </button>
     </div>
   ),
-  LazyFloorMapView: ({ door, onOpenCard }: { door: string; onOpenCard: (id: string, mode: "machines" | "cleaning") => void }) => (
+  LazyFloorMapView: ({
+    door,
+    onOpenCard,
+    rows,
+    onModeChange,
+  }: {
+    door: string;
+    onOpenCard: (id: string, mode: "machines" | "cleaning") => void;
+    rows?: readonly unknown[];
+    onModeChange?: (mode: "machines" | "cleaning") => void;
+  }) => (
     <div data-testid="the-map" data-door={door}>
       <button type="button" onClick={() => onOpenCard("m-leg-press", "machines")}>
         Leg Press on the map
       </button>
       <button type="button" onClick={() => onOpenCard("m-leg-press", "cleaning")}>
         Leg Press in Cleaning
+      </button>
+      <span data-testid="map-rows">{rows === undefined ? "none" : `${rows.length} rows`}</span>
+      <button type="button" onClick={() => onModeChange?.("cleaning")}>
+        Map to Cleaning
       </button>
     </div>
   ),
@@ -454,6 +468,33 @@ describe("Map | List, map first (the studio map, phase 4)", () => {
     await click("Open Leg Press");
     expect(doorTitle()).toContain("Leg Press");
     expect(partOpen("setup")).toBe(true);
+  });
+
+  it("reads today's rows once for the map in Cleaning and its card, never in Look up", async () => {
+    plan.value = READY;
+    await remount();
+    expect(host.querySelector('[data-testid="map-rows"]')?.textContent).toBe("none");
+    await click("Map to Cleaning");
+    expect(host.querySelector('[data-testid="map-rows"]')?.textContent).toBe("0 rows");
+    tasksAsked.length = 0;
+    await click("Leg Press in Cleaning");
+    expect(partOpen("clean")).toBe(true);
+    // The section reads them (solon); the card's Clean part is handed them and reads none (null).
+    expect(tasksAsked).toContain("solon");
+    expect(tasksAsked).toContain(null);
+  });
+
+  it("shows neither Draw nor Arrange the floor while the layout is being read or can't be", async () => {
+    lead.value = true;
+    try {
+      for (const state of ["loading", "unreadable"]) {
+        plan.value = { state, plan: null, fromCache: false, dropped: 0 };
+        await remount();
+        expect([...host.querySelectorAll("button")].some((b) => /Arrange the floor|Draw the floor/.test(b.textContent ?? "")), state).toBe(false);
+      }
+    } finally {
+      lead.value = false;
+    }
   });
 
   it("says Arrange the floor once the studio has a map, for a leader only", async () => {

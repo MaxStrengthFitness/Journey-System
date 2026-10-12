@@ -8,6 +8,9 @@ import {
   flagLine,
   isWipeChore,
   markAllTargets,
+  rowsForWipe,
+  shiftNowOf,
+  undoTargetsOf,
   undoValuesOf,
   wipedToday,
   type CleanState,
@@ -141,6 +144,10 @@ describe("careLines and flagLine", () => {
     expect(careLines(care({ lastDeepCleanAt: NOW - 60_000 }), null, TODAY, 14, NOW)).toEqual(["No wipe on record", "Deep cleaned today"]);
   });
 
+  it("says a wipe time an hour in the future can't be told, never that there is no wipe", () => {
+    expect(careLines(care({ lastWipedAt: NOW + 3_600_000 }), null, TODAY, 14, NOW)[0]).toBe("Can't tell when it was last wiped");
+  });
+
   it("flagLine says the words and never who", () => {
     expect(flagLine(care({ flag: { note: "torn pad on the seat", by: GLORF, at: NOW } }))).toBe("Flagged: torn pad on the seat.");
     expect(flagLine(care({ flag: { note: "Squeaks!", by: GLORF, at: NOW } }))).toBe("Flagged: Squeaks!");
@@ -185,5 +192,40 @@ describe("undoValuesOf", () => {
       { machineId: "a", lastWipedAt: 5, lastWipedBy: MARINA },
       { machineId: "b", lastWipedAt: null, lastWipedBy: null },
     ]);
+  });
+});
+
+describe("rowsForWipe (one row a machine per wipe)", () => {
+  const r = (machineId: string, shift: "am" | "any" | "pm", status: "open" | "done" = "open") => ({ id: `${machineId}-${shift}`, machineId, shift, status, kind: "machine" });
+  const rows = [r("a", "am"), r("a", "pm"), r("b", "pm"), r("c", "am", "done"), r("c", "pm")];
+
+  it("takes the row of the shift it is now, else the earliest still open", () => {
+    const opening = rowsForWipe(rows, ["a", "b", "c"], "am");
+    expect([...opening.values()].map((x) => x.id)).toEqual(["a-am", "b-pm", "c-pm"]);
+    const close = rowsForWipe(rows, ["a", "b", "c"], "pm");
+    expect([...close.values()].map((x) => x.id)).toEqual(["a-pm", "b-pm", "c-pm"]);
+    const midday = rowsForWipe(rows, ["a"], "any");
+    expect(midday.get("a")?.id).toBe("a-am");
+  });
+
+  it("never takes a row of another machine, a done row or a non-machine row", () => {
+    expect(rowsForWipe([...rows, { id: "x", machineId: "a", shift: "pm" as const, status: "open", kind: "studio" }], ["b"], "am").size).toBe(1);
+  });
+
+  it("follows the Board's part of the day", () => {
+    expect([shiftNowOf("opening"), shiftNowOf("mid"), shiftNowOf("closing"), shiftNowOf("closed")]).toEqual(["am", "any", "pm", "pm"]);
+  });
+});
+
+describe("undoTargetsOf (Undo puts back only what is still this wipe)", () => {
+  const AT = NOW - 5_000;
+  const live = {
+    a: care({ machineId: "a", lastWipedAt: AT, lastWipedBy: MARINA }),
+    b: care({ machineId: "b", lastWipedAt: AT + 1_000, lastWipedBy: GLORF }),
+    c: care({ machineId: "c", lastWipedAt: AT, lastWipedBy: GLORF }),
+  };
+
+  it("keeps a later wipe from another iPad, and a wipe at the same time by someone else", () => {
+    expect(undoTargetsOf(live, ["a", "b", "c", "d"], AT, MARINA.id)).toEqual(["a"]);
   });
 });

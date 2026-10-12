@@ -22,7 +22,7 @@ import { FloorMap } from "./FloorMap";
 import { floorLoad, quietLine } from "./right-now";
 import { JustNow } from "./JustNow";
 import { BoardCardView } from "./BoardCardView";
-import { careReadState, useCareRead } from "./machine-care-context";
+import { careReadState, useCareRead, useLiveCare } from "./machine-care-context";
 import { careActor, markWiped } from "./machine-care-store";
 import { isWipeChore, markAllTargets, wipedToday, type CleanState } from "./cleaning";
 import {
@@ -143,7 +143,9 @@ export function Board({
    * while the read hasn't answered or failed: unknown, never "none wiped".
    */
   const care = useCareRead(relay.studioId);
-  const careKnown = careReadState(care) === "ready";
+  const careState = careReadState(care);
+  const careKnown = careState === "ready";
+  const liveCare = useLiveCare(relay.studioId, care);
   const wipedTodayIds = useMemo(() => {
     if (!careKnown) return null;
     const out = new Set<string>();
@@ -167,9 +169,10 @@ export function Board({
         phase: now.phase,
         nowMs: tick,
         wipedTodayIds,
+        careRead: careState === "failed" ? "failed" : "loading",
         outOfServiceIds: outIds,
       }),
-    [rows, requests, resolved, jobs, clients, relay.clients, relay.studioId, categories, relay.uid, author?.id, now.todayKey, now.phase, tick, wipedTodayIds, outIds],
+    [rows, requests, resolved, jobs, clients, relay.clients, relay.studioId, categories, relay.uid, author?.id, now.todayKey, now.phase, tick, wipedTodayIds, careState, outIds],
   );
 
   /* The part of the day on show: the one it is now, until you pick another; a new phase brings it back. */
@@ -222,7 +225,9 @@ export function Board({
       author: careActor(relay.uid, relay.authTrainer?.fullName ?? author?.name),
       taskAuthor: author,
       before: careKnown ? care.byMachineId : null,
+      live: liveCare,
       rows: g.rows,
+      shiftNow: g.shift,
     });
     res.done.catch((err) => {
       console.warn("[relay] Mark all failed:", err);
@@ -382,7 +387,8 @@ export function Board({
         body: (
           <>
             <p className="rbd-note">{card.line}</p>
-            {g.assignedTo && <p className="rbd-note">{`${g.assignedTo.name.split(" ")[0]}'s today (a heads-up, not a lock: anyone may mark a machine).`}</p>}
+            {/* The name is said once, on the line above: here only that a name on it is no lock. */}
+            {g.assignedTo && <p className="rbd-note">Anyone can mark a machine.</p>}
           </>
         ),
         foot: (
@@ -624,7 +630,7 @@ export function Board({
       )}
 
       {/* The floor's machines: their wipes, deep cleans and flags, by the studio's own cleaning log (machine-care.ts). Today's parts only. */}
-      {part !== "week" && <FloorMap rows={rows} showCleaning={floorAsk} />}
+      {part !== "week" && <FloorMap rows={rows} categories={categories} showCleaning={floorAsk} />}
 
       <div className="rbd-foot-notes">
         <FocusBanner />

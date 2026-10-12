@@ -160,7 +160,7 @@ describe("the Catalog's map", () => {
 
   it("is the list, said in one line, when the room is too big to tap at this width", async () => {
     mount({ plan: plan(200) });
-    expect(host.textContent).toContain("The map is too small to tap at this width, so here is the floor as a list.");
+    expect(host.textContent).toContain("Too small to tap at this width. Use the list below.");
     expect(host.querySelector("[data-testid=the-list]")).not.toBeNull();
     await act(async () => {
       await new Promise((r) => setTimeout(r, 30));

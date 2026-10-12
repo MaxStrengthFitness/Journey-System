@@ -61,12 +61,15 @@ export interface StudioEquipmentPanelProps {
   authTrainer?: Trainer | null;
   /** Everyone the page already lists, so the floor editor can say who saved a newer copy. */
   trainers?: readonly Trainer[];
+  /** The card's Learn: Admins → Standard → Machines → that catalog machine's page (the catalog editor). */
+  onOpenCatalogMachine?: (catalogMachineId: string) => void;
 }
 
 export function StudioEquipmentPanel({
   studio,
   authTrainer,
   trainers,
+  onOpenCatalogMachine,
 }: StudioEquipmentPanelProps) {
   const studioId = studio.id ?? "";
   const { success: toastSuccess } = useToast();
@@ -127,9 +130,13 @@ export function StudioEquipmentPanel({
   const pickView = (next: "map" | "list") => {
     if (next !== shownView) viewScope.guard(() => setPicked(next));
   };
-  const hasMap = layout.state === "ready";
+  // Draw or Arrange only once the layout read has answered: never "Draw the floor" over a map still loading.
+  const mapAnswer: "ready" | "empty" | null = layout.state === "ready" ? "ready" : layout.state === "empty" ? "empty" : null;
   const cardScope = useLeaveScope();
   const [card, setCard] = useState<{ machineId: string; mode: MapMode } | null>(null);
+  // Learn's door: the catalog editor's page, which only a machine from the MSF catalog has.
+  const cardEntry = card ? rosterEntries.find((e) => e.machineId === card.machineId) : undefined;
+  const cardCatalogId = cardEntry && cardEntry.source === "catalog" ? ((cardEntry as { basedOn?: string }).basedOn ?? null) : null;
   const openCard = (machineId: string, mode: MapMode) => {
     if (card?.machineId === machineId && card.mode === mode) return;
     cardScope.guard(() => setCard({ machineId, mode }));
@@ -247,10 +254,10 @@ export function StudioEquipmentPanel({
               ))}
             </div>
           )}
-          {canArrange && !phone && !arranging && rows.length > 0 && (
+          {canArrange && !phone && !arranging && rows.length > 0 && mapAnswer && (
             <AdminButton onClick={() => viewScope.guard(() => setArranging(true))}>
               <MapIcon className="w-3.5 h-3.5" />
-              {hasMap ? "Arrange the floor" : "Draw the floor"}
+              {mapAnswer === "ready" ? "Arrange the floor" : "Draw the floor"}
             </AdminButton>
           )}
         </span>
@@ -289,6 +296,7 @@ export function StudioEquipmentPanel({
                         authTrainer={authTrainer ?? null}
                         trainers={trainers}
                         reads={{ upkeep: { events: upkeepEvents, state: upkeepRead.state } }}
+                        onOpenCatalogPage={cardCatalogId && onOpenCatalogMachine ? () => cardScope.guard(() => onOpenCatalogMachine(cardCatalogId)) : undefined}
                         onClose={() => cardScope.guard(() => setCard(null))}
                         nameShown={false}
                       />

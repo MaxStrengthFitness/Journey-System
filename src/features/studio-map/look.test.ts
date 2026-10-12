@@ -71,6 +71,22 @@ describe("the studio map's look", () => {
     expect(ruleFor(".smap-mode__btn[aria-pressed=\"true\"]").flatMap((r) => declared(r.body, "background"))).toEqual(["var(--eq-live)"]);
   });
 
+  it("draws a machine still to wipe as an empty box on the control edge, in the tick's place (phase 4 review fixes)", () => {
+    const [box] = ruleFor(".smap-m__box");
+    expect(declared(box.body, "fill")).toEqual(["var(--eq-raised)"]);
+    expect(declared(box.body, "stroke")).toEqual(["var(--eq-border-strong)"]);
+    expect(declared(box.body, "stroke-width")).toEqual(["1.5"]);
+  });
+
+  it("gives the map's buttons Refined Lift: a raised lift, a blue fill's glow, and a press", () => {
+    expect(ruleFor(".smap-btn").flatMap((r) => declared(r.body, "box-shadow"))).toEqual(["var(--eq-elev-1), inset 0 1px 0 var(--eq-highlight)"]);
+    expect(ruleFor(".smap-btn--primary").flatMap((r) => declared(r.body, "box-shadow"))).toEqual(["var(--eq-glow-live), var(--eq-solid-light)"]);
+    expect(ruleFor(".smap-btn--primary:hover").flatMap((r) => declared(r.body, "box-shadow"))).toEqual(["var(--eq-glow-live), var(--eq-solid-light)"]);
+    const [press] = ruleFor(".smap-btn:not(:disabled):active");
+    expect(declared(press.body, "transform")).toEqual(["translateY(1px)"]);
+    expect(declared(press.body, "box-shadow")).toEqual(["var(--eq-press)"]);
+  });
+
   it("uses no orange and no crimson", () => {
     expect(CSS).not.toMatch(/--eq-(?:hero|go|go-on|alert)\b/);
   });

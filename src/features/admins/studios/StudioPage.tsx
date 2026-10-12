@@ -75,6 +75,8 @@ export interface StudioPageProps {
   sync?: ReactNode;
   /** Opens Admins → Mindbody sync. */
   onOpenSync?: () => void;
+  /** Opens Admins → Standard → Machines → a catalog machine (the floor card's Learn). */
+  onOpenCatalogMachine?: (catalogMachineId: string) => void;
 }
 
 export function StudioPage({
@@ -91,6 +93,7 @@ export function StudioPage({
   onRefresh,
   sync,
   onOpenSync,
+  onOpenCatalogMachine,
 }: StudioPageProps) {
   const { success: toastSuccess } = useToast();
   const [tab, setTab] = useState<StudioTab>(initialTab);
@@ -280,7 +283,7 @@ export function StudioPage({
           </div>
         )}
 
-        {tab === "floor" && <StudioEquipmentPanel studio={studio} authTrainer={authTrainer} trainers={trainers} />}
+        {tab === "floor" && <StudioEquipmentPanel studio={studio} authTrainer={authTrainer} trainers={trainers} onOpenCatalogMachine={onOpenCatalogMachine} />}
 
         {tab === "team" && (
           <StudioTeam

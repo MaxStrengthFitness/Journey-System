@@ -28,6 +28,10 @@ describe("the machine card's look", () => {
     expect(CSS).toMatch(/\.mdc-flag\s*\{[^}]*border:\s*1px solid var\(--eq-warn\)/);
   });
 
+  it("draws open notes as a neutral chip on the firm edge: plum is for Flagged and Out of service only", () => {
+    expect(CSS).toMatch(/\.mdc-flag--notes\s*\{[^}]*border-color:\s*var\(--eq-border-strong\)[^}]*background:\s*var\(--eq-raised\)/);
+  });
+
   it("owns every class it defines (mdc-), beside the panel it rides in", () => {
     const classes = [...CSS.matchAll(/(^|[\s,{}])\.([a-z][\w-]*)/g)].map((m) => m[2]);
     expect(classes.length).toBeGreaterThan(0);

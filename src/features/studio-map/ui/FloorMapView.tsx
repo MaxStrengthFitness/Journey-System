@@ -8,11 +8,11 @@ import type { Trainer, WorkoutSession } from "../../../types";
 import { useMachineModels } from "../../catalog/useMachineModels";
 import { movementOf } from "../../catalog/names";
 import type { CardDoor, MapMode } from "../../machine-card/parts";
-import { CLEAN_WORDS, checklistLine, cleanStateOf, markAllTargets, wipeRowsOf, type CleanState } from "../../relay/board/cleaning";
-import { careReadState, useCareRead } from "../../relay/board/machine-care-context";
+import { CLEAN_WORDS, checklistLine, cleanStateOf, markAllTargets, type CleanState } from "../../relay/board/cleaning";
+import { careReadState, useCareRead, useLiveCare } from "../../relay/board/machine-care-context";
 import { wearOf } from "../../relay/board/machine-care";
 import { careActor, markWiped } from "../../relay/board/machine-care-store";
-import { useStudioTasks } from "../../studio-tasks/useStudioTasks";
+import { useShiftNow, useWipeRows } from "../../relay/board/useWipeRows";
 import type { TaskRow } from "../../studio-tasks/types";
 import { footprint } from "../geometry";
 import { useFloorPlan } from "../hooks";
@@ -64,7 +64,11 @@ export interface FloorMapViewProps {
   door: Exclude<CardDoor, "catalog">;
   studioId: string;
   studioName: string;
-  /** Today's task rows when the host has them (Relay); else the map reads them itself, in Cleaning only. */
+  /**
+   * Today's WIPE-CHORE rows when the host has them (Relay, My Studio in
+   * Cleaning), already filtered with the studio's categories (`wipeRowsOf`);
+   * else the map reads them itself, in Cleaning only.
+   */
   rows?: readonly TaskRow[];
   /** Today's sessions (Relay's shell): a machine used since its wipe gets its plum dot. Absent elsewhere. */
   sessions?: readonly WorkoutSession[];
@@ -73,11 +77,15 @@ export interface FloorMapViewProps {
   onOpenCard: (machineId: string, mode: MapMode) => void;
   /** Relay's Show the floor: each change switches the map to Cleaning. */
   cleaningAsk?: number;
+  /** Told when the mode changes, so a host that reads today's rows for the map and its card reads them only in Cleaning. */
+  onModeChange?: (mode: MapMode) => void;
 }
 
 const OUT = { className: "smap-m--out", aria: "out of service" } as const;
 const WIPED = { className: "smap-m--wiped", aria: "wiped today" } as const;
-const USED = { className: "smap-m--used", aria: "used since its wipe" } as const;
+const USED = { className: "smap-m--used", aria: "used since its wipe, tap when it's wiped" } as const;
+/** Cleaning, not wiped today: the empty box where its tick will go. */
+const OPEN = { className: "smap-m--open", aria: "tap when it's wiped" } as const;
 const OUT_CLEAN = { className: "smap-m--out", aria: "out of service" } as const;
 
 /** "AED · Fire extinguisher ×2": the safety places, said once at the foot of the list. */
@@ -88,30 +96,42 @@ export function safetyLineOf(places: readonly RoomPlace[]): string | null {
   return [...counts.entries()].map(([name, n]) => (n > 1 ? `${name} ×${n}` : name)).join(" · ");
 }
 
-export default function FloorMapView({ door, studioId, studioName, rows, sessions, authTrainer, onOpenCard, cleaningAsk }: FloorMapViewProps) {
+export default function FloorMapView({ door, studioId, studioName, rows, sessions, authTrainer, onOpenCard, cleaningAsk, onModeChange }: FloorMapViewProps) {
   const { toast, error: toastError } = useToast();
   const plan = useFloorPlan(studioId, { enabled: true });
   const { machines, rosterEntries, loading: floorLoading, failed: floorFailed } = useStudioMachines(studioId, { includeInactive: false });
   const care = useCareRead(studioId);
   const careState = careReadState(care);
+  const live = useLiveCare(studioId, care);
+  const shiftNow = useShiftNow(studioId);
 
   const [mode, setModeState] = useState<MapMode>(() => (door === "relay" ? relayMapMode() : "machines"));
   const setMode = (next: MapMode) => {
     setModeState(next);
+    onModeChange?.(next);
     if (door === "relay") rememberRelayMapMode(next);
   };
+  // The host hears the mode it opened in too (a map mounted again after the list starts in Look up).
+  useEffect(() => {
+    onModeChange?.(mode);
+    // Once, as it mounts: every later change goes through setMode or the ask below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Relay's Show the floor: Cleaning, whatever was picked.
   const asked = useRef(cleaningAsk ?? 0);
   useEffect(() => {
     if (cleaningAsk === undefined || cleaningAsk === asked.current) return;
     asked.current = cleaningAsk;
     setModeState("cleaning");
+    onModeChange?.("cleaning");
     if (door === "relay") rememberRelayMapMode("cleaning");
+    // onModeChange is the host's setter; a new one each render changes nothing here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleaningAsk, door]);
 
-  // Today's rows: the host's, else this map's own read, only in Cleaning (a look-up never pays for it).
-  const own = useStudioTasks(mode === "cleaning" && !rows ? studioId : null);
-  const wipeRows = useMemo(() => wipeRowsOf(rows ?? own.rows), [rows, own.rows]);
+  // Today's wipe-chore rows: the host's, else this map's own read, only in Cleaning (a look-up never pays for it).
+  const own = useWipeRows(mode === "cleaning" && !rows ? studioId : null);
+  const wipeRows = rows ?? own;
 
   /* The floor in walking order, its sizes, and what is on the map. */
   const entryOf = useMemo(() => new Map(rosterEntries.map((e) => [e.machineId, e])), [rosterEntries]);
@@ -195,7 +215,9 @@ export default function FloorMapView({ door, studioId, studioName, rows, session
       author: careActor(uid, authTrainer?.fullName),
       taskAuthor: authTrainer?.id ? { id: authTrainer.id, name: authTrainer.fullName ?? "A trainer" } : null,
       before: careState === "ready" ? care.byMachineId : null,
+      live,
       rows: wipeRows,
+      shiftNow,
     });
     if (res.written.length === 0) return;
     res.done.catch((err: unknown) => {
@@ -222,6 +244,7 @@ export default function FloorMapView({ door, studioId, studioName, rows, session
     if (mode !== "cleaning") return null;
     if (s === "wiped") return WIPED;
     if (s === "used") return USED;
+    if (s === "open") return OPEN;
     return null;
   };
 
@@ -246,7 +269,11 @@ export default function FloorMapView({ door, studioId, studioName, rows, session
             Cleaning
           </button>
         </div>
-        {cleaning && <p className="smap-head__line">{line ?? "Can't read the cleaning marks right now."}</p>}
+        {cleaning && (
+          <p className="smap-head__line">
+            {line ?? (careState === "loading" ? "Reading the cleaning marks…" : "Can't read the cleaning marks right now.")}
+          </p>
+        )}
         {cleaning && targets.length > 0 && (
           <button type="button" className="smap-btn smap-btn--primary" onClick={markAll}>
             <Check size={16} aria-hidden />
@@ -259,7 +286,7 @@ export default function FloorMapView({ door, studioId, studioName, rows, session
       {drawn.loading ? (
         <p className="smap-quiet">Loading the map…</p>
       ) : !tappable ? (
-        <p className="smap-quiet">The map is too small to tap at this width, so here is the floor as a list.</p>
+        <p className="smap-quiet">Too small to tap at this width. Use the list below.</p>
       ) : (
         <div className="smap-frame">
           <StudioRoom

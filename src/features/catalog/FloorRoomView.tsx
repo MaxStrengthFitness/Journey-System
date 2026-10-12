@@ -156,7 +156,7 @@ export function FloorRoomView({ studioId, studioName, plan, machines, models, di
         <p className="smap-quiet">Loading the map…</p>
       ) : !tappable ? (
         <>
-          <p className="smap-quiet">The map is too small to tap at this width, so here is the floor as a list.</p>
+          <p className="smap-quiet">Too small to tap at this width. Use the list below.</p>
           {list}
         </>
       ) : (

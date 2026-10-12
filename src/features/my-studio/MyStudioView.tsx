@@ -13,7 +13,7 @@ import { MachinesSection } from "./MachinesSection";
 import { OpeningsSection } from "../openings/ui/OpeningsSection";
 import { mayReadWeeks } from "../standing-week/present";
 import { peekPlannerIntent } from "../relay/intent";
-import { RelayProvider, useRelay, type PanelContent, type RelayContextValue } from "../relay/board/RelayContext";
+import { RelayProvider, useRelay, type FloorReads, type PanelContent, type RelayContextValue } from "../relay/board/RelayContext";
 import { leadsHere } from "../relay/leads";
 import { useNowContext } from "../relay/board/NowBar";
 import { ContextPanel } from "../relay/board/ContextPanel";
@@ -270,9 +270,11 @@ export function MyStudioView({
     if (cur?.guard) cur.guard(() => setPanel(null));
     else setPanel(null);
   }, []);
-  /* Today's task rows, published by the Board's host while it is mounted: a card in the panel reads them live. */
-  const [dayRows, setDayRows] = useState<readonly TaskRow[] | null>(null);
-  const publishDayRows = useCallback((rows: readonly TaskRow[] | null) => setDayRows(rows), []);
+  /* Today's wipe-chore rows and Relay's floor, published while they are mounted: a card in the panel reads them live. */
+  const [wipeRows, setWipeRows] = useState<readonly TaskRow[] | null>(null);
+  const publishWipeRows = useCallback((rows: readonly TaskRow[] | null) => setWipeRows(rows), []);
+  const [floorReads, setFloorReads] = useState<FloorReads | null>(null);
+  const publishFloorReads = useCallback((reads: FloorReads | null) => setFloorReads(reads), []);
 
   // A card's door to one of Relay's tabs (the Board's Mine door ends with the
   // way to Mine), through the same guarded move as the header's.
@@ -304,8 +306,10 @@ export function MyStudioView({
       openRelayTab,
       openAsk,
       slots,
-      dayRows,
-      publishDayRows,
+      wipeRows,
+      publishWipeRows,
+      floorReads,
+      publishFloorReads,
       openCatalogMachine: onOpenCatalogMachine,
     }),
     [
@@ -328,8 +332,10 @@ export function MyStudioView({
       openRelayTab,
       openAsk,
       slots,
-      dayRows,
-      publishDayRows,
+      wipeRows,
+      publishWipeRows,
+      floorReads,
+      publishFloorReads,
       onOpenCatalogMachine,
     ],
   );
