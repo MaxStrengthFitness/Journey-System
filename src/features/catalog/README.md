@@ -150,7 +150,9 @@ administrators in the catalog editor, not in code. The round is
   models (`MovementModels`: name, dials, note — never how many floors have
   one). **Never a guess**: a unit says a model only when its entry names one
   by id and that record was read. **Nothing until the collection exists**:
-  the floor reads the collection only when one of its units names a model,
+  the floor reads the collection only when one of its units names a model
+  or is a catalog copy that takes its Imagine Strength size on the floor's
+  map (the studio map's `sizeNeedsModels`, Oct 12 2026),
   All MSF only while a page is open, and an unreadable read draws nothing.
   Find knows a unit by its model's name, and the model's maker filters the
   floor where the studio recorded none on the unit.
