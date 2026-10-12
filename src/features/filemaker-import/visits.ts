@@ -33,7 +33,8 @@
  * ONE VISIT is a client's entries on one day (AJ, Oct 12 2026: the date is
  * the visit's key). The order they were done in is FileMaker's WorkoutOrder,
  * ties and gaps broken by the sheet's row order. The same machine twice on
- * one day keeps the first entry and holds the second back.
+ * one day keeps the first entry with something on it and holds a second
+ * such entry back; a blank entry never displaces one.
  */
 
 import type { WorkoutLine } from "./records";
@@ -107,7 +108,17 @@ export interface Visit {
   repeats: WorkoutLine[];
 }
 
-/** One client's entries as visits, oldest first. Entries with no day are returned apart. */
+/** An entry with nothing on it: no weight, no count, no next time, no cell that failed to read. */
+function isBlank(line: WorkoutLine): boolean {
+  return line.weight === null && line.reps === null && line.nextWeight === null && line.problems.length === 0;
+}
+
+/**
+ * One client's entries as visits, oldest first. Entries with no day are
+ * returned apart. The same machine twice on a day keeps the first entry with
+ * something on it; a second entry with something on it too is a repeat, held
+ * back, and a blank one is dropped (it says nothing either way).
+ */
 export function groupVisits(lines: readonly WorkoutLine[]): { visits: Visit[]; undated: WorkoutLine[] } {
   const byDay = new Map<string, WorkoutLine[]>();
   const undated: WorkoutLine[] = [];
@@ -123,16 +134,21 @@ export function groupVisits(lines: readonly WorkoutLine[]): { visits: Visit[]; u
     const sorted = [...byDay.get(day)!].sort(
       (a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.row - b.row,
     );
-    const seen = new Set<string>();
+    const seen = new Map<string, number>();
     const kept: WorkoutLine[] = [];
     const repeats: WorkoutLine[] = [];
     for (const line of sorted) {
       const key = line.machine.toLowerCase();
-      if (key && seen.has(key)) repeats.push(line);
-      else {
-        seen.add(key);
+      const at = key ? seen.get(key) : undefined;
+      if (at === undefined) {
+        if (key) seen.set(key, kept.length);
         kept.push(line);
-      }
+      } else if (isBlank(line)) {
+        // Nothing written a second time: nothing to keep or weigh.
+      } else if (isBlank(kept[at])) {
+        // The entry with something on it takes the blank one's place (the biggest sample's Cx, Apr 3 2026).
+        kept[at] = line;
+      } else repeats.push(line);
     }
     visits.push({ day, lines: kept, repeats });
   }
@@ -207,7 +223,8 @@ export function findingsOf(
       if (!line.machine) add("held", "An entry with no machine", `${visit.day} row ${line.row}`);
       const reading = readSet(line, perSide(line.machine, visit.day));
       if (reading.kind === "unclear") add("held", "A count that can't be read safely", `${where(line)}: ${reading.why}`);
-      if (reading.kind === "empty") add("held", "An entry with nothing on it", where(line));
+      // Nothing to fix and nothing to import: the visit imports without it (the biggest sample has 81).
+      if (reading.kind === "empty") add("handled", "A machine with nothing written (left out; the visit imports)", where(line));
       if (reading.kind !== "not-performed" && reading.kind !== "empty" && reading.kind !== "unclear" && !line.weight) {
         add("look", "Done with no weight written", where(line));
       }

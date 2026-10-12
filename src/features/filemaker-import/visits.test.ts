@@ -72,6 +72,19 @@ describe("visits", () => {
     expect(visits[0].lines.map((l) => l.machine)).toEqual(["Chest fly", "Seated Dip"]);
     expect(visits[0].repeats.map((l) => l.order)).toEqual([7]);
   });
+
+  it("never lets a blank entry push out the same machine's entry with something on it", () => {
+    // The biggest sample (Willoughby): Cx entered blank first, then with its weight, on one day.
+    const { visits } = groupVisits([
+      line("2026-04-03", "Cx", 1, null, null),
+      line("2026-04-03", "Cx", 1, 34, null),
+      line("2026-04-03", "Leg Press Nt", 3, 250, null),
+      line("2026-04-03", "Leg Press Nt", 4, null, null),
+    ]);
+    expect(visits[0].lines.map((l) => [l.machine, l.weight])).toEqual([["Cx", 34], ["Leg Press Nt", 250]]);
+    expect(visits[0].repeats).toEqual([]);
+    expect(findingsOf(visits, [], () => false).filter((f) => f.level === "held")).toEqual([]);
+  });
 });
 
 describe("findings", () => {
@@ -93,6 +106,12 @@ describe("findings", () => {
     expect(byWhat(/can't be read safely/)[0]).toMatchObject({ level: "held", where: expect.stringContaining("Lumbar") });
     expect(byWhat(/skip/)[0]).toMatchObject({ level: "handled", where: "2026-08-14: 1, 2, 4, 5" });
     expect(byWhat(/one or two machines/)[0]).toMatchObject({ level: "look", where: expect.stringContaining("2026-02-20") });
+  });
+
+  it("calls a machine with nothing written handled, not something to fix", () => {
+    const { visits } = groupVisits([line("2025-01-22", "Leg Press Nt", 1, 225, null), line("2025-01-22", "Cx", 2, null, null)]);
+    const blank = findingsOf(visits, [], none).filter((x) => /nothing written/.test(x.what));
+    expect(blank).toEqual([{ level: "handled", what: "A machine with nothing written (left out; the visit imports)", where: "2025-01-22 Cx" }]);
   });
 
   it("calls a big change in weight a thing to look at, unless FileMaker's next-time weight planned it", () => {

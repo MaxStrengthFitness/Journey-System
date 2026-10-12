@@ -30,7 +30,7 @@ AJ's answers and what the sample charts show (Oct 12 2026):
 | a decimal on Torso Rotation | left and right (two logs) | Solon: "7.6" is 7 left, 6 right; "9.11" is 9 and 11. |
 | 21 to 29, a decimal elsewhere, "7.1" (seven and one, or seven and ten: Excel drops a trailing zero), a side of 0 or above 20 | held back, said | can't be read safely |
 
-A **visit** is a client's entries on one day (AJ: the date is the key). The same machine twice on a day keeps the first. A visit where nothing was done (every machine 0, blank or unreadable) is left out: a session with no set done would count as a visit that wasn't one.
+A **visit** is a client's entries on one day (AJ: the date is the key). The same machine twice on a day keeps the first entry with something on it (a blank entry never pushes one out) and holds a second such entry back; a machine with nothing written is left out and the visit still imports. A visit where nothing was done (every machine 0, blank or unreadable) is left out: a session with no set done would count as a visit that wasn't one.
 
 ## What it writes
 
@@ -48,7 +48,7 @@ Every id is derived: a second run writes nothing it wrote before. The sessions g
 - **Imports a client Journey already holds sessions for.** Journey numbers its own from 1, and the imported numbers would clash: import before a client's first Journey session, after the pre-launch reset. Also left out, and said: a client whose earlier imported sessions are gone from the export (or after `--through`), and one whose numbering has moved since an earlier run.
 - **Imports a day Journey owns**: nothing after `--through` (the day before the studio's switch-over; a `--through` on or after it stops the run).
 - **Guesses a machine.** While any visit has a FileMaker name nobody has matched, the client waits whole (a gap in the numbers would be filled twice by Start, which numbers from the count); `--allow-waiting` writes the other clients. The draft table fills in only sure matches (the same name on the floor, or a movement's own name with one unit of it); "Leg Press Imag." beside "Leg Press Hoist" is a person's call.
-- **Writes to the real database in this round.** `PRODUCTION_IMPORT_READY` is false until the session screen stops reading a client's whole history at Start, every reader of reps understands `repsNotRecorded` (the round document's §6 lists them), and the pre-launch reset has run (after an import it would zero imported clients' counts). Until then `--commit` writes to the emulator only.
+- **Writes to the real database yet.** `PRODUCTION_IMPORT_READY` is false. The app side is ready since the history-ready round (Oct 12 2026: the session screen reads a window of a client's sessions, and every reader of reps understands "reps not recorded"). What is left is a person's: the pre-launch reset runs first (after an import it would zero imported clients' counts), the full export arrives with the trainer per visit, and AJ says go. Until then `--commit` writes to the emulator only.
 
 ## Numbering
 
