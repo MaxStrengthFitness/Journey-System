@@ -2064,8 +2064,17 @@ export function WorkoutTrackerView({
       const unsubscribeOpen = onSnapshot(
         openQuery,
         (snapshot) => {
-          openDocs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as WorkoutSession);
-          applySessions();
+          const next = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as WorkoutSession);
+          /* A session the window holds is the window's (applySessions), so an
+             answer about one changes nothing on screen: Start, every save to
+             the session and Finish answer on both listeners, and drawing the
+             screen a second time for each was the perf lab's +45 ms on
+             Briefing -> Now Bar. Only an open session outside the window,
+             there now or there before, is news. */
+          const inWindow = new Set((windowDocs ?? []).map((s) => s.id ?? ""));
+          const news = [...openDocs, ...next].some((s) => !inWindow.has(s.id ?? ""));
+          openDocs = next;
+          if (news) applySessions();
         },
         (error) => {
           handleFirestoreError(error, OperationType.GET, "sessions");
