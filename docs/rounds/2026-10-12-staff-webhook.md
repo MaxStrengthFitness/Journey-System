@@ -13,6 +13,21 @@ Cloud Functions change. His answer on Oct 12 2026: **"2 and 3 I will trust
 your decision please be sure!"** The decision was to fix it now, on its own
 branch, with a restore point, and for AJ to deploy it.
 
+## What you will see
+
+- **On the iPads: nothing.** Bookings show their trainers as before.
+- **Admins -> Home and Admins -> Machinery -> Limbo**, now and then: a row
+  with a **staff** badge. Its title says "Unknown Client" (Limbo names every
+  row by its client, and a staff update has none); the sentence under it says
+  whose staff number it is, why nothing was written, and what to do. Do that,
+  then press **Dismiss**. "Assign studio" doesn't apply to a staff row: it
+  stops with "This entry names no client".
+- **A trainer who works at studios on both sites** (westlake and Solon, say),
+  **or whose studios aren't linked to Mindbody**: their name, email and photo
+  from Mindbody stop refreshing, unless Mindbody's update carries the name
+  Journey has for them. The read-only check's list 3 names them before you
+  press GO.
+
 ## 2. What was wrong
 
 Mindbody numbers each site's staff separately. Journey has two sites today:
@@ -43,8 +58,9 @@ columns, the Calendar, the front door's "today" and Openings use it to decide
 whether a booking's staff number is this trainer's at this studio.
 
 **Does it happen today?** We don't know. A read-only check of production was
-not allowed to run from Claude's side. The numbers seen in the code
-(100000012, 100000020) are in the range both sites use, so it is likely. The
+not allowed to run from Claude's side. Both sites numbered their clients from
+the same starting point (that is why 43 client numbers collided on Sep 23),
+and staff are probably numbered the same way, so it may well happen. The
 change is built to be safe either way, and the ship script runs the read-only
 check for AJ before anything goes live (section 6).
 
@@ -78,8 +94,8 @@ Then, for an update from site S:
 
 Every Limbo row says why in plain words and what to do. For example: "No
 trainer whose studio is on Mindbody site 5746957 carries staff id 100000012.
-Link them in Edit Trainer -> Mindbody Staff ID; a webhook never creates a
-trainer account. A trainer at another site has the same number. Each site
+If this person works with us, link their Journey profile in Edit Trainer ->
+Mindbody Staff ID; a webhook never creates a trainer account. A trainer at another site has the same number. Each site
 numbers its own staff, so Journey can't tell it is the same person, and
 nothing was written to them."
 
@@ -99,7 +115,15 @@ counted it and saw a duplicate. Now it ignores it too.
 **One new index** (`trainers`: staff number, then "also works at"), so the
 booking's "also works here" question never reads more than it returns. It is
 deployed before the function; until it finishes building the question still
-answers correctly.
+answers correctly. The index guard (`firestore-indexes.test.ts`) does not
+hold this one in place: it counts a query as served by any index that leads
+with one of its equality fields, and the existing (staff number, home studio)
+index already does. Only the ship script's check (master's indexes plus
+exactly one) holds it for this ship; don't remove it in a later round.
+
+**The event's log is filed by the staff update's own site**, the one it was
+matched on, so an update whose site is spelled `SiteId` is filed under its
+studio too.
 
 ## 4. What is the same
 
@@ -135,9 +159,10 @@ answers correctly.
    there with the same number would be written onto them. That was true
    before too.
 5. **An update with no site keeps the old company-wide rule** (section 4).
-6. **Wrong details written before this fix stay** until someone relinks the
-   trainer or a matching update arrives. Parking repairs nothing. The
-   read-only check lists them.
+6. **Wrong details written before this fix stay** until Mindbody next sends
+   that trainer's own staff update with their name, which the new rule
+   writes onto them. Relinking in Edit Trainer changes only the number, not
+   the details already shown. The read-only check lists them (list 2).
 7. **Rules gap, not part of this fix:** the rules don't stop a trainer
    setting their own Mindbody staff number on their own profile (the app no
    longer offers it, but the rules allow it). A rules round should protect
@@ -211,15 +236,19 @@ iPads run.
 **After it is live (ten minutes):**
 - Firebase console -> Functions -> `mindbodyWebhook` -> Logs: no errors on
   the next bookings.
-- Admins -> Machinery -> Limbo: any new staff rows read as the sentences in
-  section 3.
+- Admins -> Machinery -> Limbo: any new staff rows (titled "Unknown Client",
+  with a staff badge) read as the sentences in section 3. Dismiss them once
+  handled.
 - Admins -> Machinery -> Mindbody sync: every studio healthy.
-- A booking made in Mindbody for a linked trainer shows their name on the Hub
-  within seconds.
+- The next booking the front desk makes or moves for a linked trainer shows
+  their name on the Hub within a minute. Don't make a booking just to test:
+  Mindbody may email the client.
 
 **To roll back the function** (the index needs no undo, the data needs
 none: nothing about what is stored changed), in PowerShell from the project
-folder:
+folder. The exact lines, with the date filled in, are printed at the end of
+golive and kept in `logs\ship-staff-webhook.log` in the branch's folder; copy
+them from there.
 
 ```
 git fetch origin --tags
@@ -232,4 +261,5 @@ npx firebase deploy --only functions:mindbodyWebhook --project prod
 
 (`npm ci` and `npm ci --prefix functions` in that folder do the same as the
 two links, more slowly.) Limbo rows written meanwhile stay; dismiss them in
-Admins -> Machinery -> Limbo. Reverting master is optional.
+Admins -> Machinery -> Limbo. After a rollback, tell Claude: master still has
+the fix, and the next functions deploy would put it back.

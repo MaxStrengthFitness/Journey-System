@@ -273,14 +273,14 @@ describe("decideStaffAtSite", () => {
 describe("staffLimboReason", () => {
   it("a site no studio is linked to", () => {
     expect(staffLimboReason({ kind: "unmapped-site" }, "12", "31337")).toBe(
-      "This staff update came from Mindbody site 31337, and no studio in Journey is linked to that site. Each site numbers its own staff, so staff id 12 can't be matched to a trainer. Nothing was written. If this site is one of ours, set its Mindbody Site ID in Admins -> Studios.",
+      "This staff update came from Mindbody site 31337, and no studio in Journey is linked to that site. Each site numbers its own staff, so staff id 12 can't be matched to a trainer. Nothing was written. If this site is one of ours, set its Mindbody Site ID on the studio's page: Admins -> Studios -> the studio -> Setup.",
     );
   });
 
   it("nobody on the site, with and without others elsewhere", () => {
     const none = staffLimboReason({ kind: "unlinked", elsewhere: 0 }, "12", "29068");
     expect(none).toBe(
-      "No trainer whose studio is on Mindbody site 29068 carries staff id 12. Link them in Edit Trainer -> Mindbody Staff ID; a webhook never creates a trainer account.",
+      "No trainer whose studio is on Mindbody site 29068 carries staff id 12. If this person works with us, link their Journey profile in Edit Trainer -> Mindbody Staff ID; a webhook never creates a trainer account.",
     );
     expect(staffLimboReason({ kind: "unlinked", elsewhere: 1 }, "12", "29068")).toBe(
       `${none} A trainer at another site has the same number. Each site numbers its own staff, so Journey can't tell it is the same person, and nothing was written to them.`,
@@ -316,6 +316,11 @@ describe("staffLimboReason", () => {
       "Mindbody staff id 12 on site 29068 matches Ann A, but they work at studios on more than one Mindbody site, and each site numbers its own staff, so Journey can't tell whether this is the same person. Nothing was written. An update that carries their name, spelled as it is in Journey, will match.",
     );
     expect(one("several-sites", false)).not.toContain("An update that carries their name");
+    expect(
+      one("several-sites", false).endsWith(
+        "Nothing was written. Check their staff id in Edit Trainer -> Mindbody Staff ID.",
+      ),
+    ).toBe(true);
     expect(one("echo-differs", true, { echoSite: "29068" })).toBe(
       "Mindbody staff id 12 on site 29068 matches Ann A, but their studios are on site 5746957 while the last staff update Journey matched to them came from site 29068, so Journey can't tell whether this is the same person. Nothing was written. An update that carries their name, spelled as it is in Journey, will match.",
     );

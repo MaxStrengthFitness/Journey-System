@@ -190,7 +190,7 @@ export function staffEventSite(parsed: Record<string, unknown>): string {
 export function normName(value: string): string {
   return value
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
@@ -326,9 +326,9 @@ export function staffLimboReason(
   const s = siteId;
   switch (resolution.kind) {
     case "unmapped-site":
-      return `This staff update came from Mindbody site ${s}, and no studio in Journey is linked to that site. Each site numbers its own staff, so staff id ${x} can't be matched to a trainer. Nothing was written. If this site is one of ours, set its Mindbody Site ID in Admins -> Studios.`;
+      return `This staff update came from Mindbody site ${s}, and no studio in Journey is linked to that site. Each site numbers its own staff, so staff id ${x} can't be matched to a trainer. Nothing was written. If this site is one of ours, set its Mindbody Site ID on the studio's page: Admins -> Studios -> the studio -> Setup.`;
     case "unlinked": {
-      const first = `No trainer whose studio is on Mindbody site ${s} carries staff id ${x}. Link them in Edit Trainer -> Mindbody Staff ID; a webhook never creates a trainer account.`;
+      const first = `No trainer whose studio is on Mindbody site ${s} carries staff id ${x}. If this person works with us, link their Journey profile in Edit Trainer -> Mindbody Staff ID; a webhook never creates a trainer account.`;
       if (resolution.elsewhere === 0) return first;
       const who =
         resolution.elsewhere === 1
@@ -358,7 +358,7 @@ export function staffLimboReason(
           ? " Give them a home studio that is linked to Mindbody (Edit Trainer), and the next staff update will match."
           : t.tied
             ? " An update that carries their name, spelled as it is in Journey, will match."
-            : "";
+            : " Check their staff id in Edit Trainer -> Mindbody Staff ID.";
       return `Mindbody staff id ${x} on site ${s} matches ${t.name}, but ${because}, so Journey can't tell whether this is the same person. Nothing was written.${hint}`;
     }
   }

@@ -15,8 +15,8 @@
  *   2. trainers whose Mindbody details disagree with them: the details came
  *      from a staff update for another staff id, or from another site. Those
  *      may be another person's name, email or photo, written by the old rule.
- *      Nothing repairs them by itself: a person clears them (relinking the
- *      trainer in Edit Trainer brings fresh details with the next update);
+ *      They stay until the trainer's next staff update from Mindbody,
+ *      carrying their name, replaces them (relinking alone does not);
  *   3. trainers with a staff id whose site Journey can't tell: their staff
  *      updates now wait in Limbo (Admins -> Machinery -> Limbo) instead of
  *      being written, unless the update carries the name Journey has for

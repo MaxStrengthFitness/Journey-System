@@ -1417,13 +1417,22 @@ export async function handleMindbodyWebhook(
               locationId,
               reason:
                 resolution.kind === "ambiguous"
-                  ? `Mindbody staff id ${staffId} is claimed by more than one trainer (${resolution.trainerIds.join(", ")}). Fix the duplicate in Admin -> Trainers; nothing was written.`
+                  ? `Mindbody staff id ${staffId} is claimed by more than one trainer (${resolution.trainerIds.join(", ")}). Fix the duplicate in Edit Trainer -> Mindbody Staff ID; nothing was written.`
                   : `No trainer carries Mindbody staff id ${staffId}. Link them in Edit Trainer -> Mindbody Staff ID; a webhook never creates a trainer account.`,
               summary: { staffId },
               payload: parsed,
             });
           }
         } else {
+          // The event's log is filed by the site the staff event was matched
+          // on (the handler's siteId reads lowercase eventData.siteId only).
+          // The studio list is cached; a failure only leaves the log unfiled.
+          try {
+            const filed = await resolveStudio(deps.firestore, eventSite, locationId);
+            if (filed.studioId) eventStudioId = filed.studioId;
+          } catch (error) {
+            console.warn("Mindbody webhook: could not name the staff event's studio for the log", { error: String(error) });
+          }
           const resolution = await resolveStaffAtSite(
             deps.firestore,
             staffId,

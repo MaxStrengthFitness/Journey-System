@@ -172,7 +172,15 @@ $MasterSha = (& git --no-optional-locks rev-parse origin/master).Trim()
 if ($LASTEXITCODE -ne 0) { Stop-Here "$Branch does not fast-forward master (master moved since the round was built). Ask Claude to bring master into the branch first." }
 
 $ahead = (& git --no-optional-locks rev-list --count "origin/master..$Branch").Trim()
-if ([int]$ahead -eq 0) { Log 'master already has everything on the branch. Nothing to ship.' 'Green'; exit 0 }
+if ([int]$ahead -eq 0) {
+  if ($Stage -eq 'golive') {
+    Log 'master already has this branch. If golive stopped at the function deploy, the LIVE webhook may still be the old one. To deploy it, from this folder:' 'Yellow'
+    Log "   npx firebase deploy --only $DeployFunction --project $Project" 'Yellow'
+    Log '(Never a plain --only functions.)' 'Yellow'
+    exit 0
+  }
+  Log 'master already has everything on the branch. Nothing to ship.' 'Green'; exit 0
+}
 Log "$ahead commit(s) will go to master:" 'Green'
 & git --no-optional-locks log --oneline "origin/master..$Branch" | ForEach-Object { Log "   $_" }
 
@@ -295,7 +303,7 @@ if ($key) {
   $chk.Output | Where-Object { "$_" -match '^(1\.|2\.|3\.|   |SUMMARY)' } | ForEach-Object { Write-Host "  $_" -ForegroundColor White }
   if ($chk.Code -ne 0) { Log 'The check did not finish (see the log). It is only a report; you may still go ahead.' 'Yellow' }
   Log 'List 3 is the trainers whose Mindbody staff updates will wait in Limbo from now on (their details stop refreshing; nothing wrong is written).' 'Yellow'
-  Log 'List 2 is details that may be someone else''s, from before the fix: relink those trainers in Edit Trainer afterwards.' 'Yellow'
+  Log 'List 2 is details that may be someone else''s, from before the fix. They correct themselves the next time Mindbody sends that trainer''s own update (with their name). Relinking in Edit Trainer only changes the number; it does not clear them. Ask Claude if any look wrong.' 'Yellow'
 } else {
   Log "No service-account.json in $Root or $MainRoot, so the read-only check was skipped. Run it later (docs\rounds\2026-10-12-staff-webhook.md section 6)." 'Yellow'
 }
@@ -360,7 +368,7 @@ Log 'NOW, BY HAND (ten minutes; docs\rounds\2026-10-12-staff-webhook.md section 
 Log '1. Firebase console -> Functions -> mindbodyWebhook -> Logs: no errors on the next bookings.' 'White'
 Log '2. Admins -> Machinery -> Limbo: any new staff rows read as plain sentences (who holds the number, and why nothing was written).' 'White'
 Log '3. Admins -> Machinery -> Mindbody sync: every studio healthy.' 'White'
-Log '4. Make or move a booking in Mindbody for a linked trainer: their name shows on the Hub within seconds.' 'White'
+Log '4. Watch the next booking the front desk makes or moves for a linked trainer: their name shows on the Hub within a minute. (Do not make a booking just to test; Mindbody may email the client.)' 'White'
 Log '5. Firebase console -> Firestore -> the named database -> Indexes: the new trainers index says Enabled (minutes).' 'White'
 Log '' 'White'
 Log "TO UNDO the function (the index needs no undo; nothing stored changed), in PowerShell from $MainRoot :" 'White'

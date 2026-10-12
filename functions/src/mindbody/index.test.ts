@@ -2072,6 +2072,11 @@ describe("handleMindbodyWebhook (Inline Upsert)", () => {
       expect(written.map((w) => w.id)).toEqual(["trainer-solon", "trainer-solon"]);
       expect(written.map((w) => w.data.mindbody.siteId)).toEqual(["5746957", "5746957"]);
       expect(writesTo("mindbodyLimbo")).toHaveLength(0);
+      // Each event's log is filed under the studio of the site it was matched on.
+      expect(vi.mocked(markEventDone).mock.calls.map((c) => (c[2] as { studioId: unknown }).studioId)).toEqual([
+        "studio-solon",
+        "studio-solon",
+      ]);
     });
 
     it("46. a claimed placeholder never makes its trainer look duplicated", async () => {
