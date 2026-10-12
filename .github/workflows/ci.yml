@@ -10,9 +10,9 @@ name: CI
 # commit if any of them fail.
 #
 # It does NOT deploy, does NOT touch Firebase, and does NOT need any secret.
-# Render still deploys from master on its own (render.yaml, autoDeployTrigger:
-# commit) and is not gated on this — deliberately, for now: a green tick that
-# blocks the studio's app from updating is worse than a red X you can read.
+# Render is not gated on it: a push deploys nothing (checked Oct 6 2026; Render
+# can't see the repo), and a person presses Manual Deploy on the web service
+# and Manual Build on both cron jobs. Look at this tick before pressing them.
 # Make it a required check once it has run clean for a week.
 
 on:
@@ -110,8 +110,15 @@ jobs:
           fi
           grep -E "error TS" tsc.log || true
 
+      # The suite is written for the studios' clock, as CLAUDE.md runs it
+      # (TZ=America/New_York): a test's local `new Date(y, m, d, h)` is a
+      # studio wall-clock time. GitHub's machines are on UTC, four hours off,
+      # and every push from the Calendar rooms round (Oct 11 2026) to Oct 12
+      # was red on six Calendar tests for that alone.
       - name: Test
         run: npm test
+        env:
+          TZ: America/New_York
 
       # The build is the step that catches what the other two cannot: a broken
       # CSS import, an asset that does not resolve, a lazy() chunk that cannot
