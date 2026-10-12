@@ -61,6 +61,10 @@ import { useStudioMachineNotes } from "./useStudioMachineNotes";
 import { useSectionState } from "./useSectionState";
 import type { CatalogMachine } from "./types";
 import { forgetOnSignOut } from "../sign-out/memory";
+import { useFloorPlan } from "../studio-map/hooks";
+import { reconcile } from "../studio-map/layout";
+import { usePhone } from "../phone/device";
+import { FloorRoomView } from "./FloorRoomView";
 import "./catalog.css";
 
 /**
@@ -162,9 +166,17 @@ interface FloorFilter {
  */
 let rememberedLens: CatalogLens | null = null;
 
+/**
+ * The floor lens as the map or the list (the studio map, Oct 2026): the list
+ * until the reader picks the map, then remembered until sign-out. The list is
+ * the Catalog's own way in; the map is the floor's.
+ */
+let rememberedFloorView: "map" | "list" = "list";
+
 // A sign-out is a fresh load for the next person (Sep 24 2026).
 forgetOnSignOut(() => {
   rememberedLens = null;
+  rememberedFloorView = "list";
 });
 
 export interface CatalogWikiViewProps {
@@ -206,7 +218,11 @@ export interface CatalogWikiViewProps {
    * then opens My Studio). Offered only to someone who leads here
    * (`leadsHere`); absent, no door is drawn at all. Never a second editor.
    */
-  onOpenFloorEditor?: () => void;
+  /**
+   * `"arrange"` (the studio map, Oct 2026): straight into Arrange the floor,
+   * the leaders' editor on My Studio → Machines, for Draw the floor here.
+   */
+  onOpenFloorEditor?: (view?: "map" | "list" | "arrange") => void;
 }
 
 export function CatalogWikiView({
@@ -250,6 +266,13 @@ export function CatalogWikiView({
     setScopeState(next);
   };
   const [route, setRoute] = useState<Route>({ kind: "index" });
+  // The floor as the map or the list (the studio map, Oct 2026).
+  const phone = usePhone();
+  const [floorView, setFloorViewState] = useState<"map" | "list">(() => rememberedFloorView);
+  const setFloorView = (next: "map" | "list") => {
+    rememberedFloorView = next;
+    setFloorViewState(next);
+  };
   // The part of the body the body lens is on (Catalog R3).
   const [regionId, setRegionId] = useState<string | null>(null);
   // Find, on top of the floor (Catalog R1), and what it narrowed the floor to.
@@ -291,8 +314,8 @@ export function CatalogWikiView({
   const canManageFloor = canWriteStudioPages(authTrainer ?? null, activeStudioId);
   // The floor editor's door: for someone who runs this studio (leadsHere is
   // the one answer), and only when the host gave us somewhere to go.
-  const floorEditorDoor =
-    onOpenFloorEditor && leadsHere(authTrainer ?? null, activeStudioId) ? onOpenFloorEditor : null;
+  const leadsThisStudio = leadsHere(authTrainer ?? null, activeStudioId);
+  const floorEditorDoor = onOpenFloorEditor && leadsThisStudio ? () => onOpenFloorEditor() : null;
   const uid = auth.currentUser?.uid ?? null;
   const [sharing, setSharing] = useState<string | null>(null);
 
@@ -445,6 +468,26 @@ export function CatalogWikiView({
     }
     return out;
   }, [floorMachines, modelRecords]);
+
+  /*
+   * The studio's map (the studio map, Oct 2026): one document read while the
+   * floor lens is open on an iPad. The map is offered only once it is ready
+   * with at least one of the floor's machines on it; until then, and on a
+   * phone, the floor is the list.
+   */
+  const layout = useFloorPlan(activeStudioId, { enabled: scope === "floor" && !phone && floorState === "ready" });
+  const placedOnMap = useMemo(
+    () =>
+      layout.state === "ready" && layout.plan
+        ? reconcile(layout.plan, floorMachines.map((m) => ({ machineId: m.id, name: m.name, code: "", status: m.rosterStatus }))).placed.length
+        : 0,
+    [layout.state, layout.plan, floorMachines],
+  );
+  const mapReady = !phone && floorState === "ready" && placedOnMap > 0;
+  const shownFloorView = mapReady ? floorView : "list";
+  // A leader whose studio has no map yet: Draw the floor, straight into the editor.
+  const drawFloorDoor =
+    onOpenFloorEditor && leadsThisStudio && !phone && floorState === "ready" && layout.state === "empty" ? () => onOpenFloorEditor("arrange") : null;
 
   /* Find (Catalog R1): every name a machine goes by, over this floor. */
   const findUnits = useMemo(
@@ -801,9 +844,44 @@ export function CatalogWikiView({
     setRoute({ kind: "index" });
   };
 
+  const floorList = (
+    <ol className="mcat-floor" aria-label={`${studioName}'s floor, in walking order`}>
+      {shown.map((m) => (
+        <FloorRow
+          key={m.id}
+          walk={floorMachines.indexOf(m) + 1}
+          machine={m}
+          preset={presetOf(m, settingsByMachineId[m.id])}
+          flagged={Boolean(flaggedIds?.has(m.id))}
+          model={modelOf(m)}
+          onOpen={() => openMachine(m.id)}
+        />
+      ))}
+    </ol>
+  );
+  // Find's narrowing on the map: the machines it left out are drawn faint (the AED and extinguisher never are).
+  const dimIds = floorFilter ? new Set(floorMachines.filter((m) => !floorFilter.unitIds.includes(m.id)).map((m) => m.id)) : undefined;
+
   return (
     <WikiShell crumbs={[{ label: "Catalog" }]}>
-      <WikiIndexHeader lead={scopeSwitch} title={`${studioName}'s floor`} subtitle={subtitle} />
+      <WikiIndexHeader
+        lead={
+          <>
+            {scopeSwitch}
+            {mapReady && (
+              <div className="mcat-lens" role="group" aria-label="The floor as">
+                {FLOOR_VIEWS.map(([id, word]) => (
+                  <button key={id} type="button" className="mcat-lens__btn" aria-pressed={shownFloorView === id} onClick={() => setFloorView(id)}>
+                    <span className="mcat-lens__label">{word}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        }
+        title={`${studioName}'s floor`}
+        subtitle={subtitle}
+      />
 
       {/* Find knows the MSF movements as well as this floor, so it stays on
           an empty floor (a movement there opens in All MSF). Not on an
@@ -865,20 +943,19 @@ export function CatalogWikiView({
         </div>
       )}
 
-      {floorState === "ready" && !findResult && (
-        <ol className="mcat-floor" aria-label={`${studioName}'s floor, in walking order`}>
-          {shown.map((m) => (
-            <FloorRow
-              key={m.id}
-              walk={floorMachines.indexOf(m) + 1}
-              machine={m}
-              preset={presetOf(m, settingsByMachineId[m.id])}
-              flagged={Boolean(flaggedIds?.has(m.id))}
-              model={modelOf(m)}
-              onOpen={() => openMachine(m.id)}
-            />
-          ))}
-        </ol>
+      {floorState === "ready" && !findResult && shownFloorView === "map" && layout.plan ? (
+        <FloorRoomView
+          studioName={studioName}
+          plan={layout.plan}
+          machines={floorMachines}
+          models={modelsRead}
+          dimIds={dimIds}
+          onOpenMachine={openMachine}
+          onList={() => setFloorView("list")}
+          list={floorList}
+        />
+      ) : (
+        floorState === "ready" && !findResult && floorList
       )}
 
       {/* The one editor of the floor is My Studio → Machines: this is a door
@@ -889,6 +966,12 @@ export function CatalogWikiView({
           <button type="button" className="mcat-door" onClick={floorEditorDoor}>
             Edit our floor
           </button>
+          {/* No map yet (the studio map, Oct 2026): the leader's editor is one tap away. */}
+          {drawFloorDoor && (
+            <button type="button" className="mcat-door" onClick={drawFloorDoor}>
+              Draw the floor
+            </button>
+          )}
           <span className="mcat-floor-edit__where">On My Studio → Machines: the walking order, what is on the floor, each unit's set-up.</span>
         </div>
       )}
@@ -897,4 +980,8 @@ export function CatalogWikiView({
 }
 
 const NO_MACHINES: CatalogMachine[] = [];
+const FLOOR_VIEWS = [
+  ["map", "Map"],
+  ["list", "List"],
+] as const;
 const NO_ALIASES: Record<string, string[]> = {};

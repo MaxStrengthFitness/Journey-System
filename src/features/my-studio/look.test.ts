@@ -204,6 +204,8 @@ const NAME_CLASSES = [
   "smap-item__name",
   "smap-sizes__name",
   "smap-list__name",
+  // Phase 3: a remodel plan's tab.
+  "smap-tabs__name",
 ] as const;
 
 describe("names in My Studio", () => {
@@ -323,6 +325,8 @@ const TAP_CLASSES = [
   "smap-palette__chip",
   "smap-sizes__tick",
   "smap-list__row",
+  // Phase 3: The map and its remodel plans.
+  "smap-tabs__btn",
 ] as const;
 
 const px = (v: string) => (/^\d+(?:\.\d+)?px$/.test(v.trim()) ? parseFloat(v) : null);

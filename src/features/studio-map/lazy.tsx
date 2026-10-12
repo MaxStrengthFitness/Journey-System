@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { LoadBoundary } from "../new-version/LoadBoundary";
 import type { LayoutViewProps } from "./ui/types";
+import type { StudioRoomProps } from "./ui/StudioRoom";
 import "./studio-map.css";
 
 /**
@@ -25,4 +26,21 @@ export function LazyLayoutView(props: LayoutViewProps) {
   );
 }
 
-export type { LayoutViewProps };
+const StudioRoom = lazy(() => import("./ui/StudioRoom"));
+
+/**
+ * The bare drawing, for a door that draws the map without the editor (the
+ * Catalog's floor lens). The chunk is fetched the first time a map is shown;
+ * a deploy that removed it says so in the panel, never over the page.
+ */
+export function LazyStudioRoom({ onDone, ...props }: StudioRoomProps & { /** The way back to the list, should the drawing's file be gone. */ onDone: () => void }) {
+  return (
+    <LoadBoundary kind="panel" where="screen" panel="The map" onDone={onDone}>
+      <Suspense fallback={<p className="smap-quiet">Loading the map…</p>}>
+        <StudioRoom {...props} />
+      </Suspense>
+    </LoadBoundary>
+  );
+}
+
+export type { LayoutViewProps, StudioRoomProps };

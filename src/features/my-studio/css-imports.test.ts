@@ -68,6 +68,11 @@ const HOSTS = [
   "features/studio-map/ui/ItemPanel.tsx",
   "features/studio-map/ui/MovePad.tsx",
   "features/studio-map/ui/SizesSheet.tsx",
+  // Phase 3: the remodel plans' tabs and the sheet for a machine to buy, and
+  // the Catalog's map, mounted outside My Studio's shell.
+  "features/studio-map/ui/DraftTabs.tsx",
+  "features/studio-map/ui/PlanMachineSheet.tsx",
+  "features/catalog/FloorRoomView.tsx",
 ] as const;
 
 /**

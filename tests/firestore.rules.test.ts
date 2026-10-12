@@ -9114,6 +9114,75 @@ describe("the franchise partition: an owner runs their own studios and no other"
         await assertFails(setDoc(fp(leader, A), plan("leaderA", 2, { retired: true })));
       });
 
+      // Make this the map (store.ts useThisLayout): one batch, every write at its document's rev + 1.
+      const toBuy = (i: number) => ({ kind: "planned", id: `pm-${i}`, label: "Hip Abductor", movementId: "m-hip-abd", modelId: null, x: 9000 + i, y: 6000, rotationDeg: 0 });
+      const DRAFTED = [{ machineId: LP, x: 4000, y: 4000, rotationDeg: 90 }];
+      const read = async (id: string) => (await getDoc(fp(ctx("leaderA"), A, id))).data();
+
+      it("P17: makes a plan with nothing to buy the map: the map at rev + 1, the plan's slot keeping the old map", async () => {
+        await seed(A, "current", 3);
+        await seed(A, "d-1", 2, { name: "Remodel 1", placements: DRAFTED });
+        const db = ctx("leaderA");
+        const b = writeBatch(db);
+        b.set(fp(db, A), plan("leaderA", 4, { placements: DRAFTED }));
+        b.set(fp(db, A, "d-1"), plan("leaderA", 3, { name: "Before Oct 12, 3:40 PM" }));
+        await assertSucceeds(b.commit());
+        expect((await read("current"))?.rev).toBe(4);
+        expect((await read("current"))?.placements).toEqual(DRAFTED);
+        expect((await read("d-1"))?.placements).toEqual(PLACED);
+      });
+
+      it("P17a: with machines still to buy: the map takes the floor's machines only, the plan keeps its own, a free slot keeps the old map", async () => {
+        await seed(A, "current", 3);
+        const drafted = [...DRAFTED, toBuy(1), toBuy(2)];
+        await seed(A, "d-1", 2, { name: "Remodel 1", placements: drafted });
+        const db = ctx("leaderA");
+        const b = writeBatch(db);
+        b.set(fp(db, A), plan("leaderA", 4, { placements: DRAFTED }));
+        b.set(fp(db, A, "d-1"), plan("leaderA", 3, { name: "Remodel 1", placements: drafted }));
+        b.set(fp(db, A, "d-2"), plan("leaderA", 1, { name: "Before Oct 12, 3:40 PM" }));
+        await assertSucceeds(b.commit());
+        expect((await read("current"))?.placements).toEqual(DRAFTED);
+        expect((await read("d-1"))?.placements).toHaveLength(3);
+        expect((await read("d-2"))?.rev).toBe(1);
+      });
+
+      it("P18: refuses the whole batch from a stale map, a plan saved in between, or a Before slot taken in between", async () => {
+        const drafted = [...DRAFTED, toBuy(1)];
+        const batch = (db: Db) => {
+          const b = writeBatch(db);
+          b.set(fp(db, A), plan("leaderA", 4, { placements: DRAFTED }));
+          b.set(fp(db, A, "d-1"), plan("leaderA", 3, { name: "Remodel 1", placements: drafted }));
+          b.set(fp(db, A, "d-2"), plan("leaderA", 1, { name: "Before Oct 12, 3:40 PM" }));
+          return b.commit();
+        };
+        // Another leader saved the map in between (it stands at 4, not 3).
+        await seed(A, "current", 4);
+        await seed(A, "d-1", 2, { name: "Remodel 1", placements: drafted });
+        await assertFails(batch(ctx("leaderA")));
+        expect((await read("d-1"))?.rev).toBe(2);
+        expect((await read("d-2"))).toBeUndefined();
+        // The grant saved the plan in between.
+        await seed(A, "current", 3);
+        await assertSucceeds(setDoc(fp(ctx("grantA2"), A, "d-1"), plan("grantA2", 3, { name: "Remodel 1", placements: drafted })));
+        await assertFails(batch(ctx("leaderA")));
+        expect((await read("current"))?.rev).toBe(3);
+        // Another leader took the free slot in between.
+        await seed(A, "d-1", 2, { name: "Remodel 1", placements: drafted });
+        await assertSucceeds(setDoc(fp(ctx("grantA2"), A, "d-2"), plan("grantA2", 1, { name: "Remodel 2" })));
+        await assertFails(batch(ctx("leaderA")));
+        expect((await read("current"))?.rev).toBe(3);
+        expect((await read("d-1"))?.rev).toBe(2);
+        expect((await read("d-2"))?.name).toBe("Remodel 2");
+      });
+
+      it("P23: a plan holds 30 machines still to buy beside 90 of the floor's", async () => {
+        const units = Array.from({ length: 90 }, (_, i) => ({ machineId: `m-${i}`, x: 1000 + i, y: 1000, rotationDeg: 0 }));
+        await assertSucceeds(
+          setDoc(fp(ctx("leaderA"), A, "d-1"), plan("leaderA", 1, { name: "Remodel 1", placements: [...units, ...Array.from({ length: 30 }, (_, i) => toBuy(i))] })),
+        );
+      });
+
       it("P19, P20: lets anyone with a trainer document arrange the Demo Mode floor, in its slots only", async () => {
         const demo = ctx("demoTrainer");
         await assertSucceeds(setDoc(fp(demo, DEMO), plan("demoTrainer", 1)));
@@ -9185,6 +9254,47 @@ describe("the franchise partition: an owner runs their own studios and no other"
           });
         });
         await assertSucceeds(measured("floorPlans read: guestA", () => getDoc(doc(ctx("guestA"), "studios", A, "floorPlans", "current"))));
+      }, BUDGET_TIMEOUT);
+
+      it("B5: fits Make this the map at an owned studio, machines still to buy, the fullest documents (three writes)", async () => {
+        const room = {
+          areaSqFt: 20000,
+          boxes: Array.from({ length: 12 }, (_, i) => ({ id: `bx-${i + 1}`, x: i * 3048, y: 0, w: 3048, h: 3048 })),
+          places: Array.from({ length: 40 }, (_, i) => ({ id: `pc-${i}`, kind: "desk", x: i * 300, y: 300, w: 1000, h: 600, label: "l".repeat(40) })),
+        };
+        const units = Array.from({ length: 90 }, (_, i) => ({ machineId: `m-${"x".repeat(150)}-${i}`, x: i * 100, y: 2000, rotationDeg: 270 }));
+        const toBuy = Array.from({ length: 30 }, (_, i) => ({
+          kind: "planned",
+          id: `pm-${"y".repeat(30)}${i}`,
+          label: "p".repeat(60),
+          movementId: "m-hip-abd",
+          modelId: `mm-${"z".repeat(90)}`,
+          lengthMm: 1500,
+          widthMm: 1200,
+          x: i * 100,
+          y: 5000,
+          rotationDeg: 90,
+        }));
+        const full = (rev: number, name: string, placements: unknown[], by = "franchiseAB") => ({
+          v: 1,
+          name,
+          room,
+          placements,
+          rev,
+          updatedAt: serverTimestamp(),
+          updatedBy: by,
+        });
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const db = context.firestore();
+          await setDoc(doc(db, "studios", B, "floorPlans", "current"), { ...full(1, "The layout", units, "seed"), updatedAt: new Date("2026-10-01T12:00:00Z") });
+          await setDoc(doc(db, "studios", B, "floorPlans", "d-1"), { ...full(1, "Remodel 1", [...units, ...toBuy], "seed"), updatedAt: new Date("2026-10-01T12:00:00Z") });
+        });
+        const db = ctx("franchiseAB");
+        const b = writeBatch(db);
+        b.set(doc(db, "studios", B, "floorPlans", "current"), full(2, "The layout", units));
+        b.set(doc(db, "studios", B, "floorPlans", "d-1"), full(2, "Remodel 1", [...units, ...toBuy]));
+        b.set(doc(db, "studios", B, "floorPlans", "d-2"), full(1, "Before Oct 12, 3:40 PM", units));
+        await assertSucceeds(measured("floorPlans batch: franchiseAB at B, Make this the map with 30 to buy (three writes)", () => b.commit()));
       }, BUDGET_TIMEOUT);
 
       /** The four writes the app sends to a roster entry, one kind at a time, each as its store sends it. */

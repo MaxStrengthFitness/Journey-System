@@ -5,6 +5,7 @@ import type { NudgeDir } from "../placement";
 import { doorAlong } from "../room";
 import { ftIn, mmFromFtIn, parseFtIn, sizeLine } from "../units";
 import type { KnownSize } from "../../../types/machines";
+import type { SwapCandidate } from "../planned";
 import { MovePad } from "./MovePad";
 import "../../admin/admin.css";
 import "../studio-map.css";
@@ -21,6 +22,17 @@ export type PanelItem =
       /** Its overlap lines, the only place they are written. */
       lines: readonly string[];
     }
+  | {
+      /** A machine still to buy, on a remodel plan. */
+      kind: "planned";
+      id: string;
+      label: string;
+      size: KnownSize | null;
+      source: string;
+      lines: readonly string[];
+      /** Bought it? The floor's machines not placed yet, the same movement first. */
+      swap: { same: readonly SwapCandidate[]; other: readonly SwapCandidate[] };
+    }
   | { kind: "box"; box: RoomBox; index: number; canRemove: boolean }
   | { kind: "place"; place: RoomPlace };
 
@@ -35,6 +47,8 @@ export interface PanelActions {
   onLabel: (id: string, text: string) => void;
   onTypedPlace: (id: string, wMm: number, hMm: number) => void;
   onRemovePlace: (id: string) => void;
+  /** Bought it? The machine still to buy becomes this floor machine, at its spot and turn. */
+  onSwapIn: (plannedId: string, machineId: string) => void;
 }
 
 const feetOf = (mm: number) => String(Math.round(mm / 304.8));
@@ -162,6 +176,76 @@ function PlacePanel({ item, a }: { item: Extract<PanelItem, { kind: "place" }>; 
 }
 
 /**
+ * A MACHINE STILL TO BUY (the studio map, Oct 2026): its name (the leader's
+ * own words, 1 to 60), where its size came from, what it overlaps, its moves,
+ * and "Bought it? Swap in the real one" (Oct 11 reviews, A23): once the
+ * machine is on the floor list, the machines not placed yet are offered, the
+ * same movement first, and a pick puts that machine at the same spot and
+ * turn. Remove takes it off the plan; Undo brings it back.
+ */
+function PlannedPanel({ item, a }: { item: Extract<PanelItem, { kind: "planned" }>; a: PanelActions }) {
+  const [label, setLabel] = useState(item.label);
+  const [swapping, setSwapping] = useState(false);
+  const all = [...item.swap.same, ...item.swap.other];
+  const chip = (u: SwapCandidate) => (
+    <button key={u.machineId} type="button" className="smap-chip" onClick={() => a.onSwapIn(item.id, u.machineId)}>
+      <span className="smap-chip__name">{u.name}</span>
+    </button>
+  );
+  return (
+    <section className="smap-item" aria-label={`${item.label}, still to buy`}>
+      <p className="smap-item__name">{item.label}</p>
+      <p className="smap-item__meta">Still to buy</p>
+      {item.size && <p className="smap-item__meta">{sizeLine(item.size)}</p>}
+      <p className="smap-item__meta">{item.source}</p>
+      {item.lines.map((l) => (
+        <p key={l} className="smap-item__line">
+          {l}
+        </p>
+      ))}
+      <div className="smap-item__row">
+        <label className="smap-row-label" htmlFor={`smap-planned-name-${item.id}`}>
+          Name
+        </label>
+        <AdminInput
+          id={`smap-planned-name-${item.id}`}
+          maxLength={60}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          onBlur={() => a.onLabel(item.id, label)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") a.onLabel(item.id, label);
+          }}
+        />
+      </div>
+      {a.movable && <MovePad marker={!item.size} onTurn={a.onTurn} onToWall={a.onToWall} onNudge={a.onNudge} />}
+      <div className="smap-item__row">
+        <AdminButton aria-expanded={swapping} onClick={() => setSwapping((s) => !s)}>
+          Bought it? Swap in the real one
+        </AdminButton>
+        <AdminButton variant="ghost" onClick={a.onTakeOff}>
+          Remove
+        </AdminButton>
+      </div>
+      {swapping &&
+        (all.length === 0 ? (
+          <p className="smap-item__meta">Add it to the floor list first, then swap it in here.</p>
+        ) : (
+          <div className="smap-editor" role="group" aria-label="Which machine on the floor list it is">
+            {item.swap.same.length > 0 && <div className="smap-chips">{item.swap.same.map(chip)}</div>}
+            {item.swap.other.length > 0 && (
+              <>
+                {item.swap.same.length > 0 && <p className="smap-item__meta">Other machines not placed yet</p>}
+                <div className="smap-chips">{item.swap.other.map(chip)}</div>
+              </>
+            )}
+          </div>
+        ))}
+    </section>
+  );
+}
+
+/**
  * THE SELECTED THING (the studio map, Oct 2026): a machine (its name, its
  * size and where that came from, what it overlaps, and its moves), a box of
  * the room (its size typed, the way that never needs a drag), or a place
@@ -171,6 +255,7 @@ function PlacePanel({ item, a }: { item: Extract<PanelItem, { kind: "place" }>; 
 export function ItemPanel({ item, actions }: { item: PanelItem; actions: PanelActions }) {
   if (item.kind === "box") return <BoxPanel item={item} a={actions} />;
   if (item.kind === "place") return <PlacePanel item={item} a={actions} />;
+  if (item.kind === "planned") return <PlannedPanel item={item} a={actions} />;
   return (
     <section className="smap-item" aria-label={item.name}>
       <p className="smap-item__name">{item.name}</p>

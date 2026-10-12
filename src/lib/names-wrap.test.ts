@@ -77,6 +77,7 @@ const NAME_RULES: { file: string; cls: string; exact?: string; what: string }[] 
   { file: "features/studio-map/studio-map.css", cls: "smap-item__name", what: "the selected machine, box or place in the editor" },
   { file: "features/studio-map/studio-map.css", cls: "smap-sizes__name", what: "a machine on the Sizes sheet" },
   { file: "features/studio-map/studio-map.css", cls: "smap-list__name", what: "a machine in the floor's walking order beside the map" },
+  { file: "features/studio-map/studio-map.css", cls: "smap-tabs__name", what: "a remodel plan's name on its tab" },
   { file: "features/client-history/client-history.css", cls: "hsd-set__name", what: "a machine in the session pop-up" },
   { file: "features/trainer-profile/trainer-profile.css", cls: "tp-row__name", what: "a person or client on a My Profile row" },
   { file: "features/client-profile/profile-nav.css", cls: "psub__label", what: "a profile sub-tab's label (two words wrap, as its comment says)" },

@@ -111,7 +111,10 @@ describe("the setup checklist", () => {
   it("never says a floor it couldn't read is empty", () => {
     const failed = autoCheck("floor-machines", facts({ roster: { state: "failed" } }));
     expect(failed).toEqual({ state: "unknown", proof: "Couldn't read its floor just now." });
-    expect(autoCheck("floor-machines", facts({ roster: { state: "ok", onFloor: 0 } })).state).toBe("todo");
+    expect(autoCheck("floor-machines", facts({ roster: { state: "ok", onFloor: 0 } }))).toEqual({
+      state: "todo",
+      proof: "No machines on its floor yet: Floor → List adds the standard set.",
+    });
   });
 
   it("reads what a person did: a tick with who, a skip with its reason, an item they added", () => {

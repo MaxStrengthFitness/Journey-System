@@ -287,6 +287,7 @@ import { useClientMutations } from "./hooks/useClientMutations";
 // notes share.
 import { parseLearningRef, type LearningRef } from "./features/learning/ref";
 import { rememberMyStudioSection } from "./features/my-studio/section-memory";
+import { rememberArrange } from "./features/my-studio/machines-view-memory";
 import { AppBottomBar } from "./components/AppBottomBar";
 import { StatusBarStrip } from "./features/home-screen/StatusBarStrip";
 import { EnvironmentMark } from "./features/environment-mark/EnvironmentMark";
@@ -1789,8 +1790,10 @@ export default function AppContent({
                     // The Catalog's "Edit our floor": the ONE floor editor is
                     // My Studio → Machines, so the door remembers the section
                     // and opens My Studio (Catalog R5's door, Sep 29 2026).
-                    onOpenFloorEditor={() => {
+                    // Draw the floor (the studio map, Oct 2026) goes straight into Arrange the floor there.
+                    onOpenFloorEditor={(view) => {
                       rememberMyStudioSection("machines");
+                      if (view === "arrange") rememberArrange();
                       setCurrentView("studio-tasks");
                     }}
                   />

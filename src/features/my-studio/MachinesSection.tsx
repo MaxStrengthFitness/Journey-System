@@ -32,6 +32,7 @@ import { ContextPanel } from "../relay/board/ContextPanel";
 import { useRelayMaybe } from "../relay/board/RelayContext";
 import { leadsHere } from "../relay/leads";
 import { UnitSizeCard } from "../studio-map/ui/UnitSizeCard";
+import { takeArrange } from "./machines-view-memory";
 import { LazyLayoutView } from "../studio-map/lazy";
 import { usePhone } from "../phone/device";
 import { DEMO_STUDIO_ID } from "../demo-mode/constants";
@@ -167,7 +168,8 @@ export function MachinesSection({ authTrainer, trainers }: MachinesSectionProps)
   // and behind one button, in place of the floor list inside the same panel.
   // Leaving it while it holds unsaved work asks (its own leave scope).
   const phone = usePhone();
-  const [arranging, setArranging] = useState(false);
+  // The Catalog's Draw the floor sends a leader straight here (machines-view-memory.ts), taken once as this mounts.
+  const [arranging, setArranging] = useState(() => takeArrange() && canLead && !phone);
   const viewScope = useLeaveScope();
   const [seeding, setSeeding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);

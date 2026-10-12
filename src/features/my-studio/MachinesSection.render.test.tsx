@@ -123,6 +123,7 @@ import { ToastProvider } from "../../contexts/ToastContext";
 import { UnsavedChangesProvider } from "../unsaved-changes";
 import type { Trainer } from "../../types";
 import { MachinesSection } from "./MachinesSection";
+import { rememberArrange, takeArrange } from "./machines-view-memory";
 
 /** A trainer at Solon: she may write the floor's notes. */
 const SARA = { id: "t-sara", fullName: "Sara", role: "LifeTransformer", primaryHomeStudioId: "solon" } as unknown as Trainer;
@@ -295,5 +296,34 @@ describe("Arrange the floor (the studio map, phase 2)", () => {
       expect(host.querySelector('[data-testid="layout-editor"]')).toBeNull();
       expect(byText("Open Leg Press")).toBeTruthy();
     });
+
+    it("opens straight in the editor when the Catalog's Draw the floor sent the leader here, once", async () => {
+      await remount(() => rememberArrange());
+      expect(host.querySelector('[data-testid="layout-editor"]')?.textContent).toContain("Editing Solon's floor as a leader");
+      await remount();
+      expect(host.querySelector('[data-testid="layout-editor"]')).toBeNull();
+    });
+  });
+
+  it("never opens the editor for a trainer, even when a door asked for it", async () => {
+    await remount(() => rememberArrange());
+    expect(host.querySelector('[data-testid="layout-editor"]')).toBeNull();
+    expect(takeArrange()).toBe(false);
   });
 });
+
+/** Mount the section again, after `before` (a door that remembers where to land). */
+async function remount(before?: () => void) {
+  await act(async () => root.unmount());
+  before?.();
+  root = createRoot(host);
+  await act(async () => {
+    root.render(
+      <UnsavedChangesProvider>
+        <ToastProvider>
+          <MachinesSection authTrainer={SARA} />
+        </ToastProvider>
+      </UnsavedChangesProvider>,
+    );
+  });
+}

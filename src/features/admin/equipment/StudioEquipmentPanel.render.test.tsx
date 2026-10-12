@@ -52,9 +52,21 @@ vi.mock("../upkeep/useStudioUpkeep", () => ({ useStudioUpkeep: () => ({ events: 
 vi.mock("../upkeep/UpkeepDialog", () => ({ UpkeepDialog: () => null }));
 vi.mock("./seed", () => ({ seedStandardSet: async () => ({ added: 0, alreadyPresent: 0, duplicates: [] }) }));
 vi.mock("../machines/StudioInventoryManager", () => ({ StudioInventoryManager: () => null }));
+// Arrange the floor (the studio map, phase 3): the editor itself is the lazy chunk's, tested on its own.
+vi.mock("../../studio-map/lazy", () => ({
+  LazyLayoutView: ({ studioName, canLead, onDone }: { studioName: string; canLead: boolean; onDone: () => void }) => (
+    <div data-testid="arrange">
+      Arranging {studioName}'s floor{canLead ? "" : " (read only)"}
+      <button type="button" onClick={onDone}>
+        Done arranging
+      </button>
+    </div>
+  ),
+}));
+vi.mock("../../phone/device", () => ({ usePhone: () => false }));
 
 const { StudioEquipmentPanel } = await import("./StudioEquipmentPanel");
-import type { Studio } from "../../../types";
+import type { Studio, Trainer } from "../../../types";
 
 let host: HTMLDivElement;
 let root: Root;
@@ -64,12 +76,12 @@ afterEach(async () => {
   host.remove();
 });
 
-async function mount() {
+async function mount(authTrainer: Trainer | null = null) {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root.render(<StudioEquipmentPanel studio={{ id: "solon", name: "Solon" } as Studio} authTrainer={null} />);
+    root.render(<StudioEquipmentPanel studio={{ id: "solon", name: "Solon" } as Studio} authTrainer={authTrainer} />);
   });
 }
 
@@ -93,5 +105,27 @@ describe("the Equipment list on Admins → All locations", () => {
     expect(row("Solon Sled").textContent).toContain("This studio's own machine");
     expect(labels(row("Solon Sled"))).not.toContain("Local setup");
     expect(labels(row("Hip Sled"))).not.toContain("Local setup");
+  });
+});
+
+describe("Arrange the floor on Admins → a studio → Floor (the studio map, phase 3)", () => {
+  const admin = { id: "t-admin", authUid: "uid-admin", fullName: "Head Office", role: "Admin", studioId: "hq" } as unknown as Trainer;
+  const button = (text: string) => [...host.querySelectorAll("button")].find((b) => b.textContent?.trim() === text);
+
+  it("is an administrator's, and opens the same editor in place of the list, Done coming back", async () => {
+    await mount(admin);
+    expect(button("Arrange the floor")).toBeTruthy();
+    await act(async () => button("Arrange the floor")!.click());
+    expect(host.querySelector("[data-testid=arrange]")!.textContent).toContain("Arranging Solon's floor");
+    expect(host.querySelector("[data-testid=arrange]")!.textContent).not.toContain("read only");
+    expect(row("LEG PRESS")).toBeUndefined();
+    expect(button("Arrange the floor")).toBeUndefined();
+    await act(async () => button("Done arranging")!.click());
+    expect(row("LEG PRESS")).toBeTruthy();
+  });
+
+  it("is never offered to someone who doesn't lead the studio", async () => {
+    await mount(null);
+    expect(button("Arrange the floor")).toBeUndefined();
   });
 });

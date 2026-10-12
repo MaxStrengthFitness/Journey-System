@@ -15,6 +15,7 @@ import { footprint } from "../geometry";
 import { useFloorPlans } from "../hooks";
 import {
   CURRENT_ID,
+  DRAFT_SLOTS,
   draftNames,
   isPlanned,
   LAYOUT_NAME,
@@ -24,10 +25,13 @@ import {
   PLAN_LIMITS,
   planProblems,
   reconcile,
+  type DraftSlot,
   type LoadedPlan,
   type PlaceKind,
   type Placement,
+  type PlannedPlacement,
   type PlanPoint,
+  type PlanRoom,
   type RoomBox,
   type RoomPlace,
 } from "../layout";
@@ -37,11 +41,14 @@ import { practiceLayout } from "../demo-layout";
 import { areaWords, roomProblems, roomShape } from "../room";
 import { knownSizeOf, sizeOfUnit, sizeSourceWords, type UnitFacts } from "../sizes";
 import { PLAN_WORDS } from "../states";
-import { keepAsDraft, saveLayout } from "../store";
+import { keepAsDraft, saveLayout, tryAChange } from "../store";
+import { newPlanned, plannedKnownSize, plannedSizeOf, plannedSizeWords, stillToBuyWords, swapCandidates } from "../planned";
 import { pickAt, pickRoomItem, handlesFor, type TapTarget } from "../tap";
 import { listWords, sizeLine, sqFtWords } from "../units";
 import { frameOf, roomBounds, ZOOMS } from "./drawing";
+import { DraftTabs, type ShownContent } from "./DraftTabs";
 import { ItemPanel, type PanelActions, type PanelItem } from "./ItemPanel";
+import { PlanMachineSheet, type PlannedChoice } from "./PlanMachineSheet";
 import { SizesSheet } from "./SizesSheet";
 import { StudioRoom, type MapMachine, type RoomInteraction } from "./StudioRoom";
 import type { LayoutViewProps } from "./types";
@@ -94,10 +101,29 @@ const PLACE_GLYPHS: Record<PlaceKind, typeof Square> = {
   aed: HeartPulse,
 };
 
-/** The working copy for a stored layout, against the floor. */
-function workingOf(plan: LoadedPlan, floor: readonly { machineId: string; name: string; code: string; status: string }[]): Working {
-  const r = reconcile(plan, floor);
+/** The working copy for a stored layout (or what a write is about to make it), against the floor. */
+function workingOf(
+  plan: { room: PlanRoom; placements: readonly Placement[] },
+  floor: readonly { machineId: string; name: string; code: string; status: string }[],
+): Working {
+  const r = reconcile({ placements: [...plan.placements] }, floor);
   return { room: plan.room, placements: [...r.placed.map((p) => p.placement), ...r.planned], gone: r.gone };
+}
+
+/** The live slot behind a tab: the map, or a draft that isn't retired. */
+function docOf(plans: { current: LoadedPlan | null; slots: readonly LoadedPlan[] }, id: string): LoadedPlan | null {
+  if (id === CURRENT_ID) return plans.current;
+  return plans.slots.find((s) => s.id === id && !s.retired) ?? null;
+}
+
+/** The first slot free for a new plan, with the rev it holds now (null: never written). */
+function firstFree(slots: readonly LoadedPlan[]): { id: DraftSlot; baseRev: number | null } | null {
+  for (const id of DRAFT_SLOTS) {
+    const s = slots.find((d) => d.id === id);
+    if (!s) return { id, baseRev: null };
+    if (s.retired) return { id, baseRev: s.rev };
+  }
+  return null;
 }
 
 function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = () => null, onDone }: LayoutViewProps) {
@@ -139,7 +165,6 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
   }, [floor, entryById]);
   const sizeReads = useMemo(() => new Map(floor.map((m) => [m.machineId, sizeOfUnit(units[m.machineId], models)])), [floor, units, models]);
   const sizes = useMemo(() => new Map([...sizeReads].map(([id, r]) => [id, knownSizeOf(r)])), [sizeReads]);
-  const sizeOf = useCallback((id: string): KnownSize | null => sizes.get(id) ?? null, [sizes]);
   const sizesFloor = useMemo(() => floor.map((m) => ({ machineId: m.machineId, name: m.name, source: entryById.get(m.machineId)?.source ?? null })), [floor, entryById]);
 
   /* ── The working copy ───────────────────────────────────────────── */
@@ -149,26 +174,64 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
   }));
   const { working } = state;
   const current = plans.current;
+  // The tab open is the document the working copy came from: the map, or a remodel plan (a draft slot).
+  const openId = state.base.id;
+  const onDraft = openId !== CURRENT_ID;
+  const open = docOf(plans, openId);
   const floorKey = floorUnits.map((u) => u.machineId).join("|");
   // The latest of each, for a save's answer that comes back later.
-  const currentRef = useRef(current);
-  currentRef.current = current;
+  const plansRef = useRef(plans);
+  plansRef.current = plans;
   const stateRef = useRef(state);
   stateRef.current = state;
+  const floorRef = useRef(floorUnits);
+  floorRef.current = floorUnits;
   useEffect(() => {
-    if (!current) return;
-    dispatch({ type: "load", id: CURRENT_ID, rev: current.rev, working: workingOf(current, floorUnits) });
-    // The layout's rev, who wrote it and when, and the floor's machines are what change it. Who and when matter at the
-    // same rev: a refused save of ours is put back by the SDK to the other leader's document at the rev ours had
+    if (!open) return;
+    dispatch({ type: "load", id: open.id, rev: open.rev, working: workingOf(open, floorUnits) });
+    // The document's rev, who wrote it and when, and the floor's machines are what change it. Who and when matter at
+    // the same rev: a refused save of ours is put back by the SDK to the other leader's document at the rev ours had
     // claimed, and that copy must reach the screen (unless ours is still unsaved work there, which `load` keeps).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.rev, current?.updatedAtMs, current?.updatedBy, floorKey, plans.state]);
+  }, [open?.id, open?.rev, open?.updatedAtMs, open?.updatedBy, floorKey, plans.state]);
 
-  const discard = () => {
-    if (current) dispatch({ type: "load", id: CURRENT_ID, rev: current.rev, working: workingOf(current, floorUnits), force: true });
-    else dispatch({ type: "load", id: CURRENT_ID, rev: null, working: emptyWorking(EMPTY_ROOM), force: true });
-  };
-  useUnsavedChanges(state.dirty, "the layout", { onDiscard: discard });
+  /** Show a tab now: with what a write is about to give it, or as the listener has it. */
+  const showTab = useCallback((id: string, content: ShownContent | null) => {
+    const floor = floorRef.current;
+    if (content) {
+      dispatch({ type: "load", id, rev: content.rev, working: workingOf(content, floor), force: true });
+      return;
+    }
+    const doc = docOf(plansRef.current, id);
+    if (doc) dispatch({ type: "load", id, rev: doc.rev, working: workingOf(doc, floor), force: true });
+    else if (id === CURRENT_ID) dispatch({ type: "load", id, rev: null, working: emptyWorking(EMPTY_ROOM), force: true });
+  }, []);
+
+  // A plan another leader deleted while it was open here (and nothing typed on it): back to the map.
+  const seen = useRef(new Set<string>());
+  if (open) seen.current.add(open.id);
+  useEffect(() => {
+    if (onDraft && !open && seen.current.has(openId) && !state.dirty && plans.state === "ready") showTab(CURRENT_ID, null);
+  }, [onDraft, open, openId, state.dirty, plans.state, showTab]);
+
+  const discard = () => showTab(openId, null);
+  const { guard } = useUnsavedChanges(state.dirty, onDraft ? (open ? open.name : "the plan") : "the layout", { onDiscard: discard });
+
+  /* ── Machines still to buy: their sizes, looked up live ─────────── */
+  const plannedReads = useMemo(
+    () => new Map(working.placements.filter(isPlanned).map((p) => [p.id, plannedSizeOf(p, models)] as const)),
+    [working.placements, models],
+  );
+  const sizeOf = useCallback(
+    (id: string): KnownSize | null => {
+      if (kindOfId(id) === "planned") {
+        const r = plannedReads.get(id);
+        return r ? plannedKnownSize(r) : null;
+      }
+      return sizes.get(id) ?? null;
+    },
+    [sizes, plannedReads],
+  );
 
   /* ── The room's shape, worked out once per room change ──────────── */
   const shape = useMemo(() => roomShape(working.room.boxes), [working.room.boxes]);
@@ -233,7 +296,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
       const id = placementId(p);
       const placement = live && live.id === id ? (live.at as Placement) : p;
       if (isPlanned(p)) {
-        out.push({ id, name: p.label, code: "", placement, size: null, planned: true });
+        out.push({ id, name: p.label, code: "", placement, size: sizeOf(id), planned: true });
         continue;
       }
       const u = unitById.get(id);
@@ -374,40 +437,49 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
       return;
     }
     const copy = working;
+    const planId = openId;
     const baseRev = state.base.rev;
-    const problem = planProblems({ name: LAYOUT_NAME, room: copy.room, placements: [...copy.placements, ...copy.gone] }, { planId: CURRENT_ID })[0];
+    const name = planId === CURRENT_ID ? LAYOUT_NAME : (open?.name ?? draftNames.draft(planId as DraftSlot));
+    const problem = planProblems({ name, room: copy.room, placements: [...copy.placements, ...copy.gone] }, { planId })[0];
     if (problem) {
       toastError(problem);
       return;
     }
-    dispatch({ type: "saved", id: CURRENT_ID, rev: (baseRev ?? 0) + 1 });
+    dispatch({ type: "saved", id: planId, rev: (baseRev ?? 0) + 1 });
     setNote(null);
-    toastSuccess("Layout saved.");
+    toastSuccess(planId === CURRENT_ID ? "Layout saved." : `${name} saved.`);
+    // Still on the tab the save was made from: another tab's copy is never put back over this one.
+    const here = () => stateRef.current.base.id === planId;
     // Any refusal is final (nothing retries it), so what was sent is unsaved work again, against the rev it was
     // opened at: changes made since stay as they are; otherwise the copy that was sent comes back on screen, whatever
     // the listener showed in between.
     const putBack = () => {
+      if (!here()) return;
       if (stateRef.current.dirty) dispatch({ type: "unsaved", rev: baseRev });
-      else dispatch({ type: "load", id: CURRENT_ID, rev: baseRev, working: copy, force: true, dirty: true });
+      else dispatch({ type: "load", id: planId, rev: baseRev, working: copy, force: true, dirty: true });
     };
-    void saveLayout(studioId, CURRENT_ID, copy, LAYOUT_NAME, baseRev, authUid).then((out) => {
+    void saveLayout(studioId, planId, copy, name, baseRev, authUid).then((out) => {
       if (!("why" in out)) return;
       if (out.why === "changed") {
         const who = (out.by && nameOf(out.by)) || "Someone";
-        const name = draftNames.kept(authorName, Date.now());
-        void keepAsDraft(studioId, copy, name, plans.slots, authUid).then((kept) => {
+        const what = planId === CURRENT_ID ? "a newer layout" : `a newer copy of ${name}`;
+        const keptName = draftNames.kept(authorName, Date.now());
+        void keepAsDraft(studioId, copy, keptName, plansRef.current.slots, authUid).then((kept) => {
           if ("id" in kept) {
-            setNote(`${who} saved a newer layout, so yours was kept as a draft, “${name}”.`);
+            if (here()) setNote(`${who} saved ${what}, so yours was kept as a draft, “${keptName}”.`);
             // Yours is safe in the draft: the screen shows theirs, at their rev, unless you've changed it since.
-            const now = currentRef.current;
+            const now = docOf(plansRef.current, planId);
+            if (!here()) return;
             if (stateRef.current.dirty) dispatch({ type: "unsaved", rev: baseRev });
-            else if (now) dispatch({ type: "load", id: CURRENT_ID, rev: now.rev, working: workingOf(now, floorUnits), force: true });
+            else if (now) dispatch({ type: "load", id: planId, rev: now.rev, working: workingOf(now, floorRef.current), force: true });
           } else {
-            setNote(
-              "full" in kept
-                ? `${who} saved a newer layout, and all five drafts are in use, so yours is still on screen.`
-                : `${who} saved a newer layout, and yours couldn't be kept as a draft, so it's still on screen.`,
-            );
+            if (here()) {
+              setNote(
+                "full" in kept
+                  ? `${who} saved ${what}, and all five drafts are in use, so yours is still on screen.`
+                  : `${who} saved ${what}, and yours couldn't be kept as a draft, so it's still on screen.`,
+              );
+            }
             putBack();
           }
         });
@@ -418,6 +490,52 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
       else if (out.why === "unchecked") toastError("The layout wasn't saved, and Journey couldn't check why. It's still on screen: tap Save to try again.");
       else toastError("The layout wasn't saved. Only a studio leader arranges the floor.");
     });
+  };
+
+  /* ── Plan a remodel: what is on screen, into a free slot ─────────── */
+  const planRemodel = () => {
+    if (!authUid) {
+      toastError("Sign in again to plan a remodel.");
+      return;
+    }
+    const slot = firstFree(plans.slots);
+    if (!slot) {
+      toastError("Five plans is the most. Make one the map or delete one first.");
+      return;
+    }
+    const copy = working;
+    const name = draftNames.draft(slot.id);
+    const rev = slot.baseRev === null ? 1 : slot.baseRev + 1;
+    const carried = state.dirty;
+    void tryAChange(studioId, copy, plans.slots, authUid).then((out) => {
+      if (!("why" in out)) {
+        // Another leader took that slot at the same moment: the copy went to the next one.
+        if (out.id && out.id !== slot.id && stateRef.current.base.id === slot.id && !stateRef.current.dirty) showTab(out.id, null);
+        return;
+      }
+      if (out.why === "invalid") toastError(out.problem);
+      else if (out.why === "full") toastError("Five plans is the most. Make one the map or delete one first.");
+      else toastError(`${name} wasn't saved. It's still on screen: tap Save to keep it.`);
+      if (stateRef.current.base.id === slot.id) dispatch({ type: "unsaved", rev: slot.baseRev });
+    });
+    dispatch({ type: "load", id: slot.id, rev, working: copy, force: true });
+    setNote(null);
+    toastSuccess(carried ? `${name} holds the changes that were on screen. The map is as it was saved.` : `${name} started from what was on screen. The map hasn't changed.`);
+  };
+
+  /* ── Add a machine to buy (a remodel plan only) ─────────────────── */
+  const [buyOpen, setBuyOpen] = useState(false);
+  const buyGuard = useRef<((proceed: () => void) => void) | null>(null);
+  const closeBuy = () => (buyGuard.current ? buyGuard.current(() => setBuyOpen(false)) : setBuyOpen(false));
+  const addToBuy = (c: PlannedChoice) => {
+    setBuyOpen(false);
+    const draftOf = (at: PlanPoint): PlannedPlacement => newPlanned({ ...c, at });
+    const probe = draftOf({ x: 0, y: 0 });
+    const size = plannedKnownSize(plannedSizeOf(probe, models));
+    const spot = freeSpot({ shape, places: working.room.places, placed: placedFootprints(), markers: markerCentres(), size }, probe.id);
+    const at = spot ?? middleOf(shape, probe.id);
+    dispatch({ type: "addPlanned", planned: { ...probe, x: at.x, y: at.y, rotationDeg: at.rotationDeg } });
+    if (!spot) toast("No clear spot: placed in the middle. Move it where it goes.", "info");
   };
 
   /* ── Placing a machine not placed yet ───────────────────────────── */
@@ -471,6 +589,23 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
   } else if (sel && selKind === "place") {
     const p = working.room.places.find((x) => x.id === sel);
     if (p) panel = { kind: "place", place: p };
+  } else if (sel && selKind === "planned") {
+    const p = working.placements.find((x): x is PlannedPlacement => isPlanned(x) && x.id === sel);
+    const read = plannedReads.get(sel);
+    if (p && read) {
+      panel = {
+        kind: "planned",
+        id: sel,
+        label: p.label,
+        size: plannedKnownSize(read),
+        source: plannedSizeWords(p, read, models),
+        lines: (checks.linesById.get(sel) ?? []).map((l) => l.text),
+        swap: swapCandidates(
+          p,
+          unplaced.map((u) => ({ machineId: u.machineId, name: u.name, movementId: units[u.machineId]?.movementId ?? null })),
+        ),
+      };
+    }
   } else if (sel) {
     const m = mapMachines.find((x) => x.id === sel);
     if (m) {
@@ -497,6 +632,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
     onLabel: (id, text) => dispatch({ type: "label", id, text }),
     onTypedPlace: (id, w, h) => dispatch({ type: "typedPlace", id, wMm: w, hMm: h }),
     onRemovePlace: (id) => dispatch({ type: "removePlace", id }),
+    onSwapIn: (plannedId, machineId) => dispatch({ type: "swapIn", plannedId, machineId }),
   };
 
   /* ── Sizes, the square footage, the practice layout ─────────────── */
@@ -532,6 +668,29 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
     const parts = [aed ? `AED${aed > 1 ? ` ×${aed}` : ""}` : "", ext ? `Fire extinguisher${ext > 1 ? ` ×${ext}` : ""}` : ""].filter(Boolean);
     return parts.join(" · ");
   })();
+
+  /* ── The map and its remodel plans ─────────────────────────────── */
+  const planned = working.placements.filter(isPlanned);
+  const plannedCount = planned.length;
+  const stillToBuy = stillToBuyWords(planned);
+  const tabs = (
+    <DraftTabs
+      studioId={studioId}
+      current={plans.current}
+      drafts={plans.drafts}
+      slots={plans.slots}
+      open={openId}
+      dirty={state.dirty}
+      authUid={authUid}
+      onOpen={(id) => guard(() => showTab(id, null))}
+      onPlan={planRemodel}
+      onShow={showTab}
+      onRenamed={(id, rev) => {
+        if (stateRef.current.base.id === id && stateRef.current.dirty) dispatch({ type: "unsaved", rev });
+      }}
+      guard={guard}
+    />
+  );
 
   /* ── The states ─────────────────────────────────────────────────── */
   // A phone never draws the floor (the hosts don't offer it there). An iPad
@@ -574,6 +733,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
     };
     return (
       <div className="smap-editor">
+        {plans.drafts.length > 0 && tabs}
         <div className="smap-start">
           <label className="smap-start__title" htmlFor="smap-sqft">
             How big is the studio?
@@ -614,7 +774,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
     );
   }
 
-  const newer = !!current && state.dirty && (state.base.rev === null || current.rev > state.base.rev);
+  const newer = !!open && state.dirty && (state.base.rev === null || open.rev > state.base.rev);
   const roomLine = state.tool === "room" ? roomProblems(working.room.boxes, shape)[0] : undefined;
 
   return (
@@ -622,7 +782,8 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
       {/* The page's one note. */}
       {newer ? (
         <p className="smap-note" role="status">
-          {(current && nameOf(current.updatedBy)) || "Someone"} saved a newer layout. Yours is still on screen; Save keeps it as a draft.
+          {(open && nameOf(open.updatedBy)) || "Someone"} saved {onDraft ? `a newer copy of ${open?.name ?? "this plan"}` : "a newer layout"}. Yours is still
+          on screen; Save keeps it as a draft.
         </p>
       ) : note ? (
         <p className="smap-note" role="status">
@@ -638,6 +799,9 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
           </AdminButton>
         </p>
       ) : null}
+
+      {/* The map and its remodel plans. */}
+      {tabs}
 
       {/* The bar: the tool, Undo, Save, Done. */}
       <div className="smap-bar">
@@ -740,9 +904,9 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
               <AdminButton onClick={() => setSizesOpen(true)}>Sizes</AdminButton>
             </p>
           )}
-          {unplaced.length > 0 && (
+          {(unplaced.length > 0 || onDraft) && (
             <section className="smap-editor" aria-label="Not placed yet">
-              <h3 className="smap-h">Not placed yet</h3>
+              {unplaced.length > 0 && <h3 className="smap-h">Not placed yet</h3>}
               <div className="smap-chips">
                 {unplaced.map((u) => (
                   <button key={u.machineId} type="button" className="smap-chip" onClick={() => placeOne(u.machineId)}>
@@ -752,6 +916,13 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
                 {unplaced.length >= 2 && (
                   <AdminButton variant="primary" onClick={placeEvery}>
                     Place them all
+                  </AdminButton>
+                )}
+                {/* Machines the studio doesn't own yet go on a remodel plan, never on the map. */}
+                {onDraft && plannedCount < PLAN_LIMITS.planned && (
+                  <AdminButton onClick={() => setBuyOpen(true)}>
+                    <Plus className="w-4 h-4" aria-hidden="true" />
+                    Add a machine to buy
                   </AdminButton>
                 )}
               </div>
@@ -844,6 +1015,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
             );
           })}
         </ul>
+        {stillToBuy && <p className="smap-quiet">{stillToBuy}</p>}
         {safetyWords && <p className="smap-quiet">{safetyWords}</p>}
         {isDemo && (
           <div className="smap-bar">
@@ -860,6 +1032,15 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
             <DialogTitle>Sizes</DialogTitle>
           </DialogHeader>
           {sizesOpen && <SizesSheet studioId={studioId} floor={sizesFloor} units={units} models={models} authUid={authUid} />}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={buyOpen} onOpenChange={(o) => !o && closeBuy()}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add a machine to buy</DialogTitle>
+          </DialogHeader>
+          {buyOpen && <PlanMachineSheet models={models} onAdd={addToBuy} onCancel={() => setBuyOpen(false)} guardRef={buyGuard} />}
         </DialogContent>
       </Dialog>
 

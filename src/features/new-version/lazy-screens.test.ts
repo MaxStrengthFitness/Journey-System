@@ -23,8 +23,9 @@ const EXPECTED: Record<string, string> = {
   // The Hub's Opportunities layer (Sep 27 2026): the Hub may reload itself.
   "components/ClientsView.tsx": 'kind="screen"',
   // Arrange the floor (the studio map, Oct 2026): the leaders' editor and its
-  // drawing, inside My Studio → Machines' panel. Not a session's panel: its
-  // words are a screen's, with a Done (where="screen").
+  // drawing, inside My Studio → Machines' panel; and the bare drawing on the
+  // Catalog's map (phase 3), whose Done goes back to the list. Not a
+  // session's panel: their words are a screen's, with a Done (where="screen").
   "features/studio-map/lazy.tsx": 'kind="panel" where="screen"',
 };
 

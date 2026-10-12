@@ -28,7 +28,18 @@ const fx = vi.hoisted(() => ({
   modelsAsked: [] as boolean[],
   // Head office's own names, off the catalog documents (wave 2).
   aliases: {} as Record<string, string[]>,
+  // The studio's map (the studio map, phase 3), and whether the Catalog asked for it.
+  layout: { state: "empty", plan: null, fromCache: false, dropped: 0 } as unknown,
+  layoutAsked: [] as boolean[],
 }));
+
+vi.mock("../studio-map/hooks", () => ({
+  useFloorPlan: (_studioId: string, opts: { enabled: boolean }) => {
+    fx.layoutAsked.push(opts.enabled);
+    return opts.enabled ? fx.layout : { state: "off", plan: null, fromCache: false, dropped: 0 };
+  },
+}));
+vi.mock("../phone/device", () => ({ usePhone: () => false }));
 
 vi.mock("../../firebase", () => ({ db: {}, auth: { currentUser: null } }));
 vi.mock("../../contexts/ActiveStudioContext", () => ({
@@ -200,6 +211,8 @@ beforeEach(() => {
   fx.models = { state: "off" };
   fx.modelsAsked = [];
   fx.aliases = {};
+  fx.layout = { state: "empty", plan: null, fromCache: false, dropped: 0 };
+  fx.layoutAsked = [];
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -537,5 +550,117 @@ describe("the three ways in (Catalog R3)", () => {
     await type("lats");
     await enter();
     expect(host.querySelector(".mcat-body__title")?.textContent).toBe("Upper back and lats");
+  });
+});
+
+describe("the floor as a map (the studio map, phase 3)", () => {
+  const ft = (n: number) => Math.round(n * 304.8);
+  const LAYOUT = {
+    v: 1,
+    name: "The layout",
+    room: {
+      areaSqFt: 1800,
+      boxes: [{ id: "bx-1", x: 0, y: 0, w: ft(60), h: ft(30) }],
+      places: [{ id: "pc-1", kind: "aed", x: 0, y: ft(10), w: 305, h: 305 }],
+    },
+    placements: [
+      { machineId: "m-leg-press", x: ft(10), y: ft(10), rotationDeg: 0 },
+      { machineId: "m-lumbar", x: ft(30), y: ft(10), rotationDeg: 0 },
+    ],
+    rev: 3,
+    updatedAt: null,
+    updatedBy: "u",
+  };
+  const sized = (id: string) => ({ lengthMm: id === "m-leg-press" ? 2108 : 1755, widthMm: 1270, by: "u", at: null });
+  const ready = () => {
+    fx.machines = FLOOR.map((m) => (m.id === "m-neck" ? m : { ...m, unitSize: sized(m.id) }));
+    fx.layout = { state: "ready", plan: LAYOUT, fromCache: false, dropped: 0 };
+  };
+  /** The drawing is its own chunk: let it arrive. */
+  const drawn = async () => {
+    for (let i = 0; i < 50 && !host.querySelector("svg.smap-svg"); i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 10));
+      });
+    }
+    return host.querySelector("svg.smap-svg");
+  };
+  const leader = { id: "t-lead", fullName: "Elrond Peredhel", role: "StudioLeader", primaryHomeStudioId: "solon", accessibleStudioIds: ["solon"] } as never;
+
+  it("offers no switch until the map is ready with a machine of the floor on it", async () => {
+    await mount();
+    expect(lens("Map")).toBeUndefined();
+    expect(fx.layoutAsked.at(-1)).toBe(true);
+    fx.layout = { state: "ready", plan: { ...LAYOUT, placements: [{ machineId: "m-gone", x: 1000, y: 1000, rotationDeg: 0 }] }, fromCache: false, dropped: 0 };
+    await mount();
+    expect(lens("Map")).toBeUndefined();
+  });
+
+  it("opens on the list, draws the map when picked, and a tap on a machine opens its Catalog page", async () => {
+    ready();
+    await mount();
+    expect(lens("List")?.getAttribute("aria-pressed")).toBe("true");
+    expect(rowNames()).toEqual(["CX (4 WAY NECK)", "LEG PRESS", "LUMBAR"]);
+    await click(lens("Map"));
+    const svg = await drawn();
+    expect(svg?.getAttribute("aria-label")).toBe("Solon's map");
+    expect(host.querySelectorAll(".smap-m")).toHaveLength(2);
+    // Out of service on the map, in words too.
+    expect(host.querySelector('[data-id="m-lumbar"]')!.getAttribute("class")).toContain("smap-m--out");
+    expect(host.querySelector('[data-id="m-lumbar"]')!.getAttribute("aria-label")).toContain("out of service");
+    // The AED is drawn with its words.
+    expect(host.querySelector(".smap-safety__name")?.textContent).toBe("AED");
+    await act(async () => {
+      host.querySelector('[data-id="m-leg-press"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(host.querySelector(".wk__h1")?.textContent).toBe("LEG PRESS");
+  });
+
+  it("remembers the map until sign-out", async () => {
+    ready();
+    await mount();
+    await click(lens("Map"));
+    await mount();
+    expect(lens("Map")?.getAttribute("aria-pressed")).toBe("true");
+    forgetPersonalMemory();
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await mount();
+    expect(lens("List")?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("dims what a filter left out, never the AED", async () => {
+    ready();
+    await mount();
+    await click(lens("Map"));
+    await drawn();
+    expect(host.querySelectorAll(".smap-m--dim")).toHaveLength(0);
+    // The front page's Lower Body tile narrows the floor to the leg press.
+    await mount({ openGroupKey: "legs", onOpenedGroup: () => {} });
+    await drawn();
+    expect(host.querySelector(".mcat-filter__text")?.textContent).toContain("Lower Body");
+    expect(host.querySelector('[data-id="m-lumbar"]')!.getAttribute("class")).toContain("smap-m--dim");
+    expect(host.querySelector('[data-id="m-leg-press"]')!.getAttribute("class")).not.toContain("smap-m--dim");
+    expect(host.querySelector(".smap-safety")!.getAttribute("class")).toBe("smap-safety");
+  });
+
+  it("offers Draw the floor to a leader whose studio has no map, straight into the editor", async () => {
+    const asked: unknown[] = [];
+    await mount({ authTrainer: leader, onOpenFloorEditor: (view) => asked.push(view) });
+    const draw = [...host.querySelectorAll(".mcat-door")].find((b) => b.textContent === "Draw the floor");
+    await click(draw);
+    expect(asked).toEqual(["arrange"]);
+    // Edit our floor still opens the list.
+    await click([...host.querySelectorAll(".mcat-door")].find((b) => b.textContent === "Edit our floor"));
+    expect(asked).toEqual(["arrange", undefined]);
+  });
+
+  it("offers no Draw the floor once there is a map, nor while the map is loading", async () => {
+    ready();
+    await mount({ authTrainer: leader, onOpenFloorEditor: () => {} });
+    expect([...host.querySelectorAll(".mcat-door")].some((b) => b.textContent === "Draw the floor")).toBe(false);
+    fx.layout = { state: "loading", plan: null, fromCache: false, dropped: 0 };
+    await mount({ authTrainer: leader, onOpenFloorEditor: () => {} });
+    expect([...host.querySelectorAll(".mcat-door")].some((b) => b.textContent === "Draw the floor")).toBe(false);
   });
 });

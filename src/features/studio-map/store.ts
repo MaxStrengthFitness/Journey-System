@@ -303,9 +303,7 @@ export function useThisLayout(
   uid: string,
   nowMs: number,
 ): Promise<UseOutcome> {
-  const freeId = freeSlotOther(slots, draft.id);
-  const free = freeId ? { id: freeId, rev: slots.find((d) => d.id === freeId)?.rev ?? null } : null;
-  const { ops, record } = useLayoutOps(current, draft, free, nowMs);
+  const { ops, record, free } = planUseThisLayout(current, draft, slots, nowMs);
   const problem = opsProblem(ops);
   if (problem) return Promise.resolve({ ok: false, why: "invalid", problem });
   return commitOps(studioId, ops, uid).then(
@@ -322,6 +320,25 @@ export function useThisLayout(
           }
         : { ok: false, why: "refused" },
   );
+}
+
+/**
+ * What Use this layout will send, worked out before it is sent: the ops, the
+ * Undo record and the free slot the old layout goes to (null with none). The
+ * screen asks this first, so its confirm can say when no slot is free and
+ * its Undo is ready the moment the tap is made, never after the server
+ * answers. `useThisLayout` sends exactly this.
+ */
+export function planUseThisLayout(
+  current: LoadedPlan | null,
+  draft: LoadedPlan,
+  slots: readonly LoadedPlan[],
+  nowMs: number,
+): { ops: Op[]; record: UndoRecord; free: { id: DraftSlot; rev: number | null } | null } {
+  const freeId = freeSlotOther(slots, draft.id);
+  const free = freeId ? { id: freeId, rev: slots.find((d) => d.id === freeId)?.rev ?? null } : null;
+  const { ops, record } = useLayoutOps(current, draft, free, nowMs);
+  return { ops, record, free };
 }
 
 /** The first free slot that isn't the draft's own. */

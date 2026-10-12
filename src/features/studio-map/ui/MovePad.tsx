@@ -23,7 +23,8 @@ export function MovePad({
   marker: boolean;
   onTurn: (by: 90 | -90 | 15 | -15) => void;
   onToWall: () => void;
-  onTakeOff: () => void;
+  /** Absent for a machine still to buy, whose panel has its own Remove. */
+  onTakeOff?: () => void;
   onNudge: (dir: NudgeDir) => void;
 }) {
   const [fine, setFine] = useState(false);
@@ -38,9 +39,11 @@ export function MovePad({
         Turn right
       </AdminButton>
       {!marker && <AdminButton onClick={onToWall}>Back to the wall</AdminButton>}
-      <AdminButton variant="ghost" onClick={onTakeOff}>
-        Take it off the map
-      </AdminButton>
+      {onTakeOff && (
+        <AdminButton variant="ghost" onClick={onTakeOff}>
+          Take it off the map
+        </AdminButton>
+      )}
       <AdminButton variant="ghost" aria-expanded={fine} onClick={() => setFine((f) => !f)}>
         Fine moves
       </AdminButton>

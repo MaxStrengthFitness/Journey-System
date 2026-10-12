@@ -73,9 +73,11 @@ export interface LearningViewProps {
    * The Catalog's door to the floor editor, My Studio → Machines (Catalog
    * R5's door, Sep 29 2026). AppContent remembers the section and opens My
    * Studio; here it goes through the leave question first, like every other
-   * way out of a page. Absent: the Catalog draws no door.
+   * way out of a page. Absent: the Catalog draws no door. `"arrange"` (the
+   * studio map, Oct 2026): the Catalog's Draw the floor, straight into
+   * Arrange the floor.
    */
-  onOpenFloorEditor?: () => void;
+  onOpenFloorEditor?: (view?: "map" | "list" | "arrange") => void;
 }
 
 export function LearningView({
@@ -249,7 +251,7 @@ export function LearningView({
                 onViewChange("academy");
               })
             }
-            onOpenFloorEditor={onOpenFloorEditor ? () => through(onOpenFloorEditor) : undefined}
+            onOpenFloorEditor={onOpenFloorEditor ? (view) => through(() => onOpenFloorEditor(view)) : undefined}
           />
         )}
         {view === "academy" && (

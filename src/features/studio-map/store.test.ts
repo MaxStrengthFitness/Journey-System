@@ -34,7 +34,8 @@ vi.mock("firebase/firestore", () => ({
   },
 }));
 
-const { linkModels, setUnitModel, setUnitSize, unlinkModels, AnotherMachinesModel, saveLayout, useThisLayout, undoUseThisLayout } = await import("./store");
+const { linkModels, setUnitModel, setUnitSize, unlinkModels, AnotherMachinesModel, saveLayout, useThisLayout, undoUseThisLayout, planUseThisLayout, retireDraft, restoreDraft } =
+  await import("./store");
 const { useLayoutOps } = await import("./layout");
 
 /** Every value in a written object, deep, so an undefined anywhere is caught. */
@@ -180,6 +181,37 @@ describe("the layout's writes", () => {
     const slots = ["d-1", "d-2", "d-3", "d-4", "d-5"].map((id) => loaded(id, 1, id === "d-1" ? [planned] : [unit("m-z")]));
     await useThisLayout("solon", current, slots[0], slots, "uid-aj", 0);
     expect(writes).toHaveLength(2);
+  });
+
+  it("works out what Make this the map sends before sending it, so its Undo is ready at the tap", async () => {
+    const current = loaded("current", 4, [unit("m-a")]);
+    const draft = loaded("d-1", 2, [unit("m-b"), planned]);
+    const retired = loaded("d-2", 7, [], true);
+    const now = Date.UTC(2026, 9, 12, 19, 40);
+    const plan = planUseThisLayout(current, draft, [draft, retired], now);
+    expect(plan.free).toEqual({ id: "d-2", rev: 7 });
+    expect(plan.record).toMatchObject({ draftId: "d-1", currentRev: 5, slotRev: 3, kept: true, beforeSlot: { id: "d-2", rev: 8 } });
+    await useThisLayout("solon", current, draft, [draft, retired], "uid-aj", now);
+    expect(writes.map((w) => [w.path, w.data.rev])).toEqual(plan.ops.map((o) => [`studios/solon/floorPlans/${o.id}`, o.data.rev]));
+    expect("retired" in writes[2].data).toBe(false);
+    // Its Undo, while every document still stands where the batch left it: the old map back, the Before slot retired.
+    writes.length = 0;
+    await undoUseThisLayout("solon", plan.record, { current: 5, slot: 3, before: 8 }, "uid-aj");
+    expect(writes.map((w) => [w.path, w.data.rev, w.data.retired ?? false])).toEqual([
+      ["studios/solon/floorPlans/current", 6, false],
+      ["studios/solon/floorPlans/d-2", 9, true],
+    ]);
+    expect(undoUseThisLayout("solon", plan.record, { current: 6, slot: 3, before: 8 }, "uid-aj")).toBeNull();
+  });
+
+  it("Delete draft retires the slot at rev + 1 with its content, and its Undo brings it back at rev + 2", async () => {
+    const draft = loaded("d-3", 4, [planned]);
+    expect(await retireDraft("solon", draft, "uid-aj")).toEqual({ ok: true, rev: 5 });
+    expect(writes[0]).toMatchObject({ path: "studios/solon/floorPlans/d-3", data: { rev: 5, retired: true, name: "Remodel 3" } });
+    expect(await restoreDraft("solon", { ...draft, rev: 5, retired: true }, "uid-aj")).toEqual({ ok: true, rev: 6 });
+    expect(writes[1].data.rev).toBe(6);
+    expect("retired" in writes[1].data).toBe(false);
+    expect((writes[1].data.placements as unknown[]).length).toBe(1);
   });
 
   it("refuses a composed layout that would carry a machine still to buy, sending nothing", async () => {

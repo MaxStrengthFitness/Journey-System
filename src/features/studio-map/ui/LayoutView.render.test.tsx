@@ -36,6 +36,7 @@ const fx = vi.hoisted(() => ({
   plans: { state: "empty", current: null, drafts: [], slots: [] } as Record<string, unknown>,
   models: { state: "loading" } as Record<string, unknown>,
   saves: [] as unknown[][],
+  tries: [] as unknown[][],
   links: [] as unknown[][],
   toasts: [] as string[],
   /** What the next saveLayout and keepAsDraft answer; unset, they never answer. */
@@ -54,6 +55,16 @@ vi.mock("../store", () => ({
     return fx.saveAnswer ? Promise.resolve(fx.saveAnswer) : new Promise(() => {});
   },
   keepAsDraft: () => (fx.keepAnswer ? Promise.resolve(fx.keepAnswer) : new Promise(() => {})),
+  tryAChange: (...args: unknown[]) => {
+    fx.tries.push(args);
+    return new Promise(() => {});
+  },
+  planUseThisLayout: () => ({ ops: [], record: { before: { current: null } }, free: null }),
+  useThisLayout: () => new Promise(() => {}),
+  undoUseThisLayout: () => null,
+  renameDraft: () => new Promise(() => {}),
+  retireDraft: () => new Promise(() => {}),
+  restoreDraft: () => new Promise(() => {}),
   linkModels: (...args: unknown[]) => {
     fx.links.push(args);
     return { written: (args[1] as { machineId: string }[]).map((l) => l.machineId), dropped: [], done: Promise.resolve() };
@@ -134,6 +145,7 @@ let root: Root | null = null;
 
 beforeEach(() => {
   fx.saves = [];
+  fx.tries = [];
   fx.links = [];
   fx.toasts = [];
   fx.saveAnswer = null;
@@ -191,14 +203,14 @@ describe("the empty state", () => {
   it("asks only how big the studio is, then draws one box of it in the room tool", () => {
     const el = mount();
     expect(el.textContent).toContain("How big is the studio?");
-    expect(el.querySelector("svg")).toBeNull();
+    expect(el.querySelector("svg.smap-svg")).toBeNull();
     expect(el.textContent).not.toMatch(/no size yet|Sizes/);
     type(el.querySelector<HTMLInputElement>("#smap-sqft")!, "150");
     click(button("Draw the room"));
     expect(el.textContent).toContain("Between 200 and 20,000 sq ft.");
     type(el.querySelector<HTMLInputElement>("#smap-sqft")!, "1800");
     click(button("Draw the room"));
-    expect(el.querySelector("svg")).not.toBeNull();
+    expect(el.querySelector("svg.smap-svg")).not.toBeNull();
     expect(el.querySelector(".smap-area")!.textContent).toBe("Drawn: 1,800 sq ft");
     expect(button("The room")!.getAttribute("aria-pressed")).toBe("true");
     expect(el.querySelector(".smap-frame")!.className).toContain("smap-frame--room");
@@ -245,7 +257,7 @@ describe("the room tool", () => {
     click(button("Draw the room"));
     const width = () => el.querySelector<HTMLInputElement>("#smap-box-w-bx-1")!.value;
     expect(width()).toBe("60");
-    const svg = el.querySelector("svg")!;
+    const svg = el.querySelector("svg.smap-svg")!;
     const widthBefore = svg.getAttribute("width");
     const s = (720 - 56) / ft(60);
     const at = (x: number, y: number) => ({ clientX: 28 + x * s, clientY: 28 + y * s });
@@ -260,7 +272,7 @@ describe("the room tool", () => {
     expect(el.textContent).toContain("Box 1 · 47 ft × 30 ft");
     expect(width()).toBe("47");
     // The edge stays where the finger left it: the drawing hasn't rescaled to the smaller room.
-    expect(el.querySelector("svg")!.getAttribute("width")).toBe(widthBefore);
+    expect(el.querySelector("svg.smap-svg")!.getAttribute("width")).toBe(widthBefore);
     expect(button("Fit")!.hasAttribute("disabled")).toBe(false);
     vi.unstubAllGlobals();
   });
@@ -412,7 +424,7 @@ describe("a drag", () => {
     layout(0);
     const el = mount();
     act(() => vi.advanceTimersByTime(200));
-    const svg = el.querySelector("svg")!;
+    const svg = el.querySelector("svg.smap-svg")!;
     // The fallback width 720; the room is 60 ft wide.
     const s = (720 - 56) / ft(60);
     const at = (x: number, y: number) => ({ clientX: 28 + x * s, clientY: 28 + y * s });
@@ -441,7 +453,7 @@ describe("a drag", () => {
     const outer = vi.fn();
     window.addEventListener("keydown", outer);
     const el = mount();
-    const svg = el.querySelector("svg")!;
+    const svg = el.querySelector("svg.smap-svg")!;
     const s = (720 - 56) / ft(60);
     const at = (x: number, y: number) => ({ clientX: 28 + x * s, clientY: 28 + y * s });
     act(() => svg.dispatchEvent(pointer("pointerdown", at(4000, 4000))));
@@ -455,5 +467,87 @@ describe("a drag", () => {
     expect(button("Save")).toBeUndefined();
     window.removeEventListener("keydown", outer);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("remodel plans and machines still to buy", () => {
+  const ABD = IMAGINE_STRENGTH_MODELS.find((m) => m.movementId === "m-hip-abd")!;
+  function withDraft(placements: unknown[]) {
+    layout(0);
+    const current = fx.plans.current as Record<string, unknown>;
+    const d1 = { ...current, id: "d-1", name: "Remodel 1", rev: 2, placements };
+    fx.plans = { ...fx.plans, drafts: [d1], slots: [d1] };
+  }
+  const tab = (name: string) => [...host!.querySelectorAll("[role=tab]")].find((t) => t.textContent?.startsWith(name));
+
+  it("offers Add a machine to buy on a plan only, never on the map", () => {
+    floor(true);
+    withDraft([{ machineId: "m-leg-press", x: 4000, y: 4000, rotationDeg: 0 }]);
+    mount();
+    expect(button("Add a machine to buy")).toBeUndefined();
+    click(tab("Remodel 1"));
+    expect(tab("Remodel 1")!.getAttribute("aria-selected")).toBe("true");
+    expect(button("Add a machine to buy")).toBeTruthy();
+    expect(button("Make this the map")).toBeTruthy();
+  });
+
+  it("adds one from the sheet at its model's size, drawn dashed and named under the floor list", () => {
+    floor(true);
+    withDraft([{ machineId: "m-leg-press", x: 4000, y: 4000, rotationDeg: 0 }]);
+    mount();
+    click(tab("Remodel 1"));
+    click(button("Add a machine to buy"));
+    click([...document.querySelectorAll("button")].find((b) => b.textContent === "Abduction"));
+    click([...document.querySelectorAll("button")].find((b) => b.textContent?.startsWith("IS2027W Hip Abductor")));
+    click([...document.querySelectorAll("button")].find((b) => b.textContent === "Add it"));
+    const planned = host!.querySelectorAll(".smap-m--planned");
+    expect(planned).toHaveLength(1);
+    expect(planned[0].querySelector("rect.smap-m__body")).not.toBeNull();
+    expect(planned[0].getAttribute("aria-label")).toContain("to buy");
+    expect(host!.textContent).toContain("Still to buy: IS2027W Hip Abductor.");
+    expect(host!.querySelector(".smap-item__name")!.textContent).toBe("IS2027W Hip Abductor");
+    // Saved on the plan, never on the map.
+    click(button("Save"));
+    const [, planId, working, name] = fx.saves[0] as [string, string, { placements: { kind?: string; modelId?: string }[] }, string];
+    expect([planId, name]).toEqual(["d-1", "Remodel 1"]);
+    expect(working.placements.find((p) => p.kind === "planned")!.modelId).toBe(ABD.id);
+  });
+
+  it("swaps in the real one, the same movement first, keeping its spot and turn", () => {
+    floor(true);
+    fx.machines = [...fx.machines, { machineId: "m-hip-abd", id: "m-hip-abd", name: "Hip Abductor", comparisonKey: "m-hip-abd", rosterStatus: "active", order: 4, source: "catalog" }];
+    fx.roster = [...fx.roster, { machineId: "m-hip-abd", studioId: "solon", source: "catalog", basedOn: "m-hip-abd", status: "active", order: 4 }];
+    withDraft([
+      { machineId: "m-leg-press", x: 4000, y: 4000, rotationDeg: 0 },
+      { kind: "planned", id: "pm-abd", label: "Hip Abductor", movementId: "m-hip-abd", modelId: ABD.id, x: 9000, y: 5000, rotationDeg: 90 },
+    ]);
+    mount();
+    click(tab("Remodel 1"));
+    act(() => (host!.querySelector('[data-id="pm-abd"]') as unknown as { dispatchEvent: (e: Event) => void }).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    click(button("Bought it? Swap in the real one"));
+    const chips = [...host!.querySelectorAll(".smap-item .smap-chip")].map((c) => c.textContent);
+    expect(chips[0]).toBe("Hip Abductor");
+    click([...host!.querySelectorAll(".smap-item .smap-chip")][0]);
+    expect(host!.querySelectorAll(".smap-m--planned")).toHaveLength(0);
+    click(button("Save"));
+    const working = (fx.saves[0] as [string, string, { placements: { machineId?: string; x: number; y: number; rotationDeg: number }[] }])[2];
+    expect(working.placements.find((p) => p.machineId === "m-hip-abd")).toEqual({ machineId: "m-hip-abd", x: 9000, y: 5000, rotationDeg: 90 });
+  });
+
+  it("Plan a remodel copies what is on screen into the first free slot and opens it", () => {
+    floor(true);
+    layout(0);
+    mount();
+    click(button("Plan a remodel"));
+    expect(fx.tries).toHaveLength(1);
+    expect(host!.querySelector("[role=tab][aria-selected=true]")).toBeTruthy();
+    expect(button("Add a machine to buy")).toBeTruthy();
+    expect(fx.toasts).toContain("Remodel 1 started from what was on screen. The map hasn't changed.");
+    // Saving it now writes slot d-1, never the map.
+    click([...host!.querySelectorAll(".smap-list__row")][0]);
+    click(button("Turn right"));
+    click(button("Save"));
+    expect((fx.saves[0] as unknown[])[1]).toBe("d-1");
+    expect((fx.saves[0] as unknown[])[4]).toBe(1);
   });
 });
