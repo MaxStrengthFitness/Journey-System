@@ -110,7 +110,7 @@ export const RoutineRowItem = memo(function RoutineRowItem({ row, onSelect, vari
             <b>{row.weight}</b> <small>lb</small>
           </span>
         )}
-        <span className="rt-row__outcome">{outcome ?? (row.weight === null ? "" : "no set logged")}</span>
+        <span className="rt-row__outcome">{outcome ?? (row.weight === null ? "" : row.repsNotRecorded ? "reps not recorded" : "no set logged")}</span>
       </span>
     </Tag>
   );

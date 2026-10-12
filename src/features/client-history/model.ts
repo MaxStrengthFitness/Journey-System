@@ -21,7 +21,7 @@
  */
 import type { ClientEvent, ExerciseLog, RepQuality, WorkoutSession } from "../../types";
 import { calculateExerciseVolume, parseSessionDate } from "../../lib/utils";
-import { isPerformedLog } from "../../lib/set-outcome";
+import { isPerformedLog, isRepsNotRecorded } from "../../lib/set-outcome";
 import { studioDateKey, toDate } from "../../lib/studio-time";
 import { canClaimGap, WHOLE_STORY, type OwnedWindow } from "../../lib/history-claims";
 // Types only: bookings.ts imports this module's values, so nothing runs in a circle.
@@ -809,6 +809,8 @@ export interface SessionSummary {
   poor: number;
   /** Pounds moved, same formula as the old list and the session pop-up. */
   volume: number;
+  /** Every performed set has its reps (or seconds): the volume is the session's, not part of it. */
+  volumeComplete: boolean;
 }
 
 const toNum = (v: unknown): number => {
@@ -870,6 +872,7 @@ export function summarizeSession(logs: ExerciseLog[]): SessionSummary {
     volume: Math.round(
       logs.filter(isPerformed).reduce((sum, log) => sum + calculateExerciseVolume(log), 0),
     ),
+    volumeComplete: !logs.some((log) => isRepsNotRecorded(log)),
   };
 }
 
@@ -935,8 +938,12 @@ export function volumeDeltas(
     if (!prev) return;
     const prevLogs = logsBySession.get(prev.id!);
     if (!prevLogs) return;
-    const now = summarizeSession(logs).volume;
-    const before = summarizeSession(prevLogs).volume;
+    const nowSummary = summarizeSession(logs);
+    const beforeSummary = summarizeSession(prevLogs);
+    // A session with sets whose reps were never written down has no whole volume to compare.
+    if (!nowSummary.volumeComplete || !beforeSummary.volumeComplete) return;
+    const now = nowSummary.volume;
+    const before = beforeSummary.volume;
     if (before <= 0 || now <= 0) return;
     out.set(s.id!, { pct: Math.round(((now - before) / before) * 100), against: routine });
   });

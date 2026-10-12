@@ -44,6 +44,8 @@ export interface JourneySet {
   /** Seconds under tension for a TSC / static hold. */
   seconds?: number;
   isTSC?: boolean;
+  /** Done at this weight, the reps never written down (lib/set-outcome.ts isRepsNotRecorded): a dash where the reps go. */
+  repsNotRecorded?: boolean;
   quality: RepQuality;
   /** Unilateral machines log a side. Kept so a cell can show "L 12 · R 10". */
   side?: "L" | "R";

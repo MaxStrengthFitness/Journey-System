@@ -211,14 +211,17 @@ export function withBaselines(facts: SessionFact[], window = 5, minPrior = 3): I
   const repHist: number[] = [];
   const tutHist: number[] = [];
   for (const f of facts) {
+    // A session with sets whose reps were never written down has no reps or
+    // tonnage to measure: it neither gets an index nor joins the baseline.
+    const counted = f.repsComplete !== false;
     out.push({
       ...f,
-      tonnageIndex: idx(f.tonnage, tonHist),
-      repsIndex: idx(f.reps, repHist),
+      tonnageIndex: counted ? idx(f.tonnage, tonHist) : null,
+      repsIndex: counted ? idx(f.reps, repHist) : null,
       tutIndex: idx(f.tutSeconds, tutHist),
     });
-    if (f.tonnage > 0) tonHist.push(f.tonnage);
-    if (f.reps > 0) repHist.push(f.reps);
+    if (counted && f.tonnage > 0) tonHist.push(f.tonnage);
+    if (counted && f.reps > 0) repHist.push(f.reps);
     if (f.tutSeconds > 0) tutHist.push(f.tutSeconds);
   }
   return out;
@@ -833,16 +836,26 @@ export function detectPlateaus(sets: SetFact[], options: PlateauOptions): Machin
     let sessionsAtCurrent = 0;
     let repsAtCurrentFirst: number | null = null;
     let repsAtCurrentLast: number | null = null;
+    let counted = 0;
+    let uncounted = 0;
     if (last) {
       for (let i = weighted.length - 1; i >= 0; i--) {
         if (weighted[i].weight !== last.weight) break;
         sessionsAtCurrent += 1;
         const o = outcomeOf(weighted[i]);
         if (o !== null) {
+          counted += 1;
           repsAtCurrentFirst = o;
           if (repsAtCurrentLast === null) repsAtCurrentLast = o;
-        }
+        } else uncounted += 1;
       }
+    }
+    // Counts never written down (the FileMaker import) are not "no gain": with
+    // fewer than two written at this load, nothing is said about reps.
+    const repsUnrecorded = counted < 2 && uncounted > 0;
+    if (repsUnrecorded) {
+      repsAtCurrentFirst = null;
+      repsAtCurrentLast = null;
     }
 
     let status: PlateauStatus;
@@ -868,6 +881,7 @@ export function detectPlateaus(sets: SetFact[], options: PlateauOptions): Machin
       weightChangePct,
       repsAtCurrentFirst,
       repsAtCurrentLast,
+      ...(repsUnrecorded ? { repsUnrecorded: true } : {}),
       sessionsAtCurrentWeight: sessionsAtCurrent,
       stalled,
       isTSC: !!last?.isTSC,

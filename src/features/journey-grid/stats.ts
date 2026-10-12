@@ -139,6 +139,8 @@ export function trendVsPrevious(current: JourneySet, previous: JourneySet | unde
   if (!previous) return null;
   if (current.weight > previous.weight) return "up";
   if (current.weight < previous.weight) return "down";
+  // Reps never written down are not fewer reps: no rep trend either way.
+  if (current.repsNotRecorded || previous.repsNotRecorded) return null;
   const a = current.isTSC ? current.seconds ?? 0 : current.reps ?? 0;
   const b = previous.isTSC ? previous.seconds ?? 0 : previous.reps ?? 0;
   if (a > b) return "reps-up";

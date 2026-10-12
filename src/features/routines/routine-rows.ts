@@ -10,7 +10,7 @@
 import type { Client, ClientMachineSetting, ExerciseLog, Machine, Routine, RoutineAdjustment, Trainer, WorkoutSession } from "../../types";
 import { orderMachineSettings, parseSessionDate } from "../../lib/utils";
 import { matchesRoutineLetter } from "../../lib/routine-utils";
-import { isPerformedLog } from "../../lib/set-outcome";
+import { isPerformedLog, isRepsNotRecorded } from "../../lib/set-outcome";
 import { canQuoteLifetime, type HistoryCoverage } from "../../lib/prior-history";
 import { machineWatchOuts, type WatchOut } from "../../lib/clinical-watchouts";
 
@@ -26,6 +26,8 @@ export interface RoutineRow {
   outcome: number | null;
   /** True when the outcome is seconds (timed static contraction). */
   isHold: boolean;
+  /** The last set was done at its weight with its reps never written down (the FileMaker import). */
+  repsNotRecorded?: boolean;
   /** Ordered setting chips — [shortKey, value]. */
   settings: [string, string][];
   /** Starting weight for the start → now readout, when different from `weight`. */
@@ -152,6 +154,8 @@ export function buildRoutineRows(
       weight,
       outcome,
       isHold,
+      repsNotRecorded:
+        outcome === null && weight !== null && (log ? isRepsNotRecorded(log) : !!metric && num(metric.weight) !== null && !metric.reps && !metric.seconds),
       settings: chips,
       startingWeight: num(setting?.startingWeight),
       note: routine.machineNotes?.[machineId]?.trim() || null,

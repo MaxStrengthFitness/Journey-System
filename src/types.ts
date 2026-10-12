@@ -1461,6 +1461,12 @@ export interface ExerciseLog {
    * no count means skipped: unknown) is applied everywhere the same way.
    */
   outcome?: SetOutcome | null;
+  /**
+   * Done at its weight, the rep count never written down: the FileMaker
+   * import's mark (Oct 12 2026). Readers ask lib/set-outcome.ts
+   * isRepsNotRecorded / repsOf, which read the counts, not this flag.
+   */
+  repsNotRecorded?: boolean | null;
   /** A practice set done for blood flow (Oct 3 2026, lib/set-outcome.ts isBloodFlow). */
   bloodFlow?: boolean | null;
   /** Why the machine was skipped. Only meaningful when outcome is "skipped". */
@@ -1676,6 +1682,12 @@ export interface ProgressReport {
     totalVolume?: number;
     totalReps?: number;
     totalGoodReps?: number;
+    /**
+     * Performed sets in the window whose reps were never written down (the
+     * FileMaker import): Total Reps and Total Volume count only the recorded
+     * ones and say so (AJ, Oct 12 2026: "2a").
+     */
+    unrecordedSets?: number;
     avgRestDays?: number;
     toggles?: {
       totalSessions: boolean;

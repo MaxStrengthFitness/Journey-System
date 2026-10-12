@@ -403,16 +403,15 @@ export function BriefingScreen({
       const first = (...vals: any[]) => vals.find(filled) ?? null;
 
       const lastWeight = first(lastLog?.weight, lastLog?.loadLb, metric?.weight);
-      const lastReps = isTSC
-        ? first(
-            lastLog?.seconds,
-            lastLog?.outcomeTut,
-            lastLog?.timeSpent,
-            metric?.seconds,
-            lastLog?.reps,
-            metric?.reps,
-          )
-        : first(lastLog?.reps, lastLog?.outcomeReps, metric?.reps);
+      // The count belongs to the set shown: never another set's (a set whose reps
+      // were never written down says "—", not the client record's last reps).
+      const lastReps = lastLog
+        ? isTSC
+          ? first(lastLog.seconds, lastLog.outcomeTut, lastLog.timeSpent, lastLog.reps)
+          : first(lastLog.reps, lastLog.outcomeReps)
+        : isTSC
+          ? first(metric?.seconds, metric?.reps)
+          : first(metric?.reps);
       out[machineId] = {
         lastWeight,
         lastReps,

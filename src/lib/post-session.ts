@@ -114,10 +114,11 @@ export function todayLines(params: {
       isTSC,
       quality: log?.repQuality ?? null,
       loadDelta: comparable && weight !== null ? weight - prior.weight : null,
-      countDelta:
-        comparable && count !== null
-          ? count - ((isTSC ? prior.seconds : prior.reps) ?? 0)
-          : null,
+      // A last time whose count was never written down is no number to measure against.
+      countDelta: (() => {
+        const was = comparable ? (isTSC ? prior.seconds : prior.reps) : null;
+        return count !== null && was !== null && was !== undefined ? count - was : null;
+      })(),
       first: known && performed && !prior,
       skipReason: log?.skipReason ?? null,
     };

@@ -7,7 +7,7 @@
  *
  *   import type { WorkoutSession, ExerciseLog, Machine, ClientMachineSetting } from "../../types";
  */
-import { outcomeOf, skipReasonOf, type SetOutcome, isBloodFlow } from "../../lib/set-outcome";
+import { outcomeOf, skipReasonOf, type SetOutcome, isBloodFlow, isRepsNotRecorded } from "../../lib/set-outcome";
 import type { JourneyMachine, JourneyRow, JourneySession, JourneySet, MovementGroup, RepQuality } from "./types";
 
 export interface SessionLike {
@@ -117,6 +117,7 @@ export function toJourneySet(log: LogLike): JourneySet | null {
     reps: isTSC ? undefined : num(log.reps),
     seconds: isTSC ? num(log.seconds) : undefined,
     isTSC,
+    ...(isRepsNotRecorded(log) ? { repsNotRecorded: true } : {}),
     quality: log.repQuality ?? 2,
     side: log.side === "Left" ? "L" : log.side === "Right" ? "R" : undefined,
   };

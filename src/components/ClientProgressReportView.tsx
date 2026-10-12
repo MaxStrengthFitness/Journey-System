@@ -747,6 +747,7 @@ export function ClientProgressReportView({
         totalVolume: stats.totalVolume,
         totalReps: stats.totalReps,
         totalGoodReps: stats.totalGoodReps,
+        unrecordedSets: stats.unrecordedSets,
         avgRestDays: stats.avgRestDays,
         narrative:
           prev.attendance.narrative ||
@@ -809,6 +810,7 @@ export function ClientProgressReportView({
         totalVolume: stats.totalVolume,
         totalReps: stats.totalReps,
         totalGoodReps: stats.totalGoodReps,
+        unrecordedSets: stats.unrecordedSets,
         avgRestDays: stats.avgRestDays,
       },
       highlights: refreshSlots(prev.highlights, ctx),
@@ -1308,7 +1310,8 @@ export function ClientProgressReportView({
                   {report.attendance.toggles?.totalVolume !== false && (
                     <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm text-center">
                       <h4 className="text-[11px] font-bold uppercase tracking-widest text-(--pr-slate) mb-1">
-                        Total Volume Lifted
+                        {/* AJ, Oct 12 2026 ("2a"): with sets whose reps were never written down, the recorded ones. */}
+                        {report.attendance.unrecordedSets ? "Total Volume Lifted (recorded)" : "Total Volume Lifted"}
                       </h4>
                       <StatValue
                         value={realStat(report.attendance.totalVolume)}
@@ -1320,7 +1323,7 @@ export function ClientProgressReportView({
                   {report.attendance.toggles?.totalReps !== false && (
                     <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm text-center">
                       <h4 className="text-[11px] font-bold uppercase tracking-widest text-(--pr-slate) mb-1">
-                        Total Reps
+                        {report.attendance.unrecordedSets ? "Total Reps (recorded)" : "Total Reps"}
                       </h4>
                       <StatValue
                         value={realStat(report.attendance.totalReps)}

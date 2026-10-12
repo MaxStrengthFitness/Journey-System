@@ -233,8 +233,9 @@ export const SessionRow = memo(function SessionRow({
       <span className="hist-vol">
         <span className="hist-vol__label">Volume</span>
         <span className="hist-vol__num">
-          {summary && summary.volume > 0 ? summary.volume.toLocaleString() : "—"}
-          {summary && summary.volume > 0 ? <small>lb</small> : null}
+          {/* Reps not written down on some sets: no volume to state (the session pop-up gives the recorded part). */}
+          {summary && summary.volumeComplete && summary.volume > 0 ? summary.volume.toLocaleString() : "—"}
+          {summary && summary.volumeComplete && summary.volume > 0 ? <small>lb</small> : null}
         </span>
         {delta && delta.pct !== 0 ? (
           <span

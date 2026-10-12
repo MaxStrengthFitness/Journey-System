@@ -193,8 +193,9 @@ export function calculateExerciseVolume(log: { weight?: string, reps?: string, i
     const equivalentReps = (seconds / 30) * 2;
     return weight * equivalentReps;
   } else {
+    // A rep count never written down moves no volume (lib/set-outcome.ts isRepsNotRecorded).
     const reps = parseInt(log.reps || '0', 10);
-    return weight * (isNaN(reps) || reps <= 0 ? 1 : reps);
+    return isNaN(reps) || reps <= 0 ? 0 : weight * reps;
   }
 }
 

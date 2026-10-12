@@ -796,6 +796,8 @@ button.jg-stat__btn:active { background: var(--jg-surface-3); }
   white-space: nowrap;
 }
 .jg-cell__r .jg-tut { font-weight: 500; color: var(--jg-ink-muted); }
+/* Reps never written down (the FileMaker import): a dash where the reps go (AJ, Oct 12 2026: "1a"). */
+.jg-cell__r .jg-nr { font-weight: 500; color: var(--jg-ink-muted); }
 .jg-cell__empty { color: var(--jg-ink-faint); font-size: 12px; font-weight: 500; }
 
 /* ---- quality: the cell's own fill ------------------------------------ *
@@ -3266,7 +3268,7 @@ div.jg-today { cursor: default; }
   padding: 0;
 }
 .jg-look .jg-cell__r { color: var(--jg-ink-muted); font-weight: 600; }
-.jg-look .jg-cell__r:not(:has(.jg-tut))::after { content: " reps"; }
+.jg-look .jg-cell__r:not(:has(.jg-tut)):not(:has(.jg-nr))::after { content: " reps"; }
 .jg-look .jg-cell__mark { top: 6px; right: 7px; z-index: 1; }
 
 /* no set: an open circle on the rail */
@@ -3636,7 +3638,7 @@ div.jg-today { cursor: default; }
   gap: 1px;
 }
 .jg-look .jg[data-dense="line"] .jg-cell__r { display: block; }
-.jg-look .jg-cell__r:not(:has(.jg-tut))::after,
+.jg-look .jg-cell__r:not(:has(.jg-tut)):not(:has(.jg-nr))::after,
 .jg-look .jg-today__r:not(:has(.jg-tut)):not(:has(.jg-today__dot))::after { content: "\00a0reps"; }
 
 /* --------------------------------------------------------------------------

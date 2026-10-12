@@ -130,6 +130,12 @@ export interface SessionFact {
   reps: number;
   /** lb × reps over non-timed sets. */
   tonnage: number;
+  /**
+   * Every set of the session carries its count: no set whose reps were never
+   * written down (the FileMaker import). A session without them has no reps or
+   * tonnage to measure against a baseline (analytics.ts withBaselines).
+   */
+  repsComplete?: boolean;
   /** Seconds under tension across sets that recorded it. */
   tutSeconds: number;
   /** Sets that contributed to `tutSeconds`. */
@@ -301,6 +307,8 @@ export interface MachinePlateau {
    */
   repsAtCurrentFirst: number | null;
   repsAtCurrentLast: number | null;
+  /** At the current load, fewer than two counts were written down and some sessions had none: nothing is said about reps. */
+  repsUnrecorded?: boolean;
   /** Consecutive sessions ending at `lastDate` at the same load. */
   sessionsAtCurrentWeight: number;
   /**

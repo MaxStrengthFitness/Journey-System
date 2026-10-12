@@ -8,7 +8,7 @@ import {
 import { db } from "../firebase";
 import { ExerciseLog, WorkoutSession } from "../types";
 import { parseSessionDate } from "./utils";
-import { isPerformedLog } from "./set-outcome";
+import { isPerformedLog, repsOf } from "./set-outcome";
 
 /* ------------------------------------------------------------------ *
  * The progress report's window data
@@ -89,6 +89,8 @@ export interface AttendanceStats {
   totalVolume: number;
   totalReps: number;
   totalGoodReps: number;
+  /** Performed sets whose reps were never written down: left out of totalReps and totalVolume (isRepsNotRecorded). */
+  unrecordedSets: number;
   /** 0 = fewer than AVG_REST_MIN_GAPS gaps (not enough data yet). */
   avgRestDays: number;
   /** 0 = fewer than AVG_DURATION_MIN_SESSIONS timed sessions (not enough data yet). */
@@ -120,6 +122,7 @@ export function attendanceStatsFrom(
       totalVolume: 0,
       totalReps: 0,
       totalGoodReps: 0,
+      unrecordedSets: 0,
       avgRestDays: 0,
       avgDuration: 0,
       score: 0,
@@ -176,6 +179,7 @@ export function attendanceStatsFrom(
   let totalVolume = 0;
   let totalRepsRaw = 0;
   let totalGoodReps = 0;
+  let unrecordedSets = 0;
 
   const filteredSessionIds = new Set(filteredSessions.map((s) => s.id));
 
@@ -195,9 +199,13 @@ export function attendanceStatsFrom(
             totalRepsRaw += equiv;
           }
         } else {
-          const r = parseInt(log.reps || "0", 10) || 1;
-          totalVolume += w * r;
-          totalRepsRaw += r;
+          // A count never written down adds nothing, and is said (the tiles read "recorded").
+          const r = repsOf(log);
+          if (r === null) unrecordedSets++;
+          else {
+            totalVolume += w * r;
+            totalRepsRaw += r;
+          }
         }
       }
     }
@@ -212,6 +220,7 @@ export function attendanceStatsFrom(
     totalVolume: isNaN(finalVolume) ? 0 : finalVolume,
     totalReps: isNaN(finalReps) ? 0 : finalReps,
     totalGoodReps,
+    unrecordedSets,
     avgRestDays,
     avgDuration,
     score: Math.min(100, Math.round((totalSessions / 24) * 100)),
@@ -305,8 +314,8 @@ export function machineStatsFrom(
       if (l.isStaticHold || l.isTSC) {
         totalVolume += w * ((sVal / 30) * 2);
       } else {
-        const r = parseFloat(l.reps || "0") || 1;
-        totalVolume += w * r;
+        // A count never written down moves no volume.
+        totalVolume += w * (repsOf(l) ?? 0);
       }
       if (l.repQuality === 3) perfectSets++;
       timeUnderTension += sVal;

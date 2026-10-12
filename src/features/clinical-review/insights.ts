@@ -162,8 +162,9 @@ export function stallSentence(p: MachinePlateau): string {
   if (p.status === "insufficient" || p.lastWeight === null) return `${p.machineName} — ${NOT_ENOUGH_SESSIONS}`;
   const unit = p.isTSC ? "s" : "";
   const outcome = p.isTSC ? "hold" : "reps";
-  const gain =
-    p.repsAtCurrentFirst !== null && p.repsAtCurrentLast !== null
+  const gain = p.repsUnrecorded
+    ? `${outcome} not recorded`
+    : p.repsAtCurrentFirst !== null && p.repsAtCurrentLast !== null
       ? p.repsAtCurrentLast > p.repsAtCurrentFirst
         ? `${outcome} ${p.repsAtCurrentFirst} → ${p.repsAtCurrentLast}${unit}`
         : p.repsAtCurrentLast < p.repsAtCurrentFirst
@@ -186,8 +187,9 @@ export function plateauInsights(plateaus: MachinePlateau[]): Insight[] {
   for (const p of plateaus) {
     if (p.stalled && (p.status === "plateau" || p.status === "progressing") && p.lastWeight !== null) {
       const unit = p.isTSC ? "hold" : "reps";
-      const repsNote =
-        p.repsAtCurrentFirst !== null && p.repsAtCurrentLast !== null
+      const repsNote = p.repsUnrecorded
+        ? `${unit} not recorded`
+        : p.repsAtCurrentFirst !== null && p.repsAtCurrentLast !== null
           ? p.repsAtCurrentLast === p.repsAtCurrentFirst
             ? `${unit} flat at ${p.repsAtCurrentLast}${p.isTSC ? "s" : ""}`
             : `${unit} ${p.repsAtCurrentFirst} → ${p.repsAtCurrentLast}${p.isTSC ? "s" : ""}`

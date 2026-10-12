@@ -147,6 +147,8 @@ function JourneyCellImpl({ session, machineName, set, previous, isLatest, isSpot
   }
 
   const trend = trendVsPrevious(set, previous);
+  // Done at this weight, the reps never written down (AJ, Oct 12 2026: "1a", a dash where the reps go).
+  const notRecorded = !!set.repsNotRecorded;
   const load =
     delta === null
       ? ""
@@ -158,7 +160,11 @@ function JourneyCellImpl({ session, machineName, set, previous, isLatest, isSpot
     <div
       className={cls}
       role="gridcell"
-      aria-label={`${machineName}, ${when}: ${set.weight} lb${load}, ${effort}, ${QUALITY_LABEL[set.quality]}`}
+      aria-label={
+        notRecorded
+          ? `${machineName}, ${when}: ${set.weight} lb${load}, reps not recorded`
+          : `${machineName}, ${when}: ${set.weight} lb${load}, ${effort}, ${QUALITY_LABEL[set.quality]}`
+      }
     >
       <span className="jg-cell__w">
         {set.weight}
@@ -175,7 +181,13 @@ function JourneyCellImpl({ session, machineName, set, previous, isLatest, isSpot
         )}
       </span>
       <span className="jg-cell__r" aria-hidden="true">
-        {set.isTSC ? <span className="jg-tut">⏱ {formatSeconds(set.seconds ?? 0)}</span> : <>{set.reps}</>}
+        {notRecorded ? (
+          <span className="jg-nr" title="Reps not recorded">–</span>
+        ) : set.isTSC ? (
+          <span className="jg-tut">⏱ {formatSeconds(set.seconds ?? 0)}</span>
+        ) : (
+          <>{set.reps}</>
+        )}
         {/* Reps only, and only when the load held — otherwise the delta above
             already said everything that matters about this set. */}
         {delta === null && trend && trend !== "flat" && (

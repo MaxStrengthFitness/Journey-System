@@ -43,7 +43,7 @@ export function cellsKey(sections: readonly GridSection[]): string {
       key += `/${row.machine.id}`;
       for (const id in row.sets) {
         const s = row.sets[id];
-        key += `,${id}=${s.outcome}${s.weight}x${s.reps ?? ""}${s.seconds ?? ""}${s.side ?? ""}${s.skipReason ?? ""}${s.bloodFlow ? "b" : ""}${s.quality}`;
+        key += `,${id}=${s.outcome}${s.weight}x${s.reps ?? ""}${s.seconds ?? ""}${s.side ?? ""}${s.skipReason ?? ""}${s.bloodFlow ? "b" : ""}${s.repsNotRecorded ? "n" : ""}${s.quality}`;
       }
     }
   }

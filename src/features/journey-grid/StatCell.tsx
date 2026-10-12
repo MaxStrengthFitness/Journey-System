@@ -38,7 +38,9 @@ function StatCellImpl({ machineName, metric, hit, isVisible, onJump }: StatCellP
     ? `@ ${set.weight} lb`
     : set.isTSC
       ? `⏱ ${formatSeconds(set.seconds ?? 0)}`
-      : `${set.reps ?? 0} reps`;
+      : set.repsNotRecorded
+        ? "reps not recorded"
+        : `${set.reps ?? 0} reps`;
   const date = formatShortDate(session.date);
 
   const body = (

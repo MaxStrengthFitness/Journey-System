@@ -121,6 +121,8 @@ export interface OutcomeLog {
   outcomeTut?: string | number | null;
   isTSC?: boolean | null;
   isStaticHold?: boolean | null;
+  /** Done at its weight, the rep count never written down (the FileMaker import): see isRepsNotRecorded. */
+  repsNotRecorded?: boolean | null;
   /** The signs a trainer worked on the set — see isBegunLog. */
   repQuality?: number | null;
   machineStartedAt?: unknown;
@@ -148,6 +150,33 @@ export function hasCount(value: unknown): boolean {
 export function hasEffort(log: OutcomeLog | null | undefined): boolean {
   if (!log) return false;
   return hasCount(log.reps ?? log.outcomeReps) || hasCount(log.seconds ?? log.outcomeTut);
+}
+
+/**
+ * REPS NOT RECORDED (the history-ready round, Oct 12 2026). A set PERFORMED
+ * with no count of reps or seconds: done at its weight, the count never
+ * written down. FileMaker's blank beside a weight is one (AJ: "no trainer
+ * puts it in": FileMaker never fills a weight by itself, so the machine was
+ * done), and the import writes it as performed with `repsNotRecorded: true`.
+ *
+ * It counts for the WEIGHT (last weight, progress, the machine's use, the
+ * visit) and never for anything about reps: no rep average, rep change, rep
+ * trend, volume (weight × reps) or lifetime reps. Read from the counts, not
+ * the flag, so a set whose reps a trainer types in later is an ordinary set.
+ */
+export function isRepsNotRecorded(log: OutcomeLog | null | undefined): boolean {
+  return !!log && outcomeOf(log) === "performed" && !hasEffort(log);
+}
+
+/**
+ * A set's reps as a number, or null: a timed hold, or a set with no rep count
+ * (not recorded, or never done). The one answer for any reader that counts,
+ * compares or averages reps.
+ */
+export function repsOf(log: OutcomeLog | null | undefined): number | null {
+  if (!log || log.isTSC || log.isStaticHold) return null;
+  const raw = log.reps ?? log.outcomeReps;
+  return hasCount(raw) ? Number(raw) : null;
 }
 
 /**

@@ -402,6 +402,7 @@ export function buildFacts(
       setsPoor,
       reps,
       tonnage: Math.round(tonnage),
+      repsComplete: setFacts.every((sf) => sf.isTSC || (sf.reps !== null && sf.reps > 0)),
       tutSeconds: Math.round(tut),
       setsWithTut,
       machineIds: [...machineIds],

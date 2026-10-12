@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Timestamp,
   collection,
+  deleteField,
   doc,
   increment,
   onSnapshot,
@@ -27,7 +28,7 @@ import { QualityMark } from "../journey-grid";
 import { MachinePicker, analyzeRoutine } from "../routine-builder";
 import "../routine-builder/routine-builder.css";
 import { DOSE_SCALE, READINESS_KEYS, READINESS_SCALES, REGION_SCALE, dialWord, doseOf, readinessDial, regionDial } from "../rating";
-import { OUTCOME_LABEL, SKIP_REASON_LABEL, outcomeOf, skipReasonOf } from "../../lib/set-outcome";
+import { OUTCOME_LABEL, SKIP_REASON_LABEL, isRepsNotRecorded, outcomeOf, skipReasonOf } from "../../lib/set-outcome";
 import { whoStartedIt } from "../session-record/watch";
 import {
   editStampOf,
@@ -384,7 +385,13 @@ export function SessionDetailDialog({
       //    against a document that is about to be gone.
       Object.entries(edited).forEach(([logId, data]) => {
         if (removed.includes(logId)) return;
-        batch.update(doc(db, "exerciseLogs", logId), { ...(data as object), updatedAt: Timestamp.now() });
+        // A count typed in (or the hold switched) makes it an ordinary set: the import's mark comes off.
+        const counted = ["reps", "seconds", "isStaticHold", "isTSC"].some((k) => k in (data as object));
+        batch.update(doc(db, "exerciseLogs", logId), {
+          ...(data as object),
+          ...(counted ? { repsNotRecorded: deleteField() } : {}),
+          updatedAt: Timestamp.now(),
+        });
       });
 
       // 2. Machines taken off the session.
@@ -598,7 +605,7 @@ export function SessionDetailDialog({
                   </span>
                 )}
                 <span className="hsd-chip hsd-chip--end">
-                  Volume <b>{summary.volume.toLocaleString()}</b> lb
+                  Volume <b>{summary.volume.toLocaleString()}</b> lb{summary.volumeComplete ? null : " (recorded sets)"}
                 </span>
               </div>
 
@@ -718,7 +725,11 @@ export function SessionDetailDialog({
                           ) : !isEditMode ? (
                             <>
                               <p className="hsd-set__value">
-                                {performed || outcome === "practice" ? (
+                                {performed && isRepsNotRecorded(log) ? (
+                                  <>
+                                    <b>{log.weight || "—"}</b> lb · reps not recorded
+                                  </>
+                                ) : performed || outcome === "practice" ? (
                                   <>
                                     <b>{log.weight || "—"}</b> lb · <b>{timed ? log.seconds || "—" : log.reps || "—"}</b> {timed ? "sec" : "reps"}
                                   </>
