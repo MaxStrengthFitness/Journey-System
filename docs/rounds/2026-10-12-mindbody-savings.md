@@ -71,10 +71,18 @@ Left as it was: the legacy random-id branch (folding an old random-id row onto t
 | Typecheck | 2, the baseline (the cloud copy shows 5; the extra three are only the missing `firebase-applet-config.json`, which is not in git) |
 | New tests | `mindbody-appointment-cache.test.ts` (29), `syncPolicy.slots.test.ts` (13), `near-checks.test.ts` (15), nine new cases in `mindbody-api-sync.test.ts`, one new rules test |
 | `src/features/admin` + `src/lib` | 2,818 passing in 196 files |
-| Full suite | **14,708 passing (1 skipped) in 884 files**, `TZ=America/New_York npx vitest run src --testTimeout=30000` |
+| Full suite | **14,715 passing (1 skipped) in 884 files**, `TZ=America/New_York npx vitest run src --testTimeout=30000` |
 | Build | `vite build` clean; first screen 469.6 KB gzip (budget 480); the server and cron bundles build |
 | Rules tests | **not run in the cloud this time**: the proxy refused the emulator's download. The ship script runs `npm run test:rules` on AJ's PC before anything deploys, and that run is the one that counts |
 
 ## Changed from the cadence test
 
 `useAutoSync.schedule.render.test.tsx` pinned the old cadence (5, 35, 65, 95 minutes after a claim 25 minutes earlier). That cadence changed on purpose: the pulls now land on site 29068's slots at :25 and :55. The test now starts two minutes after a claim and expects 25, 55, 85 and 115. It still pins that the hook looks every minute, re-renders only on a new verdict, and never pulls while hidden.
+
+## How it ships
+
+Claude built the branch in the cloud and could not push it, so it arrives as a git bundle, `backups\mindbody-savings-ship\mindbody-savings.bundle`, carrying the exact commits. `scripts\ship\ship-mindbody-savings.ps1` brings it in:
+
+- **`-Stage prepare`** checks master hasn't moved, switches the folder to the branch, and runs the typecheck count, the round's tests and `npm run test:rules`.
+- **`-Stage golive`** compares the live rules with master's, asks for GO, deploys the rules (they only add access), and pushes the branch to master.
+- **Then Manual Deploy on Render's web service.** The crons did not change.
