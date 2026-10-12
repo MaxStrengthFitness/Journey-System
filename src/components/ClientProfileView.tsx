@@ -114,12 +114,19 @@ import {
   staleSessionStartedLine,
 } from "../lib/live-session";
 import {
+  DISCARD_BODY_WORDS,
   DISCARD_REFUSED_WORDS,
   checkStillLeftOpen,
   discardStaleSession,
+  discardWaitsToday,
+  discardWaitsWords,
+  lastOnItWords,
+  quietNoteWords,
+  readSetIds,
   stillLeftOpenWords,
   type StillLeftOpen,
 } from "../features/session-record/discard";
+import { quietKindOf } from "../lib/session-quiet";
 import { StrongConfirmationModal } from "./StrongConfirmationModal";
 
 import {
@@ -380,6 +387,12 @@ export function ClientProfileView({
   const [discardTarget, setDiscardTarget] = useState<WorkoutSession | null>(null);
   const [discardCheck, setDiscardCheck] = useState<StillLeftOpen | "checking" | null>(null);
   const discardForRef = useRef<string | null>(null);
+  /* Every set id of the session, read when the question opens (the review,
+     Oct 12 2026): the batch used to hold only the ids it could work out from
+     the machine list, so an older session's other sets waited on a sweep a
+     reload or a dropped connection never ran. Never waited on by the tap:
+     until it answers, the discard goes with what is known and the sweep. */
+  const discardSetIdsRef = useRef<{ id: string; ids: string[] } | null>(null);
   const discardTargetIsMine =
     !!discardTarget && !isAnotherTrainersSession(discardTarget, myTrainerIds(liveAuthTrainer, user?.uid));
 
@@ -387,7 +400,11 @@ export function ClientProfileView({
     if (!session?.id) return;
     const id = session.id;
     discardForRef.current = id;
+    discardSetIdsRef.current = null;
     setDiscardTarget(session);
+    void readSetIds(db, id).then((ids) => {
+      if (ids && discardForRef.current === id) discardSetIdsRef.current = { id, ids };
+    });
     if (!isAnotherTrainersSession(session, myTrainerIds(liveAuthTrainer, user?.uid))) {
       setDiscardCheck(null);
       return;
@@ -399,6 +416,7 @@ export function ClientProfileView({
   };
   const closeDiscard = () => {
     discardForRef.current = null;
+    discardSetIdsRef.current = null;
     setDiscardTarget(null);
     setDiscardCheck(null);
   };
@@ -408,7 +426,8 @@ export function ClientProfileView({
     if (!target?.id) return;
     if (!discardTargetIsMine && discardCheck !== "ok") return;
     const sessionId = target.id;
-    discardStaleSession(db, target).then(
+    const readIds = discardSetIdsRef.current?.id === sessionId ? discardSetIdsRef.current.ids : null;
+    discardStaleSession(db, target, {}, [], readIds).then(
       () => {},
       (err) => {
         console.error("Error discarding the session:", err);
@@ -426,10 +445,32 @@ export function ClientProfileView({
     const named = (t?.fullName || (session as { trainerName?: string }).trainerName || "").trim().split(/\s+/)[0];
     return named || (session.trainerInitials || "").trim() || "the trainer";
   };
+  /** The trainer's name when the session says one; null rather than "the trainer". */
+  const namedTrainerOf = (session: WorkoutSession): string | null => {
+    const n = sessionTrainerName(session);
+    return n === "the trainer" ? null : n;
+  };
   /** "2:14 PM" when its last sign of life is today; null otherwise. */
   const lastOnItToday = (session: WorkoutSession): string | null => {
     const at = new Date(lastSignOfLife(session));
     return studioDayKeyOf(at) === studioTodayKey() ? formatStudioTime(at, undefined, "") || null : null;
+  };
+  /** "Paused since 2:10 PM." / "At End Session since 2:10 PM." above Discard; null when simply left open. */
+  const discardQuietNote = (session: WorkoutSession): string | null => {
+    const now = Date.now();
+    return quietNoteWords(quietKindOf(session, now), session, now);
+  };
+  /**
+   * Someone else's session left open today waits for the next studio day to
+   * be discarded (session-record/discard.ts `discardWaitsToday`; the attack,
+   * Oct 12 2026): the words for the notice, or null when Discard is offered.
+   */
+  const discardWaitsFor = (session: WorkoutSession): string | null => {
+    const mine = !isAnotherTrainersSession(session, myTrainerIds(liveAuthTrainer, user?.uid));
+    const day = studioDayKeyOf(new Date(lastSignOfLife(session)));
+    return discardWaitsToday({ mine, lastSignOfLifeDay: day, todayKey: studioTodayKey() })
+      ? discardWaitsWords(namedTrainerOf(session))
+      : null;
   };
 
   const client = clients.find((c) => c.id === clientId);
@@ -2006,6 +2047,7 @@ export function ClientProfileView({
             setView("workouts");
           }}
           onDiscard={() => openDiscard(staleInProgressSession)}
+          discardWaits={discardWaitsFor(staleInProgressSession)}
           elsewhereStudioName={
             staleInProgressSession.hostedAtStudioId &&
             activeStudioId &&
@@ -2371,26 +2413,34 @@ export function ClientProfileView({
           someone else's session the server's word first (openDiscard). */}
       <Dialog open={!!discardTarget} onOpenChange={(v) => !v && closeDiscard()}>
         <DialogContent className="sm:max-w-100 rounded-[32px] p-0 overflow-hidden border-none">
+          {/* The same question, look and words as the Active Session's
+              (features/tracker/StaleSessionDialog; the review, Oct 12 2026):
+              an outline Discard in crimson words on the firm edge, and a
+              "check first" line in ink, never crimson (crimson is for
+              Critical, destructive and rep quality). */}
           <div className="bg-card p-8 text-foreground space-y-3">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-2 bg-destructive/10 text-destructive">
-              <Trash2 className="w-6 h-6" aria-hidden />
-            </div>
-            <h3 className="text-[22px] font-bold tracking-[-0.015em]">Discard this unfinished session?</h3>
-            <p className="text-ink-d2 text-sm leading-relaxed" data-testid="discard-line">
-              {[
-                discardTarget ? staleSessionStartedLine(discardTarget, studioTodayKey()) : "",
-                "Every set in it is deleted. This can't be undone.",
-              ]
+            <h3 className="text-[22px] font-bold tracking-[-0.015em] break-words">
+              {discardTarget && !discardTargetIsMine && namedTrainerOf(discardTarget)
+                ? `Discard ${namedTrainerOf(discardTarget)}'s session?`
+                : "Discard this session?"}
+            </h3>
+            <p className="text-ink-d2 text-sm leading-relaxed break-words" data-testid="discard-line">
+              {[discardTarget ? staleSessionStartedLine(discardTarget, studioTodayKey()) : "", DISCARD_BODY_WORDS]
                 .filter(Boolean)
                 .join(" ")}
             </p>
+            {discardTarget && discardQuietNote(discardTarget) && (
+              <p className="text-ink-d2 text-sm leading-relaxed break-words" data-testid="discard-quiet-note">
+                {discardQuietNote(discardTarget)}
+              </p>
+            )}
             {discardTarget && !discardTargetIsMine && lastOnItToday(discardTarget) && (
-              <p className="text-ink-d2 text-sm leading-relaxed" data-testid="discard-last-on-it">
-                {`${sessionTrainerName(discardTarget)} was last on it at ${lastOnItToday(discardTarget)}. If ${sessionTrainerName(discardTarget)} might still be with the client, check with ${sessionTrainerName(discardTarget)} first.`}
+              <p className="text-ink-d2 text-sm leading-relaxed break-words" data-testid="discard-last-on-it">
+                {lastOnItWords(namedTrainerOf(discardTarget), lastOnItToday(discardTarget) as string)}
               </p>
             )}
             {discardTarget && !discardTargetIsMine && discardCheck && discardCheck !== "checking" && discardCheck !== "ok" && (
-              <p className="text-destructive text-sm font-semibold leading-relaxed" role="alert" data-testid="discard-check">
+              <p className="text-foreground text-sm font-semibold leading-relaxed break-words" role="status" data-testid="discard-check">
                 {stillLeftOpenWords(discardCheck, sessionTrainerName(discardTarget))}
               </p>
             )}
@@ -2400,9 +2450,9 @@ export function ClientProfileView({
               Keep it
             </Button>
             <Button
-              variant="destructive"
+              variant="outline"
               disabled={!discardTargetIsMine && discardCheck !== "ok"}
-              className="min-h-14 h-auto rounded-2xl flex items-center justify-center gap-2"
+              className="min-h-14 h-auto whitespace-normal rounded-2xl flex items-center justify-center gap-2 text-destructive"
               onClick={handleDiscardActiveSession}
             >
               {!discardTargetIsMine && discardCheck === "checking" ? (

@@ -169,6 +169,6 @@ export function beforeJourneySum(t: SessionTotal): string | null {
   if (guess === null || t.visits === null || t.journey === null) return null;
   const visits = `${t.visits} ${t.visits === 1 ? "visit" : "visits"} in Mindbody`;
   if (t.journey === 0) return `${visits}, none in Journey yet`;
-  if (t.journey > t.visits) return `${visits}, fewer than the ${t.journey} in Journey, so none before Journey`;
+  if (t.journey > t.visits) return `Mindbody counts ${t.visits} ${t.visits === 1 ? "visit" : "visits"} and Journey has ${t.journey}, so none before Journey`;
   return `${visits} − ${t.journey} in Journey = ${guess}`;
 }

@@ -23,13 +23,28 @@ describe("Hours' sessions not finished (the sessions round, Oct 12 2026)", () =>
       { trainerNameOf: names, tz: TZ },
     );
     expect(running).toEqual([
-      { id: "run", kind: "client", clientId: "c1", name: "Ann Able", trainer: "AJ Jurgens", started: "started 2:40 PM", quiet: null },
+      { id: "run", kind: "client", clientId: "c1", name: "Ann Able", trainer: "AJ Jurgens", started: "started 2:40 PM", quiet: null, quietWords: null },
     ]);
-    expect(leftOpen.map((r) => [r.id, r.kind, r.name, r.started, r.quiet])).toEqual([
-      ["paused", "open", "Open session", "started 12:00 PM", "paused"],
-      ["old", "client", "Bea Best", "started yesterday 9:40 AM", "left-open"],
+    expect(leftOpen.map((r) => [r.id, r.kind, r.name, r.started, r.quiet, r.quietWords])).toEqual([
+      ["paused", "open", "Open session", "started 12:00 PM", "paused", "Paused since 12:30 PM"],
+      ["old", "client", "Bea Best", "started yesterday 9:40 AM", "left-open", "last active yesterday 9:40 AM"],
     ]);
     expect(leftOpen[0].clientId).toBeNull();
+  });
+
+  /* The review, Oct 12 2026: the second group is "Not running now", and a
+     row says Paused or At End Session only when it is that, spelt out; a
+     row simply left open says when it was last active. */
+  it("says At End Session with its time, and the groups' names", async () => {
+    const { leftOpen } = groupOpenSessions(
+      [s("ended", { clientId: "c3", clientName: "Cy", createdAt: at("2026-10-12T09:40:00-04:00"), lastHeartbeatAt: at("2026-10-12T09:55:00-04:00"), endTime: at("2026-10-12T10:02:00-04:00") })],
+      NOW,
+      { tz: TZ },
+    );
+    expect(leftOpen[0].quietWords).toBe("At End Session since 10:02 AM");
+    const { RUNNING_NOW, NOT_RUNNING_NOW, OPEN_SESSIONS_FAILED } = await import("./open-sessions");
+    expect([RUNNING_NOW, NOT_RUNNING_NOW]).toEqual(["Running now", "Not running now"]);
+    expect(OPEN_SESSIONS_FAILED).toBe("Couldn't check for unfinished sessions.");
   });
 
   it("says the month line in plain words", () => {

@@ -5,10 +5,10 @@
  * with no way to find them. Now, when Hours opens on ONE studio, one bounded
  * server read lists that studio's In-Progress sessions, in two groups:
  *
- *   Running now   still alive by the app's one staleness rule
- *                 (`isSessionValid`): a trainer is on it;
- *   Left open     not, with why it went quiet (lib/session-quiet.ts:
- *                 Paused, At End Session, Left open).
+ *   Running now      still alive by the app's one staleness rule
+ *                    (`isSessionValid`): a trainer is on it;
+ *   Not running now  not, with why it went quiet (lib/session-quiet.ts:
+ *                    Paused, At End Session, or simply last active at).
  *
  * Each row has Open (AJ, Oct 12 2026: "Anyone can clear a session"), where
  * the Active Session asks. Not drawn under "All my studios".
@@ -23,8 +23,8 @@ import { collection, getDocsFromServer, limit, orderBy, query, where } from "fir
 import { db } from "../../../firebase";
 import type { WorkoutSession } from "../../../types";
 import { isSessionValid } from "../../../lib/utils";
-import { isOpenSession } from "../../../lib/live-session";
-import { lastActiveWords, quietKindOf, type QuietKind } from "../../../lib/session-quiet";
+import { isOpenSession, lastSignOfLife } from "../../../lib/live-session";
+import { lastActiveWords, quietKindOf, quietLine, type QuietKind } from "../../../lib/session-quiet";
 import { withinOrNull } from "../../session-record/finish-wait";
 
 /** At most this many In-Progress sessions are read; a studio has a handful. */
@@ -48,6 +48,14 @@ export interface OpenSessionRow {
   started: string | null;
   /** Why it went quiet; null while it is running. */
   quiet: QuietKind | null;
+  /**
+   * The row's last words, null while it is running: "Paused since 10:02 AM",
+   * "At End Session since 10:02 AM", or for one simply left open "last active
+   * Tue 9:52 AM" (the review, Oct 12 2026: the group is "Not running now", so
+   * a pause the trainer chose is never called left open, and nothing is said
+   * twice).
+   */
+  quietWords: string | null;
 }
 
 const startOf = (s: WorkoutSession): number | null => {
@@ -79,6 +87,13 @@ export function groupOpenSessions(
     const live = isSessionValid(s, now);
     const at = startOf(s);
     const trainer = (s.trainerId ? opts.trainerNameOf?.(s.trainerId) : null) || (s.trainerInitials || "").trim() || null;
+    const quiet = live ? null : quietKindOf(s, now, opts.tz);
+    const quietWords =
+      quiet === null
+        ? null
+        : quiet === "left-open"
+          ? `last active ${lastActiveWords(lastSignOfLife(s, now), now, opts.tz).replace(/^Yesterday/, "yesterday")}`
+          : quietLine(s, quiet, now, opts.tz);
     const row = {
       id: s.id,
       kind: open ? ("open" as const) : ("client" as const),
@@ -86,7 +101,8 @@ export function groupOpenSessions(
       name: open ? "Open session" : (s.clientName || "").trim() || "A client",
       trainer,
       started: at === null ? null : `started ${lastActiveWords(at, now, opts.tz).replace(/^Yesterday/, "yesterday")}`,
-      quiet: live ? null : quietKindOf(s, now, opts.tz),
+      quiet,
+      quietWords,
       at: at ?? 0,
     };
     (live ? running : leftOpen).push(row);
@@ -103,7 +119,11 @@ export function notFinishedLine(n: number): string {
     : `${n} sessions aren't finished, so their hours aren't counted yet.`;
 }
 
-export const OPEN_SESSIONS_FAILED = "Couldn't check for unfinished sessions. Try again.";
+/** The button beside it says Try again. */
+export const OPEN_SESSIONS_FAILED = "Couldn't check for unfinished sessions.";
+/** The two groups: a trainer is on it, or nothing has been saved in it for an hour. */
+export const RUNNING_NOW = "Running now";
+export const NOT_RUNNING_NOW = "Not running now";
 export const OPEN_SESSIONS_NONE = "Every session here is finished.";
 
 /** One bounded server read of a studio's In-Progress sessions, when Hours opens on it. */

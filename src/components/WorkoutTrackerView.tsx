@@ -61,10 +61,13 @@ import {
   finishRefusedAgainWords,
   finishRefusedWords,
   finishedElsewhereWords,
+  correctedAsItWasWords,
   isFinishedElsewhere,
   isSessionGone,
+  isTakenOver,
   sessionGoneWords,
   staleFinishedElsewhereWords,
+  takenOverWords,
   type FinishRefused,
 } from "../features/session-record/finish-once";
 import {
@@ -134,7 +137,12 @@ import {
   DISCARD_REFUSED_WORDS,
   checkStillLeftOpen,
   discardStaleSession,
+  discardWaitsToday,
+  discardWaitsWords,
+  quietNoteWords,
+  readSetIds,
 } from "../features/session-record/discard";
+import { quietKindOf } from "../lib/session-quiet";
 
 /**
  * How long a set's Firestore write waits for the trainer to stop typing.
@@ -912,7 +920,32 @@ export function WorkoutTrackerView({
       ...here,
       ...(patch ?? {}),
       lastHeartbeatAt: serverTimestamp(),
-    }).catch((error) => handleFirestoreError(error, OperationType.UPDATE, "sessions"));
+    }).catch((error) => {
+      void finishedSinceRefusal(s.id!).then((done) => {
+        if (!done) {
+          handleFirestoreError(error, OperationType.UPDATE, "sessions");
+          return;
+        }
+        dropFinishedElsewhere(s.id!);
+      });
+    });
+  };
+
+  /* A Resume, take-over or Continue refused because another iPad already
+     finished the session (the rules keep who holds a finished session as it
+     is; the review and attack, Oct 12 2026): said as that, never "didn't go
+     through", and the session leaves this screen. One bounded server read;
+     no answer is "not known to be finished". */
+  const finishedSinceRefusal = (sessionId: string): Promise<boolean> =>
+    readFromServer<{ status?: string }>(doc(db, "sessions", sessionId)).then(
+      (r) => r.kind === "found" && r.data?.status === "Completed",
+    );
+  const dropFinishedElsewhere = (sessionId: string) => {
+    if (takingOverRef.current?.id === sessionId) takingOverRef.current = null;
+    if (currentSessionIdRef.current === sessionId) currentSessionIdRef.current = null;
+    setCurrentSession((cur) => (cur?.id === sessionId ? null : cur));
+    forgetLiveSession(sessionId);
+    toastInfo(staleFinishedElsewhereWords(selectedClient ? clientFirstName(selectedClient, "") : ""));
   };
 
   /* Take over the session this iPad is watching, after the question
@@ -937,13 +970,20 @@ export function WorkoutTrackerView({
       lastHeartbeatAt: serverTimestamp(),
     }).catch((error) => {
       /* Refused: the session is still the other trainer's, so this iPad
-         goes back to watching it, and says why. */
+         goes back to watching it, and says why; or another iPad finished
+         it meanwhile, which is said as that. */
       console.error("[take over] the take-over was not saved", error);
-      takingOverRef.current = null;
-      if (currentSessionIdRef.current === s.id) currentSessionIdRef.current = null;
-      setCurrentSession((cur) => (cur?.id === s.id ? null : cur));
-      setWatchedSession(s);
-      toastError("The take-over didn't go through. Check the connection, then try again.");
+      void finishedSinceRefusal(s.id!).then((done) => {
+        if (done) {
+          dropFinishedElsewhere(s.id!);
+          return;
+        }
+        takingOverRef.current = null;
+        if (currentSessionIdRef.current === s.id) currentSessionIdRef.current = null;
+        setCurrentSession((cur) => (cur?.id === s.id ? null : cur));
+        setWatchedSession(s);
+        toastError("The take-over didn't go through. Check the connection, then try again.");
+      });
     });
   };
 
@@ -970,11 +1010,17 @@ export function WorkoutTrackerView({
       lastHeartbeatAt: serverTimestamp(),
     }).catch((error) => {
       console.error("[continue here] it was not saved", error);
-      takingOverRef.current = null;
-      if (currentSessionIdRef.current === s.id) currentSessionIdRef.current = null;
-      setCurrentSession((cur) => (cur?.id === s.id ? null : cur));
-      setWatchedSession(s);
-      toastError("Continuing here didn't go through. Check the connection, then try again.");
+      void finishedSinceRefusal(s.id!).then((done) => {
+        if (done) {
+          dropFinishedElsewhere(s.id!);
+          return;
+        }
+        takingOverRef.current = null;
+        if (currentSessionIdRef.current === s.id) currentSessionIdRef.current = null;
+        setCurrentSession((cur) => (cur?.id === s.id ? null : cur));
+        setWatchedSession(s);
+        toastError("Continuing here didn't go through. Check the connection, then try again.");
+      });
     });
   };
 
@@ -1005,6 +1051,21 @@ export function WorkoutTrackerView({
     return studioDayKeyOf(at) === studioTodayKey() ? formatStudioTime(at, undefined, "") || null : null;
   };
 
+  /* What the Discard question says above Discard (the review and attack,
+     Oct 12 2026): Paused or At End Session when it is that, and, for someone
+     else's session left open today, that Discard waits for the next studio
+     day (a Finish queued on an offline iPad would be lost). */
+  const discardTermsOf = (s: WorkoutSession, mine: boolean, openSession: boolean) => {
+    const now = Date.now();
+    const day = studioDayKeyOf(new Date(lastSignOfLife(s, now)));
+    return {
+      quietNote: quietNoteWords(quietKindOf(s, now), s, now),
+      discardWaits: discardWaitsToday({ mine, lastSignOfLifeDay: day, todayKey: studioTodayKey() })
+        ? discardWaitsWords(starterNameOf(s), { openSession })
+        : null,
+    };
+  };
+
   /** Back to the door the session was opened from, else `fallback` (nothing: stay here). */
   const returnFrom = (sessionId: string | undefined, fallback: LiveSessionReturn | null) => {
     const to = peekLiveSessionReturn(sessionId) ?? fallback;
@@ -1029,13 +1090,20 @@ export function WorkoutTrackerView({
     returnFrom(s.id, "hub");
   };
 
+  /* Every set id of the session being asked about, read once when the
+     question appears (the review, Oct 12 2026), so a discard holds them all
+     in its one batch; until it answers, or if it can't, the discard goes
+     with what is known and the sweep. Never waited on by a tap. */
+  const staleSetIdsRef = useRef<Map<string, string[]>>(new Map());
+
   /* Discard it, after the question's second tap (and, for someone else's
      session, the server's word that it is still left open): ONE batch with
      every set known and the session, issued now and never awaited, then a
      sweep (features/session-record/discard.ts). */
   const discardStale = (s: WorkoutSession, kind: "client" | "open") => {
     if (!s.id) return;
-    discardStaleSession(db, s, logsRef.current).then(
+    const read = staleSetIdsRef.current.get(s.id) ?? null;
+    discardStaleSession(db, s, logsRef.current, [], read).then(
       () => {},
       (error) => {
         console.error("[discard] the left-open session was not discarded", error);
@@ -1104,7 +1172,8 @@ export function WorkoutTrackerView({
       clientMachineSettings,
       user.uid,
       endedAt ? { endTime: endedAt } : undefined,
-      { asOfDay: s.date || null, settingsOnFileKnown: settingsServerRead },
+      // Said on the marker, so the iPad that ran it may still put its own finish in (the review, Oct 12 2026).
+      { asOfDay: s.date || null, settingsOnFileKnown: settingsServerRead, deviceId, asItWas: true },
     ).then(
       (r) => {
         toastInfo(`${name}'s unfinished session from ${day} is finished as it was.`);
@@ -1113,6 +1182,10 @@ export function WorkoutTrackerView({
       (error) => {
         if (isFinishedElsewhere(error)) {
           toastInfo(staleFinishedElsewhereWords(clientFirstName(selectedClient, "")));
+          return;
+        }
+        if (isTakenOver(error)) {
+          toastInfo(takenOverWords(clientFirstName(selectedClient, "")));
           return;
         }
         if (isSessionGone(error)) {
@@ -1467,6 +1540,19 @@ export function WorkoutTrackerView({
      on with it, or leave it as it is and start a new one. */
   const [staleOpenSession, setStaleOpenSession] = useState<WorkoutSession | null>(null);
   const [declinedStaleOpenId, setDeclinedStaleOpenId] = useState<string | null>(null);
+
+  /* The set ids of the session being asked about, read once when the
+     question appears (staleSetIdsRef, above discardStale). */
+  const staleIdForSets = staleSession?.id ?? null;
+  const staleOpenIdForSets = staleOpenSession?.id ?? null;
+  useEffect(() => {
+    for (const id of [staleIdForSets, staleOpenIdForSets]) {
+      if (!id || staleSetIdsRef.current.has(id)) continue;
+      void readSetIds(db, id).then((ids) => {
+        if (ids) staleSetIdsRef.current.set(id, ids);
+      });
+    }
+  }, [staleIdForSets, staleOpenIdForSets]);
 
   // Special listener for unassigned sessions when no client is selected
   useEffect(() => {
@@ -3203,6 +3289,28 @@ export function WorkoutTrackerView({
     setShowEndConfirmation(true);
   };
 
+  /* Back into the session from End Session (Keep training, or the dialog
+     closed): the End Session mark comes off, so the session isn't said to
+     be "At End Session" for the rest of the day, out of Operations' Needs
+     you, if it is later left open (the review, Oct 12 2026;
+     lib/session-quiet.ts). Issued, never awaited. Not while a Finish runs:
+     Finish writes its own end. */
+  const backFromEndSession = () => {
+    const s = currentSession;
+    if (!s?.id || !s.endTime || finishingRef.current === s.id) return;
+    updateDoc(doc(db, "sessions", s.id), { endTime: deleteField() }).catch(console.error);
+    setCurrentSession((prev) => {
+      if (!prev || prev.id !== s.id) return prev;
+      const { endTime: _ended, ...rest } = prev;
+      return rest as WorkoutSession;
+    });
+  };
+  /** The End Session dialog closed by the person (a tap outside, Escape): back into the session. */
+  const endConfirmationOpenChange = (open: boolean) => {
+    if (!open) backFromEndSession();
+    setShowEndConfirmation(open);
+  };
+
   /* THE POST-SESSION FLOW (tracker round, Sep 2026).
 
      Finish used to be two steps: End Session → the Victory HUD → a second
@@ -3339,8 +3447,15 @@ export function WorkoutTrackerView({
       const firstName = clientFirstName(selectedClient, "");
       /** A refusal that came after the Wrap-up was up: said, and shown there. */
       const lateRefusal = (error: unknown) => {
-        const kind: FinishRefused = isFinishedElsewhere(error) ? "elsewhere" : isSessionGone(error) ? "gone" : "refused";
+        const kind: FinishRefused = isFinishedElsewhere(error)
+          ? "elsewhere"
+          : isTakenOver(error)
+            ? "taken"
+            : isSessionGone(error)
+              ? "gone"
+              : "refused";
         if (kind === "elsewhere") toastInfo(finishedElsewhereWords(firstName));
+        else if (kind === "taken") toastInfo(takenOverWords(firstName));
         else if (kind === "gone") toastError(sessionGoneWords(firstName));
         else {
           console.error("[finish] the session was refused when it reached the database", error);
@@ -3370,7 +3485,7 @@ export function WorkoutTrackerView({
           sessionExtras,
           // A machine with no settings is "nothing on file" only once the server has said so (Oct 9 2026);
           // a client added here for this session has nothing on file anywhere.
-          { settingsOnFileKnown: settingsServerRead || createdHere, newClient: createdHere },
+          { settingsOnFileKnown: settingsServerRead || createdHere, newClient: createdHere, deviceId },
         );
         const outcome = await settleOrQueue(finishing, sendState.online);
         if (outcome.kind === "failed") {
@@ -3378,6 +3493,10 @@ export function WorkoutTrackerView({
             refused = "elsewhere";
             alreadyFinished = true;
             toastInfo(finishedElsewhereWords(firstName));
+          } else if (isTakenOver(outcome.error)) {
+            refused = "taken";
+            alreadyFinished = true;
+            toastInfo(takenOverWords(firstName));
           } else if (isSessionGone(outcome.error)) {
             refused = "gone";
             alreadyFinished = true;
@@ -3387,11 +3506,13 @@ export function WorkoutTrackerView({
           }
         } else if (outcome.kind === "saved") {
           reportTotals(outcome.value);
+          if (outcome.value.counted === "corrected") toastInfo(correctedAsItWasWords(firstName));
         } else {
           queued = true;
           finishing.then(
             (finished) => {
               reportTotals(finished);
+              if (finished.counted === "corrected") toastInfo(correctedAsItWasWords(firstName));
               setPostSession((ps) => (ps && ps.session.id === sessionId ? { ...ps, queued: false } : ps));
             },
             lateRefusal,
@@ -5299,6 +5420,7 @@ export function WorkoutTrackerView({
           onResume={resumeStaleOpenSession}
           onStartNew={leaveStaleOpenSession}
           onDiscard={() => discardStale(staleOpenSession, "open")}
+          {...discardTermsOf(staleOpenSession, !isAnotherTrainersSession(staleOpenSession, myIds), true)}
           checkDiscard={
             isAnotherTrainersSession(staleOpenSession, myIds)
               ? () => checkStillLeftOpen(db, staleOpenSession, staleOpenSession.lastHeartbeatAt)
@@ -5352,6 +5474,7 @@ export function WorkoutTrackerView({
         onFinishAsItWas={finishStaleSessionAsItWas}
         finishAsItWasReady={totalsKnown}
         onDiscard={() => discardStale(staleSession, "client")}
+        {...discardTermsOf(staleSession, !staleNotMine, false)}
         checkDiscard={staleNotMine ? () => checkStillLeftOpen(db, staleSession, staleSession.lastHeartbeatAt) : undefined}
         onNotNow={staleNotMine ? notNowStaleSession : undefined}
       />
@@ -5639,7 +5762,7 @@ export function WorkoutTrackerView({
           capitalisation, labels at 14/700, the buttons' own 14/700 with
           their 3:1 edge and their lift, and the shared dialog's lift in
           both modes. */}
-      <Dialog open={showEndConfirmation} onOpenChange={setShowEndConfirmation}>
+      <Dialog open={showEndConfirmation} onOpenChange={endConfirmationOpenChange}>
         <DialogContent className="sm:max-w-100 rounded-[32px] p-0 overflow-hidden border-none" initialFocus={finishTitleRef}>
           <div className="bg-primary p-8 text-primary-foreground space-y-3">
             <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-2">
@@ -5796,7 +5919,10 @@ export function WorkoutTrackerView({
                   <Button
                     variant="outline"
                     className="h-14 rounded-2xl"
-                    onClick={() => setShowEndConfirmation(false)}
+                    onClick={() => {
+                      backFromEndSession();
+                      setShowEndConfirmation(false);
+                    }}
                   >
                     Keep training
                   </Button>

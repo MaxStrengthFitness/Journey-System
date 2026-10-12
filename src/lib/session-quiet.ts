@@ -40,10 +40,24 @@ const stampMs = (v: unknown, now: number) => getMillis(v) || now;
 
 const dayOf = (ms: number, tz?: string) => studioDateKey(new Date(ms), tz) ?? "";
 
-/** Why an abandoned In-Progress session went quiet, said only on its own day. */
+/**
+ * Why an abandoned In-Progress session went quiet, said only on its own day.
+ * At End Session only while nothing was saved after End Session was pressed
+ * (the review, Oct 12 2026): `endTime` used to stay on a session taken back
+ * from End Session into the session, so one left open later that day read
+ * "At End Session" and dropped out of Needs you. Going back now clears it
+ * (WorkoutTrackerView `backFromEndSession`); this holds for a session from
+ * before that, and for a clear that hasn't landed.
+ */
 export function quietKindOf(session: QuietSessionLike, now: number = Date.now(), tz?: string): QuietKind {
   const today = dayOf(now, tz);
-  if (isSet(session.endTime) && dayOf(lastSignOfLife(session, now), tz) === today) return "at-end-session";
+  if (
+    isSet(session.endTime) &&
+    dayOf(lastSignOfLife(session, now), tz) === today &&
+    stampMs(session.endTime, now) >= getMillis(session.lastHeartbeatAt)
+  ) {
+    return "at-end-session";
+  }
   if (isSet(session.pausedAt) && dayOf(stampMs(session.pausedAt, now), tz) === today) return "paused";
   return "left-open";
 }
@@ -64,12 +78,30 @@ export function lastActiveWords(ms: number, now: number, tz?: string): string {
   return `${MONTH[m - 1]} ${d} ${time}`;
 }
 
+/** When it went quiet, for its kind: "2:10 PM" (paused, at End Session), "Tue 9:40 AM" (left open). */
+function quietTime(session: QuietSessionLike, kind: QuietKind, now: number, tz?: string): string {
+  if (kind === "paused") return formatStudioTime(new Date(stampMs(session.pausedAt, now)), tz);
+  if (kind === "at-end-session") return formatStudioTime(new Date(stampMs(session.endTime, now)), tz);
+  return lastActiveWords(lastSignOfLife(session, now), now, tz);
+}
+
 /**
- * Each row's sentence: "Paused at 2:10 PM", "Stopped at End Session at 2:10
- * PM", "Left open · last active Tue 9:40 AM".
+ * A row's sentence where nothing else says the kind (the Directory's one
+ * line): "Paused since 2:10 PM", "At End Session since 2:10 PM", "Left open ·
+ * last active Tue 9:40 AM". It starts with the words of its badge.
  */
 export function quietLine(session: QuietSessionLike, kind: QuietKind, now: number = Date.now(), tz?: string): string {
-  if (kind === "paused") return `Paused at ${formatStudioTime(new Date(stampMs(session.pausedAt, now)), tz)}`;
-  if (kind === "at-end-session") return `Stopped at End Session at ${formatStudioTime(new Date(stampMs(session.endTime, now)), tz)}`;
-  return `Left open · last active ${lastActiveWords(lastSignOfLife(session, now), now, tz)}`;
+  const at = quietTime(session, kind, now, tz);
+  if (kind === "paused") return `Paused since ${at}`;
+  if (kind === "at-end-session") return `At End Session since ${at}`;
+  return `Left open · last active ${at}`;
+}
+
+/**
+ * The same, beside a badge that already says the kind (Operations → Today;
+ * "Operations says it once"): "Since 2:10 PM", "Last active Tue 9:40 AM".
+ */
+export function quietDetail(session: QuietSessionLike, kind: QuietKind, now: number = Date.now(), tz?: string): string {
+  const at = quietTime(session, kind, now, tz);
+  return kind === "left-open" ? `Last active ${at}` : `Since ${at}`;
 }

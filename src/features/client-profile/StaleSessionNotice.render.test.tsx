@@ -73,6 +73,18 @@ describe("StaleSessionNotice", () => {
     expect(onDiscard).toHaveBeenCalledTimes(1);
   });
 
+  /* The attack, Oct 12 2026: someone else's session left open today is
+     discarded only from the next studio day; Resume or finish stays. */
+  it("holds Discard back with its reason when the session's discard waits", async () => {
+    const words = "Sam's session can be discarded from tomorrow, in case it was finished on an iPad that's offline. Today it can be resumed or finished as it was.";
+    const host = await mount(
+      <StaleSessionNotice session={yesterdays} todayKey="2026-09-24" onResume={() => {}} onDiscard={() => {}} discardWaits={words} />,
+    );
+    expect(button(host, "Discard it")).toBeUndefined();
+    expect(button(host, "Resume or finish")).toBeTruthy();
+    expect(host.querySelector('[data-testid="notice-discard-waits"]')!.textContent).toBe(words);
+  });
+
   it("describes a session left at another studio, with no buttons", async () => {
     const host = await mount(
       <StaleSessionNotice

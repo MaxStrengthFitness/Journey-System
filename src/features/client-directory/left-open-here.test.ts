@@ -23,7 +23,7 @@ describe("open sessions left open here (the sessions round, Oct 12 2026)", () =>
     );
     expect(rows).toEqual([
       { id: "left", line: "Open session · Sam · Left open · last active 9:40 AM" },
-      { id: "paused", line: "Open session · SR · Paused at 1:10 PM" },
+      { id: "paused", line: "Open session · SR · Paused since 1:10 PM" },
     ]);
   });
 });

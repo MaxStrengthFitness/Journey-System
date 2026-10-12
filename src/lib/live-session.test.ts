@@ -593,4 +593,23 @@ describe("the door a session was opened from (Oct 12 2026)", () => {
     rememberLiveSession("s3");
     expect(peekLiveSessionReturn("s3")).toBe("operations-hours");
   });
+
+  /* The review, Oct 12 2026: a door used to replace the viewer's own live
+     session's id on this iPad. */
+  it("a door's session never replaces the viewer's own live one: only its door is kept", () => {
+    rememberLiveSession("mine");
+    rememberLiveSession("colleague", { returnTo: "operations-hours", keepRemembered: true });
+    expect(peekLiveSessionId()).toBe("mine");
+    expect(peekLiveSessionReturn("colleague")).toBe("operations-hours");
+  });
+});
+
+describe("watching the session a door asked for (the review, Oct 12 2026)", () => {
+  it("watches the remembered colleague's running session, not whichever came first", () => {
+    const a = { id: "a", status: "In-Progress", trainerId: "t2", isUnassigned: true, ...fresh };
+    const b = { id: "b", status: "In-Progress", trainerId: "t3", isUnassigned: true, ...fresh };
+    expect(pickOpenSession([a, b], { myIds: ["t1"], rememberedId: "b", now }).watch?.id).toBe("b");
+    // The one on screen still comes first.
+    expect(pickOpenSession([a, b], { myIds: ["t1"], onScreenId: "a", rememberedId: "b", now }).watch?.id).toBe("a");
+  });
 });

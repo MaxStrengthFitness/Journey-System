@@ -20,12 +20,23 @@
  *
  *   - "mine": the marker is this finish's (a resend of a batch that landed).
  *   - "elsewhere": another finish got there first. Said, never retried.
+ *   - "correct": another iPad got there first with "Finish it as it was"
+ *     (the marker says `asItWas`), and this is the iPad that ran the
+ *     session: its sets, weights and note go in over the as-it-was copy,
+ *     with no marker and no totals, so it still counts once (the review and
+ *     attack, Oct 12 2026: the iPad that finishes late is the one holding
+ *     the real session, not the stale one).
+ *   - "taken": the session is not finished, and another device holds it
+ *     (`recordingDeviceId`) and saved something in the last hour: it was
+ *     taken over, or continued on another device, and finishes there. The
+ *     rules refuse a marker from any other device then (finishFromHolder).
  *   - "gone": the session doesn't exist any more (discarded elsewhere).
- *   - "unmarked": the session is there and NOT Completed, and the marker is
- *     missing or its read was refused by the rules (the marker's rules not
- *     deployed, or a rule bug). A server answer of "not Completed" proves no
- *     finish of this session has landed, so the session batch is sent again
- *     without the marker (the old app's finish).
+ *   - "unmarked": the session is there and NOT Completed, no other device
+ *     holds it, and the marker is missing or its read was refused by the
+ *     rules (the marker's rules not deployed, or a rule bug). A server
+ *     answer of "not Completed" proves no finish of this session has landed,
+ *     so the session batch is sent again without the marker (the old app's
+ *     finish).
  *   - "refused": anything else, including any read that failed or timed out.
  *     Reported, and nothing more is written.
  *
@@ -35,6 +46,7 @@
  */
 import { doc, getDocFromServer, type DocumentReference, type DocumentSnapshot, type Firestore } from "firebase/firestore";
 import { withinOrNull } from "./finish-wait";
+import { getMillis } from "../../lib/utils";
 
 export const FINISH_ONCE_ID = "once";
 /** How long a refusal's server read may take. */
@@ -74,13 +86,70 @@ export interface FinishOnceDoc {
   by: string;
   at: unknown;
   clientId: string;
+  /** The device that finished (absent when it can't keep an id). The rules hold it to the session's `recordingDeviceId`. */
+  deviceId?: string;
+  /** True for "Finish it as it was": the iPad that ran the session may still put its own finish in over it. */
+  asItWas?: boolean;
   countedAt?: unknown;
   countedBy?: string;
 }
 
-/** What the session batch creates. `stamp` is the server's time (serverTimestamp()). */
-export function finishOncePayload(finishId: string, uid: string, clientId: string, stamp: unknown): FinishOnceDoc {
-  return { finishId, by: uid, at: stamp, clientId };
+/** A device id the rules accept on the marker (at most 64 characters). */
+const DEVICE_ID_OK = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** What the session batch creates. `stamp` is the server's time (serverTimestamp()). Never an undefined field. */
+export function finishOncePayload(
+  finishId: string,
+  uid: string,
+  clientId: string,
+  stamp: unknown,
+  extra: { deviceId?: string | null; asItWas?: boolean } = {},
+): FinishOnceDoc {
+  const d: FinishOnceDoc = { finishId, by: uid, at: stamp, clientId };
+  if (extra.deviceId && DEVICE_ID_OK.test(extra.deviceId)) d.deviceId = extra.deviceId;
+  if (extra.asItWas === true) d.asItWas = true;
+  return d;
+}
+
+/** An hour with nothing saved: the staleness rule's hour (lib/utils isSessionValid), and the rules'. */
+export const HOLDER_QUIET_MS = 60 * 60 * 1000;
+
+export interface HeldSession {
+  status?: string;
+  trainerId?: string | null;
+  recordingDeviceId?: string | null;
+  lastHeartbeatAt?: unknown;
+  createdAt?: unknown;
+}
+
+/**
+ * Another device holds this unfinished session: its `recordingDeviceId` is
+ * set and isn't this device's, and it saved something within the hour (its
+ * heartbeat, else its creation). The rules' finishFromHolder, as the app
+ * reads it: a marker from any other device is refused then. A session no
+ * device holds, or one quiet for an hour (left open: anyone at the studio
+ * may finish it as it was), is held by nobody; nor is the signed-in
+ * trainer's own session to a device that can't keep an id (`uid`), which
+ * must never be locked out of its own finish.
+ */
+export function heldElsewhere(
+  s: HeldSession | null | undefined,
+  deviceId: string | null | undefined,
+  now: number = Date.now(),
+  uid?: string | null,
+): boolean {
+  const holder = (s?.recordingDeviceId || "").trim();
+  if (!holder || holder === (deviceId || "").trim()) return false;
+  if (!deviceId && !!uid && (s?.trainerId || "") === uid) return false;
+  const seen = getMillis(s?.lastHeartbeatAt) || getMillis(s?.createdAt);
+  return seen > 0 && seen >= now - HOLDER_QUIET_MS;
+}
+
+/** Another device holds the session at all, fresh or not: never the "unmarked" net, which would write past the holder. */
+function heldByAnotherDevice(s: HeldSession | null | undefined, deviceId: string | null | undefined, uid?: string | null): boolean {
+  const holder = (s?.recordingDeviceId || "").trim();
+  if (!holder || holder === (deviceId || "").trim()) return false;
+  return !(!deviceId && !!uid && (s?.trainerId || "") === uid);
 }
 
 /** What the totals batch writes on the marker: counted, once, by this finish. */
@@ -130,18 +199,31 @@ export async function readFromServer<T>(
  * The verdicts.
  * ------------------------------------------------------------------ */
 
-export type FinishVerdict = "mine" | "elsewhere" | "gone" | "unmarked" | "refused";
+export type FinishVerdict = "mine" | "elsewhere" | "correct" | "taken" | "gone" | "unmarked" | "refused";
 
 /** Why a session batch was refused, from the server's marker and session. */
 export function judgeFinishRefusal(a: {
   marker: ServerRead<Partial<FinishOnceDoc>>;
-  session: ServerRead<{ status?: string }>;
+  session: ServerRead<HeldSession>;
   finishId: string;
+  /** This device's id (null when it can't keep one). */
+  deviceId?: string | null;
+  /** This finish is itself "Finish it as it was": it never corrects another. */
+  asItWas?: boolean;
+  /** The sign-in uid: the trainer's own session never counts as held elsewhere by a device that can't keep an id. */
+  uid?: string | null;
+  now?: number;
 }): FinishVerdict {
   const { marker, session, finishId } = a;
+  const now = a.now ?? Date.now();
   if (session.kind === "missing") return "gone";
-  if (marker.kind === "found") return marker.data?.finishId === finishId ? "mine" : "elsewhere";
+  if (marker.kind === "found") {
+    if (marker.data?.finishId === finishId) return "mine";
+    return marker.data?.asItWas === true && !a.asItWas ? "correct" : "elsewhere";
+  }
   if (session.kind === "found" && session.data?.status === "Completed") return "elsewhere";
+  if (session.kind === "found" && heldElsewhere(session.data, a.deviceId, now, a.uid)) return "taken";
+  if (session.kind === "found" && heldByAnotherDevice(session.data, a.deviceId, a.uid)) return "refused";
   if (session.kind === "found" && (marker.kind === "missing" || marker.kind === "denied")) return "unmarked";
   return "refused";
 }
@@ -182,12 +264,26 @@ export class SessionGoneError extends Error {
   }
 }
 
+export class TakenOverError extends Error {
+  readonly kind = "taken-over" as const;
+  readonly refusal: unknown;
+  constructor(refusal?: unknown) {
+    super("This session was taken over on another device.");
+    this.name = "TakenOverError";
+    this.refusal = refusal;
+  }
+}
+
 export function isFinishedElsewhere(err: unknown): err is FinishedElsewhereError {
   return (err as { kind?: string } | null)?.kind === "finished-elsewhere";
 }
 
 export function isSessionGone(err: unknown): err is SessionGoneError {
   return (err as { kind?: string } | null)?.kind === "gone";
+}
+
+export function isTakenOver(err: unknown): err is TakenOverError {
+  return (err as { kind?: string } | null)?.kind === "taken-over";
 }
 
 /* ------------------------------------------------------------------ *
@@ -213,11 +309,14 @@ export function sessionGoneWords(name?: string | null): string {
     : "This session was discarded on another iPad, so it couldn't be saved here.";
 }
 
+/* Names the action, never a button: straight after a refusal the session is
+   still running, so the profile offers Continue session in its In progress
+   menu, and Resume or finish only after an hour (the review, Oct 12 2026). */
 export function finishRefusedWords(name?: string | null): string {
   const first = firstOf(name);
   return first
-    ? `${first}'s session didn't save. The sets are kept on this iPad. Open ${first}'s profile, tap Resume or finish, then Finish again.`
-    : "This session didn't save. The sets are kept on this iPad. Open the client's profile, tap Resume or finish, then Finish again.";
+    ? `${first}'s session didn't save. The sets are kept on this iPad. Open the session again from ${first}'s profile and press Finish.`
+    : "This session didn't save. The sets are kept on this iPad. Open the session again from the client's profile and press Finish.";
 }
 
 /** The same session's Finish refused a second time on this iPad. */
@@ -225,17 +324,34 @@ export function finishRefusedAgainWords(name?: string | null): string {
   return `${finishRefusedWords(name)} If it still won't save, tell your studio leader.`;
 }
 
+/** Taken over, or continued on another device, before this Finish landed: it finishes there. */
+export function takenOverWords(name?: string | null): string {
+  const first = firstOf(name);
+  return first
+    ? `${first}'s session was taken over on another device, so it finishes there.`
+    : "This session was taken over on another device, so it finishes there.";
+}
+
+/** This iPad's finish went in over another iPad's "Finish it as it was". */
+export function correctedAsItWasWords(name?: string | null): string {
+  const first = firstOf(name);
+  return first
+    ? `${first}'s session was finished as it was on another iPad. This iPad's sets and weights are saved over it, and it counts once.`
+    : "This session was finished as it was on another iPad. This iPad's sets and weights are saved over it, and it counts once.";
+}
+
 /** How a Finish that reached the Wrap-up was refused, if it was. */
-export type FinishRefused = "elsewhere" | "gone" | "refused";
+export type FinishRefused = "elsewhere" | "gone" | "taken" | "refused";
 
 /** The Wrap-up's one line under its header for a refused Finish. */
 export function wrapUpRefusedLine(kind: FinishRefused, name?: string | null): string {
   if (kind === "elsewhere") return "Already finished on another iPad · it counts once";
   if (kind === "gone") return "Not saved · this session was discarded on another iPad.";
+  if (kind === "taken") return "Not finished here · it was taken over on another device, and finishes there.";
   const first = firstOf(name);
   return first
-    ? `Not saved yet · open ${first}'s profile and tap Resume or finish.`
-    : "Not saved yet · open the client's profile and tap Resume or finish.";
+    ? `Not saved yet · open the session again from ${first}'s profile and press Finish.`
+    : "Not saved yet · open the session again from the client's profile and press Finish.";
 }
 
 /** "Finish it as it was" on a session another iPad already finished. */

@@ -146,7 +146,7 @@ vi.mock("./session-count-cache", () => ({ invalidateSessionCount: () => {} }));
 
 import { completeWorkoutSession } from "./sync-utils";
 import { withMachineTotals } from "../features/machine-totals/totals";
-import { isFinishedElsewhere, isSessionGone } from "../features/session-record/finish-once";
+import { isFinishedElsewhere, isSessionGone, isTakenOver } from "../features/session-record/finish-once";
 
 const session = { id: "sess1", sessionNumber: 41, hostedAtStudioId: "studioA", date: "2026-09-24" };
 const client = { id: "c1", homeStudioId: "studioB", firstName: "Casey", completedSessions: 40 };
@@ -582,5 +582,78 @@ describe("completeWorkoutSession: the finish marker", () => {
     delete calls.server[markerOf(id)];
     await finishAs(id);
     expect(calls.updateDocs).toHaveLength(0);
+  });
+});
+
+/* ── The review and attack (Oct 12 2026) ────────────────────────────────── */
+describe("completeWorkoutSession: the device holding it, and Finish it as it was", () => {
+  const fresh = () => new Date(Date.now() - 5 * 60_000);
+  const withOptions = (o: Record<string, unknown>, s: Record<string, unknown> = session) =>
+    completeWorkoutSession({} as never, s, client, logs, "", trainer, {}, "uid-t1", undefined, o);
+
+  it("puts this device and as-it-was on the marker when given", async () => {
+    await withOptions({ deviceId: "d-here", asItWas: true });
+    expect(markerCreate()!.data).toMatchObject({ deviceId: "d-here", asItWas: true });
+    calls.sessionBatches = [];
+    await withOptions({ deviceId: null }, { ...session, id: "sess-nodevice" });
+    expect(calls.sessionBatches[0].find((w) => w.path.endsWith("/finish/once"))!.data).not.toHaveProperty("deviceId");
+  });
+
+  /* After a take-over the session names the taker's iPad: this iPad's
+     queued Finish is refused, said as taken over, and never sent again
+     without its marker (which the session rules alone would have let in). */
+  it("\"taken\": another device holds it and saved within the hour: TakenOverError, and nothing more is written", async () => {
+    calls.refuseBatch = true;
+    calls.server["sessions/sess1"] = { status: "In-Progress", recordingDeviceId: "d-taker", lastHeartbeatAt: fresh() };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const err = await withOptions({ deviceId: "d-here" }).catch((e) => e);
+    expect(isTakenOver(err)).toBe(true);
+    expect(calls.commits).toBe(1);
+  });
+
+  it("held by another device but quiet an hour: never the unmarked net, which would write past it", async () => {
+    calls.refuseMarkerCreate = true;
+    calls.server["sessions/sess-held"] = { status: "In-Progress", recordingDeviceId: "d-other", lastHeartbeatAt: new Date(Date.now() - 2 * 3_600_000) };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const err = await withOptions({ deviceId: "d-here" }, { ...session, id: "sess-held" }).catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(isTakenOver(err)).toBe(false);
+    expect(calls.commits).toBe(1);
+  });
+
+  /* A colleague's "Finish it as it was" got there first, from what the
+     server held; this iPad ran the session. Its own finish goes in over it,
+     with no marker, no credit and no totals: it counts once. */
+  it("\"correct\": over another iPad's Finish it as it was, the session batch goes again with no marker, no credit and no totals", async () => {
+    calls.refuseSessionAt = 1;
+    calls.server["sessions/sess1"] = { status: "Completed", trainerId: "t1" };
+    calls.server[MARKER] = { finishId: "as-it-was", by: "uid-t2", clientId: "c1", asItWas: true, countedAt: 1, countedBy: "as-it-was" };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await withOptions({ deviceId: "d-here" });
+    expect(r).toEqual({ totalsSaved: null, counted: "corrected" });
+    expect(calls.commits).toBe(2);
+    const again = calls.sessionBatches[1];
+    expect(again.some((w) => w.path.endsWith("/finish/once"))).toBe(false);
+    const sessionWrite = again.find((w) => w.path === "sessions/sess1")!;
+    expect(sessionWrite.data).not.toHaveProperty("trainerId");
+    expect(sessionWrite.data).not.toHaveProperty("trainerName");
+    expect(sessionWrite.data.status).toBe("Completed");
+    // The sets and the next weights are in it.
+    expect(again.some((w) => w.path === "exerciseLogs/sess1_m1")).toBe(true);
+    expect(again.some((w) => w.path === "clientMachineSettings/c1_m1")).toBe(true);
+    // Only the one totals batch queued with the first try, refused; no second.
+    expect(calls.updateDocs).toHaveLength(1);
+    expect((calls.server[MARKER] as Record<string, unknown>).countedBy).toBe("as-it-was");
+  });
+
+  it("a second Finish it as it was never corrects the first", async () => {
+    calls.refuseBatch = true;
+    calls.server["sessions/sess1"] = { status: "Completed" };
+    calls.server[MARKER] = { finishId: "as-it-was", by: "uid-t2", clientId: "c1", asItWas: true };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const err = await withOptions({ deviceId: "d-here", asItWas: true }).catch((e) => e);
+    expect(isFinishedElsewhere(err)).toBe(true);
+    expect(calls.commits).toBe(1);
   });
 });

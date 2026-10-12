@@ -29,7 +29,7 @@
  */
 import { isSessionValid } from "../../../lib/utils";
 import { isOpenSession } from "../../../lib/live-session";
-import { lastActiveWords, quietKindOf, quietLine, type QuietKind } from "../../../lib/session-quiet";
+import { lastActiveWords, quietDetail, quietKindOf, type QuietKind } from "../../../lib/session-quiet";
 import type { WorkoutSession } from "../../../types";
 
 export { lastActiveWords };
@@ -49,7 +49,7 @@ export interface LeftOpenRow {
   machines: number;
   /** Why it went quiet. */
   quiet: QuietKind;
-  /** "Left open · last active Tue 9:40 AM · 3 machines logged · started by Sam". */
+  /** Beside the badge: "Last active Tue 9:40 AM · 3 machines logged · started by Sam", "Since 2:10 PM · …". */
   detail: string;
 }
 
@@ -90,8 +90,10 @@ export function leftOpenSessions(
     const runner = nameOf(s.trainerId || s.startedByTrainerId || null, s.trainerInitials);
     const machines = Array.isArray(s.sessionMachineIds) ? s.sessionMachineIds.length : 0;
     const quiet = quietKindOf(s, now, opts.tz);
+    /* The row's badge says Paused, At End Session or Left open, so the
+       sentence doesn't (the review, Oct 12 2026: "Operations says it once"). */
     const parts = [
-      quietLine(s, quiet, now, opts.tz),
+      quietDetail(s, quiet, now, opts.tz),
       machines > 0 ? `${machines} machine${machines === 1 ? "" : "s"} logged` : null,
       !open && trainer ? `started by ${firstWord(trainer)}` : null,
     ].filter(Boolean) as string[];

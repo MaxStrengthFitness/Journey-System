@@ -313,14 +313,16 @@ describe("Operations → Hours", () => {
     expect(panel).toBeTruthy();
     const text = panel.textContent ?? "";
     expect(text).toContain("Running now");
-    expect(text).toContain("Left open");
+    expect(text).toContain("Not running now");
+    // A pause the trainer chose is never called left open (the review, Oct 12 2026).
+    expect(text).not.toContain("Left open");
     expect(text).toContain("Ann Able");
     expect(text).toContain("AJ Jurgens");
     expect(text).toContain("Open session");
     expect(text).toContain("Lee Brown");
-    expect(text).toContain("Paused");
-    // Wednesday's session d is left open, said with its day.
-    expect(text).toContain("started Wed 11:00 AM · Left open");
+    expect(text).toContain("Paused since");
+    // Wednesday's session d was left open, said with its day and its last sign of life.
+    expect(text).toContain("started Wed 11:00 AM · last active Wed");
     const open = (name: string) => panel.querySelector<HTMLButtonElement>(`button[aria-label="Open ${name}"]`)!;
     await act(async () => {
       open("Open session").click();
@@ -335,14 +337,16 @@ describe("Operations → Hours", () => {
   it("says it couldn't check, never none, when the read fails or only the cache answered", async () => {
     fake.openFails = true;
     let el = await mount(leader);
-    expect(el.textContent).toContain("Couldn't check for unfinished sessions. Try again.");
+    expect(el.textContent).toContain("Couldn't check for unfinished sessions.");
+    expect(el.textContent).not.toContain("unfinished sessions. Try again.");
     expect(el.textContent).not.toContain("Every session here is finished.");
     act(() => root?.unmount());
     host?.remove();
     fake.openFails = false;
     fake.openFromCache = true;
     el = await mount(leader);
-    expect(el.textContent).toContain("Couldn't check for unfinished sessions. Try again.");
+    expect(el.textContent).toContain("Couldn't check for unfinished sessions.");
+    expect(el.textContent).not.toContain("unfinished sessions. Try again.");
     // Try again reads the server again.
     fake.openFromCache = false;
     fake.sessions.solon = fake.sessions.solon.filter((s) => s.status !== "In-Progress");

@@ -21,8 +21,8 @@ describe("sessions not finished (the Atlas answers, Oct 2 2026; the sessions rou
     );
     expect(rows.map((r) => r.id)).toEqual(["stale", "old"]);
     expect(rows[0]).toMatchObject({ kind: "client", clientId: "c-stale", clientName: "Client stale", trainer: "Sam Gamgee", machines: 3, quiet: "left-open" });
-    expect(rows[0].detail).toBe("Left open · last active 9:40 AM · 3 machines logged · started by Sam");
-    expect(rows[1].detail).toBe("Left open · last active Tue 8:00 AM · started by SG");
+    expect(rows[0].detail).toBe("Last active 9:40 AM · 3 machines logged · started by Sam");
+    expect(rows[1].detail).toBe("Last active Tue 8:00 AM · started by SG");
   });
 
   it("names an open session by whose it is, never 'A client', and doesn't name the trainer twice", () => {
@@ -35,7 +35,7 @@ describe("sessions not finished (the Atlas answers, Oct 2 2026; the sessions rou
       { trainerNameOf: names, tz: "America/New_York" },
     );
     expect(rows[0]).toMatchObject({ kind: "open", clientId: null, clientName: "Open session · Ann" });
-    expect(rows[0].detail).toBe("Left open · last active 10:00 AM · 1 machine logged");
+    expect(rows[0].detail).toBe("Last active 10:00 AM · 1 machine logged");
     expect(rows[1].clientName).toBe("Open session");
     expect(rows.map((r) => r.clientName).join()).not.toContain("A client");
   });
@@ -55,8 +55,8 @@ describe("sessions not finished (the Atlas answers, Oct 2 2026; the sessions rou
       ["ended", "at-end-session"],
       ["left", "left-open"],
     ]);
-    expect(rows[0].detail).toBe("Paused at 1:10 PM · started by SG");
-    expect(rows[1].detail).toBe("Stopped at End Session at 12:05 PM · started by SG");
+    expect(rows[0].detail).toBe("Since 1:10 PM · started by SG");
+    expect(rows[1].detail).toBe("Since 12:05 PM · started by SG");
     expect(needsYouCount(rows)).toBe(1);
   });
 

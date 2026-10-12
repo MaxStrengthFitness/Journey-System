@@ -859,7 +859,9 @@ export function WrapUpScreen({
             <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-ink-d2 break-words">
               {refused === "gone" || refused === "refused"
                 ? "Wrap-up · not saved"
-                : savedOnThisIpad && !refused
+                : refused === "taken"
+                  ? "Wrap-up · not finished here"
+                  : savedOnThisIpad && !refused
                   ? "Wrap-up · session saved on this iPad"
                   : "Wrap-up · session saved"}
             </div>
@@ -870,7 +872,7 @@ export function WrapUpScreen({
               <p
                 role="status"
                 className={
-                  refused === "elsewhere"
+                  refused === "elsewhere" || refused === "taken"
                     ? "text-ink-d2 text-[14px] mb-1 break-words"
                     : "text-ink-d1 text-[14px] mb-1 break-words rounded-xl border border-(--eq-warn)/40 bg-(--eq-warn-fill) px-3 py-2"
                 }

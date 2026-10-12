@@ -26,7 +26,7 @@ const READ_WAIT_MS = 5_000;
 
 export type LeftHereRead = { state: "loading" } | { state: "failed" } | { state: "ok"; sessions: WorkoutSession[] };
 
-export const LEFT_HERE_FAILED = "Couldn't check for open sessions left open.";
+export const LEFT_HERE_FAILED = "Couldn't check for open sessions nobody finished.";
 
 export interface LeftHereRow {
   id: string;

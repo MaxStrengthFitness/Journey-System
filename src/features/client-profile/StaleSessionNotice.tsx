@@ -28,6 +28,7 @@ export function StaleSessionNotice({
   todayKey,
   onResume,
   onDiscard,
+  discardWaits = null,
   elsewhereStudioName,
 }: {
   session: StaleSessionFacts;
@@ -35,6 +36,12 @@ export function StaleSessionNotice({
   /** Resume or finish: the Active Session asks there. */
   onResume: () => void;
   onDiscard: () => void;
+  /**
+   * Someone else's session left open today (session-record/discard.ts
+   * `discardWaitsToday`; the attack, Oct 12 2026): Discard isn't offered,
+   * and these words say why and when it will be.
+   */
+  discardWaits?: string | null;
   /**
    * The studio's name when the session was left at another studio than this
    * iPad's: said, with no buttons ("never another studio's").
@@ -65,15 +72,22 @@ export function StaleSessionNotice({
             <Play className="w-4 h-4" aria-hidden />
             Resume or finish
           </button>
-          <button
-            type="button"
-            onClick={onDiscard}
-            className="shrink-0 inline-flex items-center gap-2 min-h-10 px-4 py-2 rounded-xl bg-(--raised) border border-input shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) text-red-700 dark:text-red-400 text-[14px] font-bold text-left hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" aria-hidden />
-            Discard it
-          </button>
+          {!discardWaits && (
+            <button
+              type="button"
+              onClick={onDiscard}
+              className="shrink-0 inline-flex items-center gap-2 min-h-10 px-4 py-2 rounded-xl bg-(--raised) border border-input shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) text-red-700 dark:text-red-400 text-[14px] font-bold text-left hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" aria-hidden />
+              Discard it
+            </button>
+          )}
         </div>
+      )}
+      {!elsewhere && discardWaits && (
+        <p className="basis-full text-[12px] leading-snug text-muted-foreground break-words" data-testid="notice-discard-waits">
+          {discardWaits}
+        </p>
       )}
     </div>
   );

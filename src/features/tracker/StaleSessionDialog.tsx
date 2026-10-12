@@ -41,7 +41,7 @@ import {
   staleSessionStartedLine,
   type StaleSessionFacts,
 } from "../../lib/live-session";
-import { stillLeftOpenWords, type StillLeftOpen } from "../session-record/discard";
+import { DISCARD_BODY_WORDS, lastOnItWords, stillLeftOpenWords, type StillLeftOpen } from "../session-record/discard";
 
 export function StaleSessionDialog({
   open,
@@ -61,6 +61,8 @@ export function StaleSessionDialog({
   onNotNow,
   lastActive = null,
   leftOpenAt = null,
+  quietNote = null,
+  discardWaits = null,
 }: {
   open: boolean;
   /** The client's name; null for an open session, which has no client yet. */
@@ -107,6 +109,18 @@ export function StaleSessionDialog({
   lastActive?: string | null;
   /** The studio it runs at, when that isn't this iPad's: it is described, not offered. */
   leftOpenAt?: string | null;
+  /**
+   * "Paused since 2:10 PM." or "At End Session since 2:10 PM.", said above
+   * Discard (the review, Oct 12 2026): an hour paused is left open to the
+   * staleness rule, and the question says what it is. Null: simply left open.
+   */
+  quietNote?: string | null;
+  /**
+   * Someone else's session left open today (session-record/discard.ts
+   * `discardWaitsToday`): Discard isn't offered, and these words say why and
+   * when it will be. Null: Discard as usual.
+   */
+  discardWaits?: string | null;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [check, setCheck] = useState<StillLeftOpen | "checking" | null>(null);
@@ -136,7 +150,7 @@ export function StaleSessionDialog({
 
   const close = mine ? onStartNew : (onNotNow ?? onStartNew);
   const canFinish = !!onFinishAsItWas && !isOpenSession && !leftOpenAt;
-  const canDiscard = !!onDiscard && !leftOpenAt;
+  const canDiscard = !!onDiscard && !leftOpenAt && !discardWaits;
 
   const askDiscard = () => {
     setConfirming(true);
@@ -178,13 +192,16 @@ export function StaleSessionDialog({
             <div className="bg-card p-8 text-foreground space-y-3">
               <DialogTitle className="break-words">{mine || !who ? "Discard this session?" : `Discard ${who}'s session?`}</DialogTitle>
               <DialogDescription className="text-foreground font-medium text-base leading-relaxed break-words">
-                Every set in it is deleted. This can't be undone.
+                {DISCARD_BODY_WORDS}
               </DialogDescription>
+              {quietNote && (
+                <p className="text-foreground text-sm leading-relaxed break-words" data-testid="stale-quiet-note">
+                  {quietNote}
+                </p>
+              )}
               {!mine && lastActive && (
                 <p className="text-foreground text-sm leading-relaxed break-words" data-testid="stale-last-on-it">
-                  {who
-                    ? `${who} was last on it at ${lastActive}. If ${who} might still be with the client, check with ${who} first.`
-                    : `It was last used at ${lastActive}. If someone might still be with the client, check with them first.`}
+                  {lastOnItWords(who, lastActive)}
                 </p>
               )}
               {held && (
@@ -255,7 +272,7 @@ export function StaleSessionDialog({
                 ))}
               {!leftOpenAt &&
                 (canDiscard ? (
-                  <Answer meaning="Deletes it and every set in it.">
+                  <Answer meaning={quietNote ? `${quietNote} Deletes it and every set in it.` : "Deletes it and every set in it."}>
                     <Button
                       variant="outline"
                       className="min-h-14 h-auto w-full whitespace-normal rounded-2xl text-destructive"
@@ -264,6 +281,10 @@ export function StaleSessionDialog({
                       Discard it
                     </Button>
                   </Answer>
+                ) : discardWaits ? (
+                  <p className="text-[12px] leading-snug text-muted-foreground break-words self-center" data-testid="stale-discard-waits">
+                    {discardWaits}
+                  </p>
                 ) : (
                   <Spacer />
                 ))}

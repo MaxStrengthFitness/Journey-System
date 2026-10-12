@@ -140,7 +140,7 @@ describe("the Directory's open sessions left open", () => {
   it("says it couldn't check, and lists nothing, when the read fails or only the cache answered", async () => {
     fake.fails = true;
     let host = await mount(() => {});
-    expect(host.querySelector("[data-testid='left-open-unknown']")?.textContent).toBe("Couldn't check for open sessions left open.");
+    expect(host.querySelector("[data-testid='left-open-unknown']")?.textContent).toBe("Couldn't check for open sessions nobody finished.");
     expect(host.querySelector(".cd-left-open")).toBeNull();
     document.body.innerHTML = "";
     fake.fails = false;

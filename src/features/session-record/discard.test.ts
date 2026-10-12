@@ -10,6 +10,7 @@ const fs = vi.hoisted(() => ({
   swept: [] as string[],
   readDocs: [] as Array<{ id: string; ref: { path: string } }>,
   refuse: false,
+  readFails: false,
 }));
 
 vi.mock("firebase/firestore", () => ({
@@ -19,6 +20,7 @@ vi.mock("firebase/firestore", () => ({
   query: (c: unknown, ...w: unknown[]) => ({ c, w }),
   getDocs: async () => {
     fs.events.push("read");
+    if (fs.readFails) throw new Error("offline");
     return { docs: fs.readDocs };
   },
   getDocFromServer: vi.fn(),
@@ -37,10 +39,16 @@ vi.mock("firebase/firestore", () => ({
 }));
 
 import {
+  DISCARD_BODY_WORDS,
   checkStillLeftOpen,
   discardIds,
   discardStaleSession,
+  discardWaitsToday,
+  discardWaitsWords,
   judgeStillLeftOpen,
+  lastOnItWords,
+  quietNoteWords,
+  readSetIds,
   stillLeftOpenWords,
 } from "./discard";
 
@@ -50,6 +58,7 @@ beforeEach(() => {
   fs.swept = [];
   fs.readDocs = [];
   fs.refuse = false;
+  fs.readFails = false;
 });
 
 const flush = async () => {
@@ -90,6 +99,31 @@ describe("discardStaleSession", () => {
     await discardStaleSession({} as never, { id: "s1" }, {}, ["m-pulldown"]);
     expect(fs.batches[0].deletes).toContain("sessions/s1");
     expect(fs.batches[0].deletes).toContain("exerciseLogs/s1_m-pulldown");
+  });
+
+  /* The review, Oct 12 2026: an older session with no machine list used to
+     hold only the session in its batch, its sets waiting on a sweep that a
+     reload or a dropped connection never ran. The ids read when the
+     question opened go in the same batch. */
+  it("puts every set id read when the question opened in the same batch as the session", async () => {
+    fs.readDocs = [
+      { id: "s1_m-a", ref: { path: "exerciseLogs/s1_m-a" } },
+      { id: "s1_m-b", ref: { path: "exerciseLogs/s1_m-b" } },
+    ];
+    const ids = await readSetIds({} as never, "s1");
+    expect(ids).toEqual(["s1_m-a", "s1_m-b"]);
+    fs.events = [];
+    await discardStaleSession({} as never, { id: "s1" }, {}, [], ids);
+    expect(fs.batches[0].deletes.sort()).toEqual(["exerciseLogs/s1_m-a", "exerciseLogs/s1_m-b", "sessions/s1"]);
+    await flush();
+    // The sweep found nothing the batch didn't hold: no second commit.
+    expect(fs.batches).toHaveLength(1);
+  });
+
+  it("a set read that doesn't answer is null, never none", async () => {
+    expect(await readSetIds({} as never, undefined)).toBeNull();
+    fs.readFails = true;
+    expect(await readSetIds({} as never, "s1")).toBeNull();
   });
 
   it("a refused batch is returned for the toast, and nothing is swept", async () => {
@@ -140,5 +174,36 @@ describe("checkStillLeftOpen", () => {
     expect(stillLeftOpenWords("gone")).toBe("That session was already discarded.");
     expect(stillLeftOpenWords("done")).toBe("That session was finished on another iPad.");
     expect(stillLeftOpenWords("unknown")).toBe("Couldn't check that session. Try again.");
+  });
+});
+
+describe("the Discard questions' words (the review, Oct 12 2026)", () => {
+  it("names the trainer once in the last-on-it line, the same in both questions", () => {
+    expect(lastOnItWords("Sam", "2:14 PM")).toBe("Sam was last on it at 2:14 PM and may still be with the client. Check with Sam first.");
+    expect(lastOnItWords(null, "2:14 PM")).toBe("It was last used at 2:14 PM. Someone may still be with the client, so check first.");
+    expect(DISCARD_BODY_WORDS).toBe("Every set logged in it will be deleted. This can't be undone.");
+  });
+
+  it("says Paused or At End Session above Discard, nothing for one simply left open", () => {
+    const tz = "America/New_York";
+    const now = Date.parse("2026-10-12T15:00:00-04:00");
+    const s = { status: "In-Progress", pausedAt: Date.parse("2026-10-12T14:10:00-04:00"), endTime: Date.parse("2026-10-12T14:20:00-04:00") };
+    expect(quietNoteWords("paused", s, now, tz)).toBe("Paused since 2:10 PM.");
+    expect(quietNoteWords("at-end-session", s, now, tz)).toBe("At End Session since 2:20 PM.");
+    expect(quietNoteWords("left-open", s, now, tz)).toBeNull();
+  });
+
+  /* The attack, Oct 12 2026: a Finish queued on an offline iPad was refused
+     whole when a colleague discarded the session first. Someone else's
+     session left open today waits for the next studio day. */
+  it("someone else's session left open today is discarded from tomorrow; your own any time", () => {
+    expect(discardWaitsToday({ mine: false, lastSignOfLifeDay: "2026-10-12", todayKey: "2026-10-12" })).toBe(true);
+    expect(discardWaitsToday({ mine: false, lastSignOfLifeDay: null, todayKey: "2026-10-12" })).toBe(true);
+    expect(discardWaitsToday({ mine: false, lastSignOfLifeDay: "2026-10-11", todayKey: "2026-10-12" })).toBe(false);
+    expect(discardWaitsToday({ mine: true, lastSignOfLifeDay: "2026-10-12", todayKey: "2026-10-12" })).toBe(false);
+    expect(discardWaitsWords("Sam")).toBe(
+      "Sam's session can be discarded from tomorrow, in case it was finished on an iPad that's offline. Today it can be resumed or finished as it was.",
+    );
+    expect(discardWaitsWords(null, { openSession: true })).toContain("Today it can be resumed.");
   });
 });

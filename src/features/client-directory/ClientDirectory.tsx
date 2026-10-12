@@ -520,7 +520,7 @@ export function ClientDirectory({
         </div>
 
         {onOpenOpenSession && leftHereRows.length > 0 && (
-          <ul className="cd-left-open" aria-label="Open sessions left open">
+          <ul className="cd-left-open" aria-label="Open sessions not finished">
             {leftHereRows.map((r) => (
               <li key={r.id} className="cd-left-open__row">
                 <span className="cd-left-open__line">{r.line}</span>

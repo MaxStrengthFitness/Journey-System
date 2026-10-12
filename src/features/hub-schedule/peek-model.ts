@@ -142,7 +142,7 @@ export function peekContent(entry: RunSheetEntry, sessionNumber: number | null =
  *   In session                       Back to the session — the Active Session decides
  *                                    by its own rules (resume your own, watch
  *                                    another trainer's read-only)
- *   Left open                        Resume or start new — the Active Session's
+ *   Left open                        Resume or finish — the Active Session's
  *                                    unfinished-session question; her profile
  *                                    has Discard
  *   Logged                           Edit session — the Activity Archive's own
@@ -182,8 +182,9 @@ export function peekState(
     loggedSessionHeld?: boolean;
     /**
      * Why a session left open went quiet (the sessions round, Oct 12 2026;
-     * lib/session-quiet.ts): its kind, its line ("Paused at 2:10 PM") and
-     * the client's first name for where to discard it.
+     * lib/session-quiet.ts): its kind and its line ("Paused since 2:10 PM").
+     * `first`, the client's first name, is no longer said: the note sends
+     * nobody to the profile.
      */
     quiet?: { kind: QuietKind; line: string; first?: string | null } | null;
   } = {},
@@ -192,18 +193,20 @@ export function peekState(
     case "in-session":
       return { words: "In session", primary: { kind: "open-session", label: "Back to the session" }, note: null, lateCancel: null };
     case "left-open": {
+      /* The peek's own door opens the Active Session, whose question offers
+         Resume it, Finish it as it was and Discard it right there, so the
+         note sends nobody to the profile, and the door is named as the
+         profile names it (the review, Oct 12 2026). */
       const q = opts.quiet ?? null;
-      const first = (q?.first || "").trim();
-      const profile = first ? `${first}'s profile` : "the profile";
       const note =
         q?.kind === "paused"
-          ? `${q.line}, nothing saved since. Resume it, or discard it from ${profile}.`
+          ? `${q.line}, nothing saved. Open it to resume, finish or discard it.`
           : q?.kind === "at-end-session"
-            ? `${q.line}, never finished. Resume it to finish, or discard it from ${profile}.`
-            : "Started and quiet for over an hour. Resume it here, or close it from the profile (Discard).";
+            ? `${q.line}, never finished. Open it to finish, resume or discard it.`
+            : "Started and quiet for over an hour. Open it to resume, finish or discard it.";
       return {
         words: q ? QUIET_WORDS[q.kind] : "Left open",
-        primary: { kind: "open-session", label: "Resume or start new" },
+        primary: { kind: "open-session", label: "Resume or finish" },
         note,
         lateCancel: null,
       };

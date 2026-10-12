@@ -312,7 +312,7 @@ export function needItems(input: NeedInputs): { items: NeedItem[]; more: NeedIte
         say: rows.length === 1 ? `A session was left open at ${studioName(rows[0].studioId)}.` : `${rows.length} sessions were left open: ${names(where)}.`,
         proof: "Started but never finished, with nothing saved for an hour or more (last 14 days). Each has Open on that studio's Today.",
         door: { label: `Go to ${most.name}'s Today`, page: "operations-today", studioId: most.id },
-        clears: "Clears itself when each is finished or started again.",
+        clears: "Clears itself when each is finished, resumed or discarded.",
         condition: rows.map((r) => r.id).sort().join(","),
       });
     }

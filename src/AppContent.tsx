@@ -1011,7 +1011,11 @@ export default function AppContent({
    */
   const openSessionFromDoor = (clientId: string | null, sessionId: string | null, returnTo: LiveSessionReturn | null) =>
     guardLeave(() => {
-      if (sessionId && returnTo) rememberLiveSession(sessionId, { returnTo });
+      /* The viewer's own live session stays the one this iPad remembers (the
+         review, Oct 12 2026): a door never replaces it, it only keeps where
+         the door was. */
+      const ownLive = !!myLiveSession?.id && myLiveSession.id !== sessionId;
+      if (sessionId && returnTo) rememberLiveSession(sessionId, { returnTo, keepRemembered: ownLive });
       setSelectedClientIdNow(clientId);
       setAppMode("trainer");
       setCurrentView("workouts");

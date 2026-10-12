@@ -381,7 +381,7 @@ describe("the post-session screen mounts", () => {
   /* A Finish refused after the Wrap-up came up (the sessions round, Oct 12
      2026): one line under the header, and "saved" never claimed over it. */
   it("says in one line how a late Finish was refused, and never claims saved over a refusal", async () => {
-    const at = async (refused: "elsewhere" | "gone" | "refused", queued = true) => {
+    const at = async (refused: "elsewhere" | "gone" | "taken" | "refused", queued = true) => {
       const host = await mount(
         <WrapUpScreen
           client={client}
@@ -412,9 +412,15 @@ describe("the post-session screen mounts", () => {
     expect(gone.textContent).not.toContain("session saved");
 
     const refused = await at("refused");
-    expect(refused.textContent).toContain("Not saved yet · open Judy's profile and tap Resume or finish.");
+    expect(refused.textContent).toContain("Not saved yet · open the session again from Judy's profile and press Finish.");
     expect(refused.textContent).not.toContain("session saved");
     expect(refused.querySelector('[role="status"]')!.className).toContain("bg-(--eq-warn-fill)");
+
+    // Taken over on another device (the attack, Oct 12 2026): said quietly, never "saved".
+    const taken = await at("taken");
+    expect(taken.textContent).toContain("Not finished here · it was taken over on another device, and finishes there.");
+    expect(taken.textContent).toContain("Wrap-up · not finished here");
+    expect(taken.textContent).not.toContain("session saved");
   });
 
   it("shows this session's unfiled note in the To-file tray and files it with one tap", async () => {

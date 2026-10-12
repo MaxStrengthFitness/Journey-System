@@ -85,7 +85,7 @@ describe("beforeJourneySum: the sum beside Confirm (sessions round, Oct 12 2026)
 
   it("when Journey has more than Mindbody counted, says why the guess is none", () => {
     expect(beforeJourneySum(sessionTotalOf({ sessionCount: 9, clientsNumberOfVisitsAtSite: 2 }, "partial"))).toBe(
-      "2 visits in Mindbody, fewer than the 9 in Journey, so none before Journey",
+      "Mindbody counts 2 visits and Journey has 9, so none before Journey",
     );
   });
 

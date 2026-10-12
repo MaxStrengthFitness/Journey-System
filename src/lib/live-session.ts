@@ -346,7 +346,11 @@ export function pickOpenSession<T extends LiveSessionLike>(
   /* Watched: only a LIVE session someone records elsewhere (Oct 12 2026: an
      abandoned one is never watched; it is asked about, or left). */
   const others = open.filter((s) => !mine.includes(s) && isSessionValid(s, now));
-  const watch = (opts.onScreenId ? others.find((s) => s.id === opts.onScreenId) : undefined) ?? others[0] ?? null;
+  /* The one on screen, then the one a door asked for (Hours' Open on a
+     colleague's running open session; the review, Oct 12 2026: it used to
+     watch whichever came first), then the first. */
+  const othersById = (id: string | null | undefined) => (id ? others.find((s) => s.id === id) : undefined);
+  const watch = othersById(opts.onScreenId) ?? othersById(opts.rememberedId) ?? others[0] ?? null;
   /* Asked about: the session the device remembers, anyone's, when it is
      abandoned and at this studio (it was opened from a door: Operations →
      Today, Hours, the Directory; AJ, Oct 12 2026: "Anyone can clear a
@@ -504,10 +508,25 @@ export type LiveSessionReturn = "operations-today" | "operations-hours" | "direc
 export const LIVE_SESSION_RETURN_KEY = "max_strength_active_session_return";
 const RETURNS: readonly LiveSessionReturn[] = ["operations-today", "operations-hours", "directory", "hub"];
 
-export function rememberLiveSession(sessionId: string, opts: { returnTo?: LiveSessionReturn | null } = {}): void {
+export function rememberLiveSession(
+  sessionId: string,
+  opts: {
+    returnTo?: LiveSessionReturn | null;
+    /**
+     * A door's session while the viewer has a live session of their own
+     * (the review, Oct 12 2026): only where the door was is kept, never the
+     * live session's id, which stays the viewer's own.
+     */
+    keepRemembered?: boolean;
+  } = {},
+): void {
   const s = storage();
   if (!s) return;
   try {
+    if (opts.keepRemembered) {
+      if (opts.returnTo) s.setItem(LIVE_SESSION_RETURN_KEY, `${sessionId}|${opts.returnTo}`);
+      return;
+    }
     s.setItem(LIVE_SESSION_KEY, sessionId);
     if (opts.returnTo) s.setItem(LIVE_SESSION_RETURN_KEY, `${sessionId}|${opts.returnTo}`);
     else if (s.getItem(LIVE_SESSION_RETURN_KEY)?.split("|")[0] !== sessionId) s.removeItem(LIVE_SESSION_RETURN_KEY);

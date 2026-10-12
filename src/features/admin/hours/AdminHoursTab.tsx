@@ -63,6 +63,8 @@ import {
   type MonthKey,
 } from "./hours";
 import {
+  NOT_RUNNING_NOW,
+  RUNNING_NOW,
   OPEN_SESSIONS_FAILED,
   OPEN_SESSIONS_NONE,
   groupOpenSessions,
@@ -70,7 +72,6 @@ import {
   useStudioOpenSessions,
   type OpenSessionRow,
 } from "./open-sessions";
-import { QUIET_WORDS } from "../../../lib/session-quiet";
 import type { LiveSessionReturn } from "../../../lib/live-session";
 
 /** Where Open goes: a client's session, or an open session (no client yet). */
@@ -177,7 +178,7 @@ function StudioHours({
 
 /**
  * Not finished yet (the sessions round, Oct 12 2026): the studio's
- * In-Progress sessions, Running now and Left open, each with Open. A read
+ * In-Progress sessions, Running now and Not running now, each with Open. A read
  * that didn't answer from the server is "couldn't check", never "none".
  */
 function NotFinishedYet({ studio, trainers, doors }: { studio: Studio; trainers: Trainer[]; doors: OpenDoors }) {
@@ -195,7 +196,7 @@ function NotFinishedYet({ studio, trainers, doors }: { studio: Studio; trainers:
     <AdminRows>
       {rows.map((r) => {
         const open = openOf(r);
-        const meta = [r.trainer, r.started, r.quiet ? QUIET_WORDS[r.quiet] : null].filter(Boolean).join(" · ");
+        const meta = [r.trainer, r.started, r.quietWords].filter(Boolean).join(" · ");
         return (
           <AdminRow
             key={r.id}
@@ -232,13 +233,13 @@ function NotFinishedYet({ studio, trainers, doors }: { studio: Studio; trainers:
         <>
           {groups.running.length > 0 && (
             <>
-              <p className="adm-hrs-group">Running now</p>
+              <p className="adm-hrs-group">{RUNNING_NOW}</p>
               {rowsOf(groups.running)}
             </>
           )}
           {groups.leftOpen.length > 0 && (
             <>
-              <p className="adm-hrs-group">Left open</p>
+              <p className="adm-hrs-group">{NOT_RUNNING_NOW}</p>
               {rowsOf(groups.leftOpen)}
             </>
           )}

@@ -32,6 +32,7 @@ function defaultStorage(): DeviceStorage | null {
 }
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+const DEVICE_ID_SHAPE = /^[A-Za-z0-9_-]{1,64}$/;
 
 function newDeviceId(): string {
   let id = "d-";
@@ -48,7 +49,8 @@ export function thisDeviceId(storage: DeviceStorage | null = defaultStorage()): 
   if (!storage) return null;
   try {
     const known = storage.getItem(DEVICE_ID_KEY);
-    if (typeof known === "string" && known.trim()) return known;
+    // Only an id the finish marker's rules take (at most 64 letters, digits, - and _); anything else is made again.
+    if (typeof known === "string" && DEVICE_ID_SHAPE.test(known)) return known;
     const made = newDeviceId();
     storage.setItem(DEVICE_ID_KEY, made);
     return storage.getItem(DEVICE_ID_KEY) === made ? made : null;

@@ -111,6 +111,8 @@ import { addMachineTotalsWrite } from '../features/machine-totals/store';
 import {
   FinishedElsewhereError,
   SessionGoneError,
+  TakenOverError,
+  type HeldSession,
   countedPatch,
   finishOncePayload,
   finishOnceRef,
@@ -234,6 +236,15 @@ async function totalsCommit(
  * Another finish's marker throws FinishedElsewhereError, a session that
  * doesn't exist SessionGoneError; anything else, the refusal itself.
  *
+ * The review and attack (Oct 12 2026) added two things. The marker carries
+ * this device's id, and the rules take it only from the device holding the
+ * session (`recordingDeviceId`) or once nothing has been saved in it for an
+ * hour: a session taken over finishes on the taker's iPad, never on the one
+ * it was taken from (TakenOverError). And a "Finish it as it was" marker
+ * (`asItWas`) is not the last word: the iPad that ran the session, finishing
+ * late, puts its own sets, weights and note in over it with no marker and no
+ * totals (`counted: "corrected"`), so it still counts once.
+ *
  * The client's running totals are NOT in the session batch (Sep 24 2026).
  * They are written right after it, on their own: a trainer cross-training at
  * another studio found Finish refused in full, because the one refused write
@@ -306,8 +317,18 @@ export async function completeWorkoutSession(
      * first time, whatever has answered yet.
      */
     newClient?: boolean;
+    /**
+     * This device's id (features/session-record/device.ts), put on the finish
+     * marker: the rules let a marker in only from the device holding the
+     * session, or once nobody has saved anything in it for an hour (the
+     * review and attack, Oct 12 2026). Null or absent: a device that can't
+     * keep an id.
+     */
+    deviceId?: string | null;
+    /** "Finish it as it was": said on the marker, so the iPad that ran the session may still put its own finish in. */
+    asItWas?: boolean;
   },
-): Promise<{ totalsSaved: boolean | null; counted: "here" }> {
+): Promise<{ totalsSaved: boolean | null; counted: "here" | "corrected" }> {
   if (!currentSession?.id) return { totalsSaved: null, counted: "here" };
   /* The session batch's writes, kept as a list so the batch can be built
      twice: with the finish marker, and (the "unmarked" net) without it. */
@@ -352,7 +373,20 @@ export async function completeWorkoutSession(
       if (v !== undefined) updateData[k] = v;
     }
   }
-  sessionOps.push((b) => b.update(sessionRef, updateData));
+  /* The session's own write is kept apart from the sets and settings, so a
+     correction over "Finish it as it was" (below) can send it without the
+     trainer credit: the rules keep who holds a finished session as it is
+     (firestore.rules finishedHolderKept), and the as-it-was finish already
+     credited the trainer who ran it. */
+  const sessionWrite = (b: WriteBatch, correction: boolean) => {
+    if (!correction) {
+      b.update(sessionRef, updateData);
+      return;
+    }
+    const kept: Record<string, unknown> = { ...updateData };
+    for (const k of ["trainerId", "trainerName", "trainerInitials"]) delete kept[k];
+    b.update(sessionRef, kept);
+  };
 
   // 2. Sync all local logs
   const cleanData = (obj: any): any => {
@@ -596,11 +630,20 @@ export async function completeWorkoutSession(
      the sign-in uid (the rules pin `by` to it). */
   const finishId = selectedClient?.id ? newFinishId() : null;
   const tie: MarkerTie | null = finishId ? { markerRef: finishOnceRef(db, currentSession.id), finishId } : null;
-  const buildSessionBatch = (withMarker: boolean): WriteBatch => {
+  const deviceId = options?.deviceId ?? null;
+  const asItWas = options?.asItWas === true;
+  /* "marker": the finish. "plain": the unmarked net, as the app before this
+     round finished. "correction": this iPad's own finish over another's
+     "Finish it as it was", with no marker and no credit change. */
+  const buildSessionBatch = (mode: "marker" | "plain" | "correction"): WriteBatch => {
     const b = writeBatch(db);
+    sessionWrite(b, mode === "correction");
     for (const op of sessionOps) op(b);
-    if (withMarker && tie) {
-      b.set(tie.markerRef, finishOncePayload(tie.finishId, userId, selectedClient.id, serverTimestamp()));
+    if (mode === "marker" && tie) {
+      b.set(
+        tie.markerRef,
+        finishOncePayload(tie.finishId, userId, selectedClient.id, serverTimestamp(), { deviceId, asItWas }),
+      );
     }
     return b;
   };
@@ -612,7 +655,7 @@ export async function completeWorkoutSession(
   // together, a reload replays both, in order, and the totals' counted mark
   // finds the marker the session batch made. A refused total is reported,
   // never thrown: the session is saved regardless.
-  const committed = buildSessionBatch(true).commit();
+  const committed = buildSessionBatch("marker").commit();
   const totals: Promise<boolean | null> =
     totalsWrite && !totalledSessionIds.has(currentSession.id)
       ? totalsCommit(db, totalsWrite, tie).then(
@@ -634,13 +677,29 @@ export async function completeWorkoutSession(
        this finish's marker. */
     const [marker, session] = await Promise.all([
       readFromServer<Partial<FinishOnceDoc>>(tie.markerRef),
-      readFromServer<{ status?: string }>(sessionRef),
+      readFromServer<HeldSession>(sessionRef),
     ]);
-    const verdict = judgeFinishRefusal({ marker, session, finishId: tie.finishId });
+    const verdict = judgeFinishRefusal({ marker, session, finishId: tie.finishId, deviceId, asItWas, uid: userId });
     // A resend of a batch that already landed: it is saved; the totals carry on.
     if (verdict === 'mine') return { totalsSaved: await totals, counted: "here" };
     if (verdict === 'elsewhere') throw new FinishedElsewhereError(err);
+    if (verdict === 'taken') throw new TakenOverError(err);
     if (verdict === 'gone') throw new SessionGoneError(err);
+    if (verdict === 'correct') {
+      /* Another iPad finished it as it was, from what the server held then;
+         this iPad ran it. Its own sets, weights and note go in over that
+         copy: the session batch again with no marker and no credit change,
+         and no totals (the as-it-was finish counted it; this one's totals,
+         tied to its own marker, were refused with it). Refused again: it is
+         said as finished elsewhere. */
+      try {
+        await buildSessionBatch("correction").commit();
+      } catch (again) {
+        throw new FinishedElsewhereError(again);
+      }
+      await totals;
+      return { totalsSaved: null, counted: "corrected" };
+    }
     if (verdict !== 'unmarked') throw err;
     /* The session is there and not Completed, and its marker is missing or
        the rules refused even reading it (the marker's rules not deployed, or
@@ -650,7 +709,7 @@ export async function completeWorkoutSession(
        came back). Only once it lands do the totals go, without the counted
        mark, once; refused again, no totals at all (the error is thrown). */
     console.warn('[finish] the finish marker was refused; finishing without it', err);
-    await buildSessionBatch(false).commit();
+    await buildSessionBatch("plain").commit();
     if (!totalsWrite || totalledSessionIds.has(currentSession.id)) {
       return { totalsSaved: totalsWrite ? true : null, counted: "here" };
     }

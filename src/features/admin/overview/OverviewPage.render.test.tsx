@@ -446,7 +446,10 @@ describe("Today, the brief", () => {
     const el = await mount(() => {}, { onOpenSession: (...a) => opened.push(a) });
     const needs = section(el, "needs");
     expect(needs.textContent).toContain("Cy Cole");
-    expect(needs.textContent).toContain("Left open \u00b7 last active Yesterday");
+    // The badge says Left open; the sentence doesn't say it again (the review, Oct 12 2026).
+    expect(needs.textContent).toContain("Left open");
+    expect(needs.textContent).toContain("Last active Yesterday");
+    expect(needs.textContent).not.toContain("Left open \u00b7 last active");
     expect(needs.textContent).toContain("2 machines logged \u00b7 started by AJ");
     expect(el.querySelector("[data-testid='not-finished']")?.textContent).toBe("Not finished (1)");
     await click(buttonByText(needs, "Open"));
@@ -470,7 +473,8 @@ describe("Today, the brief", () => {
     expect(text).not.toContain("A client");
     // Eve's session was paused this morning: said, and not counted.
     expect(text).toContain("Eve Eames");
-    expect(text).toContain("Paused at");
+    expect(text).toContain("Paused");
+    expect(text).toContain("Since ");
     expect(el.querySelector("[data-testid='not-finished']")?.textContent).toBe("Not finished (2)");
     // The three things that clear here, as in the first test, and the one left open: four.
     expect(counts.at(-1)).toBe(4);

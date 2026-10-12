@@ -21,6 +21,11 @@ import {
   finishedElsewhereWords,
   isFinishedElsewhere,
   isSessionGone,
+  isTakenOver,
+  heldElsewhere,
+  TakenOverError,
+  takenOverWords,
+  correctedAsItWasWords,
   judgeFinishRefusal,
   judgeTotalsRefusal,
   newFinishId,
@@ -59,6 +64,19 @@ describe("the marker's ids and payloads", () => {
     expect(p).toEqual({ finishId: "f1", by: "uid-1", at: "STAMP", clientId: "c1" });
     expect(Object.values(p).some((v) => v === undefined)).toBe(false);
     expect(countedPatch("f1", "STAMP")).toEqual({ countedAt: "STAMP", countedBy: "f1" });
+  });
+
+  /* The review and attack, Oct 12 2026: the device the finish came from, and
+     whether it was "Finish it as it was", go on the marker; a device id the
+     rules wouldn't take (over 64 characters, odd characters) is left off
+     rather than refusing a first finish. */
+  it("carries the device and as-it-was when given, and never a device id the rules refuse", () => {
+    expect(finishOncePayload("f1", "u", "c1", "S", { deviceId: "d-abc", asItWas: true })).toEqual({
+      finishId: "f1", by: "u", at: "S", clientId: "c1", deviceId: "d-abc", asItWas: true,
+    });
+    expect(finishOncePayload("f1", "u", "c1", "S", { deviceId: null, asItWas: false })).toEqual({ finishId: "f1", by: "u", at: "S", clientId: "c1" });
+    expect(finishOncePayload("f1", "u", "c1", "S", { deviceId: "x".repeat(65) })).not.toHaveProperty("deviceId");
+    expect(finishOncePayload("f1", "u", "c1", "S", { deviceId: "a b" })).not.toHaveProperty("deviceId");
   });
 });
 
@@ -117,6 +135,40 @@ describe("judgeFinishRefusal", () => {
     expect(judgeFinishRefusal({ marker: missing, session: found({ status: "In Progress" }), finishId: F })).toBe("unmarked");
   });
 
+  /* The attack, Oct 12 2026: after a take-over, the iPad it was taken from
+     finished first and the credit and the older sets went back to it. A
+     session another device holds and saved in within the hour is "taken". */
+  it("taken: another device holds the session and saved in it within the hour; never unmarked", () => {
+    const now = Date.UTC(2026, 9, 12, 15, 0);
+    const fresh = { status: "In-Progress", recordingDeviceId: "d-t2", lastHeartbeatAt: new Date(now - 5 * 60_000) };
+    expect(judgeFinishRefusal({ marker: missing, session: found(fresh), finishId: F, deviceId: "d-t1", now })).toBe("taken");
+    // A device that can't keep an id isn't the holder either.
+    expect(judgeFinishRefusal({ marker: missing, session: found(fresh), finishId: F, deviceId: null, now })).toBe("taken");
+    // The trainer's own session, on a device that can't keep an id: never locked out of its own finish.
+    expect(
+      judgeFinishRefusal({ marker: missing, session: found({ ...fresh, trainerId: "uid-1" }), finishId: F, deviceId: null, uid: "uid-1", now }),
+    ).toBe("unmarked");
+    // The holder itself: the unmarked net as before.
+    expect(judgeFinishRefusal({ marker: missing, session: found(fresh), finishId: F, deviceId: "d-t2", now })).toBe("unmarked");
+    // Held by another device but quiet an hour (left open): never the unmarked net, which would write past the holder.
+    const quiet = { ...fresh, lastHeartbeatAt: new Date(now - 2 * 60 * 60_000) };
+    expect(judgeFinishRefusal({ marker: missing, session: found(quiet), finishId: F, deviceId: "d-t1", now })).toBe("refused");
+    expect(heldElsewhere(quiet, "d-t1", now)).toBe(false);
+    expect(heldElsewhere(fresh, "d-t1", now)).toBe(true);
+    expect(heldElsewhere({ ...fresh, recordingDeviceId: "" }, "d-t1", now)).toBe(false);
+  });
+
+  /* The attack, Oct 12 2026: a colleague's "Finish it as it was" landed
+     before the real finish queued on the offline iPad that ran it. */
+  it("correct: another iPad's Finish it as it was, met by a finish that isn't one", () => {
+    const asItWas = found({ finishId: "f2", asItWas: true });
+    expect(judgeFinishRefusal({ marker: asItWas, session: sessionDone, finishId: F })).toBe("correct");
+    // A second as-it-was never corrects the first.
+    expect(judgeFinishRefusal({ marker: asItWas, session: sessionDone, finishId: F, asItWas: true })).toBe("elsewhere");
+    // An ordinary finish that got there first is final.
+    expect(judgeFinishRefusal({ marker: found({ finishId: "f2" }), session: sessionDone, finishId: F })).toBe("elsewhere");
+  });
+
   it("refused: a marker read that failed with the session open is never unmarked", () => {
     expect(judgeFinishRefusal({ marker: failed, session: sessionOpen, finishId: F })).toBe("refused");
   });
@@ -157,6 +209,10 @@ describe("the errors", () => {
     expect(isFinishedElsewhere(new Error("other"))).toBe(false);
     expect(isFinishedElsewhere(null)).toBe(false);
     expect(e.refusal).toBe("x");
+    const t = new TakenOverError("z");
+    expect(isTakenOver(t)).toBe(true);
+    expect(isFinishedElsewhere(t)).toBe(false);
+    expect(isTakenOver(e)).toBe(false);
   });
 });
 
@@ -164,22 +220,28 @@ describe("the words", () => {
   it("name the client by first name when there is one", () => {
     expect(finishedElsewhereWords("Judy Daus")).toBe("Judy's session was already finished on another iPad. It counts once.");
     expect(sessionGoneWords("Judy Daus")).toBe("Judy's session was discarded on another iPad, so it couldn't be saved here.");
+    // The action, never a button the profile doesn't show yet (the review, Oct 12 2026).
     expect(finishRefusedWords("Judy Daus")).toBe(
-      "Judy's session didn't save. The sets are kept on this iPad. Open Judy's profile, tap Resume or finish, then Finish again.",
+      "Judy's session didn't save. The sets are kept on this iPad. Open the session again from Judy's profile and press Finish.",
     );
-    expect(finishRefusedAgainWords("Judy")).toMatch(/Finish again\. If it still won't save, tell your studio leader\.$/);
+    expect(finishRefusedAgainWords("Judy")).toMatch(/press Finish\. If it still won't save, tell your studio leader\.$/);
+    expect(takenOverWords("Judy Daus")).toBe("Judy's session was taken over on another device, so it finishes there.");
+    expect(correctedAsItWasWords("Judy")).toBe(
+      "Judy's session was finished as it was on another iPad. This iPad's sets and weights are saved over it, and it counts once.",
+    );
     expect(staleFinishedElsewhereWords("Judy")).toBe("Judy's unfinished session was already finished on another iPad. Nothing more to do.");
   });
 
   it("give the Wrap-up one line for each refusal", () => {
     expect(wrapUpRefusedLine("elsewhere", "Judy")).toBe("Already finished on another iPad · it counts once");
     expect(wrapUpRefusedLine("gone", "Judy")).toBe("Not saved · this session was discarded on another iPad.");
-    expect(wrapUpRefusedLine("refused", "Judy Daus")).toBe("Not saved yet · open Judy's profile and tap Resume or finish.");
-    expect(wrapUpRefusedLine("refused", null)).toBe("Not saved yet · open the client's profile and tap Resume or finish.");
+    expect(wrapUpRefusedLine("taken", "Judy")).toBe("Not finished here · it was taken over on another device, and finishes there.");
+    expect(wrapUpRefusedLine("refused", "Judy Daus")).toBe("Not saved yet · open the session again from Judy's profile and press Finish.");
+    expect(wrapUpRefusedLine("refused", null)).toBe("Not saved yet · open the session again from the client's profile and press Finish.");
   });
 
   it("say it without a name, and never guess a pronoun", () => {
-    for (const w of [finishedElsewhereWords(), sessionGoneWords(null), finishRefusedWords(""), staleFinishedElsewhereWords("  ")]) {
+    for (const w of [finishedElsewhereWords(), sessionGoneWords(null), finishRefusedWords(""), staleFinishedElsewhereWords("  "), takenOverWords(null), correctedAsItWasWords("")]) {
       expect(w).not.toMatch(/\b(her|his|she|he)\b/i);
       expect(w.length).toBeGreaterThan(10);
     }

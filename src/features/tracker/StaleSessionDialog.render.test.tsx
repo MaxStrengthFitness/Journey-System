@@ -157,7 +157,7 @@ describe("StaleSessionDialog for anyone at the studio", () => {
     await press(button("Discard it"));
     expect(onDiscard).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain("Discard this session?");
-    expect(document.body.textContent).toContain("Every set in it is deleted. This can't be undone.");
+    expect(document.body.textContent).toContain("Every set logged in it will be deleted. This can't be undone.");
     await press(button("Keep it"));
     expect(onDiscard).not.toHaveBeenCalled();
     expect(button("Discard it")).toBeTruthy();
@@ -175,7 +175,7 @@ describe("StaleSessionDialog for anyone at the studio", () => {
     expect(checkDiscard).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).toContain("Discard Sam's session?");
     expect(document.body.querySelector('[data-testid="stale-last-on-it"]')!.textContent).toBe(
-      "Sam was last on it at 2:14 PM. If Sam might still be with the client, check with Sam first.",
+      "Sam was last on it at 2:14 PM and may still be with the client. Check with Sam first.",
     );
     const checking = button("Checking…")!;
     expect(checking.disabled).toBe(true);
@@ -203,5 +203,22 @@ describe("StaleSessionDialog for anyone at the studio", () => {
     expect(button("Discard it")).toBeUndefined();
     expect(button("Finish it as it was")).toBeUndefined();
     expect(button("Not now")).toBeTruthy();
+  });
+
+  /* The review and attack, Oct 12 2026. */
+  it("says Paused or At End Session above Discard, in both questions", async () => {
+    await mount({ onDiscard: vi.fn(), quietNote: "Paused since 2:10 PM." });
+    expect(document.body.textContent).toContain("Paused since 2:10 PM. Deletes it and every set in it.");
+    await press(button("Discard it"));
+    expect(document.body.querySelector('[data-testid="stale-quiet-note"]')!.textContent).toBe("Paused since 2:10 PM.");
+  });
+
+  it("someone else's session left open today: no Discard, and the words say when and why", async () => {
+    const words = "Sam's session can be discarded from tomorrow, in case it was finished on an iPad that's offline. Today it can be resumed or finished as it was.";
+    await mount({ mine: false, starterName: "Sam", onDiscard: vi.fn(), onFinishAsItWas: vi.fn(), onNotNow: vi.fn(), discardWaits: words });
+    expect(button("Discard it")).toBeUndefined();
+    expect(document.body.querySelector('[data-testid="stale-discard-waits"]')!.textContent).toBe(words);
+    expect(button("Resume it")).toBeTruthy();
+    expect(button("Finish it as it was")).toBeTruthy();
   });
 });

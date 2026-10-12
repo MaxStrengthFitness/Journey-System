@@ -3148,6 +3148,8 @@ describe("Firestore Security Rules", () => {
   it("clientMachineSettings: a trainer may delete, a signed-in non-trainer may not", async () => {
     const settingId = "clientA_m-leg-press";
     await testEnv.withSecurityRulesDisabled(async (context) => {
+      // Since Oct 12 2026 a client's settings are written by whoever can reach the client.
+      await setDoc(doc(context.firestore(), "clients", "clientA"), { firstName: "Ann", lastName: "A", homeStudioId: "studioA" });
       await setDoc(doc(context.firestore(), "clientMachineSettings", settingId), {
         clientId: "clientA",
         machineId: "m-leg-press",
@@ -3162,6 +3164,10 @@ describe("Firestore Security Rules", () => {
       .authenticatedContext("nobody-uid", { email: "stranger@example.com" })
       .firestore();
     await assertFails(deleteDoc(doc(stranger, "clientMachineSettings", settingId)));
+
+    // A trainer at another studio may not (the sessions round's attack, Oct 12 2026).
+    const elsewhere = testEnv.authenticatedContext("trainerB", { email: "trainerb@test.com" }).firestore();
+    await assertFails(deleteDoc(doc(elsewhere, "clientMachineSettings", settingId)));
 
     // A real trainer still may — this is floor work, and the floor is never
     // blocked.
@@ -9169,7 +9175,7 @@ describe("a finish is counted once (Oct 12 2026)", () => {
       return b;
     };
     await assertFails(discard(as("trainerC")).commit());
-    // The batch failed on the session alone: a set on its own goes (#22).
+    // Since the attack (Oct 12 2026) a set on its own is refused to them too (#22).
     await assertSucceeds(discard(as("t2")).commit());
   });
 
@@ -9193,8 +9199,51 @@ describe("a finish is counted once (Oct 12 2026)", () => {
     await assertFails(hours(as("trainerC")));
   });
 
-  it("#22 (a known gap, recorded as it stands): any signed-in trainer can delete one set on its own", async () => {
-    await assertSucceeds(deleteDoc(doc(as("trainerC"), "exerciseLogs", `${S}_${MACHINES[0]}`)));
+  /* #22 was "a known gap, recorded as it stands": any signed-in trainer could
+     delete one set. The attack (Oct 12 2026) showed the whole of it: a
+     trainer at another studio could blank, rewrite or delete any studio's
+     sets and overwrite a client's next-session weight. Closed
+     (firestore.rules logSessionReach, machineSettingsClientOk). */
+  it("#22 (the attack, Oct 12 2026): a trainer at another studio can't blank, rewrite, add or delete a set, or write a client's settings", async () => {
+    const db = as("trainerC");
+    await assertFails(updateDoc(doc(db, "exerciseLogs", `${S}_${MACHINES[0]}`), { weight: "", reps: "" }));
+    await assertFails(updateDoc(doc(db, "exerciseLogs", `${S}_${MACHINES[1]}`), { weight: "999", reps: "1" }));
+    await assertFails(deleteDoc(doc(db, "exerciseLogs", `${S}_${MACHINES[2]}`)));
+    await assertFails(setDoc(doc(db, "exerciseLogs", `${S}_m-extra`), { sessionId: S, machineId: "m-extra", weight: "5", reps: "1" }));
+    await assertFails(
+      setDoc(doc(db, "clientMachineSettings", `${K}_${MACHINES[0]}`), { clientId: K, machineId: MACHINES[0], currentWeight: 5, settings: {} }, { merge: true }),
+    );
+    // ...nor by leaving the client off.
+    await assertFails(setDoc(doc(db, "clientMachineSettings", `${K}_${MACHINES[0]}`), { machineId: MACHINES[0], currentWeight: 5 }, { merge: true }));
+    await assertFails(updateDoc(doc(db, "sessions", S), { trainerId: "trainerC" }));
+    await assertFails(deleteDoc(doc(db, "sessions", S)));
+    // Nothing of it landed.
+    expect((await getDoc(doc(as("t1"), "exerciseLogs", `${S}_${MACHINES[1]}`))).data()?.weight).toBe("150");
+    // The studio's own trainers still write them, and a settings document can't be moved to another client.
+    const t2 = as("t2");
+    await assertSucceeds(updateDoc(doc(t2, "exerciseLogs", `${S}_${MACHINES[0]}`), { weight: "160", reps: "8" }));
+    await assertSucceeds(
+      setDoc(doc(t2, "clientMachineSettings", `${K}_${MACHINES[0]}`), { clientId: K, machineId: MACHINES[0], currentWeight: 160, settings: {} }, { merge: true }),
+    );
+    await assertFails(setDoc(doc(t2, "clientMachineSettings", `${K}_${MACHINES[0]}`), { clientId: "elsewhereClient" }, { merge: true }));
+    await assertSucceeds(deleteDoc(doc(t2, "exerciseLogs", `${S}_${MACHINES[2]}`)));
+  });
+
+  it("#22b: a Start batch makes its session and its sets together, and a sweep clears sets whose session is gone", async () => {
+    const NEW = "onceStartNew";
+    const db = as("t1");
+    const b = writeBatch(db);
+    b.set(doc(db, "sessions", NEW), {
+      clientId: K, trainerId: "t1", startedByTrainerId: "t1", hostedAtStudioId: "studioA", status: "In-Progress",
+      sessionNumber: 13, date: "2026-10-12", lastHeartbeatAt: serverTimestamp(), createdAt: serverTimestamp(),
+    });
+    b.set(doc(db, "exerciseLogs", `${NEW}_m-leg-press`), { sessionId: NEW, machineId: "m-leg-press", clientId: K, weight: "150" }, { merge: true });
+    await assertSucceeds(b.commit());
+    // The session discarded; a set an offline iPad sent afterwards is an orphan, and a sweep clears it.
+    await assertSucceeds(deleteDoc(doc(db, "sessions", NEW)));
+    await assertSucceeds(setDoc(doc(db, "exerciseLogs", `${NEW}_m-pulldown`), { sessionId: NEW, machineId: "m-pulldown", weight: "90" }));
+    await assertSucceeds(deleteDoc(doc(as("t2"), "exerciseLogs", `${NEW}_m-pulldown`)));
+    await assertSucceeds(deleteDoc(doc(as("t2"), "exerciseLogs", `${NEW}_m-leg-press`)));
   });
 
   it("#23: someone else can't mark the finish counted first; the finisher's totals then land", async () => {
@@ -9233,6 +9282,168 @@ describe("a finish is counted once (Oct 12 2026)", () => {
     await assertFails(takeOver("trainerX"));
     await seed();
     await assertSucceeds(deleteDoc(doc(as("trainerX"), "sessions", HS)));
+  });
+
+  /* ── The attack (Oct 12 2026): each as a permanent regression test ────── */
+
+  const marker = (uid: string, finishId: string, extra: Record<string, unknown> = {}) => ({
+    finishId, by: uid, at: serverTimestamp(), clientId: K, ...extra,
+  });
+  const holdBy = (deviceId: string, minutesAgo: number) =>
+    testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "sessions", S), {
+        recordingDeviceId: deviceId, lastHeartbeatAt: new Date(Date.now() - minutesAgo * 60_000),
+      });
+    });
+
+  it("A1 (a stale claim): after a take-over, the iPad it was taken from can't finish it; the taker's own finish counts", async () => {
+    await holdBy("dev-t1", 180);
+    await assertSucceeds(
+      updateDoc(doc(as("t2"), "sessions", S), {
+        trainerId: "t2", trainerName: "Trainer t2", trainerInitials: "T2", recordingDeviceId: "dev-t2", lastHeartbeatAt: serverTimestamp(),
+      }),
+    );
+    await assertSucceeds(updateDoc(doc(as("t2"), "exerciseLogs", `${S}_${MACHINES[0]}`), { weight: "170", reps: "8" }));
+    // T1's Finish, queued while its iPad was offline, lands: refused whole, with or without a device id.
+    await assertFails(sessionBatch(as("t1"), "t1", { marker: marker("t1", "stale", { deviceId: "dev-t1" }) }).commit());
+    await assertFails(sessionBatch(as("t1"), "t1", { finishId: "stale2" }).commit());
+    await assertFails(totalsBatch(as("t1"), "t1", { finishId: "stale" }).commit());
+    expect((await getDoc(doc(as("t1"), "exerciseLogs", `${S}_${MACHINES[0]}`))).data()?.weight).toBe("170");
+    // The taker finishes, and it counts once, credited to the taker.
+    await assertSucceeds(sessionBatch(as("t2"), "t2", { marker: marker("t2", "taker", { deviceId: "dev-t2" }) }).commit());
+    await assertSucceeds(totalsBatch(as("t2"), "t2", { finishId: "taker" }).commit());
+    expect((await getDoc(doc(as("t1"), "sessions", S))).data()?.trainerId).toBe("t2");
+    expect((await getDoc(doc(as("t1"), "clients", K))).data()?.completedSessions).toBe(12);
+  });
+
+  // A session no device holds is #1; one left open an hour is A1c.
+  it("A1b: a first finish is never blocked: the device holding it finishes, whenever it last saved", async () => {
+    // The holder, saved a moment ago.
+    await holdBy("dev-t1", 1);
+    await assertSucceeds(sessionBatch(as("t1"), "t1", { marker: marker("t1", "h1", { deviceId: "dev-t1" }) }).commit());
+  });
+
+  it("A1b2: the session's own trainer on a device that can't keep an id is never locked out of its finish", async () => {
+    await holdBy("dev-t1", 1);
+    await assertSucceeds(sessionBatch(as("t1"), "t1", { finishId: "no-device" }).commit());
+    await assertSucceeds(totalsBatch(as("t1"), "t1", { finishId: "no-device" }).commit());
+  });
+
+  it("A1b3: someone else's device with no id can't finish a session another device holds and saved in", async () => {
+    await holdBy("dev-t1", 1);
+    await assertFails(sessionBatch(as("t2"), "t2", { credit: "t1", finishId: "no-device-t2" }).commit());
+  });
+
+  it("A1c: Finish it as it was on a session left open over an hour still succeeds from any device at the studio", async () => {
+    await holdBy("dev-t1", 75);
+    await assertSucceeds(
+      sessionBatch(as("t2"), "t2", { credit: "t1", marker: marker("t2", "aiw", { deviceId: "dev-t2", asItWas: true }) }).commit(),
+    );
+    await assertSucceeds(totalsBatch(as("t2"), "t2", { finishId: "aiw" }).commit());
+  });
+
+  it("A1d: the marker's new keys are held to their shapes", async () => {
+    const db = as("t1");
+    await assertFails(sessionBatch(db, "t1", { marker: marker("t1", "m1", { deviceId: "x".repeat(65) }) }).commit());
+    await assertFails(sessionBatch(db, "t1", { marker: marker("t1", "m1", { deviceId: 7 }) }).commit());
+    await assertFails(sessionBatch(db, "t1", { marker: marker("t1", "m1", { asItWas: false }) }).commit());
+    await assertSucceeds(sessionBatch(db, "t1", { marker: marker("t1", "m1", { deviceId: "d-abc", asItWas: true }) }).commit());
+  });
+
+  it("A2 (a take-over of a finished session): refused, as are a late Continue and a late heartbeat; History's edits still pass", async () => {
+    await assertSucceeds(sessionBatch(as("t1"), "t1", { finishId: "f1" }).commit());
+    await assertSucceeds(totalsBatch(as("t1"), "t1", { finishId: "f1" }).commit());
+    await assertFails(
+      updateDoc(doc(as("t2"), "sessions", S), {
+        trainerId: "t2", trainerName: "Trainer t2", trainerInitials: "T2", recordingDeviceId: "dev-t2", lastHeartbeatAt: serverTimestamp(),
+      }),
+    );
+    await assertFails(updateDoc(doc(as("t1"), "sessions", S), { recordingDeviceId: "dev-2", lastHeartbeatAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as("t1"), "sessions", S), { lastHeartbeatAt: serverTimestamp() }));
+    // An old-version second finish can't flip the credit either.
+    await assertFails(sessionBatch(as("t2"), "t2", { finishId: null }).commit());
+    const s = (await getDoc(doc(as("t1"), "sessions", S))).data();
+    expect(s?.status).toBe("Completed");
+    expect(s?.trainerId).toBe("t1");
+    expect((await getDoc(doc(as("t1"), "clients", K))).data()?.trainerTally?.t2).toBeUndefined();
+    await assertSucceeds(updateDoc(doc(as("t1"), "sessions", S), { effort: 6 }));
+    await assertSucceeds(updateDoc(doc(as("t2"), "sessions", S), { notes: "Edited in History", editedById: "t2", editCount: increment(1) }));
+  });
+
+  it("A3 (Finish it as it was first): the real finish from the iPad that ran it goes in over it, and it counts once", async () => {
+    await holdBy("dev-t1", 180);
+    await assertSucceeds(
+      sessionBatch(as("t2"), "t2", { credit: "t1", marker: marker("t2", "f-asitwas", { deviceId: "dev-t2", asItWas: true }) }).commit(),
+    );
+    await assertSucceeds(totalsBatch(as("t2"), "t2", { finishId: "f-asitwas" }).commit());
+    const t1 = as("t1");
+    // T1's iPad, offline with the real session, comes back: its own marked finish is refused whole.
+    await assertFails(sessionBatch(t1, "t1", { marker: marker("t1", "f-offline", { deviceId: "dev-t1" }) }).commit());
+    expect((await getDoc(markerOf(t1))).data()?.asItWas).toBe(true);
+    // The app sends it again with no marker and no credit change: its sets, weights and note go in.
+    const fix = writeBatch(t1);
+    fix.update(doc(t1, "sessions", S), {
+      status: "Completed", endTime: serverTimestamp(), clientId: K, homeStudioId: "studioA", clientHomeStudioId: "studioA",
+      hostedAtStudioId: "studioA", notes: "Left knee: seat one notch back",
+    });
+    for (const m of MACHINES) {
+      fix.set(doc(t1, "exerciseLogs", `${S}_${m}`), { sessionId: S, machineId: m, clientId: K, weight: "170", reps: "8", outcome: "performed" }, { merge: true });
+      fix.set(doc(t1, "clientMachineSettings", `${K}_${m}`), { clientId: K, machineId: m, currentWeight: 170, updatedBy: "t1" }, { merge: true });
+    }
+    await assertSucceeds(fix.commit());
+    // Its totals, tied to its own finish, are refused: it counts once.
+    await assertFails(totalsBatch(t1, "t1", { finishId: "f-offline" }).commit());
+    expect((await getDoc(doc(t1, "clients", K))).data()?.completedSessions).toBe(12);
+    expect((await getDoc(doc(t1, "clientMachineSettings", `${K}_${MACHINES[0]}`))).data()?.currentWeight).toBe(170);
+    const s = (await getDoc(doc(t1, "sessions", S))).data();
+    expect(s?.notes).toBe("Left knee: seat one notch back");
+    expect(s?.trainerId).toBe("t1");
+  });
+
+  /* The attack's remaining case, recorded as it stands: a Finish queued on
+     an offline iPad is refused if the session was discarded first, and the
+     rules can't tell that from a second finish. The doors carry it: someone
+     else's session left open today is discarded only from the next studio
+     day (src/features/session-record/discard.ts discardWaitsToday); today it
+     can be taken over or finished as it was, which a late real finish still
+     lands over (A3). Not refused at the rules: an older account's trainerId
+     isn't its uid, so "discard only your own" would refuse a trainer's own
+     Discard. */
+  it("A4 (a residual, recorded as it stands): a session discarded before an offline Finish lands is gone, and the Finish is refused", async () => {
+    const t2 = as("t2");
+    const d = writeBatch(t2);
+    for (const m of MACHINES) d.delete(doc(t2, "exerciseLogs", `${S}_${m}`));
+    d.delete(doc(t2, "sessions", S));
+    await assertSucceeds(d.commit());
+    await assertFails(sessionBatch(as("t1"), "t1", { finishId: "f-offline" }).commit());
+  });
+
+  /* A franchise owner (or a grant holder) who runs the host studio but
+     doesn't work there can't read a cross-train client whose home is
+     elsewhere, so no door loads that client to finish its session. If one
+     did, the finish is now refused whole (the client's settings ask for the
+     client), never Completed and left uncounted. Widening who may count a
+     cross-train client belongs with the client's read rule (the privacy
+     round), not here. */
+  it("A5 (a parked gap, recorded as it stands): a leader who runs the host studio but can't read a cross-train client can't finish its session, so it is never half counted", async () => {
+    const SX = "onceCrossX";
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "trainers", "fo"), {
+        fullName: "Franchise Owner", initials: "FO", role: "FranchiseOwner",
+        primaryHomeStudioId: "studioZ", accessibleStudioIds: ["studioZ"], ownedStudioIds: ["studioA"],
+      });
+      await setDoc(doc(db, "clients", "clientX"), {
+        firstName: "Xen", lastName: "Cross", isActive: true, homeStudioId: "studioB", approvedCrossTrainStudioIds: ["studioA"],
+        completedSessions: 3, sessionCount: 3,
+      });
+      await setDoc(doc(db, "sessions", SX), {
+        clientId: "clientX", trainerId: "t1", hostedAtStudioId: "studioA", homeStudioId: "studioB", status: "In-Progress",
+        sessionNumber: 4, lastHeartbeatAt: threeHoursAgo, createdAt: threeHoursAgo,
+      });
+    });
+    await assertFails(sessionBatch(as("fo"), "fo", { sessionId: SX, clientId: "clientX", machines: ["m-leg-press"], finishId: "ffo" }).commit());
+    expect((await getDoc(doc(as("t1"), "sessions", SX))).data()?.status).toBe("In-Progress");
   });
 
   it("#25: one batch holding the marker and its counted mark together is refused", async () => {
