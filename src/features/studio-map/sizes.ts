@@ -1,13 +1,24 @@
 /**
  * WHICH SIZE A UNIT HAS (the studio map, Oct 2026).
  *
- * A machine's size belongs to its UNIT, never to a brochure: the
- * tape-measured size on the studio's roster entry (`unit.size`) if there is
- * one; otherwise the size on the model the unit names
- * (`machineModels/{id}.size`); otherwise "Size not known", which the layout
- * draws as a round marker every check leaves out. AJ's floors are mixed
- * ("Four studios own four different leg presses", Sep 21 2026), so nothing
- * here guesses a model from a movement.
+ * A machine's size belongs to its UNIT: the tape-measured size on the
+ * studio's roster entry (`unit.size`) if there is one; otherwise the size on
+ * the model the unit names (`machineModels/{id}.size`); otherwise, for a
+ * copy of an MSF catalog machine, the size of its movement's one Imagine
+ * Strength model, said as NOT CONFIRMED (`from: "assumed"`); otherwise
+ * "Size not known", which the layout draws as a round marker every check
+ * leaves out.
+ *
+ * The assumed size is AJ's call (Oct 12 2026, after every machine on his
+ * practice floor came up as a "?"): "we have the info for the machines lets
+ * add it", and, asked whether a studio's MSF machines should start at their
+ * Imagine Strength size or wait for a leader to mark them, "Fill them in".
+ * Solon's and Strongsville's are "nearly all" Imagine Strength (Oct 11).
+ * It is the Mindbody-guess pattern: shown, labelled "not confirmed", until
+ * a leader confirms the model (Sizes' Mark, or Confirm on the machine's
+ * Its size), picks another or measures it. A studio's OWN machine is never
+ * given one, and nothing is written by it: the roster names no model until
+ * a person names one.
  *
  * The models come from the Catalog's read (catalog/useMachineModels: off ·
  * loading · unreadable · ready), and `off` reads as loading, never as
@@ -17,14 +28,17 @@
  * PURE MODULE — no React, no Firestore.
  */
 
-import type { KnownSize } from "../../types/machines";
-import type { ModelsRead } from "../catalog/models";
+import type { KnownSize, StudioMachineRosterEntry } from "../../types/machines";
+import { modelsOfMovement, type MachineModel, type ModelsRead } from "../catalog/models";
 import { MODEL_LIMITS } from "../machine-codex/models";
+import { IMAGINE_STRENGTH_BRAND } from "./imagine-strength";
 import { formatStudioDate } from "../../lib/studio-time";
 
 export type UnitSizeRead =
   | { state: "known"; size: KnownSize; from: "measured"; by: string; at: Date | null }
   | { state: "known"; size: KnownSize; from: "model"; modelId: string; model: string; source: string; note: string | null }
+  /** A catalog copy that names no model: its movement's Imagine Strength model, NOT CONFIRMED by anyone at the studio. */
+  | { state: "known"; size: KnownSize; from: "assumed"; modelId: string; model: string; source: string; note: string | null }
   | {
       state: "unknown";
       why: "no-model" | "model-has-no-size" | "model-not-recorded" | "model-for-another-machine" | "no-model-for-movement";
@@ -39,6 +53,12 @@ export interface UnitFacts {
   unitSize: unknown;
   modelId: string | null;
   movementId: string | null;
+  /**
+   * A copy of an MSF catalog machine (the roster's `source` isn't "custom").
+   * Only a copy is given its movement's Imagine Strength size unconfirmed;
+   * absent reads as false, so a caller that doesn't say gets no assumption.
+   */
+  catalogCopy?: boolean;
 }
 
 /** The Catalog's own read, whose model now carries `size`. */
@@ -83,6 +103,16 @@ export function measuredSizeOf(unitSize: unknown): { size: KnownSize; by: string
   };
 }
 
+/**
+ * The one Imagine Strength model recorded for a movement, or null (none, or
+ * two, which a person must choose between). The Sizes sheet's tick offers
+ * the same model.
+ */
+export function imagineStrengthModelOf(models: readonly MachineModel[], movementId: string): MachineModel | null {
+  const mine = modelsOfMovement(models, movementId).filter((m) => m.brand === IMAGINE_STRENGTH_BRAND);
+  return mine.length === 1 ? mine[0] : null;
+}
+
 /** Which size a unit has, and why it has none. */
 export function sizeOfUnit(unit: UnitFacts, models: ModelLookup): UnitSizeRead {
   const measured = measuredSizeOf(unit.unitSize);
@@ -103,18 +133,71 @@ export function sizeOfUnit(unit: UnitFacts, models: ModelLookup): UnitSizeRead {
   }
   // A machine with no MSF movement: no model can be named for it.
   if (!movementId) return { state: "unknown", why: "no-model-for-movement", noMovement: true };
-  // 3. Nothing recorded for its movement.
+  // 3. A catalog copy that names none: its movement's Imagine Strength size, not confirmed.
+  if (unit.catalogCopy === true) {
+    if (models.state === "off" || models.state === "loading") return { state: "loading" };
+    if (models.state === "unreadable") return { state: "unreadable" };
+    const m = imagineStrengthModelOf(models.models, movementId);
+    if (m?.size) {
+      const { source, note, ...size } = m.size;
+      return { state: "known", size, from: "assumed", modelId: m.id, model: m.model, source, note };
+    }
+  }
+  // 4. Nothing recorded for its movement.
   if (models.state === "ready" && !models.models.some((m) => m.movementId === movementId)) {
     return { state: "unknown", why: "no-model-for-movement" };
   }
-  // 4. It names none.
+  // 5. It names none.
   return { state: "unknown", why: "no-model" };
+}
+
+/** Whether a unit's size is its movement's Imagine Strength size, not confirmed. */
+export function isAssumed(r: UnitSizeRead): r is Extract<UnitSizeRead, { from: "assumed" }> {
+  return r.state === "known" && r.from === "assumed";
+}
+
+/**
+ * Whether a unit's size could come from a model record: it names one, or it
+ * is a catalog copy of an MSF movement with nothing measured. A door reads
+ * the models only while one of its units can use them (one listener on a
+ * small collection); with none, it never turns the read on.
+ */
+export function sizeNeedsModels(unit: UnitFacts): boolean {
+  if (measuredSizeOf(unit.unitSize)) return false;
+  if (unit.modelId?.trim()) return true;
+  return unit.catalogCopy === true && !!unit.movementId?.trim();
+}
+
+/** The unit's MSF movement: its lineage, or its definition's, the way StudioMachineEditor derives it. */
+export function movementOfEntry(entry: StudioMachineRosterEntry): string | null {
+  const e = entry as { basedOn?: unknown; definition?: { basedOn?: unknown } };
+  const id = typeof e.basedOn === "string" && e.basedOn ? e.basedOn : typeof e.definition?.basedOn === "string" ? e.definition.basedOn : "";
+  return id.trim() || null;
+}
+
+/** Whether a roster entry is a copy of an MSF catalog machine: anything but the studio's own (`source: "custom"`). */
+export function isCatalogCopy(source: unknown): boolean {
+  return source !== "custom";
+}
+
+/** A roster entry's facts for sizeOfUnit, the same in every door. No entry: nothing known. */
+export function unitFactsOfEntry(entry: StudioMachineRosterEntry | null | undefined): UnitFacts {
+  if (!entry) return { unitSize: null, modelId: null, movementId: null };
+  return {
+    unitSize: entry.unit?.size ?? null,
+    modelId: typeof entry.modelId === "string" && entry.modelId.trim() ? entry.modelId.trim() : null,
+    movementId: movementOfEntry(entry),
+    catalogCopy: isCatalogCopy((entry as { source?: unknown }).source),
+  };
 }
 
 /** The size to draw, or null for a marker (unknown, loading or unreadable). */
 export function knownSizeOf(r: UnitSizeRead): KnownSize | null {
   return r.state === "known" ? r.size : null;
 }
+
+/** What an assumed size is called on every screen (AJ's words, Oct 12 2026). */
+export const ASSUMED_WORDS = "Imagine Strength size, not confirmed";
 
 const SHORT_DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
 
@@ -133,6 +216,7 @@ export function sizeSourceWords(r: UnitSizeRead, nameOf: (uid: string) => string
         const when = r.at ? ` on ${formatStudioDate(r.at, SHORT_DATE)}` : "";
         return name ? `Measured by ${name}${when}` : `Measured${when}`;
       }
+      if (r.from === "assumed") return `${ASSUMED_WORDS} · ${r.model}`;
       return `${r.model} · ${r.source} · frame at rest`;
     }
     case "unknown":

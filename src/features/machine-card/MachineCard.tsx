@@ -15,7 +15,7 @@ import { careReadState, useCareRead } from "../relay/board/machine-care-context"
 import { DEFAULT_DEEP_CLEAN_DAYS, wearOf } from "../relay/board/machine-care";
 import { useRelayMaybe } from "../relay/board/RelayContext";
 import { leadsHere } from "../relay/leads";
-import { measuredSizeOf } from "../studio-map/sizes";
+import { measuredSizeOf, sizeNeedsModels, unitFactsOfEntry } from "../studio-map/sizes";
 import { sizeLine } from "../studio-map/units";
 import type { TaskRow } from "../studio-tasks/types";
 import { CleanPart } from "./CleanPart";
@@ -182,7 +182,7 @@ export function MachineCard({
       ? null
       : measured
         ? `Size: ${sizeLine(measured.size)}`
-        : entry && !(typeof entry.modelId === "string" && entry.modelId.trim())
+        : entry && !sizeNeedsModels(unitFactsOfEntry(entry))
           ? "Size not known yet"
           : null,
   };

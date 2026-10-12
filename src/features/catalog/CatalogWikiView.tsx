@@ -55,6 +55,7 @@ import { MachineFigure } from "./MachineFigure";
 import { modelForUnit, modelName, modelsById } from "./models";
 import { movementOf, movementsWithAliases } from "./names";
 import { useMachineModels } from "./useMachineModels";
+import { sizeNeedsModels } from "../studio-map/sizes";
 import { StudioSetupCard } from "./StudioSetupCard";
 import { useCatalogMachines } from "./useCatalogMachines";
 import { useStudioMachineNotes } from "./useStudioMachineNotes";
@@ -453,11 +454,16 @@ export function CatalogWikiView({
 
   /*
    * The model tier (wave 2, Catalog R4): which maker's model each unit is.
-   * Read only when a unit on this floor names a model, and drawn only when the
-   * records could be read: until the collection exists, nothing is said.
+   * Read only when a unit on this floor names a model, or is a catalog copy
+   * that takes its movement's Imagine Strength size on the floor's map (the
+   * studio map, AJ Oct 12 2026), and drawn only when the records could be
+   * read: until the collection exists, nothing is said. A model is shown on
+   * a unit only when the unit names it.
    */
-  const floorNamesAModel = floorMachines.some((m) => Boolean(m.modelId));
-  const modelsRead = useMachineModels(floorNamesAModel);
+  const floorNeedsModels = floorMachines.some((m) =>
+    sizeNeedsModels({ unitSize: m.unitSize ?? null, modelId: m.modelId?.trim() || null, movementId: movementOf(m)?.id ?? null, catalogCopy: !m.isStudioCustom }),
+  );
+  const modelsRead = useMachineModels(floorNeedsModels);
   const modelRecords = useMemo(() => modelsById(modelsRead), [modelsRead]);
   const modelOf = (m: CatalogMachine) => modelForUnit(m.modelId, modelRecords);
   const unitModels = useMemo(() => {

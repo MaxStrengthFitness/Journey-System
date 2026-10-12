@@ -19,11 +19,10 @@ import { useFloorPlan } from "../hooks";
 import { isSafety, placeName, reconcile, type RoomPlace } from "../layout";
 import { relayMapMode, rememberRelayMapMode } from "../map-mode-memory";
 import { roomShape } from "../room";
-import { knownSizeOf, sizeOfUnit } from "../sizes";
+import { knownSizeOf, sizeNeedsModels, sizeOfUnit, unitFactsOfEntry } from "../sizes";
 import { roomIsTappable } from "../tap";
 import { frameOf, roomBounds } from "./drawing";
 import StudioRoom, { type MapMachine } from "./StudioRoom";
-import { movementOfEntry } from "./UnitSizeCard";
 import "../studio-map.css";
 
 /**
@@ -139,8 +138,9 @@ export default function FloorMapView({ door, studioId, studioName, rows, session
     () => machines.map((m) => ({ machineId: m.machineId, name: m.name, code: movementOf({ id: m.machineId, comparisonKey: m.comparisonKey, name: m.name })?.code ?? "", status: m.rosterStatus })),
     [machines],
   );
-  const namesAModel = rosterEntries.some((e) => typeof e.modelId === "string" && e.modelId.trim());
-  const models = useMachineModels(namesAModel);
+  // The models are read while any unit names one or is a catalog copy that takes its Imagine Strength size.
+  const needsModels = rosterEntries.some((e) => sizeNeedsModels(unitFactsOfEntry(e)));
+  const models = useMachineModels(needsModels);
   const shape = useMemo(() => (plan.plan ? roomShape(plan.plan.room.boxes) : null), [plan.plan]);
   const drawn = useMemo(() => {
     if (!plan.plan) return { machines: [] as MapMachine[], loading: false };
@@ -149,10 +149,7 @@ export default function FloorMapView({ door, studioId, studioName, rows, session
     const out: MapMachine[] = [];
     for (const { machine, placement } of placed) {
       const e = entryOf.get(machine.machineId);
-      const read = sizeOfUnit(
-        { unitSize: e?.unit?.size ?? null, modelId: typeof e?.modelId === "string" && e.modelId.trim() ? e.modelId.trim() : null, movementId: e ? movementOfEntry(e) : null },
-        models,
-      );
+      const read = sizeOfUnit(unitFactsOfEntry(e), models);
       if (read.state === "loading") loading = true;
       out.push({ id: machine.machineId, name: machine.name, code: machine.code, placement, size: knownSizeOf(read) });
     }

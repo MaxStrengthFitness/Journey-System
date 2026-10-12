@@ -205,6 +205,30 @@ describe("the map's states", () => {
     expect(host.textContent).toBe("No map yet.");
   });
 
+  it("draws catalog copies that name no model at their Imagine Strength size, never a marker, and waits for the models rather than guess", async () => {
+    // AJ, Oct 12 2026: every machine on the practice floor was a "?" until someone found Sizes. "Fill them in".
+    const { IMAGINE_STRENGTH_MODELS, seedModelDocument } = await import("../imagine-strength");
+    for (const id of IDS) delete (fs.data["studios/solon/roster"][id] as { unit?: unknown }).unit;
+    fs.data.machineModels = Object.fromEntries(
+      IMAGINE_STRENGTH_MODELS.filter((m) => (IDS as readonly string[]).includes(m.movementId)).map((r) => [r.id, seedModelDocument(r) as unknown as Data]),
+    );
+    fs.silent.add("machineModels");
+    await mount();
+    expect(host.querySelector(".smap-m--marker")).toBeNull();
+    expect(host.querySelector("svg.smap-svg")).toBeNull();
+    await act(async () => root.render(<></>));
+    fs.silent.clear();
+    await mount();
+    expect(fs.listeners.some((l) => l.path === "machineModels")).toBe(true);
+    expect(host.querySelector(".smap-m--marker")).toBeNull();
+    expect(host.querySelector('[data-id="m-leg-press"].smap-m')?.getAttribute("aria-label")).toContain("6 ft 11 in long × 4 ft 2 in wide");
+  });
+
+  it("never reads the models while every unit is measured", async () => {
+    await mount();
+    expect(fs.listeners.some((l) => l.path === "machineModels")).toBe(false);
+  });
+
   it("draws the room, the AED and the extinguisher with their words, and the floor in walking order; never Arrange the floor", async () => {
     await mount();
     expect(host.querySelector("svg.smap-svg")?.getAttribute("aria-label")).toBe("Solon's map");

@@ -308,10 +308,13 @@ describe("the room tool", () => {
 });
 
 describe("sizes", () => {
-  it("say how many have none in one line, and the sheet opens pre-ticked, writing nothing until Mark", () => {
+  it("draw catalog copies at their Imagine Strength size, not confirmed, in one line; the sheet opens pre-ticked, writing nothing until Mark", () => {
     layout(0);
     const el = mount();
-    expect(el.textContent).toContain("3 machines have no size yet");
+    // AJ, Oct 12 2026 ("Fill them in"): a catalog copy naming no model takes its movement's Imagine Strength size.
+    expect(el.textContent).toContain("3 sizes not confirmed yet.");
+    expect(el.textContent).not.toContain("no size yet");
+    expect(el.textContent).toContain("6 ft 11 in long × 4 ft 2 in wide");
     click(button("Sizes"));
     const ticks = [...document.querySelectorAll<HTMLButtonElement>(".smap-sizes__tick")];
     expect(ticks).toHaveLength(3);
@@ -323,6 +326,14 @@ describe("sizes", () => {
     click([...document.querySelectorAll("button")].find((b) => b.textContent === "Mark 3 as Imagine Strength"));
     expect(fx.links).toHaveLength(1);
     expect((fx.links[0][1] as unknown[]).length).toBe(3);
+  });
+
+  it("never give a studio's own machine a size it wasn't given: it says it has none", () => {
+    layout(0);
+    fx.roster = fx.roster.map((e, i) => (i === 0 ? { ...e, source: "custom" } : e));
+    const el = mount();
+    expect(el.textContent).toContain("1 machine has no size yet.");
+    expect(el.textContent).not.toContain("sizes not confirmed");
   });
 });
 

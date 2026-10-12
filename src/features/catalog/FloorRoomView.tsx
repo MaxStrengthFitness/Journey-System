@@ -96,7 +96,7 @@ export function FloorRoomView({ studioId, studioName, plan, machines, models, di
     const out: MapMachine[] = [];
     for (const { machine, placement } of placed) {
       const read = sizeOfUnit(
-        { unitSize: machine.m.unitSize ?? null, modelId: machine.m.modelId?.trim() || null, movementId: movementOf(machine.m)?.id ?? null },
+        { unitSize: machine.m.unitSize ?? null, modelId: machine.m.modelId?.trim() || null, movementId: movementOf(machine.m)?.id ?? null, catalogCopy: !machine.m.isStudioCustom },
         models,
       );
       if (read.state === "loading") loading = true;

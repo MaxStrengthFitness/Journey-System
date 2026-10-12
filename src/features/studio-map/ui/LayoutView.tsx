@@ -39,7 +39,7 @@ import { freeSpot, middleOf, placeAll } from "../place";
 import { DEAD_PX, editorReducer, emptyWorking, initialEditor, kindOfId, type EditorState, type Tool, type Working } from "../placement";
 import { practiceLayout } from "../demo-layout";
 import { areaWords, roomProblems, roomShape } from "../room";
-import { knownSizeOf, sizeOfUnit, sizeSourceWords, type UnitFacts } from "../sizes";
+import { isAssumed, knownSizeOf, sizeOfUnit, sizeSourceWords, unitFactsOfEntry, type UnitFacts } from "../sizes";
 import { PLAN_WORDS } from "../states";
 import { keepAsDraft, saveLayout, tryAChange } from "../store";
 import { newPlanned, plannedKnownSize, plannedSizeOf, plannedSizeWords, stillToBuyWords, swapCandidates } from "../planned";
@@ -52,7 +52,6 @@ import { PlanMachineSheet, type PlannedChoice } from "./PlanMachineSheet";
 import { SizesSheet } from "./SizesSheet";
 import { StudioRoom, type MapMachine, type RoomInteraction } from "./StudioRoom";
 import type { LayoutViewProps } from "./types";
-import { movementOfEntry } from "./UnitSizeCard";
 import "../../admin/admin.css";
 import "../studio-map.css";
 
@@ -154,12 +153,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
   const units = useMemo(() => {
     const out: Record<string, UnitFacts> = {};
     for (const m of floor) {
-      const e = entryById.get(m.machineId);
-      out[m.machineId] = {
-        unitSize: e?.unit?.size ?? null,
-        modelId: typeof e?.modelId === "string" && e.modelId.trim() ? e.modelId.trim() : null,
-        movementId: e ? movementOfEntry(e) : null,
-      };
+      out[m.machineId] = unitFactsOfEntry(entryById.get(m.machineId));
     }
     return out;
   }, [floor, entryById]);
@@ -645,6 +639,11 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
   /* ── Sizes, the square footage, the practice layout ─────────────── */
   const [sizesOpen, setSizesOpen] = useState(false);
   const noSize = floor.filter((m) => !sizes.get(m.machineId)).length;
+  // Drawn at their Imagine Strength size, which nobody here has confirmed yet (AJ, Oct 12 2026: "Fill them in").
+  const notConfirmed = floor.filter((m) => {
+    const r = sizeReads.get(m.machineId);
+    return !!r && isAssumed(r);
+  }).length;
   const tally = useMemo(() => {
     let sized = 0;
     let unsized = 0;
@@ -908,12 +907,17 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
 
       {state.tool === "machines" ? (
         <>
-          {noSize > 0 && (
+          {noSize > 0 ? (
             <p className="smap-note">
               {noSize === 1 ? "1 machine has no size yet." : `${noSize} machines have no size yet.`}
               <AdminButton onClick={() => setSizesOpen(true)}>Sizes</AdminButton>
             </p>
-          )}
+          ) : notConfirmed > 0 ? (
+            <p className="smap-note">
+              {notConfirmed === 1 ? "1 size not confirmed yet." : `${notConfirmed} sizes not confirmed yet.`}
+              <AdminButton onClick={() => setSizesOpen(true)}>Sizes</AdminButton>
+            </p>
+          ) : null}
           {(unplaced.length > 0 || onDraft) && (
             <section className="smap-editor" aria-label="Not placed yet">
               {unplaced.length > 0 && <h3 className="smap-h">Not placed yet</h3>}
@@ -993,7 +997,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
       <section className="smap-editor" aria-label="The floor in walking order">
         <div className="smap-sizes__head">
           <h3 className="smap-h">The floor in walking order</h3>
-          {noSize === 0 && <AdminButton onClick={() => setSizesOpen(true)}>Sizes</AdminButton>}
+          {noSize === 0 && (notConfirmed === 0 || state.tool !== "machines") && <AdminButton onClick={() => setSizesOpen(true)}>Sizes</AdminButton>}
         </div>
         <ul className="smap-list">
           {floorUnits.map((u, i) => {

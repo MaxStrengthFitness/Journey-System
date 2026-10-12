@@ -14,7 +14,7 @@
 import type { MachineModel, ModelsRead } from "../catalog/models";
 import { modelsOfMovement } from "../catalog/models";
 import { IMAGINE_STRENGTH_BRAND } from "./imagine-strength";
-import { sizeOfUnit, type UnitFacts, type UnitSizeRead } from "./sizes";
+import { imagineStrengthModelOf, isAssumed, isCatalogCopy, sizeOfUnit, type UnitFacts, type UnitSizeRead } from "./sizes";
 
 export { IMAGINE_STRENGTH_BRAND };
 
@@ -63,9 +63,10 @@ export function sizeRows(floor: readonly FloorMachine[], units: Readonly<Record<
     const movementId = facts.movementId?.trim() || null;
     const size = sizeOfUnit(facts, models);
     const mine = movementId ? modelsOfMovement(all, movementId) : [];
-    const imagine = mine.filter((x) => x.brand === IMAGINE_STRENGTH_BRAND);
+    // The same one model an assumed size is drawn at (sizes.ts), so Mark confirms what the map shows.
+    const imagine = movementId ? imagineStrengthModelOf(all, movementId) : null;
     const offered =
-      movementId !== null && !(facts.modelId?.trim()) && !(size.state === "known" && size.from === "measured") && imagine.length === 1;
+      movementId !== null && !(facts.modelId?.trim()) && !(size.state === "known" && size.from === "measured") && imagine !== null;
     return {
       machineId: m.machineId,
       name: m.name,
@@ -74,17 +75,25 @@ export function sizeRows(floor: readonly FloorMachine[], units: Readonly<Record<
       movementId,
       size,
       models: mine,
-      isOffer: offered ? { modelId: imagine[0].id, model: imagine[0].model, movementId: imagine[0].movementId } : null,
+      isOffer: offered && imagine ? { modelId: imagine.id, model: imagine.model, movementId: imagine.movementId } : null,
     };
   });
 }
 
-/** The sheet's head: "{n} machines have no size yet", "{k} of {n} have a size" or "Every machine has a size". */
+/**
+ * The sheet's head: "{n} machines have no size yet", "{k} of {n} have a
+ * size", "{a} sizes not confirmed yet" or "Every machine has a size". A
+ * size that is only its movement's Imagine Strength size (not confirmed)
+ * is a size, never "no size", but the sheet doesn't call the floor done.
+ */
 export function sizesHeading(rows: readonly SizeRow[]): string {
   const n = rows.length;
   if (n === 0) return "No machines on the floor yet";
   const k = rows.filter((r) => r.size.state === "known").length;
-  if (k === n) return "Every machine has a size";
+  const a = rows.filter((r) => isAssumed(r.size)).length;
+  if (k === n && a === 0) return "Every machine has a size";
+  if (k === n) return a === 1 ? "1 size not confirmed yet" : `${a} sizes not confirmed yet`;
+  if (a > 0) return `${n - k} with no size · ${a} not confirmed`;
   if (k === 0) return n === 1 ? "1 machine has no size yet" : `${n} machines have no size yet`;
   return `${k} of ${n} have a size`;
 }
@@ -110,11 +119,12 @@ export function linkMismatched(link: ModelLink): boolean {
 /**
  * The ticks the Sizes sheet opens with (AJ, Oct 11 2026, asked whether
  * Solon's and Strongsville's machines are Imagine Strength: "Yes, nearly
- * all"): every row that offers Imagine Strength AND is a catalog copy. A
- * studio's own machine starts unticked even when it names a movement. A
+ * all"): every row that offers Imagine Strength AND is a catalog copy
+ * (the same rule that draws a copy at that size, not confirmed, sizes.ts).
+ * A studio's own machine starts unticked even when it names a movement. A
  * pre-tick writes nothing: only Mark {n} does, with every ticked row on
  * screen.
  */
 export function initialTicks(rows: readonly SizeRow[]): Set<string> {
-  return new Set(rows.filter((r) => r.isOffer && r.source === "catalog").map((r) => r.machineId));
+  return new Set(rows.filter((r) => r.isOffer && isCatalogCopy(r.source)).map((r) => r.machineId));
 }

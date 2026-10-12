@@ -136,3 +136,34 @@ describe("which rows start ticked (AJ, Oct 11 2026: Yes, nearly all)", () => {
     expect(initialTicks(rows).size).toBe(0);
   });
 });
+
+describe("the sheet over sizes not confirmed (AJ, Oct 12 2026: Fill them in)", () => {
+  const copies = (ids: readonly string[], over: Record<string, Partial<UnitFacts>> = {}) =>
+    Object.fromEntries(Object.entries(unitsOf(ids, over)).map(([id, f]) => [id, { ...f, catalogCopy: true }]));
+
+  it("keeps offering Mark for every copy drawn at its Imagine Strength size, all ticked, and doesn't call the floor done", () => {
+    const rows = sizeRows(floorOf(TWENTY).map((m) => ({ ...m, source: "catalog" })), copies(TWENTY), isModels);
+    expect(rows.every((r) => r.size.state === "known" && r.size.from === "assumed")).toBe(true);
+    // The tick names the very model the map is drawn at.
+    expect(rows.every((r) => r.size.state === "known" && r.size.from === "assumed" && r.isOffer?.modelId === r.size.modelId)).toBe(true);
+    expect(initialTicks(rows).size).toBe(20);
+    expect(sizesHeading(rows)).toBe("20 sizes not confirmed yet");
+    expect(sizesHeading(rows.slice(0, 1))).toBe("1 size not confirmed yet");
+  });
+
+  it("says both counts when some have no size and some aren't confirmed", () => {
+    const ids = [...TWENTY, "sm-strongsville-hammer-sled"];
+    const rows = sizeRows(floorOf(ids), copies(ids), isModels);
+    expect(sizesHeading(rows)).toBe("1 with no size · 20 not confirmed");
+  });
+
+  it("calls it done once each is confirmed or measured", () => {
+    const named = Object.fromEntries(TWENTY.map((id) => [id, { modelId: IMAGINE_STRENGTH_MODELS.find((m) => m.movementId === id)!.id }]));
+    expect(sizesHeading(sizeRows(floorOf(TWENTY), copies(TWENTY, named), isModels))).toBe("Every machine has a size");
+  });
+
+  it("ticks a row whose roster entry says no source, the same rule that draws it at its Imagine Strength size", () => {
+    const rows = sizeRows(floorOf(["m-leg-press"]).map((m) => ({ ...m, source: null })), copies(["m-leg-press"]), isModels);
+    expect(initialTicks(rows).has("m-leg-press")).toBe(true);
+  });
+});

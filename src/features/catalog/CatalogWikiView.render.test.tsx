@@ -348,9 +348,18 @@ describe("the model tier on the floor (wave 2, Catalog R4)", () => {
   const withModel = () =>
     FLOOR.map((m) => (m.id === "m-leg-press" ? { ...m, modelId: "hoist-rocit-lp" } : m));
 
-  it("reads nothing about models while no unit names one", async () => {
+  it("reads nothing about models while no unit can use one: every unit the studio's own, or measured", async () => {
+    fx.machines = FLOOR.map((m, i) =>
+      i === 0 ? { ...m, unitSize: { lengthMm: 2000, widthMm: 1200, by: "u", at: new Date() } } : { ...m, isStudioCustom: true },
+    );
     await mount();
     expect(fx.modelsAsked.every((asked) => asked === false)).toBe(true);
+    expect(host.querySelector(".mcat-row__model")).toBeNull();
+  });
+
+  it("reads them while a catalog copy can take its Imagine Strength size on the map, and still names no model on a unit that names none", async () => {
+    await mount();
+    expect(fx.modelsAsked).toContain(true);
     expect(host.querySelector(".mcat-row__model")).toBeNull();
   });
 

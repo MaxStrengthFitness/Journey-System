@@ -5,19 +5,20 @@ import { formatStudioDate } from "../../../lib/studio-time";
 import type { ModelsRead } from "../../catalog/models";
 import { AdminButton, AdminNotice } from "../../admin/primitives";
 import { IMAGINE_STRENGTH_BRAND, initialTicks, linksFor, sizeRows, sizesHeading, type FloorMachine, type SizeRow } from "../links";
-import type { UnitFacts, UnitSizeRead } from "../sizes";
+import { ASSUMED_WORDS, type UnitFacts, type UnitSizeRead } from "../sizes";
 import { linkModels, setUnitSize, unlinkModels } from "../store";
 import { SizeForm } from "./SizeForm";
 import { UnitModelField } from "./UnitModelField";
 import "../../admin/admin.css";
 import "../studio-map.css";
 
-/** A row's size in short: "Measured on Oct 12", "IS2019 Leg Press · brochure", "Size not known". */
+/** A row's size in short: "Measured on Oct 12", "IS2019 Leg Press · brochure", "Imagine Strength size, not confirmed", "Size not known". */
 function shortWords(r: UnitSizeRead): string {
   if (r.state === "known") {
     if (r.from === "measured") {
       return r.at ? `Measured on ${formatStudioDate(r.at, { month: "short", day: "numeric" })}` : "Measured";
     }
+    if (r.from === "assumed") return ASSUMED_WORDS;
     return `${r.model} · brochure`;
   }
   if (r.state === "loading") return "Checking the model's size…";

@@ -188,6 +188,37 @@ describe("its size, in each state", () => {
     expect(el.textContent).toContain("The model's size couldn't be read.");
   });
 
+  it("a catalog copy naming no model: its Imagine Strength size, not confirmed, and Confirm names that model without waiting", async () => {
+    models.docs = [IS_LP, HOIST_LP];
+    pending.hold = true;
+    const el = await mount({ ...base });
+    expect(el.textContent).toContain("6 ft 11 in long × 4 ft 2 in wide × 5 ft 11 in tall");
+    expect(el.textContent).toContain("Imagine Strength size, not confirmed · IS2019 Leg Press");
+    expect(el.textContent).toContain("The seat moves past the frame.");
+    expect(el.querySelector("select")).toBeNull();
+    await act(async () => byText(el, "Confirm")!.click());
+    expect(writes).toEqual([{ path: "studios/solon/roster/m-leg-press", data: { modelId: IS_LP.id } }]);
+    expect(toasts).toContain("Leg Press confirmed as the IS2019 Leg Press.");
+    // Another model is one tap away, and Measure it is still there.
+    await act(async () => byText(el, "Change model")!.click());
+    expect(el.querySelector("select")).not.toBeNull();
+    expect(byText(el, "Measure it")).toBeTruthy();
+  });
+
+  it("never gives a studio's own machine an Imagine Strength size, and a trainer sees the words but no Confirm", async () => {
+    models.docs = [IS_LP];
+    let el = await mount({ machineId: "sm-solon-sled", studioId: "solon", source: "custom", basedOn: "m-leg-press", status: "active" } as StudioMachineRosterEntry);
+    expect(el.textContent).toContain("Size not known. Pick its model or measure it.");
+    expect(byText(el, "Confirm")).toBeUndefined();
+    await act(async () => root!.unmount());
+    root = null;
+
+    el = await mount({ ...base }, false);
+    expect(el.textContent).toContain("Imagine Strength size, not confirmed · IS2019 Leg Press");
+    expect(byText(el, "Confirm")).toBeUndefined();
+    expect(el.querySelectorAll("button").length).toBe(1); // the test door's own Close
+  });
+
   it("is read only for a trainer", async () => {
     models.docs = [HOIST_LP];
     const el = await mount({ ...base }, false);

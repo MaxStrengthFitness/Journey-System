@@ -49,6 +49,15 @@ vi.mock("../../contexts/ActiveStudioContext", () => ({
 // Whether the person at the door leads Solon (a trainer, unless a test says).
 const lead = vi.hoisted(() => ({ value: false }));
 vi.mock("../relay/leads", () => ({ leadsHere: () => lead.value }));
+// Head office's model records, read: none recorded unless a test says.
+const modelRecords = vi.hoisted(() => ({ value: [] as { id: string; brand: string; model: string; movementId: string; size?: unknown }[] }));
+vi.mock("../catalog/useMachineModels", () => ({
+  useMachineModels: () => ({
+    state: "ready",
+    models: modelRecords.value,
+    byId: Object.fromEntries(modelRecords.value.map((m) => [m.id, m])),
+  }),
+}));
 
 const ROSTER = [
   { machineId: "m-chest-press", studioId: "solon", source: "catalog", basedOn: "m-chest-press", status: "active" },
@@ -300,6 +309,27 @@ describe("the machine's size on its card (the studio map, Oct 2026)", () => {
     expect(door()?.textContent).not.toContain("Pick its model");
     const buttons = [...(door()?.querySelectorAll("button") ?? [])].map((x) => x.textContent?.trim());
     expect(buttons).not.toContain("Measure it");
+  });
+
+  it("shows a catalog copy at its Imagine Strength size, not confirmed, and a trainer can't confirm it", async () => {
+    modelRecords.value = [
+      {
+        id: "mm-imagine-strength-is2019-leg-press",
+        brand: "Imagine Strength",
+        model: "IS2019 Leg Press",
+        movementId: "m-leg-press",
+        size: { lengthMm: 2120, widthMm: 1260, heightMm: 1800, source: "Imagine Strength brochure", note: null },
+      },
+    ];
+    try {
+      await click("Open Leg Press");
+      expect(door()?.textContent).toContain("6 ft 11 in long × 4 ft 2 in wide × 5 ft 11 in tall");
+      expect(door()?.textContent).toContain("Imagine Strength size, not confirmed · IS2019 Leg Press");
+      const buttons = [...(door()?.querySelectorAll("button") ?? [])].map((x) => x.textContent?.trim());
+      expect(buttons).not.toContain("Confirm");
+    } finally {
+      modelRecords.value = [];
+    }
   });
 });
 
