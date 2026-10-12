@@ -1,5 +1,5 @@
 <#
- SCRIPT-VERSION: v1  (Oct 12 2026, the Oct 12 release; master at 5a0bf7ea)
+ SCRIPT-VERSION: v2  (Oct 12 2026, the Oct 12 release after its two reviews; master at 5a0bf7ea)
 
  Ships branch oct12/release: four branches built on Oct 11 to 12 2026, merged
  into one release (docs\rounds\2026-10-12-release.md is the release):
@@ -37,7 +37,8 @@
           files, CLAUDE.md and render.yaml unchanged, the rules lint, the
           typecheck COUNT (2), the suite, the functions typecheck and tests,
           the index guard, the production build and its budget, no perf-lab
-          marker, the rules tests, the live rules, the Firebase login.
+          marker, the rules tests, the live rules, the Firebase login, and
+          the read-only staff report (list 3 seen before GO).
           Ends PREPARE PASSED.
 
  golive   GO; the restore tag restore/2026-10-12-before-oct12-release =
@@ -45,8 +46,8 @@
           LIVE; PUSH, then git push origin oct12/release:master; Render by hand
           (Manual Deploy on the web service, Manual Build on BOTH crons), and
           LOADED once version.json names the commit; then ONE Cloud Function,
-          functions:mindbodyWebhook; then the read-only staff report; the
-          checks after; the undo lines (kept in the log).
+          functions:mindbodyWebhook; then the read-only staff report again,
+          for the record; the checks after; the undo lines (kept in the log).
 
  seed     the twenty Imagine Strength models: a dry run, GO, --commit, the dry
           run again; then the in-app Sizes step at Solon and Strongsville.
@@ -111,7 +112,7 @@ $Started = Get-Date
 
 # The main checkout (node_modules, functions\node_modules and the key live
 # there): the parent of git's common folder.
-$commonDir = (& git --no-optional-locks rev-parse --path-format=absolute --git-common-dir 2>$null)
+$commonDir = (& git --no-optional-locks rev-parse --path-format=absolute --git-common-dir)
 if ($LASTEXITCODE -eq 0 -and $commonDir) { $MainRoot = Split-Path -Parent ($commonDir.Trim() -replace '/', '\') } else { $MainRoot = $Root }
 # The service-account key: this folder, else the main checkout. Read-only checks
 # and the seed use it; nothing prints a secret.
@@ -144,8 +145,10 @@ function Run-Visible {
   param([string]$label, [string]$cmd)
   Log "--- $label (output on screen, not in the log) ---" 'Cyan'
   Log "> $cmd"
-  & cmd /c $cmd
-  $code = $LASTEXITCODE
+  # Start-Process, not '& cmd /c': inside a function whose result is assigned,
+  # a native command's output is captured into that result and never shown.
+  $p = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', $cmd) -NoNewWindow -Wait -PassThru
+  $code = $p.ExitCode
   Log "$label exit code: $code" $(if ($code -eq 0) { 'Green' } else { 'Yellow' })
   return @{ Code = $code; Output = @() }
 }
@@ -334,7 +337,7 @@ function Write-UndoLines {
 Log "ship-oct12 $Stage" 'White'
 
 # ---- the release's own worktree folder ---------------------------------------------
-$top = (& git --no-optional-locks rev-parse --show-toplevel 2>$null)
+$top = (& git --no-optional-locks rev-parse --show-toplevel)
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'package.json') -or -not (Test-Path 'scripts\ship\ship-oct12.ps1') -or ((Resolve-Path $top).Path -ne (Get-Location).Path)) { Stop-Here "run this from the top of the release's folder, $Folder." }
 foreach ($f in @('docs\rounds\2026-10-12-release.md', 'docs\rounds\2026-10-12-sessions.md', 'docs\rounds\2026-10-12-studio-map.md', 'docs\rounds\2026-10-12-staff-webhook.md', 'src\features\session-record\finish-once.ts', 'src\features\studio-map\layout.ts', 'src\features\machine-card\MachineCard.tsx', 'functions\src\mindbody\staffSite.ts', 'scripts\seed-imagine-strength-models.ts', 'scripts\check-staff-sites.ts', 'scripts\check-live-rules.ts', 'scripts\check-bundle-budget.mjs', 'tests\firestore.rules.lint.test.ts', 'tests\rules-source.test.ts', 'src\lib\firestore-indexes.test.ts')) {
   if (-not (Test-Path $f)) { Stop-Here "$f is missing from this folder. Ask Claude." }
@@ -384,7 +387,7 @@ $inRelease = (& git --no-optional-locks rev-list --count "$BaseSha..$Branch").Tr
 Log "$inRelease commit(s) in the release on top of $MasterBase (merges included)." 'Green'
 
 # master's functions\ must be the live ones, so the restore tag is what runs today.
-& git --no-optional-locks cat-file -e "$LiveFunctionsAt^{commit}" 2>$null
+& git --no-optional-locks cat-file -e "$LiveFunctionsAt^{commit}"
 if ($LASTEXITCODE -ne 0) { Stop-Here "this checkout does not know $LiveFunctionsAt (the last functions deploy). Ask Claude." }
 & git --no-optional-locks diff --quiet $LiveFunctionsAt $BaseSha -- functions
 if ($LASTEXITCODE -ne 0) { Stop-Here "functions\ changed between $LiveFunctionsAt (the last functions deploy, Oct 6 2026) and $MasterBase, so the restore tag would not be the live webhook. Ask Claude." }
@@ -405,7 +408,9 @@ foreach ($p in @('CLAUDE.md', 'render.yaml', 'package.json', 'package-lock.json'
 if ($LASTEXITCODE -eq 0) { Stop-Here "firestore.rules is the same as $MasterBase's, but the release adds to it. Ask Claude." }
 Assert-RulesFile 'Nothing is deployed or pushed.'
 Assert-Indexes 'Nothing is deployed or pushed.'
-Assert-RulesBranchesMerged 'Nothing is deployed or pushed.'
+# Not for the seed, which deploys no rules and may run hours later, when the
+# next round's branch exists. golive runs it again before its rules deploy.
+if ($Stage -ne 'seed') { Assert-RulesBranchesMerged 'Nothing is deployed or pushed.' }
 $registry = Get-Content -Path 'src\features\studio-settings\registry.ts' -Raw
 foreach ($gone in @('layoutSpacingIn', 'layoutPathIn')) {
   if ($registry.Contains($gone)) { Stop-Here "the studio settings still hold $gone, which the studio map dropped. Ask Claude." }
@@ -460,6 +465,16 @@ if ($Stage -eq 'prepare') {
     Log "Firebase console -> Firestore -> the named database ($Db) -> Rules: the newest release, Ctrl F  function roleRunsOwnStudios" 'Yellow'
     if ((Read-Host 'Type PARTITION if it is there (the partition is live; Enter to stop here)') -ne 'PARTITION') { Stop-Here 'the partition was not confirmed live. It must be, first.' }
     Log 'AJ confirmed: the live rules hold roleRunsOwnStudios (the partition).' 'Green'
+  }
+
+  # The staff report BEFORE GO (read only: it writes nothing and asks Mindbody
+  # nothing), so list 3 can be relinked first. golive runs it again after the
+  # function, for the record.
+  if ($HaveKey) {
+    $chk0 = Run 'the read-only check of trainers'' staff sites, before GO (writes nothing)' "npx tsx scripts/check-staff-sites.ts --key `"$KeyPath`" --project $GcpProject --database $Db"
+    $chk0.Output | Where-Object { "$_" -match '^(1\.|2\.|3\.|   |SUMMARY)' } | ForEach-Object { Log "  $_" 'White' }
+    if ($chk0.Code -ne 0) { Log 'The check did not finish (see the log). It is only a report.' 'Yellow' }
+    Log 'List 3 above: trainers whose Mindbody staff updates will wait in Limbo once the webhook is deployed. A report, not a gate.' 'Yellow'
   }
 
   # A worktree checked out with core.autocrlf=true writes Windows line ends,
@@ -550,7 +565,7 @@ if ($Stage -eq 'prepare') {
   if ($MasterPushed) { Log '  4. (no push: master is already the release)' 'White' } else { Log "  4. PUSH, then git push origin ${Branch}:master (fast-forward only)." 'White' }
   Log '  5. Render by hand: Manual Deploy (web), Manual Build (BOTH crons); LOADED once version.json names the commit.' 'White'
   Log "  6. npx firebase deploy --only $DeployFunction --project $Project (ONE function)." 'White'
-  Log '  7. The read-only staff report, the checks after, the undo lines.' 'White'
+  Log '  7. The read-only staff report again (for the record), the checks after, the undo lines.' 'White'
   Log '  Then: -Stage seed (the Imagine Strength models), then Sizes at Solon and Strongsville.' 'White'
   Log 'PREPARE PASSED. Next: powershell -ExecutionPolicy Bypass -File .\scripts\ship\ship-oct12.ps1 -Stage golive' 'Green'
   exit 0
@@ -663,6 +678,7 @@ if ($Stage -eq 'golive') {
   Log "  d. Check: curl.exe -s $AppUrl/version.json   names a build ending in -$BranchShort, and each cron's" 'White'
   Log '     page says its last deploy is the same commit.' 'White'
   Log '  Before the studios open: a wipe chore ticked on the old version today reads "None wiped yet today" on the new Board.' 'White'
+  Log "  e. Afterwards, in the project folder ($MainRoot): git pull --ff-only  (no npm ci: package.json and its lock did not change; close any npm run dev first)." 'White'
   while ($true) {
     $ans = Read-Host "Type LOADED once the web service and both crons are on $BranchShort (STOP to stop here)"
     if ($ans -eq 'STOP') { Stop-Here "stopped before the function. master has the release and the rules are live; the webhook is still the old one. Run golive again (it skips the push) to go on." }
@@ -686,7 +702,8 @@ if ($Stage -eq 'golive') {
   if ($fd.Code -ne 0) { Stop-Here "the function deploy failed. The app, the rules and the indexes are live; the LIVE webhook is still the old one (that is safe). Run golive again (it skips the push), or from this folder: npx firebase deploy --only $DeployFunction --project $Project (ask Claude)." }
   Log "Deployed: $DeployFunction" 'Green'
 
-  # 7. The read-only staff report (writes nothing, asks Mindbody nothing).
+  # 7. The read-only staff report again, for the record (prepare showed it
+  #    before GO; it writes nothing and asks Mindbody nothing).
   if ($HaveKey) {
     $chk = Run 'the read-only check of trainers'' staff sites (writes nothing)' "npx tsx scripts/check-staff-sites.ts --key `"$KeyPath`" --project $GcpProject --database $Db"
     Write-Host ''

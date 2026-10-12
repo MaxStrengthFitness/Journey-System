@@ -184,8 +184,11 @@ writes nothing and asks Mindbody nothing. It lists:
 3. trainers whose number's site Journey can't tell: from now on their staff
    updates wait in Limbo instead of being written.
 
-`-Stage golive` runs it before asking for GO when it finds a service-account
-key. Nothing on list 3 is a reason to stop: those trainers' details simply
+It runs when a service-account key is found: in the Oct 12 release,
+`ship-oct12.ps1 -Stage prepare` runs it, so list 3 is seen before GO, and
+golive runs it again after the function, for the record (this round's own
+`ship-staff-webhook.ps1`, kept for the record, ran it in golive before GO).
+Nothing on list 3 is a reason to stop: those trainers' details simply
 stop refreshing until they have a home studio linked to Mindbody (Edit
 Trainer). Any time:
 

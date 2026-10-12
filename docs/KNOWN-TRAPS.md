@@ -376,6 +376,10 @@ beta-prep trim moved the traps out of `CLAUDE.md`. It is kept word for word.
 - **The journal stream's index-less fallback, at its limit, is not the newest 300** (speed round, R11). `useClientJournal` sets `newest: false` then, and `sessionJournalOf` hands the read back to the screen. The machine menu's `machineJournalOf` has the same gap and was left alone.
 - **A shared hook that builds a map in render re-runs every memo below it on every render** (speed round, R10). `useMachineCatalog` built `byId` afresh each time, which rebuilt the floor and every grid row on every screen using `useStudioMachines`; it is memoised now. Memoise derived maps in shared hooks, and keep a one-second clock in the leaf that shows it (the Now Bar, the send line), never in the tracker's state.
 
+### The sessions round (Oct 12 2026)
+
+- **A finish is counted once, by a marker** (the sessions round, Oct 12 2026; `docs/rounds/2026-10-12-sessions.md`). Finish's session batch creates `sessions/{id}/finish/once` and its totals batch marks it counted (`finishOnceOk`, `countedOnceOk`, `finishFromHolder`); a second finish of the same session is refused whole. A refused Finish is judged from server reads that never take "no answer" for "no marker" (`judgeFinishRefusal`, `src/features/session-record/finish-once.ts`). Never make the sessions' own rules require the marker: an old-version iPad finishes without one. Any branch with its own `firestore.rules` is merged with the others before its rules ship, or the later deploy drops the finish path (the rules lint fails without `match /finish/{docId}`).
+
 <a id="renewals"></a>
 
 ## Packages, renewals and InBody
