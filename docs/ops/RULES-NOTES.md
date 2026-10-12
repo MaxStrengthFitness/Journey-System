@@ -413,6 +413,65 @@ that is refused the assign must be refused with it, or the session and
 its sets would name a client that doesn't exist.
 ```
 
+<a id="finishonceok"></a>
+### `function finishOnceOk`
+
+```text
+A FINISH IS COUNTED ONCE (the sessions round, Oct 12 2026; AJ: "2 and 3
+I will trust your decision please be sure!"). Finish writes two batches
+(src/lib/sync-utils.ts completeWorkoutSession): the session batch (the
+session to Completed, every set, every setting) and, queued straight
+after it, the totals batch (the client's counters and the machine
+totals document). Two iPads finishing the same session used to count it
+twice: another iPad taking over from one that was offline, one trainer
+signed in on two iPads, two people choosing "Finish it as it was".
+
+The session batch now also creates sessions/{id}/finish/once:
+{ finishId, by, at, clientId }. This allows the create only when the
+SAME request moves the session from not Completed (get, the stored
+state) to Completed (getAfter, the state after the batch), for the
+client the session ends with. A second finish finds the marker there (a
+set on an existing document is an update, refused below) or the
+session already Completed (the create refused), and the whole second
+session batch is refused with it: no second status write, no older sets
+merged over newer ones, no trainer credit flipped back, no older
+weights over clientMachineSettings.
+
+Never block a save: a FIRST finish passes by construction. The check is
+`!= 'Completed'`, not `== 'In-Progress'`, because older documents say
+"In Progress" and a first finish must never be refused over spelling.
+There is no "who" check here: the create can pass only when the same
+request completes the session, and the session's own update rule
+already gates that (an administrator with a role claim and no trainer
+document finishes through isSuperAdmin() on the session).
+
+A session that doesn't exist errors in get(), so the create is
+refused, and the totals with it: they count only for a session that
+exists. The sessions' own rules are NOT changed to require the marker:
+that would refuse every Finish from an iPad still on the old version.
+The guard lives entirely in documents only the new app writes.
+```
+
+<a id="countedonceok"></a>
+### `function countedOnceOk`
+
+```text
+THE TOTALS LAND ONCE (Oct 12 2026). The totals batch updates the
+marker with { countedAt: request.time, countedBy: finishId }: allowed
+only while countedAt is absent, only with the SAME finishId that
+created the marker, and only from the person who created it (by ==
+request.auth.uid). The SDK queues writes per signed-in person, so the
+totals batch always comes from whoever's session batch made the
+marker; a trainer elsewhere who reads finishId cannot stamp countedAt
+first and silently stop the real count.
+
+The marker doesn't exist until the session batch lands, so the totals
+never land before the session, and never for a finish that didn't
+finish it. A single batch holding both the create and its counted
+update is refused (resource is the stored state, where no marker exists
+yet); the rules tests pin that so it is never loosened to fit.
+```
+
 <a id="studionoticeofmine"></a>
 ### `function studioNoticeOfMine`
 
@@ -1072,6 +1131,38 @@ own history after I move studios.
 COST: for a `clientId`-pinned query every document resolves the same
 client path, which Firestore caches within one evaluation — two document
 reads for the whole query, against a limit of ten.
+```
+
+<a id="sessions-finish-once"></a>
+### `match /finish/{docId}`
+
+```text
+THE FINISH MARKER, sessions/{sessionId}/finish/once (Oct 12 2026; the
+rules are finishOnceOk and countedOnceOk above, the app's half is
+src/features/session-record/finish-once.ts).
+
+Read: whoever finished, or whoever can reach the session
+(isTrainerOfSessionId, the logs' rule), and administrators. Reading a
+MISSING marker is allowed for the same people, and the app relies on
+that: "marker confirmed missing" is a read that answered. A refused
+read is "failed" there, never "missing".
+
+Create: only the id `once`, and only by finishOnceOk. Update: only the
+counted update, by countedOnceOk; nobody else, administrators included,
+because an administrator finishing twice would count twice. Delete:
+administrators only (repair, and the pre-beta reset).
+
+What it guarantees, exactly: a second finish of the same session from
+the current app is refused, and its counts with it. The server decides
+at commit time from the stored session and the stored marker, never
+from any iPad's view of them. It does NOT cover an iPad still on the
+old version, a counter written outside Finish, or two different
+session documents for one visit.
+
+Any branch with its own firestore.rules must be merged with this one
+before its rules ship; scripts/ship/ship-sessions.ps1 refuses a rules
+deploy without this match, and tests/firestore.rules.lint.test.ts
+fails without it.
 ```
 
 <a id="journalentries-entryid"></a>

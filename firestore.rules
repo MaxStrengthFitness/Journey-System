@@ -804,6 +804,31 @@ service cloud.firestore {
               || existsAfter(/databases/$(database)/documents/clients/$(after.clientId)));
     }
 
+    // Why: docs/ops/RULES-NOTES.md#finishonceok
+    function finishOnceOk(sessionId, d) {
+      let after = getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isAuthenticated()
+          && d.keys().hasAll(['finishId', 'by', 'at', 'clientId'])
+          && d.keys().hasOnly(['finishId', 'by', 'at', 'clientId'])
+          && d.finishId is string && d.finishId.size() > 0 && d.finishId.size() <= 64
+          && d.by == request.auth.uid
+          && d.at == request.time
+          && d.clientId is string && d.clientId.size() > 0
+          && get(/databases/$(database)/documents/sessions/$(sessionId)).data.get('status', '') != 'Completed'
+          && after.get('status', '') == 'Completed'
+          && after.get('clientId', '') == d.clientId;
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#countedonceok
+    function countedOnceOk(before, after) {
+      return isAuthenticated()
+          && before.by == request.auth.uid
+          && !('countedAt' in before)
+          && after.diff(before).affectedKeys().hasOnly(['countedAt', 'countedBy'])
+          && after.countedAt == request.time
+          && after.countedBy == before.finishId;
+    }
+
     function isValidSchedule(data) {
       return hasRequiredFields(['clientName', 'trainerName', 'startTime', 'endTime', 'status', 'serviceName', 'source']);
     }
@@ -1998,6 +2023,17 @@ service cloud.firestore {
         allow read, write: if isSuperAdmin()
                            || (isAnyAuthenticatedTrainer()
                                && isTrainerOfSessionId(sessionId));
+      }
+
+      // Why: docs/ops/RULES-NOTES.md#sessions-finish-once
+      match /finish/{docId} {
+        allow read: if isSuperAdmin()
+                    || (isAuthenticated()
+                        && ((resource != null && resource.data.by == request.auth.uid)
+                            || (isAnyAuthenticatedTrainer() && isTrainerOfSessionId(sessionId))));
+        allow create: if docId == 'once' && finishOnceOk(sessionId, request.resource.data);
+        allow update: if docId == 'once' && countedOnceOk(resource.data, request.resource.data);
+        allow delete: if isSuperAdmin();
       }
     }
 
