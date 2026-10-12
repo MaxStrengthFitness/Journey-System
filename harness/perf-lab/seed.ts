@@ -88,7 +88,16 @@ const CLIENTS = Number(process.env.PERF_LAB_CLIENTS || 300);
 const BOOKING_DAYS_BACK = 35; // 5 weeks back...
 const BOOKING_DAYS_AHEAD = 20; // ...this week and about 2 ahead: 8 weeks
 const SESSION_DAYS_BACK = 182; // 26 weeks: the All-stars read, and what a Journey grid pages back through
-const FOCUS_DAYS_BACK = 365; // the focus clients: a year of Journey sessions
+/*
+ * The focus clients: a year of Journey sessions. PERF_LAB_FOCUS_DAYS_BACK
+ * gives them more (the FileMaker import round, Oct 12 2026: 2920 is eight
+ * years, about 830 sessions each), and every session older than a year is
+ * written as the FileMaker import writes one (src/features/filemaker-import/
+ * plan.ts: legacy_filemaker_id, rollupCounted, no start time or trainer,
+ * createdAt and endTime at noon of the visit's day). Unset, the seed is as before.
+ */
+const FOCUS_DAYS_BACK = Number(process.env.PERF_LAB_FOCUS_DAYS_BACK || 365);
+const FOCUS_JOURNEY_DAYS = 365;
 const MAX_LOGS = Number(process.env.PERF_LAB_MAX_LOGS || 250000);
 /*
  * Exercise logs are WRITTEN only for the last LOG_WEEKS weeks of sessions
@@ -650,6 +659,7 @@ function buildClientDocs(c: LabClient, h: ClientHistory): void {
   const name = `${c.firstName} ${c.lastName}`;
   const r = rngFor(`docs:${c.id}`);
   const sessionById = new Map(h.sessions.map((s) => [s.id, s]));
+  const importedBefore = addDays(TODAY, -FOCUS_JOURNEY_DAYS);
   for (const s of h.sessions) {
     const end = new Date(s.start.getTime() + between(r, 24, 32) * 60000);
     const sessionData: Record<string, unknown> = {
@@ -680,6 +690,20 @@ function buildClientDocs(c: LabClient, h: ClientHistory): void {
       clientAge: c.age,
       clientIsRetired: c.age >= 67,
     };
+    if (c.focus && s.day < importedBefore) {
+      // A FileMaker visit, as the import writes it.
+      const noon = ts(easternInstant(s.day, 12, 0));
+      for (const k of ["startTime", "clientStartTime", "trainerId", "startedByTrainerId", "trainerName", "routineId", "routineName", "pausedAt", "totalPausedMs", "clientAge", "clientIsRetired"]) delete sessionData[k];
+      Object.assign(sessionData, {
+        trainerInitials: "",
+        createdAt: noon,
+        endTime: noon,
+        legacy_filemaker_id: `fm:${c.id}:${s.day}`,
+        countsTowardTotals: true,
+        rollupCounted: true,
+      });
+      count("sessionsImportedStyle");
+    }
     put(`sessions/${s.id}`, sessionData);
     const mine = sessionsByClient.get(c.id) ?? [];
     mine.push({ id: s.id, ...sessionData } as unknown as WorkoutSession);
