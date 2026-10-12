@@ -70,7 +70,7 @@ import {
   type LiveSessionReturn,
   type RememberedSessionData,
 } from "./lib/live-session";
-import { rememberPlace } from "./features/admin/shell/place-memory";
+import { rememberClient, rememberPlace } from "./features/admin/shell/place-memory";
 import { HOME_PLACE } from "./features/admin/shell/places";
 import { afterOverlayClose } from "./lib/scroll-lock";
 import { installShakeUndoGuard } from "./lib/shake-undo";
@@ -215,6 +215,7 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { isOwner } from "./lib/permissions";
 import { HUB_PLACE, mayOpenOperations } from "./features/admin/operations-access";
 import { useGuardedPlace } from "./features/admin/useGuardedPlace";
+import { useLetGoOnStudioSwitch } from "./features/studio-switch/useLetGoOnStudioSwitch";
 import { isDemoStudioId } from "./features/demo-mode/is-demo";
 import { DemoBanner } from "./features/demo-mode/DemoBanner";
 import { useNewVersion } from "./features/new-version/useNewVersion";
@@ -531,6 +532,21 @@ export default function AppContent({
      Try again rather than drawing nothing (session record, Sep 26 2026). */
   const [selectedClientReadFailed, setSelectedClientReadFailed] = useState(false);
   const [clientReadAttempt, setClientReadAttempt] = useState(0);
+  /* A studio switch lets go of the client (Oct 12 2026, AJ: "switching
+     studios should clear whoever youre holding"), and her own screen goes to
+     the Hub: features/studio-switch. Operations' remembered client goes too,
+     so coming back to this studio later never reopens her. The raw setters:
+     a switch someone chose already asked about unsaved typing, and a studio
+     that was deleted leaves nothing to save it into. */
+  useLetGoOnStudioSwitch(activeStudioId, currentView, ({ toHub }) => {
+    setSelectedClientIdNow(null);
+    setSelectedClientDoc(null);
+    rememberClient(null);
+    if (toHub) {
+      place.setCurrentView(HUB_PLACE.view);
+      place.setAppMode(HUB_PLACE.appMode);
+    }
+  });
 
   // Derived rather than a flag set inside the effect: effects run *after* render,
   // so a boolean would still read false on the first paint and flash the
@@ -1258,11 +1274,22 @@ export default function AppContent({
   // Derived state for the active studio name
   // Moved up to avoid hook order violation
 
-  // Studio Selection Screen (if no active studio or changing studio)
+  /*
+   * Studio Selection Screen: whenever someone asked to change studio, from
+   * any screen, and with no studio at all except on Operations or the Admins
+   * dashboard (an administrator may stand there without one, through the
+   * picker's own way in). Until Oct 12 2026 Operations and the Admins
+   * dashboard swallowed the ask as well: Switch studio in the menu did
+   * nothing there, and the picker sprang up later, at the next trainer
+   * screen. AJ: "We can only switch studios in trainer mode, it doesnt pop up
+   * when in operations or admin mode". Choosing a studio, or Back, returns to
+   * the screen the picker was opened from.
+   */
   if (
-    (!activeStudioId || isChangingStudio) &&
-    currentView !== "admin-dashboard" &&
-    currentView !== "admins-dashboard"
+    isChangingStudio ||
+    (!activeStudioId &&
+      currentView !== "admin-dashboard" &&
+      currentView !== "admins-dashboard")
   ) {
     return (
       <StudioSelectionView
@@ -1736,11 +1763,13 @@ export default function AppContent({
           {currentView !== "workouts" && (
             <AppHeader
               studioName={activeStudioName || undefined}
-              // Inside Operations and the Admins dashboard the top left goes
-              // back to the Hub; 'Looking at' is the studio switch there
-              // (the Atlas answers, Oct 2 2026).
-              onStudioClick={appMode === "admin" ? () => switchAppMode("trainer", "clients") : openStudioPicker}
-              studioClickGoesHome={appMode === "admin"}
+              // The studio's name switches studios on every screen; inside
+              // Operations and the Admins dashboard the logo goes back to the
+              // Hub (the Atlas answers, Oct 2 2026; the name joined the
+              // switch on Oct 12 2026, AJ: "it doesnt pop up when in
+              // operations or admin mode").
+              onStudioClick={openStudioPicker}
+              onHomeClick={appMode === "admin" ? () => switchAppMode("trainer", "clients") : undefined}
               rightControls={headerRightControls}
               trainerDropdown={headerTrainerDropdown}
               searchSlot={headerSearchSlot}

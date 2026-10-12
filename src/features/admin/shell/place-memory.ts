@@ -11,7 +11,10 @@
  *   subs      the page each destination was last on (Clients remembers
  *             Renewals while you look at Team)
  *   client    the client opened inside Operations, so coming back from her
- *             full profile lands on her again
+ *             full profile lands on her again, and the studio the app was
+ *             on when she was opened: at another studio she is let go
+ *             (Oct 12 2026, AJ: "switching studios should clear whoever
+ *             youre holding"), however the switch was made
  *   scroll    how far down each page was
  *   setupOpen whether the sidebar's Setup group was open
  *
@@ -27,11 +30,13 @@ interface Memory {
   place: OpsPlace;
   subs: Partial<Record<OpsPage, string | null>>;
   clientId: string | null;
+  /** The studio the app was on when that client was opened. */
+  clientStudioId: string | null;
   scroll: Record<string, number>;
   setupOpen: boolean;
 }
 
-const blank = (): Memory => ({ place: HOME_PLACE, subs: {}, clientId: null, scroll: {}, setupOpen: false });
+const blank = (): Memory => ({ place: HOME_PLACE, subs: {}, clientId: null, clientStudioId: null, scroll: {}, setupOpen: false });
 
 let memory: Memory = blank();
 
@@ -54,12 +59,14 @@ export function rememberedSub(page: OpsPage): string | null | undefined {
   return memory.subs[page];
 }
 
-export function rememberedClient(): string | null {
-  return memory.clientId;
+/** The client open inside Operations, only while the app is on the studio she was opened at. */
+export function rememberedClient(studioId: string | null): string | null {
+  return memory.clientId && memory.clientStudioId === studioId ? memory.clientId : null;
 }
 
-export function rememberClient(clientId: string | null): void {
+export function rememberClient(clientId: string | null, studioId: string | null = null): void {
   memory.clientId = clientId;
+  memory.clientStudioId = clientId ? studioId : null;
 }
 
 export function rememberedScroll(key: string): number {

@@ -27,15 +27,18 @@ interface AppHeaderProps {
    * name, so the briefing and the Wrap-up said SOLON at every studio.
    */
   studioName?: string;
+  /** The studio's name: the studio switch, on every screen that draws the header. */
   onStudioClick?: () => void;
   /**
-   * Inside Operations and the Admins dashboard the studio's name and the
-   * logo take you back to the Hub, in trainer mode, rather than opening the
-   * studio picker (the Atlas answers, Oct 2 2026): "if you tap the top left
-   * like a studio name or icon it should just take you back to the hub".
-   * 'Looking at' stays the only studio switch in there.
+   * Inside Operations and the Admins dashboard the LOGO takes you back to
+   * the Hub, in trainer mode (the Atlas answers, Oct 2 2026: "if you tap the
+   * top left like a studio name or icon it should just take you back to the
+   * hub"). The studio's NAME went there too until Oct 12 2026, when AJ found
+   * no way to switch studios from either: "We can only switch studios in
+   * trainer mode, it doesnt pop up when in operations or admin mode". So the
+   * name is the studio switch everywhere and the logo alone goes home.
    */
-  studioClickGoesHome?: boolean;
+  onHomeClick?: () => void;
   /**
    * The header's icon cluster. Every screen passes the app shell's controls
    * (refresh, theme, feedback, notifications, settings), so there is no
@@ -57,7 +60,7 @@ export function AppHeader({
   trainerInitials,
   studioName,
   onStudioClick,
-  studioClickGoesHome = false,
+  onHomeClick,
   rightControls,
   trainerDropdown,
   searchSlot,
@@ -71,10 +74,10 @@ export function AppHeader({
           CLIPS instead of truncating — which is how the end of a name went
           missing with no ellipsis to say it had. */}
       <div className="flex items-center gap-3 min-w-0">
-        {studioClickGoesHome && onStudioClick ? (
+        {onHomeClick ? (
           <button
             type="button"
-            onClick={onStudioClick}
+            onClick={onHomeClick}
             aria-label="Back to the Hub"
             className="shrink-0 min-h-10 min-w-10 grid place-items-center hover:opacity-75 cursor-pointer"
           >
@@ -94,11 +97,9 @@ export function AppHeader({
           // full one has to stay recoverable.
           title={name || undefined}
           aria-label={
-            onStudioClick && studioClickGoesHome
-              ? name ? `Studio: ${name}. Back to the Hub.` : "Back to the Hub"
-              : onStudioClick
-                ? name ? `Studio: ${name}. Change studio.` : "Choose a studio"
-                : name ? `Studio: ${name}` : "Studio"
+            onStudioClick
+              ? name ? `Studio: ${name}. Change studio.` : "Choose a studio"
+              : name ? `Studio: ${name}` : "Studio"
           }
           className={cn(
             // ch, not px: the cap scales with the font so it holds across the

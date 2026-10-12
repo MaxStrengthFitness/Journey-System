@@ -214,7 +214,7 @@ function OperationsShell({
   const studio = studios.find((s) => s.id === activeStudioId) ?? null;
 
   const [place, setPlace] = useState<OpsPlace>(() => rememberedPlace());
-  const [clientId, setClientId] = useState<string | null>(() => rememberedClient());
+  const [clientId, setClientId] = useState<string | null>(() => rememberedClient(appStudioId ?? null));
   const [setupOpen, setSetupOpen] = useState(() => rememberedSetupOpen() || rememberedPlace().page === "setup");
   const [floorView, setFloorView] = useState<"machines" | "fit" | "routines">("machines");
   // Pressing Today while on it brings the page home from one of its views.
@@ -256,14 +256,17 @@ function OperationsShell({
   // Leaving Operations (her full profile, the Hub): remember how far down.
   useLayoutEffect(() => () => saveScroll(), [saveScroll]);
 
-  /* ---- a change of studio or scope closes the client: she may not be this studio's ---- */
-  const lastTabKey = useRef(tabKey);
+  /* ---- a change of studio or scope closes the client: she may not be this studio's ----
+     The app's own studio counts too, under "All my studios" as well (Oct 12
+     2026, AJ: "switching studios should clear whoever youre holding"). */
+  const studioKey = `${tabKey}|${appStudioId ?? ""}`;
+  const lastStudioKey = useRef(studioKey);
   useEffect(() => {
-    if (lastTabKey.current === tabKey) return;
-    lastTabKey.current = tabKey;
+    if (lastStudioKey.current === studioKey) return;
+    lastStudioKey.current = studioKey;
     setClientId(null);
     rememberClient(null);
-  }, [tabKey]);
+  }, [studioKey]);
 
   /* ---- moving ---- */
   const go = useCallback(
@@ -306,13 +309,13 @@ function OperationsShell({
       const show = () => {
         saveScroll();
         setClientId(id);
-        rememberClient(id);
+        rememberClient(id, appStudioId ?? null);
       };
       // Replacing one open client with another unmounts her page: ask first.
       if (clientId && clientId !== id) tabsScope.guard(show);
       else if (clientId !== id) show();
     },
-    [clientId, tabsScope, saveScroll],
+    [clientId, tabsScope, saveScroll, appStudioId],
   );
   const backFromClient = useCallback(() => {
     tabsScope.guard(() => {

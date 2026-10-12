@@ -62,15 +62,22 @@ describe("AppHeader — the studio's name", () => {
     expect(plain.textContent).not.toMatch(/solon/i);
   });
 
-  it("inside Operations, the name and the logo go back to the Hub (Oct 2 2026)", () => {
-    let went = 0;
-    const host = mount(<AppHeader studioName="Westlake" onStudioClick={() => (went += 1)} studioClickGoesHome />);
-    expect(studioButton(host).getAttribute("aria-label")).toBe("Studio: Westlake. Back to the Hub.");
+  it("inside Operations, the logo goes back to the Hub and the name still switches studios (Oct 12 2026)", () => {
+    let home = 0;
+    let picker = 0;
+    const host = mount(<AppHeader studioName="Westlake" onStudioClick={() => (picker += 1)} onHomeClick={() => (home += 1)} />);
+    expect(studioButton(host).getAttribute("aria-label")).toBe("Studio: Westlake. Change studio.");
     const logo = host.querySelector<HTMLButtonElement>('button[aria-label="Back to the Hub"]')!;
     expect(logo).not.toBeNull();
     act(() => logo.click());
+    expect([home, picker]).toEqual([1, 0]);
     act(() => studioButton(host).click());
-    expect(went).toBe(2);
+    expect([home, picker]).toEqual([1, 1]);
+  });
+
+  it("outside Operations the logo is not a button", () => {
+    const host = mount(<AppHeader studioName="Westlake" onStudioClick={() => {}} />);
+    expect(host.querySelector('button[aria-label="Back to the Hub"]')).toBeNull();
   });
 
   it("treats a blank name as no name", () => {

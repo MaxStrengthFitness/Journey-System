@@ -96,12 +96,12 @@ describe("where a leader was", () => {
   it("remembers the place, each destination's page, the client, the scroll and the Setup group", () => {
     rememberPlace({ page: "clients", sub: "moments" });
     rememberPlace({ page: "team", sub: "hours" });
-    rememberClient("c1");
+    rememberClient("c1", "westlake");
     rememberScroll("team:hours", 420);
     rememberSetupOpen(true);
     expect(rememberedPlace()).toEqual({ page: "team", sub: "hours" });
     expect(rememberedSub("clients")).toBe("moments");
-    expect(rememberedClient()).toBe("c1");
+    expect(rememberedClient("westlake")).toBe("c1");
     expect(rememberedScroll("team:hours")).toBe(420);
     expect(rememberedScroll("today")).toBe(0);
     expect(rememberedSetupOpen()).toBe(true);
@@ -109,12 +109,22 @@ describe("where a leader was", () => {
 
   it("is forgotten at sign-out: the next person starts on Today with no client open", () => {
     rememberPlace({ page: "setup", sub: "people" });
-    rememberClient("c9");
+    rememberClient("c9", "westlake");
     rememberScroll("setup:people", 300);
     forgetPersonalMemory();
     expect(rememberedPlace()).toEqual(HOME_PLACE);
-    expect(rememberedClient()).toBeNull();
+    expect(rememberedClient("westlake")).toBeNull();
     expect(rememberedScroll("setup:people")).toBe(0);
     expect(rememberedSetupOpen()).toBe(false);
+  });
+
+  it("lets the client go at another studio (Oct 12 2026: \"switching studios should clear whoever youre holding\")", () => {
+    rememberClient("c1", "westlake");
+    expect(rememberedClient("solon")).toBeNull();
+    expect(rememberedClient(null)).toBeNull();
+    // Still hers at the studio she was opened at, and nobody once let go.
+    expect(rememberedClient("westlake")).toBe("c1");
+    rememberClient(null);
+    expect(rememberedClient("westlake")).toBeNull();
   });
 });
