@@ -35,6 +35,7 @@ import { JobSheet } from "../relay/jobs/JobSheet";
 import { Board } from "../relay/board/Board";
 import { SinceYouWereIn } from "../relay/board/SinceYouWereIn";
 import { publishPulse, pulseEvents } from "../relay/board/pulse";
+import { wipeRowsOf } from "../relay/board/cleaning";
 import { leadsHere } from "../relay/leads";
 import { useRelayMaybe } from "../relay/board/RelayContext";
 import type { TeamJob } from "../relay/jobs/types";
@@ -92,7 +93,7 @@ export function StudioHubView({ authTrainer, clients, trainers, onOpenClientTask
    */
   const ownerId = auth.currentUser?.uid ?? null;
 
-  const { rows, loading, error: tasksError } = useStudioTasks(activeStudioId, { ownerId, clientNames });
+  const { rows, loading, error: tasksError, outOfServiceIds } = useStudioTasks(activeStudioId, { ownerId, clientNames });
   const { categories } = useStudioTaskCategories(activeStudioId);
   const { open: openRequests, recentlyResolved, failed: requestsFailed } = useStudioRequests(activeStudioId ?? null);
   const { entries: playbookEntries } = usePlaybook(activeStudioId ?? null);
@@ -112,6 +113,19 @@ export function StudioHubView({ authTrainer, clients, trainers, onOpenClientTask
    * the app's (features/studio-settings).
    */
   const settings = useStudioSettings(relay ? (activeStudioId ?? null) : null, activeStudio);
+  /*
+   * Today's wipe-chore rows, published to the shell while the Board is
+   * mounted (the studio map, phase 4): a machine's card opened in the panel
+   * completes today's wipe-chore row from these, live, with no second read.
+   * Filtered here with the studio's own categories, so a chore in a
+   * cleaning category the studio made counts as the wipe chore everywhere.
+   */
+  const wipeRows = useMemo(() => wipeRowsOf(rows, categories), [rows, categories]);
+  const publishWipeRows = relay?.publishWipeRows;
+  useEffect(() => {
+    publishWipeRows?.(wipeRows);
+  }, [publishWipeRows, wipeRows]);
+  useEffect(() => () => publishWipeRows?.(null), [publishWipeRows]);
   const quietFloor = settings.value("quietFloorSessions");
   const [openJobKey, setOpenJobKey] = useState<string | null>(null);
   const openJob: TeamJob | null = useMemo(() => teamJobs.jobs.find((j) => j.id === openJobKey) ?? null, [teamJobs.jobs, openJobKey]);
@@ -124,7 +138,7 @@ export function StudioHubView({ authTrainer, clients, trainers, onOpenClientTask
 
   const author = authTrainer?.id ? { id: authTrainer.id, name: authTrainer.fullName ?? "A trainer" } : null;
   const trainerId = authTrainer?.id ?? null;
-  const actions = useTaskActions({ author, onNeedsNote: setNoteRow });
+  const actions = useTaskActions({ author, onNeedsNote: setNoteRow, categories });
   const todayKey = studioDateKey(new Date()) ?? "";
 
   const roster = useMemo(() => studioRoster(trainers ?? [], activeStudioId ?? null), [trainers, activeStudioId]);
@@ -153,6 +167,7 @@ export function StudioHubView({ authTrainer, clients, trainers, onOpenClientTask
             onOpenClientTask={onOpenClientTask}
             onAssign={canAssign ? setAssignGroup : undefined}
             categories={categories}
+            outOfServiceIds={outOfServiceIds}
             clients={clients}
             loading={loading && rows.length === 0}
             unknown={Boolean(tasksError) || requestsFailed || Boolean(teamJobs.error)}

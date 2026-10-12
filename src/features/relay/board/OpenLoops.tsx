@@ -6,7 +6,8 @@ import { dayWords, jobTiming } from "../jobs/jobs";
 import type { TeamJob } from "../jobs/types";
 import { shiftListReports } from "../team/accountability";
 import { useRelay } from "./RelayContext";
-import { useMachineCare } from "./machine-care-store";
+// The floor's one live care read (the studio map, phase 4): the shell's, never a second listener.
+import { useCareRead } from "./machine-care-context";
 
 /**
  * OPEN LOOPS — what will embarrass the studio if nobody acts, on My Studio →
@@ -73,7 +74,7 @@ export function OpenLoops({
   taskTitle?: (templateId: string) => string;
 }) {
   const relay = useRelay();
-  const care = useMachineCare(relay.studioId);
+  const care = useCareRead(relay.studioId);
   const now = Date.now();
   const todayKey = relay.now.todayKey;
   const unanswered = requests.filter((r) => r.status === "open" && !r.claimedBy && r.kind !== "initiative" && (millisOf(r.createdAt) ?? now) < now - STALE_ASK_MS);

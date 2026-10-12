@@ -67,6 +67,7 @@ const ROSTER = [
 ];
 vi.mock("../../hooks/useStudioMachines", () => ({
   useStudioMachines: () => ({
+    machines: [],
     rosterEntries: ROSTER,
     catalog: [],
     byId: {
@@ -85,6 +86,14 @@ vi.mock("../catalog/useStudioMachineNotes", () => ({
   }),
 }));
 vi.mock("../admin/upkeep/useStudioUpkeep", () => ({ useStudioUpkeep: () => ({ events: [], loading: false }) }));
+// The card's Clean part reads today's rows itself on a door that passed none (phase 4).
+const tasksAsked = vi.hoisted(() => [] as (string | null)[]);
+vi.mock("../studio-tasks/useStudioTasks", () => ({
+  useStudioTasks: (studioId: string | null) => {
+    tasksAsked.push(studioId);
+    return { rows: [], templates: [], dateKey: "", loading: false, error: null, counts: { total: 0, done: 0, flagged: 0 }, machineCount: 0, outOfServiceIds: new Set() };
+  },
+}));
 vi.mock("../machine-db/hooks", () => ({ useSharedMachines: () => ({ machines: [], loading: false, error: null }) }));
 // The floor list: a row's Open, as StudioInventoryManager draws it.
 vi.mock("../admin/machines/StudioInventoryManager", () => ({
@@ -106,10 +115,61 @@ vi.mock("../admin/machines/StudioInventoryManager", () => ({
   ),
 }));
 
+// Arrange the floor (the studio map, phase 2): the editor itself is held by
+// its own render test; here, only that the section opens it in place. The
+// map (phase 4) likewise: FloorMapView has its own render test; here a
+// stand-in whose machine opens the card the way a tap on the map does.
+vi.mock("../studio-map/lazy", () => ({
+  LazyLayoutView: ({ studioName, canLead, onDone }: { studioName: string; canLead: boolean; onDone: () => void }) => (
+    <div data-testid="layout-editor">
+      Editing {studioName}'s floor {canLead ? "as a leader" : ""}
+      <button type="button" onClick={onDone}>
+        Done arranging
+      </button>
+    </div>
+  ),
+  LazyFloorMapView: ({
+    door,
+    onOpenCard,
+    rows,
+    onModeChange,
+  }: {
+    door: string;
+    onOpenCard: (id: string, mode: "machines" | "cleaning") => void;
+    rows?: readonly unknown[];
+    onModeChange?: (mode: "machines" | "cleaning") => void;
+  }) => (
+    <div data-testid="the-map" data-door={door}>
+      <button type="button" onClick={() => onOpenCard("m-leg-press", "machines")}>
+        Leg Press on the map
+      </button>
+      <button type="button" onClick={() => onOpenCard("m-leg-press", "cleaning")}>
+        Leg Press in Cleaning
+      </button>
+      <span data-testid="map-rows">{rows === undefined ? "none" : `${rows.length} rows`}</span>
+      <button type="button" onClick={() => onModeChange?.("cleaning")}>
+        Map to Cleaning
+      </button>
+    </div>
+  ),
+}));
+// The studio's map (phase 4): its read, held to a fixture.
+const plan = vi.hoisted(() => ({ value: { state: "empty", plan: null, fromCache: false, dropped: 0 } as unknown, asked: [] as boolean[] }));
+vi.mock("../studio-map/hooks", () => ({
+  useFloorPlan: (_s: string | null, opts: { enabled: boolean }) => {
+    plan.asked.push(opts.enabled);
+    return opts.enabled ? plan.value : { state: "off", plan: null, fromCache: false, dropped: 0 };
+  },
+}));
+const phone = vi.hoisted(() => ({ value: false }));
+vi.mock("../phone/device", () => ({ usePhone: () => phone.value }));
+
 import { ToastProvider } from "../../contexts/ToastContext";
 import { UnsavedChangesProvider } from "../unsaved-changes";
 import type { Trainer } from "../../types";
 import { MachinesSection } from "./MachinesSection";
+import { rememberArrange, rememberMachinesView, takeArrange } from "./machines-view-memory";
+import { forgetPersonalMemory } from "../sign-out/memory";
 
 /** A trainer at Solon: she may write the floor's notes. */
 const SARA = { id: "t-sara", fullName: "Sara", role: "LifeTransformer", primaryHomeStudioId: "solon" } as unknown as Trainer;
@@ -144,6 +204,10 @@ const byText = (label: string) => {
 };
 const click = (label: string) => act(async () => byText(label).click());
 const door = () => host.querySelector("aside.cp");
+/** Unfold a part of the card (the notes are under Maintain since the one card, phase 4). */
+const unfold = (part: string) =>
+  act(async () => (door()!.querySelector(`.mdc-part[data-part="${part}"] .mdc-part__head`) as HTMLButtonElement).click());
+const partOpen = (part: string) => door()?.querySelector(`.mdc-part[data-part="${part}"] .mdc-part__head`)?.getAttribute("aria-expanded") === "true";
 const doorTitle = () => door()?.querySelector(".cp__title")?.textContent ?? null;
 const notes = () => door()!.querySelector('textarea[id^="fn-new-"]') as HTMLTextAreaElement;
 const earlier = () => door()?.querySelector('[aria-label="Earlier notes"]')?.textContent ?? "";
@@ -160,6 +224,7 @@ describe("the machine's door on My Studio → Machines", () => {
   it("asks before another machine takes a half-typed floor note away", async () => {
     await click("Open Chest Press");
     expect(doorTitle()).toContain("Chest Press");
+    await unfold("maintain");
     await type("Left pad sticks. Use the footstool.");
 
     await click("Open Leg Press");
@@ -174,7 +239,9 @@ describe("the machine's door on My Studio → Machines", () => {
     await click("Open Leg Press");
     await answer("leave");
     expect(doorTitle()).toContain("Leg Press");
-    // A fresh box on the next machine, and its old Studio notes under the list.
+    // A fresh card on the next machine (Set up open again), a fresh box, and its old Studio notes under the list.
+    expect(partOpen("maintain")).toBe(false);
+    await unfold("maintain");
     expect(notes().value).toBe("");
     expect(earlier()).toContain("Footplate to 3.");
     expect(saved.notes).not.toHaveBeenCalled();
@@ -182,6 +249,7 @@ describe("the machine's door on My Studio → Machines", () => {
 
   it("asks before the door's X or Escape closes it over typing", async () => {
     await click("Open Chest Press");
+    await unfold("maintain");
     await type("Half a thought");
 
     await click("Close");
@@ -219,6 +287,22 @@ describe("the machine's door on My Studio → Machines", () => {
  * exist, so it dropped off the floor (LocalSetupDialog.render.test.tsx). Its
  * name and set-up are changed with Edit on the floor list instead.
  */
+describe("the machine's size on its card (the studio map, Oct 2026)", () => {
+  it("sits after this studio's standard settings in Set up, open first from the list, and is read only for a trainer", async () => {
+    await click("Open Leg Press");
+    expect([...(door()?.querySelectorAll(".mdc-part") ?? [])].map((p) => p.getAttribute("data-part"))).toEqual(["learn", "clean", "maintain", "setup"]);
+    expect(partOpen("setup")).toBe(true);
+    expect(partOpen("maintain")).toBe(false);
+    const heads = [...(door()?.querySelectorAll('.mdc-part[data-part="setup"] .mdc-h') ?? [])].map((h) => h.textContent?.trim());
+    expect(heads.slice(0, 2)).toEqual(["This studio's standard settings", "Its size"]);
+    // No size on file: a trainer is told so, never told to do what only a leader can, and gets no controls.
+    expect(door()?.textContent).toContain("Size not known yet.");
+    expect(door()?.textContent).not.toContain("Pick its model");
+    const buttons = [...(door()?.querySelectorAll("button") ?? [])].map((x) => x.textContent?.trim());
+    expect(buttons).not.toContain("Measure it");
+  });
+});
+
 describe("the door's Local set-up, for a leader", () => {
   beforeAll(() => {
     lead.value = true;
@@ -244,5 +328,202 @@ describe("the door's Local set-up, for a leader", () => {
     await click("Open Hip Sled");
     expect(doorTitle()).toContain("Hip Sled");
     expect(doorButtons()).not.toContain("Local set-up");
+  });
+});
+
+describe("Arrange the floor (the studio map, phase 2)", () => {
+  it("is not a trainer's button", () => {
+    expect([...host.querySelectorAll("button")].some((b) => /Arrange the floor|Draw the floor/.test(b.textContent ?? ""))).toBe(false);
+  });
+
+  describe("for a leader", () => {
+    beforeAll(() => {
+      lead.value = true;
+    });
+    afterAll(() => {
+      lead.value = false;
+    });
+
+    it("sits in the floor panel's actions (Draw the floor while there is no map), and opens the editor in place of the list until Done", async () => {
+      expect(host.querySelector('[data-testid="layout-editor"]')).toBeNull();
+      expect([...host.querySelectorAll("button")].some((b) => b.textContent?.includes("Arrange the floor"))).toBe(false);
+      await click("Draw the floor");
+      expect(host.querySelector('[data-testid="layout-editor"]')?.textContent).toContain("Editing Solon's floor as a leader");
+      expect([...host.querySelectorAll("button")].some((b) => b.textContent === "Open Leg Press")).toBe(false);
+      await click("Done arranging");
+      expect(host.querySelector('[data-testid="layout-editor"]')).toBeNull();
+      expect(byText("Open Leg Press")).toBeTruthy();
+    });
+
+    it("opens straight in the editor when the Catalog's Draw the floor sent the leader here, once", async () => {
+      await remount(() => rememberArrange());
+      expect(host.querySelector('[data-testid="layout-editor"]')?.textContent).toContain("Editing Solon's floor as a leader");
+      await remount();
+      expect(host.querySelector('[data-testid="layout-editor"]')).toBeNull();
+    });
+  });
+
+  it("never opens the editor for a trainer, even when a door asked for it", async () => {
+    await remount(() => rememberArrange());
+    expect(host.querySelector('[data-testid="layout-editor"]')).toBeNull();
+    expect(takeArrange()).toBe(false);
+  });
+});
+
+/** Mount the section again, after `before` (a door that remembers where to land). */
+async function remount(before?: () => void) {
+  await act(async () => root.unmount());
+  before?.();
+  root = createRoot(host);
+  await act(async () => {
+    root.render(
+      <UnsavedChangesProvider>
+        <ToastProvider>
+          <MachinesSection authTrainer={SARA} />
+        </ToastProvider>
+      </UnsavedChangesProvider>,
+    );
+  });
+}
+
+/*
+ * MAP FIRST (the studio map, phase 4, Oct 2026; AJ: "the trainers know where
+ * all the machines are they dont remember them alphabetically"). Machines
+ * opens on the map once the studio has one with a machine of the floor on
+ * it; the list is one tap away, and always on a phone. A tap on the map and a
+ * row of the list open the same card, Set up first (Clean from Cleaning).
+ */
+describe("Map | List, map first (the studio map, phase 4)", () => {
+  const ft = (n: number) => Math.round(n * 304.8);
+  const READY = {
+    state: "ready",
+    plan: {
+      v: 1,
+      name: "The layout",
+      room: { areaSqFt: 1800, boxes: [{ id: "bx-1", x: 0, y: 0, w: ft(60), h: ft(30) }], places: [] },
+      placements: [{ machineId: "m-leg-press", x: ft(10), y: ft(10), rotationDeg: 0 }],
+      rev: 2,
+      updatedAt: null,
+      updatedBy: "u",
+    },
+    fromCache: false,
+    dropped: 0,
+  };
+  const tab = (label: string) => [...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent?.trim() === label) as HTMLButtonElement | undefined;
+  afterEach(() => {
+    plan.value = { state: "empty", plan: null, fromCache: false, dropped: 0 };
+    phone.value = false;
+    forgetPersonalMemory();
+  });
+
+  it("opens on the map once the layout is ready with a machine of the floor on it", async () => {
+    plan.value = READY;
+    await remount();
+    expect(host.querySelector('[data-testid="the-map"]')?.getAttribute("data-door")).toBe("operations");
+    expect(tab("Map")?.getAttribute("aria-selected")).toBe("true");
+    expect([...host.querySelectorAll("button")].some((b) => b.textContent === "Open Leg Press")).toBe(false);
+  });
+
+  it("opens on the list with no layout, and while the layout is still being read", async () => {
+    await remount();
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(byText("Open Leg Press")).toBeTruthy();
+    plan.value = { state: "loading", plan: null, fromCache: false, dropped: 0 };
+    await remount();
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(byText("Open Leg Press")).toBeTruthy();
+  });
+
+  it("keeps a List picked on this iPad, until sign-out", async () => {
+    plan.value = READY;
+    await remount(() => rememberMachinesView("list"));
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(tab("List")?.getAttribute("aria-selected")).toBe("true");
+    await act(async () => tab("Map")!.click());
+    expect(host.querySelector('[data-testid="the-map"]')).not.toBeNull();
+  });
+
+  it("honours a Map picked at another studio only where there is a map: no layout, or none of this floor on it, is the list with no Map tab (final review fixes)", async () => {
+    await remount(() => rememberMachinesView("map"));
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(byText("Open Leg Press")).toBeTruthy();
+    expect(tab("Map")).toBeUndefined();
+    plan.value = { ...READY, plan: { ...READY.plan, placements: [{ machineId: "m-elsewhere", x: ft(10), y: ft(10), rotationDeg: 0 }] } };
+    await remount(() => rememberMachinesView("map"));
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(byText("Open Leg Press")).toBeTruthy();
+    expect(tab("Map")).toBeUndefined();
+    // Where there is a map, the pick holds.
+    plan.value = READY;
+    await remount(() => rememberMachinesView("map"));
+    expect(host.querySelector('[data-testid="the-map"]')).not.toBeNull();
+  });
+
+  it("is always the list on a phone, with no switch and no map read", async () => {
+    plan.value = READY;
+    phone.value = true;
+    plan.asked.length = 0;
+    await remount();
+    expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    expect(tab("Map")).toBeUndefined();
+    expect(plan.asked.every((on) => on === false)).toBe(true);
+  });
+
+  it("opens the same card from a tap on the map and from a row of the list: Set up first, Clean from Cleaning", async () => {
+    plan.value = READY;
+    await remount();
+    await click("Leg Press on the map");
+    expect(doorTitle()).toContain("Leg Press");
+    expect(partOpen("setup")).toBe(true);
+    await click("Close");
+    await click("Leg Press in Cleaning");
+    expect(partOpen("clean")).toBe(true);
+    expect(partOpen("setup")).toBe(false);
+    await click("Close");
+    await act(async () => tab("List")!.click());
+    await click("Open Leg Press");
+    expect(doorTitle()).toContain("Leg Press");
+    expect(partOpen("setup")).toBe(true);
+  });
+
+  it("reads today's rows once for the map in Cleaning and its card, never in Look up", async () => {
+    plan.value = READY;
+    await remount();
+    expect(host.querySelector('[data-testid="map-rows"]')?.textContent).toBe("none");
+    await click("Map to Cleaning");
+    expect(host.querySelector('[data-testid="map-rows"]')?.textContent).toBe("0 rows");
+    tasksAsked.length = 0;
+    await click("Leg Press in Cleaning");
+    expect(partOpen("clean")).toBe(true);
+    // The section reads them (solon); the card's Clean part is handed them and reads none (null).
+    expect(tasksAsked).toContain("solon");
+    expect(tasksAsked).toContain(null);
+  });
+
+  it("shows neither Draw nor Arrange the floor while the layout is being read or can't be", async () => {
+    lead.value = true;
+    try {
+      for (const state of ["loading", "unreadable"]) {
+        plan.value = { state, plan: null, fromCache: false, dropped: 0 };
+        await remount();
+        expect([...host.querySelectorAll("button")].some((b) => /Arrange the floor|Draw the floor/.test(b.textContent ?? "")), state).toBe(false);
+      }
+    } finally {
+      lead.value = false;
+    }
+  });
+
+  it("says Arrange the floor once the studio has a map, for a leader only", async () => {
+    plan.value = READY;
+    lead.value = true;
+    try {
+      await remount();
+      expect(byText("Arrange the floor")).toBeTruthy();
+      await click("Arrange the floor");
+      expect(host.querySelector('[data-testid="layout-editor"]')).not.toBeNull();
+      expect(host.querySelector('[data-testid="the-map"]')).toBeNull();
+    } finally {
+      lead.value = false;
+    }
   });
 });

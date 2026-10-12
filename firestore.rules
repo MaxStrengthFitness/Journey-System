@@ -1499,6 +1499,29 @@ service cloud.firestore {
           || outOfServiceValid(request.resource.data.outOfService);
     }
 
+    // STUDIO MAP (Oct 2026): a unit's tape-measured size, signed and timed by the writer.
+    // Unchanged or removed passes on that alone. Field checks only, no get().
+    function rosterUnitSizeOk() {
+      let n = request.resource.data.get(['unit', 'size'], null);
+      return n == null
+          || (resource != null && n == resource.data.get(['unit', 'size'], null))
+          || (n is map
+              && n.keys().hasOnly(['lengthMm', 'widthMm', 'heightMm', 'by', 'at'])
+              && n.keys().hasAll(['lengthMm', 'widthMm', 'by', 'at'])
+              && sizeMmOk(n.lengthMm) && sizeMmOk(n.widthMm)
+              && (n.get('heightMm', null) == null || sizeMmOk(n.heightMm))
+              && n.by == request.auth.uid
+              && n.at == request.time);
+    }
+
+    // STUDIO MAP: who leads this studio, the caller resolved ONCE. The same people as
+    // isSuperAdmin() || isStudioOwnerOrHeadTrainer(studioId), at a fraction of the
+    // expressions (the 1,000-expression budget; docs/KNOWN-TRAPS.md).
+    function rosterLeaderOnce(studioId) {
+      let r = getRole();
+      return roleIsSuper(r) || trainerLeads(r, callerTrainer(), studioId);
+    }
+
     // WAVE 2 CATALOG: the shape of one Out of service record, signed.
     function outOfServiceValid(o) {
       return o is map
@@ -1916,14 +1939,30 @@ service cloud.firestore {
     // exactly features/machine-codex/models.ts's `modelDocument` plus the
     // stamp: the Catalog's model tier reads it. Written whole (setDoc, no
     // merge), so every write carries the stamp and the rule can pin it.
+    // STUDIO MAP (Oct 2026): a length in whole mm, the frame at rest
+    // (MODEL_LIMITS.sizeMinMm / sizeMaxMm in features/machine-codex/models.ts).
+    function sizeMmOk(v) {
+      return v is number && v >= 250 && v <= 6100;
+    }
+    // STUDIO MAP: a model's size, with where the numbers came from.
+    function modelSizeValid(s) {
+      return s is map
+          && s.keys().hasOnly(['lengthMm', 'widthMm', 'heightMm', 'source', 'note'])
+          && s.keys().hasAll(['lengthMm', 'widthMm', 'source'])
+          && sizeMmOk(s.lengthMm) && sizeMmOk(s.widthMm)
+          && (s.get('heightMm', null) == null || sizeMmOk(s.heightMm))
+          && s.source is string && s.source.size() > 0 && s.source.size() <= 200
+          && s.get('note', '') is string && s.get('note', '').size() <= 400;
+    }
     function machineModelValid(d) {
-      return d.keys().hasOnly(['brand', 'model', 'movementId', 'dials', 'notes', 'updatedAt', 'updatedBy'])
+      return d.keys().hasOnly(['brand', 'model', 'movementId', 'dials', 'notes', 'size', 'updatedAt', 'updatedBy'])
           && d.keys().hasAll(['brand', 'model', 'movementId', 'updatedAt', 'updatedBy'])
           && d.brand is string && d.brand.size() > 0 && d.brand.size() <= 60
           && d.model is string && d.model.size() > 0 && d.model.size() <= 80
           && d.movementId is string && d.movementId.size() > 0 && d.movementId.size() <= 100
           && (!('dials' in d) || (d.dials is list && d.dials.size() <= 20))
           && (!('notes' in d) || (d.notes is string && d.notes.size() <= 2000))
+          && (!('size' in d) || modelSizeValid(d.size))
           && d.updatedAt == request.time
           && d.updatedBy == request.auth.uid;
     }
@@ -2416,10 +2455,13 @@ service cloud.firestore {
         // written, so they run FIRST and a bad write is refused before
         // isSuperAdmin() or the leader check read anything (the
         // 1,000-expression budget; docs/KNOWN-TRAPS.md).
+        // STUDIO MAP: rosterUnitSizeOk() is a field check too; the leader is resolved once.
         allow create, update:
-          if rosterCodexValid(request.resource.data)
+          if isAuthenticated()
+             && rosterCodexValid(request.resource.data)
              && rosterOutOfServiceOk()
-             && (isSuperAdmin() || isStudioOwnerOrHeadTrainer(studioId))
+             && rosterUnitSizeOk()
+             && rosterLeaderOnce(studioId)
              && rosterWriteValid(studioId);
         // OCT 2 2026 (AJ): a studio's OWN machine is never deleted. Taking
         // it off the floor retires it (status 'inactive'): past sessions
@@ -2428,6 +2470,39 @@ service cloud.firestore {
         allow delete:
           if resource.data.get('source', '') != 'custom'
              && (isSuperAdmin() || isStudioOwnerOrHeadTrainer(studioId));
+      }
+
+      // STUDIO MAP (Oct 2026): the layout. `current` and five draft slots d-1..d-5.
+      // Shape and caps here; each box, place and placement is checked by
+      // features/studio-map/layout.ts. rev goes up by exactly one a write, so a save
+      // made from an old copy is refused, and nothing is ever deleted.
+      match /floorPlans/{planId} {
+        function floorPlanValid(d) {
+          return d.keys().hasOnly(['v', 'name', 'room', 'placements', 'retired', 'rev', 'updatedAt', 'updatedBy'])
+              && d.v == 1
+              && (!('retired' in d) || (d.retired == true && planId != 'current'))
+              && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+              && d.room is map && d.room.keys().hasOnly(['areaSqFt', 'boxes', 'places'])
+              && (!('areaSqFt' in d.room)
+                  || (d.room.areaSqFt is int && d.room.areaSqFt >= 200 && d.room.areaSqFt <= 20000))
+              && d.room.boxes is list && d.room.boxes.size() >= 1 && d.room.boxes.size() <= 12
+              && d.room.places is list && d.room.places.size() <= 40
+              && d.placements is list && d.placements.size() <= 120
+              && d.rev is int
+              && d.rev == (resource == null ? 1 : resource.data.rev + 1)
+              && d.updatedAt == request.time
+              && d.updatedBy == request.auth.uid;
+        }
+        function floorPlanWriter() {
+          let r = getRole();
+          return roleIsSuper(r) || trainerLeads(r, callerTrainer(), studioId);
+        }
+        allow read: if isAuthenticated() && writesForStudio(studioId);
+        allow create, update: if isAuthenticated()
+                              && (planId == 'current' || planId.matches('d-[1-5]'))
+                              && floorPlanValid(request.resource.data)
+                              && floorPlanWriter();
+        allow delete: if false;
       }
 
       // Why: docs/ops/RULES-NOTES.md#studios-studioid-machinenotes-machineid

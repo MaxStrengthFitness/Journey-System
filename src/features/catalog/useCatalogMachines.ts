@@ -112,8 +112,19 @@ export function useCatalogMachines(
     return out;
   }, [rosterEntries]);
 
+  // Each unit's tape-measured size, raw (the studio map, Oct 2026): read off
+  // the entries already in hand, no second roster read.
+  const unitSizes = useMemo(() => {
+    const out: Record<string, unknown> = {};
+    for (const e of rosterEntries) {
+      const size = e.unit?.size;
+      if (size != null) out[e.machineId] = size;
+    }
+    return out;
+  }, [rosterEntries]);
+
   const result = useMemo<UseCatalogMachinesResult>(() => {
-    const opts = { studioNotes: notesByMachineId, outOfService, modelIds };
+    const opts = { studioNotes: notesByMachineId, outOfService, modelIds, unitSizes };
 
     if (resolved.length > 0) {
       // useStudioMachines has already sorted by the studio's own order.
@@ -154,7 +165,7 @@ export function useCatalogMachines(
 
     return { machines, source: "global", makers: {}, aliases, loading, floor, collisions } as
       UseCatalogMachinesResult & { collisions: Record<string, string[]> };
-  }, [resolved, legacyMachines, notesByMachineId, outOfService, modelIds, loading, makers, aliases, floor]);
+  }, [resolved, legacyMachines, notesByMachineId, outOfService, modelIds, unitSizes, loading, makers, aliases, floor]);
 
   // Name the duplicate rather than hiding it — the stray document is still in
   // Firestore and will keep coming back until someone deletes it.

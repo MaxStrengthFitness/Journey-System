@@ -16,7 +16,16 @@ const writes = vi.hoisted(() => ({
   updates: [] as { path: string; data: unknown }[],
   sets: [] as { path: string; data: Record<string, unknown> }[],
   adds: [] as { path: string; data: Record<string, unknown> }[],
+  /** Every batch committed, as its writes (the cleaning checklist's markWiped sends one). */
+  batches: [] as { path: string; data: Record<string, unknown> }[][],
+  /** The studio's care records the one live read answers with (the studio map, phase 4). */
+  care: {} as Record<string, Record<string, unknown>>,
+  /** The live care listeners: a committed care write reaches them, as Firestore's own write does. */
+  careListeners: [] as ((snap: unknown) => void)[],
 }));
+const careSnap = () => ({ forEach: (fn: (d: unknown) => void) => Object.entries(writes.care).forEach(([id, data]) => fn({ id, data: () => data })) });
+/** Another iPad's write (or this one's, echoed): every live care listener hears it. */
+const pushCare = () => writes.careListeners.forEach((l) => l(careSnap()));
 vi.mock("../../../firebase", () => ({ db: {}, auth: { currentUser: { uid: "t-ioreth" } }, functions: {} }));
 vi.mock("../../../contexts/ActiveStudioContext", () => ({
   useActiveStudio: () => ({ activeStudioId: "s1", activeStudio: { id: "s1", name: "Westlake" }, network: null, studios: [] }),
@@ -26,8 +35,9 @@ vi.mock("firebase/firestore", () => {
   const hasUndefined = (v: unknown): boolean =>
     v === undefined || (Array.isArray(v) ? v.some(hasUndefined) : v !== null && typeof v === "object" && Object.values(v).some(hasUndefined));
   return {
-    doc: (...parts: unknown[]) => ({ path: parts.filter((p) => typeof p === "string").join("/") }),
-    collection: (...parts: unknown[]) => ({ path: parts.filter((p) => typeof p === "string").join("/") }),
+    // A parent reference counts as its path (the care store writes doc(collection(...), id)).
+    doc: (...parts: unknown[]) => ({ path: parts.map((p) => (typeof p === "string" ? p : (p as { path?: string } | null)?.path)).filter(Boolean).join("/") }),
+    collection: (...parts: unknown[]) => ({ path: parts.map((p) => (typeof p === "string" ? p : (p as { path?: string } | null)?.path)).filter(Boolean).join("/") }),
     updateDoc: async (ref: { path: string }, data: unknown) => {
       if (hasUndefined(data)) throw new Error("Unsupported field value: undefined");
       writes.updates.push({ path: ref.path, data });
@@ -41,7 +51,17 @@ vi.mock("firebase/firestore", () => {
       if (hasUndefined(data)) throw new Error("Unsupported field value: undefined");
       writes.sets.push({ path: ref.path, data });
     },
-    onSnapshot: () => () => {},
+    onSnapshot: (ref: { path: string }, a: unknown, b: unknown) => {
+      const next = (typeof a === "function" ? a : b) as ((snap: unknown) => void) | undefined;
+      if (ref.path.endsWith("machineCare") && next) {
+        writes.careListeners.push(next);
+        next(careSnap());
+        return () => {
+          writes.careListeners = writes.careListeners.filter((l) => l !== next);
+        };
+      }
+      return () => {};
+    },
     query: (q: unknown) => q,
     where: () => ({}),
     orderBy: () => ({}),
@@ -51,16 +71,39 @@ vi.mock("firebase/firestore", () => {
     Timestamp: { now: () => new Date(), fromDate: (d: Date) => d },
     increment: (n: number) => n,
     FieldPath: class {},
-    writeBatch: () => ({ set() {}, update() {}, delete() {}, commit: async () => {} }),
+    writeBatch: () => {
+      const ops: { path: string; data: Record<string, unknown> }[] = [];
+      return {
+        set(ref: { path: string }, data: Record<string, unknown>) {
+          if (hasUndefined(data)) throw new Error("Unsupported field value: undefined");
+          ops.push({ path: ref.path, data });
+        },
+        update() {},
+        delete() {},
+        commit: async () => {
+          writes.batches.push(ops);
+          // Firestore shows a write to this iPad's listeners at once (latency compensation).
+          let cared = false;
+          for (const op of ops) {
+            const m = /machineCare\/([^/]+)$/.exec(op.path);
+            if (!m) continue;
+            writes.care[m[1]] = { ...(writes.care[m[1]] ?? {}), ...op.data };
+            cared = true;
+          }
+          if (cared) queueMicrotask(pushCare);
+        },
+      };
+    },
   };
 });
 
 import { ToastProvider } from "../../../contexts/ToastContext";
 import { Board } from "./Board";
+import { MARK_WRITES, markWiped } from "./machine-care-store";
 import { RelayProvider, type PanelContent, type RelayContextValue } from "./RelayContext";
 import { nowContext, type NowSession } from "./now-context";
 import { BEREGOND, IORETH, MABLUNG, TODAY, ask, booking, row, template } from "./fixtures";
-import type { TaskRow } from "../../studio-tasks/types";
+import type { StudioTaskCategory, TaskRow } from "../../studio-tasks/types";
 import type { TaskActions } from "../../studio-tasks/useTaskActions";
 
 let root: Root | null = null;
@@ -70,6 +113,9 @@ beforeEach(() => {
   writes.updates = [];
   writes.sets = [];
   writes.adds = [];
+  writes.batches = [];
+  writes.care = {};
+  writes.careListeners = [];
 });
 afterEach(() => {
   act(() => root?.unmount());
@@ -114,7 +160,7 @@ function fakeActions(): TaskActions & { calls: string[] } {
   };
 }
 
-const wipe = template("wipe-down", { title: "Wipe-down round", estMinutes: 2 });
+const wipe = template("cable-check", { title: "Cable check round", estMinutes: 2, category: "maintenance" });
 const towels = template("towels", { title: "Restock towels", kind: "facility", target: { kind: "facility" }, estMinutes: 3 });
 
 function relayValue(over: Partial<RelayContextValue> = {}): RelayContextValue {
@@ -146,6 +192,10 @@ async function render(
     rows?: TaskRow[];
     unknown?: boolean;
     onAssign?: (g: unknown) => void;
+    /** Replaces the default rows (the studio map's wipe chore cases). */
+    only?: TaskRow[];
+    outOfServiceIds?: Set<string>;
+    categories?: StudioTaskCategory[];
   } = {},
 ) {
   const actions = fakeActions();
@@ -158,13 +208,17 @@ async function render(
       <ToastProvider>
         <RelayProvider value={relay}>
           <Board
-            rows={[
-              row(wipe, "lp", "open", { machineName: "Leg Press" }),
-              row(wipe, "cp", "open", { machineName: "Chest Press" }),
-              row(wipe, "cr", "done", { machineName: "Compound Row" }),
-              row(towels, undefined),
-              ...(props.rows ?? []),
-            ]}
+            rows={
+              props.only ?? [
+                row(wipe, "lp", "open", { machineName: "Leg Press" }),
+                row(wipe, "cp", "open", { machineName: "Chest Press" }),
+                row(wipe, "cr", "done", { machineName: "Compound Row" }),
+                row(towels, undefined),
+                ...(props.rows ?? []),
+              ]
+            }
+            outOfServiceIds={props.outOfServiceIds}
+            categories={props.categories}
             jobs={[]}
             requests={props.requests ?? []}
             actions={actions}
@@ -220,7 +274,7 @@ describe("the Board", () => {
     expect(h.querySelector("#rb-part-day .rbt__now")).not.toBeNull();
     expect([...h.querySelectorAll(".rbg__col")].map((c) => c.getAttribute("aria-label"))).toEqual(["Floor", "Desk", "Clients", "Team"]);
     expect(h.querySelector(".rbd-status")?.textContent).toContain("0 of 2 done");
-    const wipeCard = cardTitled(h, "Wipe-down round");
+    const wipeCard = cardTitled(h, "Cable check round");
     expect(wipeCard?.dataset.state).toBe("started");
     expect(wipeCard?.querySelector(".rbc__line")?.textContent).toContain("1 of 3 done");
     expect(cardTitled(h, "Restock towels")?.querySelector(".rbc__line")?.textContent).toBe("Anyone · ~3 min");
@@ -260,14 +314,14 @@ describe("the Board", () => {
 
   it("opens a chore's machines beside the board from its words, with Mark all and I'm on it", async () => {
     const { h, actions, relay } = await render();
-    await click(cardTitled(h, "Wipe-down round")?.querySelector(".rbc__main"));
+    await click(cardTitled(h, "Cable check round")?.querySelector(".rbc__main"));
     const { box, content, unmount } = await drawPanel(relay);
-    expect(content.title).toBe("Wipe-down round");
+    expect(content.title).toBe("Cable check round");
     expect([...box.querySelectorAll(".rbd-part__t")].map((t) => t.textContent)).toEqual(["Leg Press", "Chest Press", "Compound Row"]);
     await click([...box.querySelectorAll(".rbd-part")][0]);
     expect(actions.calls).toContain(`complete:${row(wipe, "lp").id}`);
     await click([...box.querySelectorAll("button")].find((b) => b.textContent?.includes("I'm on it")));
-    expect(actions.calls).toContain("toggleClaimGroup:wipe-down");
+    expect(actions.calls).toContain("toggleClaimGroup:cable-check");
     expect([...box.querySelectorAll("button")].some((b) => b.textContent?.includes("Mark all 2 done"))).toBe(true);
     // A trainer is never offered a leader's naming.
     expect([...box.querySelectorAll("button")].some((b) => b.textContent?.includes("Put a name on it"))).toBe(false);
@@ -277,7 +331,7 @@ describe("the Board", () => {
   it("lets a leader put a name on a chore, through the host's Assign", async () => {
     const onAssign = vi.fn();
     const { h, relay } = await render({ relay: { canLead: true }, onAssign });
-    await click(cardTitled(h, "Wipe-down round")?.querySelector(".rbc__main"));
+    await click(cardTitled(h, "Cable check round")?.querySelector(".rbc__main"));
     const { box, unmount } = await drawPanel(relay);
     await click([...box.querySelectorAll("button")].find((b) => b.textContent?.includes("Put a name on it")));
     expect(onAssign).toHaveBeenCalledTimes(1);
@@ -311,7 +365,7 @@ describe("the Board", () => {
     await click(h.querySelector("#rb-part-open"));
     expect(h.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toContain("Opening");
     expect(cardTitled(h, "Lights and music")).toBeTruthy();
-    expect(cardTitled(h, "Wipe-down round")).toBeUndefined();
+    expect(cardTitled(h, "Cable check round")).toBeUndefined();
   });
 
   it("says when a read failed, and never calls an empty part 'nothing' then", async () => {
@@ -325,5 +379,194 @@ describe("the Board", () => {
     const { h } = await render();
     await click(h.querySelector("#rb-part-close"));
     expect(h.querySelector(".rbd-empty")?.textContent).toContain("Nothing for close.");
+  });
+});
+
+/*
+ * THE WIPE CHORE COUNTS THE FLOOR'S MARKS (the studio map, phase 4, Oct 2026;
+ * AJ: "just check off what they did ... it doesn't need to be that
+ * military"). Its line is the map's ("1 of 3 wiped today"), never who or
+ * when; its box is Mark all (one batch, the machines not wiped today, never
+ * one out of service, with their open rows), with Undo; its panel keeps Put
+ * a name on it and gains Show the floor.
+ */
+describe("the wipe chore (the studio map, phase 4)", () => {
+  const wipeDown = template("wipe-down", { title: "Wipe down every machine", estMinutes: 2 });
+  const rows = () => [
+    row(wipeDown, "lp", "done", { machineName: "Leg Press", instance: { status: "done", completedBy: MABLUNG } as never }),
+    row(wipeDown, "cp", "open", { machineName: "Chest Press" }),
+    row(wipeDown, "cr", "open", { machineName: "Compound Row" }),
+    row(wipeDown, "ab", "open", { machineName: "Ab Crunch" }),
+  ];
+  const noon = (day: string) => new Date(`${day}T12:00:00-04:00`).getTime();
+  const care = () => {
+    writes.care = {
+      lp: { machineId: "lp", lastWipedAt: noon(TODAY), lastWipedBy: { id: MABLUNG.id, name: MABLUNG.name } },
+      cp: { machineId: "cp", lastWipedAt: noon("2026-09-27"), lastWipedBy: { id: BEREGOND.id, name: BEREGOND.name } },
+    };
+  };
+  const out = new Set(["ab"]);
+
+  it("reads the machines wiped today, out of service left out, and never a name", async () => {
+    care();
+    const { h } = await render({ only: rows(), outOfServiceIds: out });
+    const card = cardTitled(h, "Wipe down every machine");
+    expect(card?.dataset.state).toBe("started");
+    expect(card?.querySelector(".rbc__line")?.textContent).toContain("1 of 3 wiped today");
+    for (const who of ["Mablung", "Beregond", "AM", "PM"]) expect(card?.textContent).not.toContain(who);
+  });
+
+  it("its box marks every machine not wiped today in one batch, with their open rows, and Undo puts them back", async () => {
+    care();
+    const { h } = await render({ only: rows(), outOfServiceIds: out });
+    await click(cardTitled(h, "Wipe down every machine")?.querySelector(".rbc__box"));
+    expect(writes.batches).toHaveLength(1);
+    const batch = writes.batches[0];
+    expect(batch.filter((w) => w.path.includes("machineCare")).map((w) => w.path)).toEqual(["studios/s1/machineCare/cp", "studios/s1/machineCare/cr"]);
+    expect(batch.filter((w) => w.path.includes("taskInstances")).map((w) => w.data.machineId)).toEqual(["cp", "cr"]);
+    expect(batch.filter((w) => w.path.includes("taskInstances")).every((w) => w.data.status === "done")).toBe(true);
+    // Neither the machine wiped today nor the one out of service.
+    expect(batch.some((w) => /\/(lp|ab)$/.test(w.path))).toBe(false);
+    expect(h.querySelector(".rbd-undo")?.textContent).toContain("2 machines marked wiped today.");
+    await click(h.querySelector(".rbd-undo__btn"));
+    const undo = writes.batches[1];
+    expect(undo.find((w) => w.path.endsWith("machineCare/cp"))?.data).toMatchObject({ lastWipedAt: noon("2026-09-27"), lastWipedBy: { id: BEREGOND.id, name: BEREGOND.name } });
+    expect(undo.find((w) => w.path.endsWith("machineCare/cr"))?.data).toMatchObject({ lastWipedAt: null, lastWipedBy: null });
+    expect(undo.filter((w) => w.path.includes("taskInstances")).every((w) => w.data.status === "open")).toBe(true);
+  });
+
+  it("Mark all's Undo keeps a wipe another iPad made since, and its row, and puts the others back", async () => {
+    care();
+    const { h } = await render({ only: rows(), outOfServiceIds: out });
+    await click(cardTitled(h, "Wipe down every machine")?.querySelector(".rbc__box"));
+    expect(writes.batches).toHaveLength(1);
+    // A second iPad wipes the Chest Press after this one's Mark all.
+    const later = Date.now() + 1000;
+    await act(async () => {
+      writes.care.cp = { ...writes.care.cp, lastWipedAt: later, lastWipedBy: { id: MABLUNG.id, name: MABLUNG.name } };
+      pushCare();
+    });
+    await click(h.querySelector(".rbd-undo__btn"));
+    const undo = writes.batches[1];
+    expect(undo.some((w) => w.path.endsWith("machineCare/cp"))).toBe(false);
+    expect(undo.some((w) => w.path.includes("taskInstances") && w.data.machineId === "cp")).toBe(false);
+    expect(undo.find((w) => w.path.endsWith("machineCare/cr"))?.data).toMatchObject({ lastWipedAt: null, lastWipedBy: null });
+    expect(undo.filter((w) => w.path.includes("taskInstances")).map((w) => [w.data.machineId, w.data.status])).toEqual([["cr", "open"]]);
+  });
+
+  it("its panel says the line, Mark all and Show the floor, no machine rows with names, and a leader's Put a name on it stays", async () => {
+    care();
+    const onAssign = vi.fn();
+    const { h, relay } = await render({ only: rows(), outOfServiceIds: out, relay: { canLead: true }, onAssign });
+    await click(cardTitled(h, "Wipe down every machine")?.querySelector(".rbc__main"));
+    const { box, content, unmount } = await drawPanel(relay);
+    expect(content.id).toBe("board:group:studio:wipe-down:any");
+    expect(box.textContent).toContain("1 of 3 wiped today");
+    expect(box.querySelectorAll(".rbd-part")).toHaveLength(0);
+    expect(box.textContent).not.toContain("Mablung");
+    const labels = [...box.querySelectorAll("button")].map((b) => b.textContent?.trim());
+    expect(labels).toEqual(expect.arrayContaining(["Mark all 2 wiped", "Show the floor", "Put a name on it"]));
+    expect(labels.some((l) => l?.includes("I'm on it"))).toBe(false);
+    unmount();
+  });
+
+  it("a wipe chore in a cleaning category the studio made: a tile's tick completes its row", async () => {
+    const wipeDowns: StudioTaskCategory = { id: "wipe-downs", label: "Wipe-downs", upkeepRole: "cleaning", order: 5 };
+    const authored = template("evening-wipe", { title: "Evening wipe", category: "wipe-downs" as never });
+    const { h } = await render({
+      only: [row(authored, "cp", "open", { machineName: "Chest Press" })],
+      categories: [wipeDowns],
+      relay: { machines: [{ id: "cp", name: "Chest Press" }] as never },
+    });
+    // The Board counts it as the wipe chore.
+    expect(cardTitled(h, "Evening wipe")?.querySelector(".rbc__line")?.textContent).toContain("None wiped yet today");
+    if (h.querySelector(".fm__head")?.getAttribute("aria-expanded") !== "true") await click(h.querySelector(".fm__head"));
+    await click([...h.querySelectorAll(".fm__view")].find((b) => b.textContent === "Cleaning"));
+    await click([...h.querySelectorAll(".fm__tile")].find((b) => b.textContent?.includes("Chest Press")));
+    const batch = writes.batches[0];
+    expect(batch.map((w) => w.path)).toEqual(["studios/s1/machineCare/cp", expect.stringContaining("taskInstances")]);
+    expect(batch[1].data).toMatchObject({ machineId: "cp", status: "done" });
+  });
+
+  it("in two shifts, Close's box marks the machines the morning wiped again and closes Close's own rows (final review fixes)", async () => {
+    care();
+    const shifted = (r: ReturnType<typeof row>, shift: "am" | "pm", status: "open" | "done") => ({
+      ...r,
+      id: r.id.replace("__any", `__${shift}`),
+      shift,
+      status,
+      instance: status === "done" ? ({ status: "done" } as never) : null,
+    });
+    const two = [
+      shifted(row(wipeDown, "lp", "done", { machineName: "Leg Press" }), "am", "done"),
+      shifted(row(wipeDown, "cp", "done", { machineName: "Chest Press" }), "am", "done"),
+      shifted(row(wipeDown, "lp", "open", { machineName: "Leg Press" }), "pm", "open"),
+      shifted(row(wipeDown, "cp", "open", { machineName: "Chest Press" }), "pm", "open"),
+    ];
+    writes.care = { ...writes.care, cp: { machineId: "cp", lastWipedAt: noon(TODAY), lastWipedBy: { id: BEREGOND.id, name: BEREGOND.name } } };
+    const { h } = await render({ only: two });
+    await click(h.querySelector("#rb-part-close"));
+    const card = cardTitled(h, "Wipe down every machine");
+    expect(card?.dataset.state).not.toBe("done");
+    expect(card?.querySelector(".rbc__line")?.textContent).toContain("None wiped yet this shift");
+    await click(card?.querySelector(".rbc__box"));
+    const batch = writes.batches[0];
+    expect(batch.filter((w) => w.path.includes("machineCare")).map((w) => w.path)).toEqual(["studios/s1/machineCare/lp", "studios/s1/machineCare/cp"]);
+    expect(batch.filter((w) => w.path.includes("taskInstances")).map((w) => [w.path.split("/").pop(), w.data.status])).toEqual([
+      [`wipe-down__${TODAY}__pm__lp`, "done"],
+      [`wipe-down__${TODAY}__pm__cp`, "done"],
+    ]);
+  });
+
+  it("an assigned wipe chore's panel names the person once", async () => {
+    care();
+    const assigned = rows().map((r) => ({ ...r, instance: { ...(r.instance ?? {}), assignedTo: { id: MABLUNG.id, name: MABLUNG.name } } as never }));
+    const { h, relay } = await render({ only: assigned, outOfServiceIds: out });
+    await click(cardTitled(h, "Wipe down every machine")?.querySelector(".rbc__main"));
+    const { box, unmount } = await drawPanel(relay);
+    expect(box.textContent).toContain("For Mablung");
+    expect(box.textContent).toContain("Anyone can mark a machine.");
+    expect(box.textContent?.split("Mablung").length).toBeLessThanOrEqual(2);
+    expect(box.textContent).not.toContain("heads-up, not a lock");
+    unmount();
+  });
+
+  it("Show the floor closes the panel and opens the floor below in Cleaning", async () => {
+    care();
+    const closePanel = vi.fn();
+    const { h, relay } = await render({
+      only: rows(),
+      outOfServiceIds: out,
+      relay: { closePanel, machines: [{ id: "lp", name: "Leg Press" }, { id: "cp", name: "Chest Press" }] as never },
+    });
+    await click(cardTitled(h, "Wipe down every machine")?.querySelector(".rbc__main"));
+    const { box, unmount } = await drawPanel(relay);
+    await click([...box.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Show the floor"));
+    unmount();
+    expect(closePanel).toHaveBeenCalled();
+    expect(h.querySelector(".fm__head")?.getAttribute("aria-expanded")).toBe("true");
+    expect([...h.querySelectorAll(".fm__view")].find((b) => b.getAttribute("aria-pressed") === "true" && b.textContent === "Cleaning")).toBeTruthy();
+    expect(h.textContent).toContain("Tap a machine when it's wiped.");
+  });
+});
+
+describe("markWiped's batches (phase 4 review fixes)", () => {
+  it("sends at most MARK_WRITES writes a batch, one row a machine, each machine beside its row", async () => {
+    const t = template("wipe-down", { title: "Wipe down every machine" });
+    const ids = Array.from({ length: 300 }, (_, i) => `m${i}`);
+    // Two shifts' rows a machine: a wipe completes only the one for now.
+    const rowsAll = ids.flatMap((id) => [row(t, id, "open", { id: `am__${id}`, shift: "am" }), row(t, id, "open", { id: `pm__${id}`, shift: "pm" })]);
+    const res = markWiped({ studioId: "s1", machineIds: ids, floorIds: new Set(ids), author: { id: "u1", name: "Ioreth" }, before: null, rows: rowsAll, shiftNow: "pm" });
+    await res.done;
+    const batches = writes.batches.filter((b) => b.some((w) => w.path.includes("machineCare")));
+    expect(batches.every((b) => b.length <= MARK_WRITES)).toBe(true);
+    const all = batches.flat();
+    expect(all.filter((w) => w.path.includes("taskInstances"))).toHaveLength(300);
+    expect(all.filter((w) => w.path.includes("taskInstances")).every((w) => String(w.path).includes("pm__"))).toBe(true);
+    for (const b of batches) {
+      const cared = new Set(b.filter((w) => w.path.includes("machineCare")).map((w) => w.path.split("/").pop()));
+      for (const w of b.filter((x) => x.path.includes("taskInstances"))) expect(cared.has(String(w.data.machineId))).toBe(true);
+    }
+    expect(res.undo).toBeNull();
   });
 });

@@ -692,13 +692,16 @@ describe("8. Operations' buttons speak the button voice, 14/700 in the label's o
   }
 
   /** Names the words may capitalise mid-label: a place (My Studio, Relay's Journal), the company, a system, an acronym, "I". */
-  const PROPER = /^(?:My Studio|Journal|Max Strength(?:'s)?|Mindbody|MSF|CSV|URL|I)\b/;
+  // Imagine Strength: the maker's name (the studio map's "Mark 18 as Imagine Strength", Oct 2026).
+  // Catalog: Learning's place (the machine card's "Open its Catalog page", the studio map's phase 4).
+  const PROPER = /^(?:My Studio|Journal|Catalog|Max Strength(?:'s)?|Mindbody|MSF|Imagine Strength|CSV|URL|I)\b/;
 
   /** What in a label shows it was written for the capitals: a shouted word, or a word capitalised mid-phrase. */
   function notSentenceCase(label: string): string[] {
     const out: string[] = [];
-    // Each phrase starts again after an arrow, a middle dot or a colon (a place's path, a pair, a choice).
-    for (const phrase of label.split(/\s*[\u2192\u00B7:]\s*/)) {
+    // Each phrase starts again after an arrow, a middle dot or a colon (a place's path, a pair, a choice), and a
+    // sentence after a question ("Bought it? Swap in the real one", the studio map, Oct 2026).
+    for (const phrase of label.split(/\s*[\u2192\u00B7:?]\s*/)) {
       const words = phrase.split(/\s+/).filter(Boolean);
       for (let k = 1; k < words.length; k++) {
         const rest = words.slice(k).join(" ");
@@ -722,6 +725,8 @@ describe("8. Operations' buttons speak the button voice, 14/700 in the label's o
 
   it("the case reader passes a sentence and a place, and catches a title or a shout", () => {
     expect(notSentenceCase("Open My Studio \u2192 Studio")).toEqual([]);
+    expect(notSentenceCase("Bought it? Swap in the real one")).toEqual([]);
+    expect(notSentenceCase("Bought it? Swap In The Real One")).toEqual(["In", "The", "Real", "One"]);
     expect(notSentenceCase("Use Max Strength's defaults")).toEqual([]);
     expect(notSentenceCase("Add all x from the MSF standard")).toEqual([]);
     expect(notSentenceCase("Dismiss: I know why")).toEqual([]);

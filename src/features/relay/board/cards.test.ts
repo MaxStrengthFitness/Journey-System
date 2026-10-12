@@ -6,7 +6,11 @@ import type { Client } from "../../../types";
 const NOW = new Date(`${TODAY}T13:05:00-04:00`).getTime();
 const ts = (iso: string) => ({ toMillis: () => new Date(iso).getTime() });
 
-const wipe = template("wipe", { title: "Wipe down all machines", estMinutes: 2 });
+// A per-machine chore that isn't the wipe chore (the studio map, phase 4: a
+// machine chore in the cleaning category is the wipe chore, counted by the
+// floor's marks; see "the wipe chore" below).
+const wipe = template("wipe", { title: "Check every cable", estMinutes: 2, category: "maintenance" });
+const realWipe = template("wipedown", { title: "Wipe down every machine", estMinutes: 2 });
 const lights = template("lights", { title: "Lights and music", kind: "facility", category: "cleaning", target: { kind: "facility" } });
 const brief = template("brief", { title: "Read today's briefings", kind: "facility", category: "front-desk", target: { kind: "facility" } });
 const report = template("report", {
@@ -169,5 +173,74 @@ describe("the board's cards", () => {
     expect(waitingWords(NOW - 3 * 3_600_000, NOW)).toBe("waiting 3 h");
     expect(waitingWords(NOW - 50 * 3_600_000, NOW)).toBe("waiting 2 days");
     expect(waitingWords(null, NOW)).toBe("waiting");
+  });
+});
+
+describe("the wipe chore (the studio map, phase 4)", () => {
+  const ids = Array.from({ length: 20 }, (_, i) => `m${i}`);
+  const rows = (status: (id: string, i: number) => "open" | "done" = () => "open") => ids.map((id, i) => row(realWipe, id, status(id, i)));
+  const ID = "group:studio:wipedown:any";
+
+  it("counts the machines wiped today, never the rows: 3 done rows and 12 wiped machines reads 12 of 20", () => {
+    const card = one(input({ rows: rows((_, i) => (i >= 17 ? "done" : "open")), wipedTodayIds: new Set(ids.slice(0, 12)) }), ID);
+    expect(card).toMatchObject({ state: "started", line: "12 of 20 wiped today", parts: { done: 12, total: 20 }, column: "floor", box: "done" });
+  });
+
+  it("leaves a machine out of service out of both sides", () => {
+    const card = one(input({ rows: rows(), wipedTodayIds: new Set(ids.slice(0, 12)), outOfServiceIds: new Set(["m19"]) }), ID);
+    expect(card).toMatchObject({ line: "12 of 19 wiped today", parts: { done: 12, total: 19 } });
+  });
+
+  it("is done, and counts as done in its part, when the floor was wiped entirely from the map", () => {
+    const i = input({ rows: rows(), wipedTodayIds: new Set(ids.slice(0, 19)), outOfServiceIds: new Set(["m19"]) });
+    expect(one(i, ID)).toMatchObject({ state: "done", line: "All 19 wiped today" });
+    expect(partCount(boardCards(i), "day")).toEqual({ done: 1, total: 1 });
+  });
+
+  it("never names a person, even when rows carry who finished them or who's on them", () => {
+    const named = ids.map((id, i) =>
+      row(realWipe, id, i < 3 ? "done" : "open", { instance: { status: i < 3 ? "done" : "open", completedBy: BEREGOND, claimedBy: i === 5 ? MABLUNG : undefined, completedAt: ts(`${TODAY}T08:00:00-04:00`) } as never }),
+    );
+    const card = one(input({ rows: named, wipedTodayIds: new Set(ids.slice(0, 3)) }), ID);
+    expect(card.line).toBe("3 of 20 wiped today");
+    for (const who of ["Beregond", "Mablung", "You", "AM", "PM"]) expect(card.line).not.toContain(who);
+  });
+
+  it("says it is reading the marks while the care read hasn't answered, and draws no bar (unknown is never none)", () => {
+    const card = one(input({ rows: rows(), wipedTodayIds: null, careRead: "loading" }), ID);
+    expect(card).toMatchObject({ state: "todo", line: "Reading the cleaning marks…" });
+    expect(card.parts).toBeNull();
+    // Absent means loading too: a normal open never says it failed.
+    expect(one(input({ rows: rows(), wipedTodayIds: null }), ID).line).toBe("Reading the cleaning marks…");
+  });
+
+  it("says it can't read the marks only when the care read failed, with no bar", () => {
+    const card = one(input({ rows: rows(), wipedTodayIds: null, careRead: "failed" }), ID);
+    expect(card).toMatchObject({ state: "todo", line: "Can't read the cleaning marks right now" });
+    expect(card.parts).toBeNull();
+  });
+
+  it("runs in two shifts: the morning's Mark all never makes Close's card read done, and Close's own rows do", () => {
+    const am = ids.slice(0, 3).map((id) => at("am")(row(realWipe, id, "done")));
+    const pmOpen = ids.slice(0, 3).map((id) => at("pm")(row(realWipe, id, "open")));
+    const wiped = new Set(ids.slice(0, 3));
+    const morning = input({ rows: [...am, ...pmOpen], wipedTodayIds: wiped, phase: "closing" });
+    expect(one(morning, "group:studio:wipedown:am")).toMatchObject({ state: "done", line: "All 3 wiped today" });
+    expect(one(morning, "group:studio:wipedown:pm")).toMatchObject({ state: "todo", line: "None wiped yet this shift", parts: { done: 0, total: 3 } });
+    // Close's Mark all wipes them again and closes Close's rows: then it reads done.
+    const pmDone = pmOpen.map((r, i) => (i < 2 ? { ...r, status: "done" as const } : r));
+    expect(one(input({ rows: [...am, ...pmDone], wipedTodayIds: wiped, phase: "closing" }), "group:studio:wipedown:pm")).toMatchObject({
+      state: "started",
+      line: "2 of 3 wiped this shift",
+    });
+    const allDone = pmOpen.map((r) => ({ ...r, status: "done" as const }));
+    expect(one(input({ rows: [...am, ...allDone], wipedTodayIds: wiped, phase: "closing" }), "group:studio:wipedown:pm").state).toBe("done");
+    // A done row whose machine wasn't wiped today still isn't counted.
+    expect(one(input({ rows: [...am, ...allDone], wipedTodayIds: new Set(["m0"]), phase: "closing" }), "group:studio:wipedown:pm").line).toBe("1 of 3 wiped this shift");
+  });
+
+  it("says whose it is when a leader put a name on it", () => {
+    const named = ids.map((id) => row(realWipe, id, "open", { instance: { status: "open", assignedTo: MABLUNG } as never }));
+    expect(one(input({ rows: named, wipedTodayIds: new Set(["m0"]) }), ID).line).toBe("For Mablung · 1 of 20 wiped today");
   });
 });

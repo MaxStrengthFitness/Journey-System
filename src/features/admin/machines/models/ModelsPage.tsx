@@ -14,10 +14,23 @@ import {
 } from "../../primitives";
 import type { MachineCatalogEntry } from "../../../../types/machines";
 import { resolveMachineOrder } from "../../../../data/machine-display-order";
-import { dialSummary, modelLabel, modelsFor, type ModelWithId } from "../../../machine-codex/models";
+import { dialSummary, modelLabel, modelSizeOf, modelsFor, type ModelWithId } from "../../../machine-codex/models";
+import { sizeLine } from "../../../studio-map/units";
 import { useMachineModels } from "../../../machine-codex/models-store";
 import { ModelEditor } from "./ModelEditor";
 import "../editor/codex-editor.css";
+
+/**
+ * A row's line: the size and where it came from when the model has one (the
+ * studio map), then its dials when it has any. Never "No dials recorded"
+ * alone on a sized model.
+ */
+function modelMeta(m: ModelWithId): string {
+  const size = modelSizeOf(m.size);
+  if (!size) return dialSummary(m);
+  const line = `${sizeLine({ lengthMm: size.lengthMm, widthMm: size.widthMm })} · ${size.source}`;
+  return m.dials?.length ? `${line} · ${dialSummary(m)}` : line;
+}
 
 /**
  * MODELS — every maker's model of every MSF movement (Codex R2, Sep 28 2026),
@@ -137,7 +150,7 @@ export function ModelsPage({
                   <AdminRow
                     key={m.id}
                     name={modelLabel(m)}
-                    meta={dialSummary(m)}
+                    meta={modelMeta(m)}
                     trailing={
                       isAdmin ? (
                         <AdminButton variant="primary" size="sm" onClick={() => setOpen({ kind: "model", id: m.id })}>

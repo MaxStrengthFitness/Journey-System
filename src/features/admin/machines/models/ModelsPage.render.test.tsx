@@ -136,6 +136,43 @@ describe("the models page", () => {
     expect(toasts[0]).toContain("Hoist ROC-IT Leg Press recorded");
   });
 
+  it("lists a sized model by its size and where it came from, never \"No dials recorded\" alone (the studio map)", async () => {
+    feed.docs = [
+      {
+        id: "mm-imagine-strength-is2024-compound-rowing",
+        data: () => ({
+          brand: "Imagine Strength",
+          model: "IS2024 Compound Rowing",
+          movementId: "m-compound-row",
+          size: { lengthMm: 1594, widthMm: 1227, heightMm: 1850, source: "Imagine Strength brochure, 2026, page 2" },
+          updatedBy: "seed:imagine-strength-2026",
+        }),
+      },
+    ];
+    const el = await mount({ movementId: "m-compound-row" });
+    expect(el.textContent).toContain("5 ft 3 in long × 4 ft wide · Imagine Strength brochure, 2026, page 2");
+    expect(el.textContent).not.toContain("No dials recorded");
+  });
+
+  it("records a size typed in inches as whole mm, showing the mm under each length", async () => {
+    const el = await mount({ movementId: "m-compound-row" });
+    await click(button(el, /New model/));
+    await type(el.querySelector("#model-brand") as HTMLInputElement, "Imagine Strength");
+    await type(el.querySelector("#model-name") as HTMLInputElement, "IS2024 Compound Rowing");
+    await type(el.querySelector("#model-size-length") as HTMLInputElement, "62.8");
+    expect(el.textContent).toContain("1595 mm");
+    await type(el.querySelector("#model-size-width") as HTMLInputElement, "48.3");
+    // No source yet: named, and nothing written.
+    await click(button(el, /Record this model/));
+    expect(writes).toHaveLength(0);
+    expect(el.textContent).toContain("Say where the size came from.");
+    await type(el.querySelector("#model-size-source") as HTMLInputElement, "Imagine Strength brochure, 2026, page 2");
+    await click(button(el, /Record this model/));
+    expect(writes).toHaveLength(1);
+    expect(Object.keys(writes[0].data).sort()).toEqual(["brand", "model", "movementId", "size", "updatedAt", "updatedBy"]);
+    expect(writes[0].data.size).toEqual({ lengthMm: 1595, widthMm: 1227, source: "Imagine Strength brochure, 2026, page 2" });
+  });
+
   it("names what is missing in the save bar and writes nothing", async () => {
     const el = await mount();
     await click(button(el, /New model/));

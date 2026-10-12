@@ -37,6 +37,7 @@ import type { TeamJob } from "../jobs/types";
 import { coverTimeOf, neededWords } from "./cover";
 import type { ShiftPhase } from "./now-context";
 import { renewalPromptDue } from "../../renewals/conversation";
+import { checklistLine, choreParts, choreStates, isWipeChore, laterWipeShifts, wipeShiftKey } from "./cleaning";
 
 export type CardPart = "open" | "day" | "close" | "week";
 export type CardColumn = "floor" | "desk" | "clients" | "team";
@@ -105,6 +106,22 @@ export interface CardsInput {
   /** Now, ms since epoch: "waiting 2 h". */
   nowMs: number;
   tz?: string;
+  /**
+   * The machines wiped on the studio's today (machineCare, through the one
+   * live care read), and the ones out of service (the roster): the wipe
+   * chore counts these, never its rows' status (the studio map, phase 4).
+   * Absent or null while the care read hasn't answered: the chore's line
+   * then says it can't count yet.
+   */
+  wipedTodayIds?: ReadonlySet<string> | null;
+  /**
+   * Why `wipedTodayIds` is null (phase 4 review fixes): "loading" while the
+   * care read hasn't answered ("Reading the cleaning marks…"), "failed" when
+   * it can't be read ("Can't read the cleaning marks right now"). Absent
+   * means loading: a normal open never says it failed.
+   */
+  careRead?: "loading" | "failed";
+  outOfServiceIds?: ReadonlySet<string>;
 }
 
 /** The part of the day it is now: the tab the Board opens on. */
@@ -182,7 +199,55 @@ function laterIn(part: CardPart, phase: ShiftPhase): boolean {
  * Each source, as a card
  * ------------------------------------------------------------------ */
 
-function groupCard(g: ShiftGroup, input: CardsInput, me: Set<string>): BoardCard {
+/**
+ * The wipe chore (the studio map, phase 4, Oct 2026; AJ: "just check off
+ * what they did ... it doesn't need to be that military"): counted by the
+ * machines wiped today, out of service left out of both sides, its line the
+ * map's own words ("12 of 19 wiped today"), never who or when. No claims on
+ * it this round (Q1: "claim for later optional for planning").
+ */
+function wipeChoreCard(g: ShiftGroup, input: CardsInput, me: Set<string>, later: boolean): BoardCard {
+  const part = SHIFT_PART[g.shift];
+  const t = g.rows[0]?.template;
+  const out = input.outOfServiceIds ?? new Set<string>();
+  const wiped = input.wipedTodayIds ?? null;
+  // A later shift (Close after Opening) needs its own row done too: the morning's wipe isn't Close's.
+  const counted = choreParts(g.rows, wiped ?? new Set<string>(), out, later);
+  const assignedMe = Boolean(g.assignedTo && me.has(g.assignedTo.id));
+  let state: CardState;
+  let line: string;
+  if (!wiped) {
+    state = laterIn(part, input.phase) ? "later" : "todo";
+    line = input.careRead === "failed" ? "Can't read the cleaning marks right now" : "Reading the cleaning marks…";
+  } else {
+    const states = choreStates(g.rows, wiped, out, later).map((m) => m.state);
+    line = checklistLine(states, later ? "this shift" : "today") ?? "Nothing to wipe today";
+    if (counted.complete) state = "done";
+    else if (counted.done > 0) state = "started";
+    else state = laterIn(part, input.phase) ? "later" : "todo";
+    if (!counted.complete && g.assignedTo) line = `${assignedMe ? "Yours today" : `For ${first(g.assignedTo.name)}`} · ${line}`;
+  }
+  const est = typeof t?.estMinutes === "number" ? t.estMinutes * Math.max(1, counted.total - counted.done) : null;
+  return {
+    id: `group:${g.scope}:${g.templateId}:${g.shift}`,
+    part,
+    column: "floor",
+    title: g.title,
+    glyph: null,
+    state,
+    line,
+    // Unknown is never drawn as "none wiped": no bar until the marks are read.
+    parts: wiped && counted.total > 0 ? { done: counted.done, total: counted.total } : null,
+    estMinutes: state === "done" ? null : est,
+    mine: assignedMe,
+    box: "done",
+    source: { kind: "group", group: g },
+    at: t?.timeOfDay ?? null,
+  };
+}
+
+function groupCard(g: ShiftGroup, input: CardsInput, me: Set<string>, laterWipes: ReadonlySet<string>): BoardCard {
+  if (isWipeChore(g.rows[0]?.template, input.categories)) return wipeChoreCard(g, input, me, laterWipes.has(wipeShiftKey(g)));
   const part = SHIFT_PART[g.shift];
   const t = g.rows[0]?.template;
   const personal = taskScopeOf(t ?? {}) === "personal";
@@ -433,11 +498,10 @@ export function boardCards(input: CardsInput): BoardCard[] {
     if (r.kind === "client") cards.push(clientCard(r, input, me));
     else shift.push(r);
   }
-  for (const g of shiftGroups(shift, input.categories, { trainerId: input.trainerId })) {
-    // A group someone skipped entirely has nothing to do and nothing done: it stays off the board.
-    if (g.total === 0) continue;
-    cards.push(groupCard(g, input, me));
-  }
+  // A group someone skipped entirely has nothing to do and nothing done: it stays off the board.
+  const groups = shiftGroups(shift, input.categories, { trainerId: input.trainerId }).filter((g) => g.total > 0);
+  const laterWipes = laterWipeShifts(groups);
+  for (const g of groups) cards.push(groupCard(g, input, me, laterWipes));
 
   for (const r of input.requests) {
     if (r.status !== "open") continue;

@@ -865,6 +865,30 @@ export interface ModelDial {
   default?: string;
 }
 
+/**
+ * A machine's size as every screen draws it (the studio map, Oct 2026):
+ * whole millimetres, the frame at rest. Length runs front to back as a
+ * person faces the machine's seat or pad. `heightMm` null: not on file.
+ */
+export interface KnownSize {
+  lengthMm: number;
+  widthMm: number;
+  heightMm: number | null;
+}
+
+/** A model's size, as stored on machineModels/{id}.size (the studio map). */
+export interface ModelSize {
+  /** Whole millimetres, the frame at rest. Length runs front to back as a person faces the machine's seat or pad. */
+  lengthMm: number;
+  widthMm: number;
+  /** null or absent: not on file. */
+  heightMm?: number | null;
+  /** Where the numbers came from, in words: "Imagine Strength brochure, 2026, page 2". */
+  source: string;
+  /** Head office's caution, if any, in feet and inches: every door shows it. */
+  note?: string;
+}
+
 export interface MachineModel {
   /** "Hoist". */
   brand: string;
@@ -875,6 +899,8 @@ export interface MachineModel {
   dials?: ModelDial[];
   /** Anything else every unit of it shares ("an 18 lb accessory stack"). */
   notes?: string;
+  /** The frame's size at rest, with its source (the studio map). Absent: not recorded. */
+  size?: ModelSize;
   updatedAt: any;
   /** The Auth uid of the administrator who saved it. */
   updatedBy: string;
@@ -957,6 +983,13 @@ interface RosterEntryBase {
     manufacturer?: string;
     installedAt?: any;
     lastServicedAt?: any;
+    /**
+     * The unit's tape-measured size (the studio map, Oct 2026): whole mm,
+     * the frame at rest, signed by the writer's Auth uid and the server's
+     * time. Wins over the model's size. Written by dotted path only
+     * (features/studio-map/store.ts), so nothing else in `unit` moves.
+     */
+    size?: { lengthMm: number; widthMm: number; heightMm?: number; by: string; at: any };
   };
 
   /**

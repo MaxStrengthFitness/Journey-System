@@ -235,7 +235,11 @@ function AtTheMachine(p: CodexSectionProps) {
   const script = line("begin", "script", "The words", "As the spoken script has them.");
   const delay = line("begin", "delayHandoffWhen", "When to delay the handoff");
 
-  const modelLocked = p.readOnly || !p.canWrite("modelId");
+  // A studio's unit names its model in ONE place since the studio map (Oct
+  // 2026): the floor's Sizes and the machine's Its size. Here it is read only,
+  // and this editor's save never writes it (StudioMachineEditor).
+  const unitModelElsewhere = p.scope !== "catalog";
+  const modelLocked = p.readOnly || !p.canWrite("modelId") || unitModelElsewhere;
 
   return (
     <div className="adm-me__fields">
@@ -250,7 +254,7 @@ function AtTheMachine(p: CodexSectionProps) {
           hint={
             p.scope === "catalog"
               ? "The unit the standard's numbers were written on, if there is one. A studio's copy names its own unit's model."
-              : "Settings are compared with other units of the same model. Models are recorded by head office, from the catalog."
+              : "Set under Its size, on this machine's page in My Studio → Machines, or under Arrange the floor → Sizes."
           }
           locked={modelLocked}
         >

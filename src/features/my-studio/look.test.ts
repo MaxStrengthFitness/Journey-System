@@ -71,6 +71,11 @@ const FILES = [
   // 2026), and the routine template editor's "For new clients" part, in the
   // Operations kit's --adm-* colours.
   "features/routine-plan/ui/starting-routines.css",
+  // The studio map (Oct 2026): a machine's size on its door, in
+  // equipment.tokens.css's --eq-* colours like floor-notes.css.
+  "features/studio-map/studio-map.css",
+  // The one machine card (the studio map, phase 4): its own sheet, the same tokens.
+  "features/machine-card/machine-card.css",
 ] as const;
 
 /**
@@ -195,6 +200,20 @@ const NAME_CLASSES = [
   "op-person__name", // a person on Openings' Who's usually in
   "fn-note__meta", // who wrote a floor note, and when
   "fn-note__body", // a floor note's words
+  // The studio map (Oct 2026): a machine not placed yet, the selected thing,
+  // a row of Sizes, a row of the floor in walking order.
+  "smap-chip__name",
+  "smap-item__name",
+  "smap-sizes__name",
+  "smap-list__name",
+  // Phase 3: a remodel plan's tab.
+  "smap-tabs__name",
+  // Phase 4: the map's floor list, the card's name, and what a folded part says.
+  "smap-clean__name",
+  "mdc-head__name",
+  "mdc-head__line",
+  "mdc-part__sum",
+  "mdc-flag",
 ] as const;
 
 describe("names in My Studio", () => {
@@ -306,6 +325,25 @@ const TAP_CLASSES = [
   "srt-pick", // the template editor's Day one picks
   "srt-word", // a word that suggests a starting routine, tapped to take it out
   "srt-switch", // Offer as a starting routine, Head office's default
+  // The studio map (Oct 2026): the editor's tool switch, zoom, the Not placed
+  // yet chips, the room's palette, a Sizes tick, a row of the floor list.
+  "smap-tool__btn",
+  "smap-zoom__btn",
+  "smap-chip",
+  "smap-palette__chip",
+  "smap-sizes__tick",
+  "smap-list__row",
+  // Phase 3: The map and its remodel plans.
+  "smap-tabs__btn",
+  // Phase 4: Look up | Cleaning, Mark all, a tick, a row's name; Map | Tiles and
+  // the tiles' switch on Relay; the card's part heads and its header's flags.
+  "smap-mode__btn",
+  "smap-btn",
+  "smap-tick",
+  "smap-clean__name",
+  "fm__view",
+  "mdc-part__head",
+  "mdc-flag",
 ] as const;
 
 const px = (v: string) => (/^\d+(?:\.\d+)?px$/.test(v.trim()) ? parseFloat(v) : null);
@@ -380,7 +418,7 @@ const BUTTON_CLASSES = [
   "fn-btn",
   "fn-fold",
 ] as const;
-const CHIP_CLASSES = ["stq__kind", "sh__chip", "rls__chip", "ne__kind", "op-chip"] as const;
+const CHIP_CLASSES = ["stq__kind", "sh__chip", "rls__chip", "ne__kind", "op-chip", "smap-chip", "smap-palette__chip"] as const;
 
 /** Every plain `.cls { ... }` rule, media queries included, as one body. */
 const definition = (cls: string) => {

@@ -39,8 +39,10 @@ import type { EditScope } from "../../../lib/machine-template";
 import { AdminBadge, AdminButton, AdminNotice } from "../primitives";
 import { outOfServiceLineOf, outOfServiceOfEntry } from "../../catalog/out-of-service";
 import { OutOfServiceDialog } from "./OutOfServiceDialog";
+import { backInService, setOutOfService } from "./roster-status";
 import { AddFromMsfDialog } from "./AddFromMsfDialog";
 import { addableFromMsf, moveInOrder, onFloor, orderForNewMachine, orderReach } from "./floor-editor";
+import { useUnsavedChanges } from "../../unsaved-changes";
 import "../admin.css";
 
 /**
@@ -218,7 +220,9 @@ export function StudioInventoryManager({
    * move so twenty small writes become one batch.
    */
   const [reorderIds, setReorderIds] = useState<string[] | null>(null);
-  const [savingOrder, setSavingOrder] = useState(false);
+  // A walking order being put together is unsaved work: switching to the
+  // Layout, another section or another screen asks first (the studio map).
+  useUnsavedChanges(reorderIds !== null, "the walking order", { onDiscard: () => setReorderIds(null) });
   /** The machine whose reason for being out of service is being asked for. */
   const [askingOut, setAskingOut] = useState<{ machineId: string; name: string } | null>(null);
   /** Add from MSF is open (wave 2). */
@@ -332,51 +336,31 @@ export function StudioInventoryManager({
    * never written from here (docs/KNOWN-TRAPS.md, the Local set-up trap).
    * Signed with the Auth uid, which the rules pin, and the server's time.
    */
-  const takeOutOfService = async (machineId: string, reason: string) => {
+  const takeOutOfService = (machineId: string, reason: string) => {
     const uid = auth.currentUser?.uid;
     if (!uid) {
       toastError("Sign in again before taking a machine out of service.");
       return;
     }
-    setBusy(machineId);
-    try {
-      await updateDoc(doc(db, "studios", studioId, "roster", machineId), {
-        status: "maintenance",
-        outOfService: {
-          reason,
-          by: { uid, name: (authorName ?? "").trim() || auth.currentUser?.displayName?.trim() || "A leader" },
-          at: serverTimestamp(),
-        },
-        updatedAt: serverTimestamp(),
-        updatedBy: uid,
-      });
-      setAskingOut(null);
-      toastSuccess(`${byId[machineId]?.name ?? "The machine"} is out of service. Trainers see why.`);
-    } catch (err) {
+    // One writer (roster-status.ts), issued and not awaited: the listener shows the truth.
+    setOutOfService(studioId, machineId, reason, {
+      uid,
+      name: (authorName ?? "").trim() || auth.currentUser?.displayName?.trim() || "A leader",
+    }).catch((err: unknown) => {
       console.error(err);
       toastError("Could not take it out of service. Studio leads and admins only.");
-    } finally {
-      setBusy(null);
-    }
+    });
+    setAskingOut(null);
+    toastSuccess(`${byId[machineId]?.name ?? "The machine"} is out of service. Trainers see why.`);
   };
 
   /** Back in service: the status, and the reason off with it. */
-  const putBackInService = async (machineId: string) => {
-    setBusy(machineId);
-    try {
-      await updateDoc(doc(db, "studios", studioId, "roster", machineId), {
-        status: "active",
-        outOfService: deleteField(),
-        updatedAt: serverTimestamp(),
-        updatedBy: auth.currentUser?.uid ?? null,
-      });
-      toastSuccess(`${byId[machineId]?.name ?? "The machine"} is back in service.`);
-    } catch (err) {
+  const putBackInService = (machineId: string) => {
+    backInService(studioId, machineId, auth.currentUser?.uid ?? null).catch((err: unknown) => {
       console.error(err);
       toastError("Could not put it back in service. Studio leads and admins only.");
-    } finally {
-      setBusy(null);
-    }
+    });
+    toastSuccess(`${byId[machineId]?.name ?? "The machine"} is back in service.`);
   };
 
   /**
@@ -389,34 +373,37 @@ export function StudioInventoryManager({
    * order anywhere, and the field two of those screens read
    * (studioMachineSettings.order) had zero documents in production.
    */
-  const saveOrder = async () => {
+  const saveOrder = () => {
     if (!reorderIds || !studioId) return;
-    setSavingOrder(true);
-    try {
-      const batch = writeBatch(db);
-      reorderIds.forEach((machineId, i) => {
-        batch.set(
-          doc(db, "studios", studioId, "roster", machineId),
-          {
-            order: i + 1,
-            updatedAt: serverTimestamp(),
-            updatedBy: auth.currentUser?.uid ?? null,
-          },
-          { merge: true },
-        );
+    // A tap never waits on the network (the studio map, Oct 2026): the batch
+    // is SENT and the draft cleared at once, so the order is no longer
+    // "unsaved" (the leave question below) even offline, where the commit
+    // would not resolve until the iPad is back. The roster listener already
+    // shows the new order; a refusal comes back as a toast, and the listener
+    // then shows the order the studio really has.
+    //
+    // An update, not a merge set: every id here comes from the roster
+    // listener (`onFloor` keeps only rostered machines), and the rules check
+    // an update for fewer expressions than a set (about 1,320 a document
+    // against about 1,990, with ten removed safety lines; the round document's
+    // budget table), which keeps the order well inside the roster rule's
+    // budget for an owner at an owned studio and for the grant.
+    const batch = writeBatch(db);
+    reorderIds.forEach((machineId, i) => {
+      batch.update(doc(db, "studios", studioId, "roster", machineId), {
+        order: i + 1,
+        updatedAt: serverTimestamp(),
+        updatedBy: auth.currentUser?.uid ?? null,
       });
-      await batch.commit();
-      toastSuccess(
-        `Order saved. Every trainer at ${studioName ?? "this studio"} sees this sequence.`,
-      );
-      setReorderIds(null);
-    } catch (e: unknown) {
-      toastError(
-        `Could not save the order: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    } finally {
-      setSavingOrder(false);
-    }
+    });
+    batch.commit().catch((e: unknown) => {
+      console.error("[walking order] save refused", e);
+      toastError("The walking order couldn't be saved.");
+    });
+    toastSuccess(
+      `Order saved. Every trainer at ${studioName ?? "this studio"} sees this sequence.`,
+    );
+    setReorderIds(null);
   };
 
   /**
@@ -426,29 +413,25 @@ export function StudioInventoryManager({
    * already falls back to DEFAULT_MACHINE_DISPLAY_ORDER when `order` is
    * absent, so removing the field means this studio automatically follows any
    * future change to the standard instead of being pinned to today's copy.
+   *
+   * Sent and never awaited, like Save: offline the commit would not resolve,
+   * and the order would stay "unsaved" after the leader had reset it.
    */
-  const resetOrder = async () => {
+  const resetOrder = () => {
     if (!studioId) return;
-    setSavingOrder(true);
-    try {
-      const batch = writeBatch(db);
-      for (const entry of rosterEntries) {
-        batch.set(
-          doc(db, "studios", studioId, "roster", entry.machineId),
-          { order: deleteField(), updatedAt: serverTimestamp() },
-          { merge: true },
-        );
-      }
-      await batch.commit();
-      toastSuccess("Back to the MSF standard order.");
-      setReorderIds(null);
-    } catch (e: unknown) {
-      toastError(
-        `Could not reset the order: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    } finally {
-      setSavingOrder(false);
+    const batch = writeBatch(db);
+    for (const entry of rosterEntries) {
+      batch.update(doc(db, "studios", studioId, "roster", entry.machineId), {
+        order: deleteField(),
+        updatedAt: serverTimestamp(),
+      });
     }
+    batch.commit().catch((e: unknown) => {
+      console.error("[walking order] reset refused", e);
+      toastError("The order wasn't put back to the MSF standard.");
+    });
+    toastSuccess("Back to the MSF standard order.");
+    setReorderIds(null);
   };
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -540,18 +523,14 @@ export function StudioInventoryManager({
         <div className="flex flex-wrap gap-2">
           {reorderIds ? (
             <>
-              <AdminButton variant="ghost" onClick={resetOrder} disabled={savingOrder}>
+              <AdminButton variant="ghost" onClick={resetOrder}>
                 <RotateCcw className="h-4 w-4" aria-hidden /> MSF standard
               </AdminButton>
-              <AdminButton
-                variant="quiet"
-                onClick={() => setReorderIds(null)}
-                disabled={savingOrder}
-              >
+              <AdminButton variant="quiet" onClick={() => setReorderIds(null)}>
                 <X className="h-4 w-4" aria-hidden /> Cancel
               </AdminButton>
-              <AdminButton variant="primary" onClick={saveOrder} busy={savingOrder}>
-                {!savingOrder && <Check className="h-4 w-4" aria-hidden />}
+              <AdminButton variant="primary" onClick={saveOrder}>
+                <Check className="h-4 w-4" aria-hidden />
                 Save order
               </AdminButton>
             </>
@@ -723,7 +702,7 @@ export function StudioInventoryManager({
                         variant="quiet"
                         size="sm"
                         busy={busy === m.machineId}
-                        onClick={() => void putBackInService(m.machineId)}
+                        onClick={() => putBackInService(m.machineId)}
                       >
                         {busy !== m.machineId && "Back in service"}
                       </AdminButton>
@@ -759,7 +738,7 @@ export function StudioInventoryManager({
           machineName={askingOut.name}
           busy={busy === askingOut.machineId}
           onCancel={() => setAskingOut(null)}
-          onConfirm={(reason) => void takeOutOfService(askingOut.machineId, reason)}
+          onConfirm={(reason) => takeOutOfService(askingOut.machineId, reason)}
         />
       )}
 

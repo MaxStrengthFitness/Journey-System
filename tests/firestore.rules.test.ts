@@ -8862,6 +8862,695 @@ describe("the franchise partition: an owner runs their own studios and no other"
       );
     }, BUDGET_TIMEOUT);
   });
+
+  // -- THE STUDIO MAP (Oct 2026): a machine's size, on its model (head
+  // office's) and on its unit (the studio's leaders, tape-measured), and the
+  // roster's create and update in resolve-once form (rosterLeaderOnce).
+  // The design's §A.6; the budget cases' counts go in the round document.
+  describe("the studio map", () => {
+    const LP = "m-leg-press";
+    /** Ten removed safety lines, each with its reason: the most the rules check one by one. */
+    const removedTen = Array.from({ length: 10 }, (_, i) => ({
+      field: "clinicalWarnings",
+      line: `Warning ${i}`,
+      reason: `Reason ${i}: this unit has no end stop to lock against.`,
+      by: { uid: "leaderA", name: "Person leaderA" },
+      at: "2026-10-10T15:00:00.000Z",
+    }));
+    const entry = (studioId: string, machineId = LP, over: Record<string, unknown> = {}) => ({
+      machineId,
+      studioId,
+      source: "catalog",
+      basedOn: machineId.startsWith("m-") ? machineId : LP,
+      status: "active",
+      order: 1,
+      overrides: { removedSafety: removedTen },
+      ...over,
+    });
+    const unitSize = (uid: string, over: Record<string, unknown> = {}) => ({
+      lengthMm: 2120,
+      widthMm: 1260,
+      heightMm: 1800,
+      by: uid,
+      at: serverTimestamp(),
+      ...over,
+    });
+    const sizedModel = (uid: string, over: Record<string, unknown> = {}, size: Record<string, unknown> = {}) => ({
+      brand: "Imagine Strength",
+      model: "IS2019 Leg Press",
+      movementId: LP,
+      size: { lengthMm: 2120, widthMm: 1260, heightMm: 1800, source: "Imagine Strength brochure, 2026, page 2", ...size },
+      updatedAt: serverTimestamp(),
+      updatedBy: uid,
+      ...over,
+    });
+    const roster = (db: Db, studioId: string, machineId = LP) => doc(db, "studios", studioId, "roster", machineId);
+    const MODEL = "mm-imagine-strength-is2019-leg-press";
+    const twenty = Array.from({ length: 20 }, (_, i) => `sm-unit-${i}`);
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        const batch = writeBatch(db);
+        const put = (path: string, data: Record<string, unknown>) => batch.set(doc(db, path), data);
+        // The partition block has none of these; the cases below need them.
+        put("trainers/trainerA", person("trainerA", "LifeTransformer", A));
+        put("trainers/guestA", person("guestA", "LifeTransformer", C, { activeGuestStudioIds: [A] }));
+        put("trainers/guestGrantA", person("guestGrantA", "LifeTransformer", C, { activeGuestStudioIds: [A], managedStudioIds: [A] }));
+        put("trainers/trainerB", person("trainerB", "LifeTransformer", B));
+        put("trainers/demoTrainer", person("demoTrainer", "LifeTransformer", C));
+        put("trainers/outsiderC", person("outsiderC", "LifeTransformer", C));
+        for (const s of [A, B, DEMO]) put(`studios/${s}/roster/${LP}`, entry(s));
+        for (const s of [A, B]) {
+          twenty.forEach((id, i) => put(`studios/${s}/roster/${id}`, entry(s, id, { source: "custom", basedOn: LP, order: i + 2, overrides: {} })));
+        }
+        await batch.commit();
+      });
+    });
+
+    describe("the roster's writers, resolved once, are the same people as before", () => {
+      it("R1: lets leaderA, franchiseAB at B, grantA2 and adminP change the walking order", async () => {
+        await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { order: 2 }));
+        await assertSucceeds(updateDoc(roster(ctx("franchiseAB"), B), { order: 2 }));
+        await assertSucceeds(updateDoc(roster(ctx("grantA2"), A), { order: 3 }));
+        await assertSucceeds(updateDoc(roster(ctx("adminP"), A), { order: 4 }));
+        // An administrator answered by the claim alone, with no trainer document.
+        await assertSucceeds(updateDoc(roster(ctx("claim-admin", { role: "Admin" }), B), { order: 5 }));
+      });
+
+      it("R2: refuses trainerA, guestA, franchiseA at B and outsiderC at A", async () => {
+        await assertFails(updateDoc(roster(ctx("trainerA"), A), { order: 2 }));
+        await assertFails(updateDoc(roster(ctx("guestA"), A), { order: 2 }));
+        await assertFails(updateDoc(roster(ctx("franchiseA"), B), { order: 2 }));
+        await assertFails(updateDoc(roster(ctx("outsiderC"), A), { order: 2 }));
+        await assertFails(updateDoc(roster(testEnv.unauthenticatedContext().firestore(), A), { order: 2 }));
+      });
+
+      it("R3: lets anyone with a trainer document run the Demo Mode floor, as before", async () => {
+        await assertSucceeds(updateDoc(roster(ctx("demoTrainer"), DEMO), { status: "maintenance" }));
+      });
+    });
+
+    describe("a model's size", () => {
+      const model = (db: Db, id = MODEL) => doc(db, "machineModels", id);
+
+      it("M1, M2: lets an administrator record a size, with a height, a null height or none", async () => {
+        const admin = ctx("adminP");
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", {}, { lengthMm: 1594, widthMm: 1227, heightMm: 1850 })));
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", {}, { heightMm: null })));
+        const { heightMm: _h, ...noHeight } = sizedModel("adminP").size;
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", { size: noHeight })));
+      });
+
+      it("M3, M4, M5: refuses a size with no source, a length out of range or a key it doesn't know", async () => {
+        const admin = ctx("adminP");
+        const { source: _s, ...noSource } = sizedModel("adminP").size;
+        await assertFails(setDoc(model(admin), sizedModel("adminP", { size: noSource })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { source: "" })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { lengthMm: 100 })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { widthMm: 7000 })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { lengthMm: "2120" })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { weightKg: 300 })));
+        await assertFails(setDoc(model(admin), sizedModel("adminP", { size: null })));
+      });
+
+      it("M6: holds the note to 400 characters", async () => {
+        const admin = ctx("adminP");
+        await assertFails(setDoc(model(admin), sizedModel("adminP", {}, { note: "n".repeat(401) })));
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", {}, { note: "n".repeat(400) })));
+      });
+
+      it("M7: refuses a size from a studio's leader, who isn't an administrator", async () => {
+        await assertFails(setDoc(model(ctx("leaderA")), sizedModel("leaderA")));
+      });
+
+      it("M8: lets an administrator save a sized model again, its size kept and its notes changed", async () => {
+        const admin = ctx("adminP");
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP")));
+        await assertSucceeds(setDoc(model(admin), sizedModel("adminP", { notes: "An 18 lb accessory stack." })));
+        await assertSucceeds(getDoc(model(ctx("trainerA"))));
+      });
+    });
+
+    describe("a unit's size and its model", () => {
+      it("U1-U5: takes a size signed by its writer at the server's time, in range, and takes it away", async () => {
+        const leader = ctx("leaderA");
+        await assertSucceeds(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA") }));
+        await assertFails(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA", { lengthMm: 2121, by: "someoneElse" }) }));
+        await assertFails(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA", { lengthMm: 2122, at: new Date() }) }));
+        await assertFails(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA", { weightLb: 400 }) }));
+        await assertFails(updateDoc(roster(leader, A), { "unit.size": unitSize("leaderA", { lengthMm: 100 }) }));
+        await assertSucceeds(updateDoc(roster(leader, A), { "unit.size": deleteField() }));
+        // No height is fine too.
+        const { heightMm: _h, ...flat } = unitSize("leaderA");
+        await assertSucceeds(updateDoc(roster(leader, A), { "unit.size": flat }));
+      });
+
+      it("U6: lets another write through with an old size signed by someone else left untouched", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await updateDoc(roster(context.firestore(), A), {
+            "unit.size": { lengthMm: 2120, widthMm: 1260, by: "someoneElse", at: new Date("2026-10-01T12:00:00Z") },
+            "unit.serialNumber": "IS-0042",
+          });
+        });
+        await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { status: "maintenance" }));
+        await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { "unit.serialNumber": "IS-0043" }));
+      });
+
+      it("U7, U8, U9: a size from the studio's leaders only, a franchise owner at the studios they own", async () => {
+        await assertFails(updateDoc(roster(ctx("trainerA"), A), { "unit.size": unitSize("trainerA") }));
+        await assertSucceeds(updateDoc(roster(ctx("franchiseAB"), B), { "unit.size": unitSize("franchiseAB") }));
+        await assertFails(updateDoc(roster(ctx("franchiseA"), B), { "unit.size": unitSize("franchiseA") }));
+      });
+
+      it("U10, U11: takes Mark 20 as Imagine Strength in one batch, from leaderA, franchiseAB at B and grantA2, and its Undo", async () => {
+        for (const [uid, studioId] of [["leaderA", A], ["franchiseAB", B], ["grantA2", A]] as const) {
+          const db = ctx(uid);
+          const mark = writeBatch(db);
+          for (const id of twenty) mark.update(roster(db, studioId, id), { modelId: MODEL });
+          await assertSucceeds(mark.commit());
+        }
+        const db = ctx("leaderA");
+        const undo = writeBatch(db);
+        for (const id of twenty) undo.update(roster(db, A, id), { modelId: deleteField() });
+        await assertSucceeds(undo.commit());
+      });
+
+      it("U13: still takes a write to an entry whose stored unit is not a map (legacy data)", async () => {
+        for (const unit of [null, "IS-0042"]) {
+          await testEnv.withSecurityRulesDisabled(async (context) => {
+            await updateDoc(roster(context.firestore(), A), { unit });
+          });
+          await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { status: "maintenance" }));
+          await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { status: "active" }));
+        }
+      });
+
+      it("U12: takes a model id no record carries (the app, not the rules, refuses a wrong model)", async () => {
+        await assertSucceeds(updateDoc(roster(ctx("leaderA"), A), { modelId: "mm-does-not-exist" }));
+      });
+    });
+
+    describe("the layout (floorPlans)", () => {
+      const ft = (n: number) => Math.round(n * 304.8);
+      const ROOM = {
+        areaSqFt: 1800,
+        boxes: [{ id: "bx-1", x: 0, y: 0, w: ft(60), h: ft(30) }],
+        places: [
+          { id: "pc-1", kind: "door", x: -76, y: ft(22), w: 152, h: ft(3) },
+          { id: "pc-2", kind: "aed", x: 0, y: ft(20), w: 305, h: 305 },
+        ],
+      };
+      const PLACED = [
+        { machineId: LP, x: 3000, y: 3000, rotationDeg: 0 },
+        { machineId: "sm-unit-0", x: 6000, y: 3000, rotationDeg: 90 },
+      ];
+      const plan = (uid: string, rev: number, over: Record<string, unknown> = {}) => ({
+        v: 1,
+        name: "The layout",
+        room: ROOM,
+        placements: PLACED,
+        rev,
+        updatedAt: serverTimestamp(),
+        updatedBy: uid,
+        ...over,
+      });
+      const fp = (db: Db, studioId: string, id = "current") => doc(db, "studios", studioId, "floorPlans", id);
+      /** A layout already on file, written past the rules. */
+      const seed = async (studioId: string, id: string, rev: number, over: Record<string, unknown> = {}) => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(fp(context.firestore(), studioId, id), { ...plan("seed", rev), updatedAt: new Date("2026-10-01T12:00:00Z"), ...over });
+        });
+      };
+
+      it("P1, P2, P3: is read by everyone who works at the studio, and by no one else", async () => {
+        await seed(A, "current", 1);
+        for (const uid of ["trainerA", "guestA", "leaderA", "franchiseA", "adminP"]) {
+          await assertSucceeds(getDoc(fp(ctx(uid), A)));
+        }
+        for (const uid of ["trainerB", "franchiseB"]) await assertFails(getDoc(fp(ctx(uid), A)));
+        await assertFails(getDoc(fp(testEnv.unauthenticatedContext().firestore(), A)));
+        await assertSucceeds(getDocs(collection(ctx("trainerA"), "studios", A, "floorPlans")));
+      });
+
+      it("P4, P5, P6: is created at rev 1 and moves up by exactly one a write, so a save from an old copy is refused", async () => {
+        const leader = ctx("leaderA");
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 2)));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 1)));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1)));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 3)));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 2)));
+        // Two saves from one base (rev 2): the first lands, the second is refused.
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 3, { name: "The layout" })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 3, { placements: [] })));
+      });
+
+      it("P7, P8, P9, P10: is written by the studio's leaders, an owner at their studios, the grant and an administrator", async () => {
+        await assertFails(setDoc(fp(ctx("trainerA"), A), plan("trainerA", 1)));
+        await seed(A, "current", 1);
+        await assertFails(setDoc(fp(ctx("trainerA"), A), plan("trainerA", 2)));
+        await assertSucceeds(setDoc(fp(ctx("franchiseAB"), B), plan("franchiseAB", 1)));
+        await assertFails(setDoc(fp(ctx("franchiseB"), A), plan("franchiseB", 2)));
+        await assertSucceeds(setDoc(fp(ctx("grantA2"), A), plan("grantA2", 2)));
+        await assertSucceeds(setDoc(fp(ctx("adminP"), C), plan("adminP", 1)));
+      });
+
+      it("P11: holds 1 to 12 boxes, 40 places and 120 placements", async () => {
+        const leader = ctx("leaderA");
+        const box = (i: number) => ({ id: `bx-${i}`, x: 0, y: 0, w: 1000, h: 1000 });
+        const place = (i: number) => ({ id: `pc-${i}`, kind: "pillar", x: 0, y: 0, w: 300, h: 300 });
+        const unit = (i: number) => ({ machineId: `m-${i}`, x: 1000, y: 1000, rotationDeg: 0 });
+        const room = (boxes: number, places: number) => ({ areaSqFt: 1800, boxes: Array.from({ length: boxes }, (_, i) => box(i + 1)), places: Array.from({ length: places }, (_, i) => place(i)) });
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: room(0, 0) })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: room(13, 0) })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: room(1, 41) })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { placements: Array.from({ length: 121 }, (_, i) => unit(i)) })));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 1, { room: room(12, 40), placements: Array.from({ length: 120 }, (_, i) => unit(i)) })));
+      });
+
+      it("P12, P12a, P13: refuses a key it doesn't know, an old shape, a long name, another version, a rev that isn't a number, a square footage out of range, and a stamp it didn't set", async () => {
+        const leader = ctx("leaderA");
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { ceilingMm: 3000 })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: { ...ROOM, outline: [{ x: 0, y: 0 }] } })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { name: "n".repeat(61) })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { v: 2 })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { rev: "1" })));
+        for (const areaSqFt of [150, 25000, "1800", 1800.5, null]) {
+          await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { room: { ...ROOM, areaSqFt } })));
+        }
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { updatedBy: "x" })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 1, { updatedAt: new Date() })));
+        const { areaSqFt: _a, ...noArea } = ROOM;
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 1, { room: noArea })));
+      });
+
+      it("P14: takes `current` and the five draft slots, and no other id", async () => {
+        const leader = ctx("leaderA");
+        await assertSucceeds(setDoc(fp(leader, A, "d-1"), plan("leaderA", 1, { name: "Remodel 1" })));
+        await assertSucceeds(setDoc(fp(leader, A, "d-5"), plan("leaderA", 1, { name: "Remodel 5" })));
+        for (const id of ["d-6", "d-0", "d-12", "d-lzx1a", "Bad Id", "x-1"]) {
+          await assertFails(setDoc(fp(leader, A, id), plan("leaderA", 1, { name: "Remodel" })));
+        }
+      });
+
+      it("P15: never deletes a layout or a draft", async () => {
+        await seed(A, "current", 1);
+        await seed(A, "d-1", 1, { name: "Remodel 1" });
+        for (const uid of ["adminP", "leaderA"]) {
+          await assertFails(deleteDoc(fp(ctx(uid), A)));
+          await assertFails(deleteDoc(fp(ctx(uid), A, "d-1")));
+        }
+      });
+
+      it("P16: retires a draft and brings it back, never retires `current`, and never by a trainer", async () => {
+        const leader = ctx("leaderA");
+        await seed(A, "current", 1);
+        await seed(A, "d-1", 1, { name: "Remodel 1" });
+        await assertFails(setDoc(fp(ctx("trainerA"), A, "d-1"), plan("trainerA", 2, { name: "Remodel 1", retired: true })));
+        await assertSucceeds(setDoc(fp(leader, A, "d-1"), plan("leaderA", 2, { name: "Remodel 1", retired: true })));
+        await assertSucceeds(setDoc(fp(leader, A, "d-1"), plan("leaderA", 3, { name: "Remodel 1" })));
+        await assertFails(setDoc(fp(leader, A, "d-1"), plan("leaderA", 4, { name: "Remodel 1", retired: false })));
+        await assertFails(setDoc(fp(leader, A), plan("leaderA", 2, { retired: true })));
+      });
+
+      // Make this the map (store.ts useThisLayout): one batch, every write at its document's rev + 1.
+      const toBuy = (i: number) => ({ kind: "planned", id: `pm-${i}`, label: "Hip Abductor", movementId: "m-hip-abd", modelId: null, x: 9000 + i, y: 6000, rotationDeg: 0 });
+      const DRAFTED = [{ machineId: LP, x: 4000, y: 4000, rotationDeg: 90 }];
+      const read = async (id: string) => (await getDoc(fp(ctx("leaderA"), A, id))).data();
+
+      it("P17: makes a plan with nothing to buy the map: the map at rev + 1, the plan's slot keeping the old map", async () => {
+        await seed(A, "current", 3);
+        await seed(A, "d-1", 2, { name: "Remodel 1", placements: DRAFTED });
+        const db = ctx("leaderA");
+        const b = writeBatch(db);
+        b.set(fp(db, A), plan("leaderA", 4, { placements: DRAFTED }));
+        b.set(fp(db, A, "d-1"), plan("leaderA", 3, { name: "Before Oct 12, 3:40 PM" }));
+        await assertSucceeds(b.commit());
+        expect((await read("current"))?.rev).toBe(4);
+        expect((await read("current"))?.placements).toEqual(DRAFTED);
+        expect((await read("d-1"))?.placements).toEqual(PLACED);
+      });
+
+      it("P17a: with machines still to buy: the map takes the floor's machines only, the plan keeps its own, a free slot keeps the old map", async () => {
+        await seed(A, "current", 3);
+        const drafted = [...DRAFTED, toBuy(1), toBuy(2)];
+        await seed(A, "d-1", 2, { name: "Remodel 1", placements: drafted });
+        const db = ctx("leaderA");
+        const b = writeBatch(db);
+        b.set(fp(db, A), plan("leaderA", 4, { placements: DRAFTED }));
+        b.set(fp(db, A, "d-1"), plan("leaderA", 3, { name: "Remodel 1", placements: drafted }));
+        b.set(fp(db, A, "d-2"), plan("leaderA", 1, { name: "Before Oct 12, 3:40 PM" }));
+        await assertSucceeds(b.commit());
+        expect((await read("current"))?.placements).toEqual(DRAFTED);
+        expect((await read("d-1"))?.placements).toHaveLength(3);
+        expect((await read("d-2"))?.rev).toBe(1);
+      });
+
+      it("P18: refuses the whole batch from a stale map, a plan saved in between, or a Before slot taken in between", async () => {
+        const drafted = [...DRAFTED, toBuy(1)];
+        const batch = (db: Db) => {
+          const b = writeBatch(db);
+          b.set(fp(db, A), plan("leaderA", 4, { placements: DRAFTED }));
+          b.set(fp(db, A, "d-1"), plan("leaderA", 3, { name: "Remodel 1", placements: drafted }));
+          b.set(fp(db, A, "d-2"), plan("leaderA", 1, { name: "Before Oct 12, 3:40 PM" }));
+          return b.commit();
+        };
+        // Another leader saved the map in between (it stands at 4, not 3).
+        await seed(A, "current", 4);
+        await seed(A, "d-1", 2, { name: "Remodel 1", placements: drafted });
+        await assertFails(batch(ctx("leaderA")));
+        expect((await read("d-1"))?.rev).toBe(2);
+        expect((await read("d-2"))).toBeUndefined();
+        // The grant saved the plan in between.
+        await seed(A, "current", 3);
+        await assertSucceeds(setDoc(fp(ctx("grantA2"), A, "d-1"), plan("grantA2", 3, { name: "Remodel 1", placements: drafted })));
+        await assertFails(batch(ctx("leaderA")));
+        expect((await read("current"))?.rev).toBe(3);
+        // Another leader took the free slot in between.
+        await seed(A, "d-1", 2, { name: "Remodel 1", placements: drafted });
+        await assertSucceeds(setDoc(fp(ctx("grantA2"), A, "d-2"), plan("grantA2", 1, { name: "Remodel 2" })));
+        await assertFails(batch(ctx("leaderA")));
+        expect((await read("current"))?.rev).toBe(3);
+        expect((await read("d-1"))?.rev).toBe(2);
+        expect((await read("d-2"))?.name).toBe("Remodel 2");
+      });
+
+      it("P23: a plan holds 30 machines still to buy beside 90 of the floor's", async () => {
+        const units = Array.from({ length: 90 }, (_, i) => ({ machineId: `m-${i}`, x: 1000 + i, y: 1000, rotationDeg: 0 }));
+        await assertSucceeds(
+          setDoc(fp(ctx("leaderA"), A, "d-1"), plan("leaderA", 1, { name: "Remodel 1", placements: [...units, ...Array.from({ length: 30 }, (_, i) => toBuy(i))] })),
+        );
+      });
+
+      it("P19, P20: lets anyone with a trainer document arrange the Demo Mode floor, in its slots only", async () => {
+        const demo = ctx("demoTrainer");
+        await assertSucceeds(setDoc(fp(demo, DEMO), plan("demoTrainer", 1)));
+        await assertSucceeds(setDoc(fp(demo, DEMO), plan("demoTrainer", 2)));
+        await assertFails(setDoc(fp(demo, DEMO, "d-6"), plan("demoTrainer", 1, { name: "Remodel" })));
+      });
+
+      it("P21: a stale copy can't delete a draft or write it again at rev 1", async () => {
+        await seed(A, "d-2", 4, { name: "Remodel 2" });
+        await assertFails(deleteDoc(fp(ctx("grantA2"), A, "d-2")));
+        await assertFails(setDoc(fp(ctx("leaderA"), A, "d-2"), plan("leaderA", 1, { name: "Remodel 2" })));
+      });
+
+      it("P22: leaves what is inside the lists to the app (a path for a machine, a string coordinate, an unknown place, a machine still to buy)", async () => {
+        const leader = ctx("leaderA");
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 1, { placements: [{ machineId: `studios/${B}/roster/${LP}`, x: 1, y: 1, rotationDeg: 0 }] })));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 2, { room: { ...ROOM, boxes: [{ id: "bx-1", x: "0", y: 0, w: 1000, h: 1000 }] } })));
+        await assertSucceeds(setDoc(fp(leader, A), plan("leaderA", 3, { room: { ...ROOM, places: [{ id: "pc-1", kind: "trampoline", x: 0, y: 0, w: 1, h: 1 }] } })));
+        await assertSucceeds(
+          setDoc(
+            fp(leader, A),
+            plan("leaderA", 4, { placements: [{ kind: "planned", id: "pm-1", label: "Hip Abductor", movementId: "m-hip-abd", modelId: null, x: 1, y: 1, rotationDeg: 0 }] }),
+          ),
+        );
+      });
+    });
+
+    // THE CLEANING CHECKLIST (the studio map, phase 4): Mark all and Wiped
+    // write only machineCare's existing fields and the wipe chore's
+    // instances, the payload setManyTaskStatuses already writes, under the
+    // rules as they are. These pin it; no rule changed (the lint pins
+    // machineCareValid byte for byte as on master).
+    describe("the cleaning checklist (machineCare, phase 4)", () => {
+      const TODAY_KEY = "2026-10-12";
+      const care = (db: Db, studioId: string, machineId: string) => doc(db, "studios", studioId, "machineCare", machineId);
+      const inst = (db: Db, studioId: string, machineId: string) => doc(db, "studios", studioId, "taskInstances", `wipe__${TODAY_KEY}__pm__${machineId}`);
+      const wipe = (uid: string, machineId: string) => ({
+        machineId,
+        lastWipedAt: Date.now(),
+        lastWipedBy: { id: uid, name: `Person ${uid}` },
+        updatedAt: serverTimestamp(),
+      });
+      const instance = (studioId: string, machineId: string, status: "done" | "open", uid: string) => ({
+        studioId,
+        scope: "studio",
+        templateId: "wipe",
+        localDate: TODAY_KEY,
+        shift: "pm",
+        machineId,
+        status,
+        completedAt: status === "done" ? serverTimestamp() : null,
+        completedBy: status === "done" ? { id: uid, name: `Person ${uid}` } : null,
+        title: "Wipe down every machine",
+        category: "cleaning",
+        kind: "machine",
+        updatedAt: serverTimestamp(),
+      });
+      const markAll = (db: Db, uid: string, studioId: string, n: number) => {
+        const b = writeBatch(db);
+        for (let i = 0; i < n; i++) {
+          const m = `m-unit-${i}`;
+          b.set(care(db, studioId, m), wipe(uid, m), { merge: true });
+          b.set(inst(db, studioId, m), instance(studioId, m, "done", uid), { merge: true });
+        }
+        return b;
+      };
+
+      it("C1: takes Mark all from a trainer at the studio: 20 wipes and 20 chore rows in one batch", async () => {
+        await assertSucceeds(markAll(ctx("trainerA"), "trainerA", A, 20).commit());
+      });
+
+      it("C2: takes Mark all's Undo: each wipe back as it was (nulls, or someone else's), each row open again", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const db = context.firestore();
+          const b = writeBatch(db);
+          for (let i = 0; i < 20; i++) b.set(care(db, A, `m-unit-${i}`), wipe("trainerA", `m-unit-${i}`));
+          await b.commit();
+        });
+        const db = ctx("trainerA");
+        const undo = writeBatch(db);
+        for (let i = 0; i < 20; i++) {
+          const m = `m-unit-${i}`;
+          undo.set(
+            care(db, A, m),
+            i % 2 === 0
+              ? { machineId: m, lastWipedAt: null, lastWipedBy: null, updatedAt: serverTimestamp() }
+              : { machineId: m, lastWipedAt: 1_760_000_000_000, lastWipedBy: { id: "leaderA", name: "Person leaderA" }, updatedAt: serverTimestamp() },
+            { merge: true },
+          );
+          undo.set(inst(db, A, m), instance(A, m, "open", "trainerA"), { merge: true });
+        }
+        await assertSucceeds(undo.commit());
+      });
+
+      it("C3: takes a wipe merged over a standing flag someone else signed, the flag left as it was", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(care(context.firestore(), A, LP), { machineId: LP, flag: { note: "Torn pad", by: { id: "leaderA", name: "Person leaderA" }, at: 1_760_000_000_000 } });
+        });
+        await assertSucceeds(setDoc(care(ctx("trainerA"), A, LP), wipe("trainerA", LP), { merge: true }));
+      });
+
+      it("C4: refuses Mark all at studio A from trainerB and outsiderC (the machineCare half)", async () => {
+        await assertFails(markAll(ctx("trainerB"), "trainerB", A, 20).commit());
+        await assertFails(markAll(ctx("outsiderC"), "outsiderC", A, 20).commit());
+      });
+
+      it("C4b: still takes a chore row alone at another studio (pinned: docs/KNOWN-TRAPS.md:158, the taskInstances rule checks no studio, which is why the checklist counts machineCare only)", async () => {
+        // If AJ OKs writesForStudio on the taskInstances rule, this flips to
+        // assertFails, and B7 is measured again first (design §G).
+        await assertSucceeds(setDoc(inst(ctx("trainerB"), A, "m-unit-0"), instance(A, "m-unit-0", "done", "trainerB"), { merge: true }));
+      });
+
+      it("C5: takes Mark all from a guest at the studio, as the care sheet's wipes always were", async () => {
+        await assertSucceeds(markAll(ctx("guestA"), "guestA", A, 20).commit());
+      });
+    });
+
+    describe("inside the rules' budget", () => {
+      it("B3: fits the fullest layout the grant writes: 12 boxes, 40 places and 120 placements", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(doc(context.firestore(), "studios", A, "floorPlans", "current"), {
+            v: 1,
+            name: "The layout",
+            room: { boxes: [{ id: "bx-1", x: 0, y: 0, w: 1000, h: 1000 }], places: [] },
+            placements: [],
+            rev: 1,
+            updatedAt: new Date("2026-10-01T12:00:00Z"),
+            updatedBy: "seed",
+          });
+        });
+        const full = {
+          v: 1,
+          name: "The layout",
+          room: {
+            areaSqFt: 20000,
+            boxes: Array.from({ length: 12 }, (_, i) => ({ id: `bx-${i + 1}`, x: i * 3048, y: 0, w: 3048, h: 3048 })),
+            places: Array.from({ length: 40 }, (_, i) => ({ id: `pc-${i}`, kind: "desk", x: i * 300, y: 300, w: 1000, h: 600, label: "l".repeat(40) })),
+          },
+          placements: Array.from({ length: 120 }, (_, i) => ({ machineId: `m-${"x".repeat(150)}-${i}`, x: i * 100, y: 2000, rotationDeg: 270 })),
+          rev: 2,
+          updatedAt: serverTimestamp(),
+          updatedBy: "grantA2",
+        };
+        await assertSucceeds(
+          measured("floorPlans update: grantA2, 12 boxes, 40 places, 120 placements", () => setDoc(doc(ctx("grantA2"), "studios", A, "floorPlans", "current"), full)),
+        );
+      }, BUDGET_TIMEOUT);
+
+      it("B4: fits a guest's read of the layout (the guest list found last)", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(doc(context.firestore(), "studios", A, "floorPlans", "current"), {
+            v: 1,
+            name: "The layout",
+            room: { boxes: [{ id: "bx-1", x: 0, y: 0, w: 1000, h: 1000 }], places: [] },
+            placements: [],
+            rev: 1,
+            updatedAt: new Date("2026-10-01T12:00:00Z"),
+            updatedBy: "seed",
+          });
+        });
+        await assertSucceeds(measured("floorPlans read: guestA", () => getDoc(doc(ctx("guestA"), "studios", A, "floorPlans", "current"))));
+      }, BUDGET_TIMEOUT);
+
+      it("B5: fits Make this the map at an owned studio, machines still to buy, the fullest documents (three writes)", async () => {
+        const room = {
+          areaSqFt: 20000,
+          boxes: Array.from({ length: 12 }, (_, i) => ({ id: `bx-${i + 1}`, x: i * 3048, y: 0, w: 3048, h: 3048 })),
+          places: Array.from({ length: 40 }, (_, i) => ({ id: `pc-${i}`, kind: "desk", x: i * 300, y: 300, w: 1000, h: 600, label: "l".repeat(40) })),
+        };
+        const units = Array.from({ length: 90 }, (_, i) => ({ machineId: `m-${"x".repeat(150)}-${i}`, x: i * 100, y: 2000, rotationDeg: 270 }));
+        const toBuy = Array.from({ length: 30 }, (_, i) => ({
+          kind: "planned",
+          id: `pm-${"y".repeat(30)}${i}`,
+          label: "p".repeat(60),
+          movementId: "m-hip-abd",
+          modelId: `mm-${"z".repeat(90)}`,
+          lengthMm: 1500,
+          widthMm: 1200,
+          x: i * 100,
+          y: 5000,
+          rotationDeg: 90,
+        }));
+        const full = (rev: number, name: string, placements: unknown[], by = "franchiseAB") => ({
+          v: 1,
+          name,
+          room,
+          placements,
+          rev,
+          updatedAt: serverTimestamp(),
+          updatedBy: by,
+        });
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const db = context.firestore();
+          await setDoc(doc(db, "studios", B, "floorPlans", "current"), { ...full(1, "The layout", units, "seed"), updatedAt: new Date("2026-10-01T12:00:00Z") });
+          await setDoc(doc(db, "studios", B, "floorPlans", "d-1"), { ...full(1, "Remodel 1", [...units, ...toBuy], "seed"), updatedAt: new Date("2026-10-01T12:00:00Z") });
+        });
+        const db = ctx("franchiseAB");
+        const b = writeBatch(db);
+        b.set(doc(db, "studios", B, "floorPlans", "current"), full(2, "The layout", units));
+        b.set(doc(db, "studios", B, "floorPlans", "d-1"), full(2, "Remodel 1", [...units, ...toBuy]));
+        b.set(doc(db, "studios", B, "floorPlans", "d-2"), full(1, "Before Oct 12, 3:40 PM", units));
+        await assertSucceeds(measured("floorPlans batch: franchiseAB at B, Make this the map with 30 to buy (three writes)", () => b.commit()));
+      }, BUDGET_TIMEOUT);
+
+      /** The four writes the app sends to a roster entry, one kind at a time, each as its store sends it. */
+      const writes = (uid: string) =>
+        [
+          ["unit.size", { "unit.size": unitSize(uid) }],
+          [
+            "Out of service",
+            {
+              status: "maintenance",
+              outOfService: { reason: "The cable is frayed.", by: { uid, name: nameOf(uid) }, at: serverTimestamp() },
+              updatedAt: serverTimestamp(),
+              updatedBy: uid,
+            },
+          ],
+          ["modelId", { modelId: MODEL }],
+        ] as const;
+
+      // One case per leader: each measured write reads the coverage report
+      // twice, and the report grows with the whole file's run.
+      it.each([
+        ["leaderA", A, "a leader at home"],
+        ["franchiseAB", B, "an owner at a studio they own, not their home"],
+        ["grantA2", A, "the grant"],
+        ["guestGrantA", A, "a guest holding the grant"],
+      ] as const)("B1: fits each roster write by %s at %s (%s), ten removed safety lines, no role claim", async (uid, studioId, _who) => {
+        for (const [label, data] of writes(uid)) {
+          await assertSucceeds(measured(`roster update, ${label}: ${uid} at ${studioId}, 10 removed lines`, () => updateDoc(roster(ctx(uid), studioId), data)));
+        }
+        // The walking order, as saveOrder sends it: an update of the order and the stamp.
+        await assertSucceeds(
+          measured(`roster update, order: ${uid} at ${studioId}, 10 removed lines`, () =>
+            updateDoc(roster(ctx(uid), studioId), { order: 7, updatedAt: serverTimestamp(), updatedBy: uid }),
+          ),
+        );
+        // And resetOrder: an update that deletes the order.
+        await assertSucceeds(
+          measured(`roster update, order reset: ${uid} at ${studioId}, 10 removed lines`, () =>
+            updateDoc(roster(ctx(uid), studioId), { order: deleteField(), updatedAt: serverTimestamp() }),
+          ),
+        );
+      }, BUDGET_TIMEOUT);
+
+      it("B2: fits the walking-order drag by an owner at an owned studio that isn't their home", async () => {
+        const db = ctx("franchiseAB");
+        const order = writeBatch(db);
+        order.update(roster(db, B), { order: 2, updatedAt: serverTimestamp(), updatedBy: "franchiseAB" });
+        await assertSucceeds(measured("roster batch, order only: franchiseAB at B, 10 removed lines", () => order.commit()));
+      }, BUDGET_TIMEOUT);
+
+      it("B7: fits the largest batch the cleaning checklist sends: Mark all at the 120-machine cap (120 wipes and 120 chore rows), and 120 upkeep log entries apart, from a guest found last, no role claim", async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await setDoc(doc(context.firestore(), "trainers", "guestLastA"), person("guestLastA", "LifeTransformer", C, { activeGuestStudioIds: ["studio-x", "studio-y", B, A] }));
+        });
+        const db = ctx("guestLastA");
+        const mark = writeBatch(db);
+        for (let i = 0; i < 120; i++) {
+          const m = `m-unit-${i}`;
+          mark.set(doc(db, "studios", A, "machineCare", m), { machineId: m, lastWipedAt: Date.now(), lastWipedBy: { id: "guestLastA", name: "Person guestLastA" }, updatedAt: serverTimestamp() }, { merge: true });
+          mark.set(
+            doc(db, "studios", A, "taskInstances", `wipe__2026-10-12__pm__${m}`),
+            {
+              studioId: A,
+              scope: "studio",
+              templateId: "wipe",
+              localDate: "2026-10-12",
+              shift: "pm",
+              machineId: m,
+              status: "done",
+              completedAt: serverTimestamp(),
+              completedBy: { id: "guestLastA", name: "Person guestLastA" },
+              title: "Wipe down every machine",
+              category: "cleaning",
+              kind: "machine",
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
+        await assertSucceeds(measured("machineCare batch: guestLastA (guest found last), Mark all at 120 machines + 120 chore rows", () => mark.commit()));
+        const log = writeBatch(db);
+        for (let i = 0; i < 120; i++) {
+          log.set(doc(collection(db, "studios", A, "upkeepLog")), {
+            machineId: `m-unit-${i}`,
+            kind: "clean",
+            at: new Date().toISOString(),
+            byId: "guestLastA",
+            byName: "Person guestLastA",
+            createdAt: serverTimestamp(),
+          });
+        }
+        await assertSucceeds(measured("upkeepLog batch: guestLastA (guest found last), 120 clean entries", () => log.commit()));
+      }, BUDGET_TIMEOUT);
+
+      it("B6: fits the fullest model an administrator writes: 20 dials, 2,000 characters of notes, a size with a 400-character note", async () => {
+        const full = sizedModel(
+          "adminP",
+          {
+            dials: Array.from({ length: 20 }, (_, i) => ({ key: `dial-${i}`, label: `Dial ${i}`, letter: "D", default: "7", options: ["1", "2", "3"] })),
+            notes: "n".repeat(2000),
+          },
+          { note: "m".repeat(400) },
+        );
+        await assertSucceeds(measured("machineModels create: the fullest model", () => setDoc(doc(ctx("adminP"), "machineModels", MODEL), full)));
+      }, BUDGET_TIMEOUT);
+    });
+  });
 });
 
 // ── A FINISH IS COUNTED ONCE (the sessions round, Oct 12 2026) ──────────

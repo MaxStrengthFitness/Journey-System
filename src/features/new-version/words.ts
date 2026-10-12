@@ -120,7 +120,18 @@ export function brokenScreenWords(state: BrokenScreenState, ownSessionClientName
  * A panel inside the Active Session (Pulse). It never reloads anything.
  * ------------------------------------------------------------------ */
 
-export function brokenPanelWords(panel: string, newVersionLive: boolean): string {
+/**
+ * `where`: "session" for a panel inside the Active Session (Pulse), which
+ * opens after it; "screen" for a panel on an ordinary screen (Arrange the
+ * floor), which has a Done beside the words and loads the new version the
+ * way every screen does, on the Hub.
+ */
+export function brokenPanelWords(panel: string, newVersionLive: boolean, where: "session" | "screen" = "session"): string {
+  if (where === "screen") {
+    return newVersionLive
+      ? `${panel} is part of a newer version of Journey. It opens once this iPad loads it on the Hub.`
+      : `${panel} couldn't be loaded on this iPad just now. Tap Done and try again.`;
+  }
   return newVersionLive
     ? `${panel} is part of a newer version of Journey. It will open after this session.`
     : `${panel} couldn't be loaded on this iPad just now. It will open after this session.`;

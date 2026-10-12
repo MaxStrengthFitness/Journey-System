@@ -37,16 +37,24 @@ import {
 import type { TaskAuthor } from "./mutations";
 import { notifyTaskAssignment, notifyTaskCompletion } from "./notify";
 import { taskLocationOf } from "./types";
-import type { PlannedInstance, TaskLocation, TaskRow } from "./types";
+import type { PlannedInstance, StudioTaskCategory, TaskLocation, TaskRow } from "./types";
 import type { ShiftGroup } from "./board";
 import { auth } from "../../firebase";
 import { checklistFlagFor } from "../relay/board/machine-care";
-import { flagMachine } from "../relay/board/machine-care-store";
+import { careActor, flagMachine, markWiped } from "../relay/board/machine-care-store";
+import { isWipeChore } from "../relay/board/cleaning";
 
 export interface UseTaskActionsArgs {
   author: TaskAuthor | null;
   /** Raised when a row needs a note before it can close. */
   onNeedsNote?: (row: TaskRow) => void;
+  /**
+   * The studio's own task categories (the studio map, phase 4): which
+   * machine chores are the wipe chore. A tick of a wipe-chore row goes
+   * through the cleaning checklist's `markWiped`, so a row is never done
+   * without its machine's wipe.
+   */
+  categories?: StudioTaskCategory[];
 }
 
 export interface TaskActions {
@@ -90,6 +98,7 @@ export interface TaskActions {
 export function useTaskActions({
   author,
   onNeedsNote,
+  categories,
 }: UseTaskActionsArgs): TaskActions {
   const { activeStudioId } = useActiveStudio();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -175,6 +184,36 @@ export function useTaskActions({
     [activeStudioId, author],
   );
 
+  /**
+   * THE WIPE CHORE'S ROWS ARE THE FLOOR'S MARKS (the studio map, phase 4):
+   * a tick of one goes through the cleaning checklist's markWiped, which
+   * marks the machine wiped today and completes its row in one batch. The
+   * row ids are the floor the chore was expanded over, so they are the ids
+   * markWiped may take. Rows with no machine, and a wipe with no signed-in
+   * Auth uid to sign it, fall back to the plain status write.
+   */
+  const wipeRows = useCallback(
+    (rows: TaskRow[]) => rows.filter((r) => r.machineId && !r.template?.requiresNote && isWipeChore(r.template, categories ?? [])),
+    [categories],
+  );
+  const markRowsWiped = useCallback(
+    (rows: TaskRow[]) => {
+      const uid = auth.currentUser?.uid;
+      if (!uid || !activeStudioId) return null;
+      const ids = rows.map((r) => r.machineId!).filter(Boolean);
+      return markWiped({
+        studioId: activeStudioId,
+        machineIds: ids,
+        floorIds: new Set(ids),
+        author: careActor(uid, author?.name),
+        taskAuthor: author,
+        before: null,
+        rows,
+      }).done;
+    },
+    [activeStudioId, author],
+  );
+
   const complete = useCallback(
     async (row: TaskRow) => {
       // A task that must carry a note goes through the dialog rather than
@@ -182,6 +221,13 @@ export function useTaskActions({
       if (row.template?.requiresNote) {
         onNeedsNote?.(row);
         return;
+      }
+      if (wipeRows([row]).length === 1) {
+        const done = markRowsWiped([row]);
+        if (done) {
+          await run([row.id], () => done, "Marked done.");
+          return;
+        }
       }
       await run(
         [row.id],
@@ -200,7 +246,7 @@ export function useTaskActions({
         "Marked done.",
       );
     },
-    [activeStudioId, author, onNeedsNote, run],
+    [activeStudioId, author, onNeedsNote, run, wipeRows, markRowsWiped],
   );
 
   const reopen = useCallback(
@@ -224,13 +270,19 @@ export function useTaskActions({
     async (rows: TaskRow[]) => {
       const pending = rows.filter((r) => r.status !== "done");
       if (pending.length === 0) return;
+      const wipes = wipeRows(pending);
+      const rest = pending.filter((r) => !wipes.includes(r));
       await run(
         pending.map((r) => r.id),
-        () => writeMany(pending, "done"),
+        async () => {
+          const marked = wipes.length ? markRowsWiped(wipes) : null;
+          const plain = marked ? rest : pending;
+          await Promise.all([marked, plain.length ? writeMany(plain, "done") : null]);
+        },
         `Marked ${pending.length} done.`,
       );
     },
-    [run, writeMany],
+    [run, writeMany, wipeRows, markRowsWiped],
   );
 
   const completeGroup = useCallback(

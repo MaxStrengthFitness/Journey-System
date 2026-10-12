@@ -547,6 +547,7 @@ function AdminsShell({
                     );
                   })()}
                   onOpenSync={() => go({ page: "sync" })}
+                  onOpenCatalogMachine={(machineId) => go({ page: "machines", machineId })}
                 />
               ) : (
                 <AdminScreen>

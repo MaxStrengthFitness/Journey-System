@@ -36,6 +36,7 @@
  */
 
 import { MACHINE_DEFINITION_LIST } from "../../data/machine-definitions";
+import { IMAGINE_STRENGTH_MODELS } from "../studio-map/imagine-strength";
 import { rollupFromHistory } from "../../lib/client-rollups";
 import { MACHINE_TOTALS_COLLECTION, MACHINE_TOTALS_DOC_ID } from "../machine-totals/totals";
 import type { Trainer } from "../../types";
@@ -279,6 +280,14 @@ function buildTrainer(seed: DemoTrainerSeed): SeedDoc {
  * dial default inside Demo Mode is a thing worth practising, and a reset that
  * silently threw that away would teach the wrong lesson about the app.
  */
+/**
+ * The practice studio's twenty are Imagine Strength units (the studio map,
+ * Oct 2026), so its map draws them at their true size once head office's
+ * models are seeded. Until then the model reads "not recorded" and the map
+ * draws a marker, never a guessed size.
+ */
+const DEMO_MODEL_BY_MOVEMENT = new Map(IMAGINE_STRENGTH_MODELS.map((m) => [m.movementId, m.id]));
+
 function buildRoster(ctx: SeedContext): SeedDoc[] {
   return DEMO_MACHINES.map((machine) => ({
     path: `studios/${DEMO_STUDIO_ID}/roster/${machine.id}`,
@@ -289,6 +298,7 @@ function buildRoster(ctx: SeedContext): SeedDoc[] {
       source: "catalog",
       basedOn: machine.id,
       status: "active",
+      ...(DEMO_MODEL_BY_MOVEMENT.has(machine.id) ? { modelId: DEMO_MODEL_BY_MOVEMENT.get(machine.id) } : {}),
       order: machine.defaultOrder,
       updatedAt: ts(`${ctx.today}T12:00:00.000Z`),
       updatedBy: ctx.seededBy.id,

@@ -146,6 +146,14 @@ function instancePayload(
   };
 }
 
+/**
+ * The payload a status change writes on one instance (the studio map, phase 4,
+ * Oct 2026): exported so the cleaning checklist's `markWiped` (relay/board/
+ * machine-care-store.ts) completes a wipe-chore row with exactly the shape
+ * `setManyTaskStatuses` writes, never a second one.
+ */
+export const statusPayloadFor = instancePayload;
+
 /** Set one task's status. Creates the instance document if this is its first action. */
 export async function setTaskStatus(params: {
   location: TaskLocation;

@@ -9,13 +9,14 @@
  * per model; weights keep pooling per movement.
  *
  * The document's shape is EXACTLY `MachineModel` in types/machines.ts —
- * { brand, model, movementId, dials?, notes?, updatedAt, updatedBy } — and
- * firestore.rules holds it to that. This file builds one (`modelDocument`),
+ * { brand, model, movementId, dials?, notes?, size?, updatedAt, updatedBy } —
+ * and firestore.rules holds it to that. `size` (the studio map, Oct 2026) is
+ * the frame at rest in whole mm with its source, edited in inches. This file builds one (`modelDocument`),
  * checks one (`modelProblems`), mints its id once (`modelIdFor`) and names
  * one (`modelLabel`). PURE.
  */
 
-import type { MachineModel, MachineSettingField, ModelDial } from "../../types/machines";
+import type { KnownSize, MachineModel, MachineSettingField, ModelDial, ModelSize } from "../../types/machines";
 import { settingFieldKey } from "../../types/machines";
 
 /** Every model id starts so, which keeps it apart from a machine id at a glance. */
@@ -28,7 +29,59 @@ export const MODEL_LIMITS = {
   notes: 2000,
   dials: 20,
   movementId: 100,
+  /** A size's lengths in whole mm (the studio map): firestore.rules' sizeMmOk holds the same two. */
+  sizeMinMm: 250,
+  sizeMaxMm: 6100,
+  sizeSource: 200,
+  sizeNote: 400,
 } as const;
+
+/** A length as the editor takes it, in inches: 12 to 240 (1 to 20 ft). */
+export const SIZE_INCHES = { min: 12, max: 240 } as const;
+
+const MM_PER_INCH = 25.4;
+
+/**
+ * A length typed in inches ("62.8"), as whole millimetres, or null when it
+ * isn't a number of inches with at most one decimal. The range is
+ * `modelProblems`' to judge.
+ */
+export function inchesToMm(text: string): number | null {
+  const t = text.trim();
+  if (!/^\d{1,4}(\.\d)?$/.test(t)) return null;
+  return Math.round(Number(t) * MM_PER_INCH);
+}
+
+/** Whole millimetres as inches with one decimal, for the editor ("1594" → "62.8"). */
+function mmToInchesText(mm: unknown): string {
+  return typeof mm === "number" && Number.isFinite(mm) && mm > 0 ? String(Math.round((mm / MM_PER_INCH) * 10) / 10) : "";
+}
+
+const sizeMmOk = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v >= MODEL_LIMITS.sizeMinMm && v <= MODEL_LIMITS.sizeMaxMm;
+
+/**
+ * A stored model's size, or null when it isn't one a screen can stand
+ * behind (the studio map). Tolerant: Firestore documents are untyped at
+ * runtime. The length and width must be lengths the rules would accept and
+ * the source must be said; a height that isn't one reads as not on file.
+ * Both model reads share it: the codex store's and the Catalog's.
+ */
+export function modelSizeOf(raw: unknown): (KnownSize & { source: string; note: string | null }) | null {
+  if (!raw || typeof raw !== "object") return null;
+  const s = raw as { lengthMm?: unknown; widthMm?: unknown; heightMm?: unknown; source?: unknown; note?: unknown };
+  if (!sizeMmOk(s.lengthMm) || !sizeMmOk(s.widthMm)) return null;
+  const source = typeof s.source === "string" ? s.source.trim() : "";
+  if (!source) return null;
+  const note = typeof s.note === "string" && s.note.trim() ? s.note.trim() : null;
+  return {
+    lengthMm: Math.round(s.lengthMm),
+    widthMm: Math.round(s.widthMm),
+    heightMm: sizeMmOk(s.heightMm) ? Math.round(s.heightMm) : null,
+    source,
+    note,
+  };
+}
 
 /**
  * "Hoist" + "ROC-IT Leg Press" → "mm-hoist-roc-it-leg-press". Minted ONCE,
@@ -63,10 +116,31 @@ export interface ModelDraft {
   movementId: string;
   dials: ModelDial[];
   notes: string;
+  /** Its size (the studio map): the three lengths in inches as typed, one decimal allowed. */
+  size: ModelSizeDraft;
 }
 
+export interface ModelSizeDraft {
+  length: string;
+  width: string;
+  height: string;
+  source: string;
+  note: string;
+  /**
+   * The whole mm each length was stored at, when the draft came from a
+   * stored model. Inches with one decimal can't hold every mm (1594 mm reads
+   * 62.8 in, which is 1595 mm), so a length left as it was loaded keeps its
+   * stored mm (`draftLengthMm`) and re-saving a model never moves its size.
+   */
+  stored?: { length: number | null; width: number | null; height: number | null };
+}
+
+export type SizePart = "length" | "width" | "height";
+
+const emptySizeDraft = (): ModelSizeDraft => ({ length: "", width: "", height: "", source: "", note: "" });
+
 export function emptyModelDraft(movementId = ""): ModelDraft {
-  return { brand: "", model: "", movementId, dials: [], notes: "" };
+  return { brand: "", model: "", movementId, dials: [], notes: "", size: emptySizeDraft() };
 }
 
 /** A stored model as the editor's draft. Untrusted input: every part is checked. */
@@ -81,8 +155,53 @@ export function draftOf(raw: Partial<MachineModel> | null | undefined): ModelDra
     movementId: str(raw?.movementId),
     dials: dials.map((d) => ({ ...d })),
     notes: str(raw?.notes),
+    size: sizeDraftOf(raw?.size),
   };
 }
+
+/** A stored size as the editor's inches. Junk reads as empty, never as a number. */
+function sizeDraftOf(raw: unknown): ModelSizeDraft {
+  if (!raw || typeof raw !== "object") return emptySizeDraft();
+  const s = raw as { lengthMm?: unknown; widthMm?: unknown; heightMm?: unknown; source?: unknown; note?: unknown };
+  const whole = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : null);
+  return {
+    length: mmToInchesText(s.lengthMm),
+    width: mmToInchesText(s.widthMm),
+    height: mmToInchesText(s.heightMm),
+    source: typeof s.source === "string" ? s.source : "",
+    note: typeof s.note === "string" ? s.note : "",
+    stored: { length: whole(s.lengthMm), width: whole(s.widthMm), height: whole(s.heightMm) },
+  };
+}
+
+/**
+ * One of the draft's lengths in whole mm, or null when it is empty or not a
+ * length: the stored mm while the text still reads as it was loaded, else
+ * the typed inches. The document and the editor's mm line both ask it.
+ */
+export function draftLengthMm(z: ModelSizeDraft, part: SizePart): number | null {
+  const text = z[part].trim();
+  if (!text) return null;
+  const stored = z.stored?.[part] ?? null;
+  if (stored !== null && text === mmToInchesText(stored)) return stored;
+  return inchesToMm(text);
+}
+
+/** What the draft's size says, worked out once for the checks and the document. */
+function sizeOfDraft(z: ModelSizeDraft | undefined) {
+  const t = z ?? emptySizeDraft();
+  const length = t.length.trim();
+  const width = t.width.trim();
+  const height = t.height.trim();
+  const source = t.source.trim();
+  const note = t.note.trim();
+  return { length, width, height, source, note, given: !!(length || width || height || source || note) };
+}
+
+const inchesOk = (text: string) => {
+  const mm = inchesToMm(text);
+  return mm !== null && Number(text) >= SIZE_INCHES.min && Number(text) <= SIZE_INCHES.max;
+};
 
 /**
  * What stops a save, named — never a greyed-out button. Empty means the
@@ -105,6 +224,14 @@ export function modelProblems(d: ModelDraft): string[] {
     const k = x.key.trim() || settingFieldKey(x.label);
     if (keys.has(k)) out.push(`Two dials share the key “${k}”.`);
     keys.add(k);
+  }
+  const z = sizeOfDraft(d.size);
+  if (z.given) {
+    if (!z.length || !z.width) out.push("Give both the length and the width, or neither.");
+    if ([z.length, z.width, z.height].some((v) => v && !inchesOk(v))) out.push("Lengths are 12 to 240 inches.");
+    if (z.length && z.width && !z.source) out.push("Say where the size came from.");
+    if (z.source.length > MODEL_LIMITS.sizeSource) out.push(`The source is longer than ${MODEL_LIMITS.sizeSource} characters.`);
+    if (z.note.length > MODEL_LIMITS.sizeNote) out.push(`The note is longer than ${MODEL_LIMITS.sizeNote} characters.`);
   }
   return out;
 }
@@ -136,6 +263,19 @@ export function modelDocument(d: ModelDraft): Omit<MachineModel, "updatedAt" | "
   };
   if (dials.length) doc.dials = dials;
   if (d.notes.trim()) doc.notes = d.notes.trim();
+  // The size only when both the length and the width are given: the whole
+  // `size` key is never written empty, null or undefined.
+  const z = sizeOfDraft(d.size);
+  const raw = d.size ?? emptySizeDraft();
+  const lengthMm = draftLengthMm(raw, "length");
+  const widthMm = draftLengthMm(raw, "width");
+  if (lengthMm !== null && widthMm !== null) {
+    const size: ModelSize = { lengthMm, widthMm, source: z.source };
+    const heightMm = draftLengthMm(raw, "height");
+    if (heightMm !== null) size.heightMm = heightMm;
+    if (z.note) size.note = z.note;
+    doc.size = size;
+  }
   return doc;
 }
 
@@ -155,7 +295,10 @@ export interface ModelWithId extends MachineModel {
 }
 
 /** The models of one movement, by label. */
-export function modelsFor(models: readonly ModelWithId[], movementId: string | null | undefined): ModelWithId[] {
+export function modelsFor<T extends Pick<ModelWithId, "brand" | "model" | "movementId">>(
+  models: readonly T[],
+  movementId: string | null | undefined,
+): T[] {
   if (!movementId) return [];
   return models
     .filter((m) => m.movementId === movementId)

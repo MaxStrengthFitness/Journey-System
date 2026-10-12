@@ -1,63 +1,121 @@
-import { useMemo, useState } from "react";
-import { Check, ChevronDown, ChevronRight, Flag, FlagOff, Sparkles, Droplets } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronRight, Flag } from "lucide-react";
 import { useActiveStudio } from "../../../contexts/ActiveStudioContext";
 import { useToast } from "../../../contexts/ToastContext";
 import { useStudioMachines } from "../../../hooks/useStudioMachines";
 import { cn } from "../../../lib/utils";
-import type { TaskRow } from "../../studio-tasks/types";
-import type { TaskActions } from "../../studio-tasks/useTaskActions";
+import type { StudioTaskCategory, TaskRow } from "../../studio-tasks/types";
+import { MachineCard } from "../../machine-card/MachineCard";
+import type { MapMode } from "../../machine-card/parts";
+import { useFloorPlan } from "../../studio-map/hooks";
+import { reconcile } from "../../studio-map/layout";
+import { LazyFloorMapView } from "../../studio-map/lazy";
+import { relayMapMode, rememberRelayMapMode } from "../../studio-map/map-mode-memory";
+import { usePhone } from "../../phone/device";
+import { UnsavedChangesScope, useLeaveScope } from "../../unsaved-changes";
 import { useRelay } from "./RelayContext";
 import {
   DEFAULT_DEEP_CLEAN_DAYS,
   DEFAULT_WIPE_AFTER_SESSIONS,
   HEAT_WORD,
-  deepSentence,
   groupFloor,
-  wantsWipeSentence,
   wearOf,
   weeklyMaintenanceLine,
-  wipeSentence,
-  type MachineCare,
   type MachineWear,
 } from "./machine-care";
+import { CLEAN_WORDS, checklistLine, cleanStateOf, markAllTargets, wipeRowsOf, type CleanState } from "./cleaning";
+import { careReadState, useCareRead, useLiveCare } from "./machine-care-context";
+import { useShiftNow } from "./useWipeRows";
+import { careActor, markWiped } from "./machine-care-store";
+import { relayFloorView, rememberRelayFloorView, type RelayFloorView } from "./floor-view-memory";
 import { useStudioSettings } from "../../studio-settings";
-import { clearMachineFlag, flagMachine, recordCare, useMachineCare } from "./machine-care-store";
+import "../planner.css";
+import "./relay.css";
 
 /**
- * THE FLOOR MAP — one tile per machine, grouped like the Catalog.
+ * THE FLOOR — Relay's floor of machines (Relay, Sep 2026; on the studio's
+ * map since the studio map's phase 4, Oct 2026).
  *
- * Round: Relay, Sep 2026. Replaces "Wipe down machines 0 of 20" with the
- * actual floor. Each tile warms with touches since its last wipe (sessions
- * today, from the list AppContent already loads) and carries a thin bar
- * for days since its last deep clean. Tap a tile for the care sheet in the
- * Context Panel: Wiped, Deep cleaned, Flag — and today's cleaning rows for
- * that machine, so a wipe recorded here also ticks the shift strip.
+ * ON THE MAP when the studio has one (not on a phone, the map read and at
+ * least one machine of the roster on it, never the bridge's catalog
+ * stand-in): the same map every door draws, with the AED and the fire
+ * extinguisher, and its two modes, Look up and Cleaning. `Map | Tiles` in
+ * the head row, remembered on this iPad (floor-view-memory.ts).
  *
- * Grouping and accents follow the Catalog (movement pattern, --wk-cat-* in wiki.tokens.css),
- * per AJ's standing direction that machine surfaces match it.
+ * THE TILES otherwise (no map yet, a phone, or chosen): one tile per
+ * machine, grouped like the Catalog, warming with sessions since its wipe,
+ * with the same Look up | Cleaning switch. In Cleaning each tile carries
+ * its tick and its word and a tap marks it: this is where a phone cleans,
+ * and three trainers can split the cleaning before a map is ever drawn.
+ *
+ * THE CARD. The care sheet is retired: a tap in Look up opens the one
+ * machine card (features/machine-card) in the Context Panel, Clean open,
+ * keyed by machine. Through relay.openPanel it is given ids and callbacks
+ * only: its care record is the screen's one live read (useCareRead), so
+ * Deep cleaned while it is open shows at once.
  *
  * ON THE BOARD (the Relay Board rebuild, Oct 3 2026) it sits under the cards
- * of today's parts, folded to its one line ("The floor · 2 want a wipe")
- * until something on the floor asks for a hand: a machine wanting a wipe, due
- * a deep clean, or flagged opens it by itself. A tap on the line opens or
- * folds it either way. Colour and room for the exceptions only.
+ * of today's parts, folded to its one line until something on the floor
+ * asks for a hand: a machine wanting a wipe, due a deep clean, or flagged
+ * opens it by itself, and the wipe chore's Show the floor opens it in
+ * Cleaning. A tap on the line opens or folds it either way.
  */
-export function FloorMap({ rows, actions }: { rows: TaskRow[]; actions: TaskActions }) {
+export function FloorMap({
+  rows,
+  categories,
+  showCleaning = 0,
+}: {
+  rows: TaskRow[];
+  /** The studio's own task categories: a chore in a cleaning category the studio made is the wipe chore too. */
+  categories?: StudioTaskCategory[];
+  showCleaning?: number;
+}) {
   const relay = useRelay();
+  const studioId = relay.studioId;
   const { activeStudio } = useActiveStudio();
-  const { machines, loading: machinesLoading } = useStudioMachines(relay.studioId, { bridgeWhenRosterEmpty: true });
-  const care = useMachineCare(relay.studioId);
+  const { error: toastError, toast } = useToast();
+  const phone = usePhone();
+  const { machines, source, loading: machinesLoading, failed: machinesFailed, rosterEntries, byId, catalog } = useStudioMachines(studioId, { bridgeWhenRosterEmpty: true });
+  const care = useCareRead(studioId);
+  const careState = careReadState(care);
+  const live = useLiveCare(studioId, care);
+  const shiftNow = useShiftNow(studioId);
   /*
    * THE STUDIO'S OWN CLEANING LOG (the second wave, Sep 28 2026): the deep
    * clean's interval, the wipe-after number and the weekly maintenance day
-   * are the studio's settings (features/studio-settings: its own, else Max
-   * Strength's default, else the app's). The studio document goes in, so
-   * its deepCleanIntervalDays still answers until the settings hold one.
+   * are the studio's settings (features/studio-settings).
    */
-  const settings = useStudioSettings(relay.studioId, activeStudio);
+  const settings = useStudioSettings(studioId, activeStudio);
   const deepDays = settings.value("deepCleanDays") ?? DEFAULT_DEEP_CLEAN_DAYS;
   const wipeAfter = settings.value("wipeAfterSessions") ?? DEFAULT_WIPE_AFTER_SESSIONS;
-  const weekly = weeklyMaintenanceLine(settings.value("weeklyMaintenanceDay"), relay.now.todayKey);
+  const weeklyDay = settings.value("weeklyMaintenanceDay");
+  const weekly = weeklyMaintenanceLine(weeklyDay, relay.now.todayKey);
+
+  /* The map, when there is one to draw. */
+  const plan = useFloorPlan(studioId, { enabled: !phone });
+  const placed = useMemo(
+    () =>
+      plan.state === "ready" && plan.plan && source === "roster"
+        ? reconcile(plan.plan, machines.map((m) => ({ machineId: m.machineId, name: m.name, code: "", status: m.rosterStatus }))).placed.length
+        : 0,
+    [plan.state, plan.plan, source, machines],
+  );
+  const mapDrawable = !phone && !machinesFailed && placed > 0;
+  const [view, setViewState] = useState<RelayFloorView>(relayFloorView);
+  const setView = (next: RelayFloorView) => {
+    setViewState(next);
+    rememberRelayFloorView(next);
+    // The map keeps the mode in the same memory: the tiles pick it up where the map left it.
+    setModeState(relayMapMode());
+  };
+  const shownView: RelayFloorView = mapDrawable ? view : "tiles";
+
+  /* The mode the tiles share with the map: remembered on this iPad (Relay alone does). */
+  const [mode, setModeState] = useState<MapMode>(relayMapMode);
+  const setMode = (next: MapMode) => {
+    setModeState(next);
+    rememberRelayMapMode(next);
+  };
 
   const tiles = useMemo(() => {
     const list = machines.length
@@ -65,23 +123,108 @@ export function FloorMap({ rows, actions }: { rows: TaskRow[]; actions: TaskActi
       : relay.machines.filter((m) => m.id).map((m) => ({ id: m.id!, name: m.name, movementPattern: null }));
     return groupFloor(list);
   }, [machines, relay.machines]);
+  const outIds = useMemo(() => new Set(machines.filter((m) => m.rosterStatus === "maintenance").map((m) => m.machineId)), [machines]);
+  const order = useMemo(() => tiles.flatMap((g) => g.machines), [tiles]);
+  const floorIds = useMemo(() => new Set(order.map((m) => m.id)), [order]);
 
   const now = Date.now();
   const wear = useMemo(() => {
     const out: Record<string, MachineWear> = {};
-    for (const g of tiles) for (const m of g.machines) out[m.id] = wearOf(m.id, { sessions: relay.sessions, care: care.byMachineId[m.id], now, deepCleanDays: deepDays, wipeAfterSessions: wipeAfter });
+    for (const m of order) out[m.id] = wearOf(m.id, { sessions: relay.sessions, care: care.byMachineId[m.id], now, deepCleanDays: deepDays, wipeAfterSessions: wipeAfter });
     return out;
-  }, [tiles, relay.sessions, care.byMachineId, now, deepDays, wipeAfter]);
+    // `now` moves every render; the wear follows its reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, relay.sessions, care.byMachineId, deepDays, wipeAfter]);
+  const states = useMemo(() => {
+    const out = new Map<string, CleanState>();
+    for (const m of order) {
+      out.set(m.id, cleanStateOf({ careRead: careState, care: care.byMachineId[m.id], wear: wear[m.id] ?? null, todayKey: relay.now.todayKey, nowMs: now, outOfService: outIds.has(m.id) }));
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, careState, care.byMachineId, wear, relay.now.todayKey, outIds]);
+  const ordered = useMemo(() => order.map((m) => ({ machineId: m.id, state: states.get(m.id) ?? ("unknown" as CleanState) })), [order, states]);
+  const checklist = checklistLine(ordered.map((r) => r.state));
+  const targets = markAllTargets(ordered);
+  const wipeRows = useMemo(() => wipeRowsOf(rows, categories), [rows, categories]);
 
-  const rowsFor = (machineId: string) => rows.filter((r) => r.machineId === machineId && r.kind === "machine");
+  /*
+   * What this floor already reads, published for a card in the panel (phase 4
+   * review fixes): the card at Clean then opens no roster or settings read of
+   * its own. Taken back when the floor goes.
+   */
+  const publishFloorReads = relay.publishFloorReads;
+  useEffect(() => {
+    if (!publishFloorReads || !studioId) return;
+    publishFloorReads({
+      studioId,
+      floor: { rosterEntries, byId, catalog, loading: machinesLoading },
+      cleaning: { deepDays, wipeAfter, weeklyDay: typeof weeklyDay === "number" ? weeklyDay : null },
+    });
+  }, [publishFloorReads, studioId, rosterEntries, byId, catalog, machinesLoading, deepDays, wipeAfter, weeklyDay]);
+  useEffect(() => () => publishFloorReads?.(null), [publishFloorReads]);
 
-  const open = (m: { id: string; name: string }) => {
+  /* The card, in the Context Panel: ids and callbacks only (its reads are its own, live). */
+  const cardScope = useLeaveScope();
+  const openCard = (m: { id: string; name: string }, at: MapMode) => {
+    const id = m.id;
     relay.openPanel({
+      id: `card:${id}`,
       kicker: "Machine",
       title: m.name,
-      body: <CareSheet machineId={m.id} machineName={m.name} rows={rowsFor(m.id)} actions={actions} deepDays={deepDays} wipeAfter={wipeAfter} />,
       tall: true,
+      guard: cardScope.guard,
+      body: (
+        <UnsavedChangesScope scope={cardScope}>
+          <MachineCard
+            key={id}
+            door="relay"
+            mode={at}
+            studioId={studioId ?? ""}
+            studioName={relay.studioName}
+            machineId={id}
+            authTrainer={relay.authTrainer}
+            trainers={relay.trainers}
+            onOpenCatalogPage={relay.openCatalogMachine}
+            onClose={relay.closePanel}
+            nameShown={false}
+          />
+        </UnsavedChangesScope>
+      ),
     });
+  };
+  const openCardById = (id: string, at: MapMode) => openCard({ id, name: order.find((m) => m.id === id)?.name ?? "Machine" }, at);
+
+  /* Marking on the tiles: one batch, never awaited; Undo when the care read answered. */
+  const mark = (ids: string[], words: string) => {
+    if (!studioId || !relay.uid) {
+      toastError("Sign in again before marking machines wiped.");
+      return;
+    }
+    const res = markWiped({
+      studioId,
+      machineIds: ids,
+      floorIds,
+      author: careActor(relay.uid, relay.authTrainer?.fullName),
+      taskAuthor: relay.authTrainer?.id ? { id: relay.authTrainer.id, name: relay.authTrainer.fullName ?? "A trainer" } : null,
+      before: careState === "ready" ? care.byMachineId : null,
+      live,
+      rows: wipeRows,
+      shiftNow,
+    });
+    if (res.written.length === 0) return;
+    res.done.catch((err: unknown) => {
+      console.warn("[relay] marking failed:", err);
+      toastError("Couldn't mark those. Check your connection.");
+    });
+    const undo = res.undo;
+    toast(words, "success", 8000, undo ? { label: "Undo", run: () => void undo().catch(() => toastError("Couldn't undo that.")) } : undefined);
+  };
+  const tapTile = (m: { id: string; name: string }) => {
+    if (mode === "machines") return openCard(m, "machines");
+    const s = states.get(m.id);
+    if (s === "wiped" || s === "out") return openCard(m, "cleaning");
+    mark([m.id], `${m.name} wiped today.`);
   };
 
   const flagged = Object.values(care.byMachineId).filter((c) => c.flag).length;
@@ -93,182 +236,146 @@ export function FloorMap({ rows, actions }: { rows: TaskRow[]; actions: TaskActi
   const [choice, setChoice] = useState<boolean | null>(null);
   const shown = choice ?? asks;
 
+  // The wipe chore's Show the floor: open, in Cleaning, in view.
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const seen = useRef(showCleaning);
+  useEffect(() => {
+    if (showCleaning === seen.current) return;
+    seen.current = showCleaning;
+    setChoice(true);
+    setModeState("cleaning");
+    rememberRelayMapMode("cleaning");
+    sectionRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [showCleaning]);
+
+  const cleaning = mode === "cleaning";
+  // On the map, its own row says the checklist; the fold's line keeps the floor's counts.
+  const sayChecklist = cleaning && shownView === "tiles";
+  const sub =
+    careState === "failed"
+      ? "Can't read the cleaning marks right now."
+      : sayChecklist
+        ? (checklist ?? (careState === "loading" ? "Reading the cleaning marks…" : "Can't read the cleaning marks right now."))
+        : [
+          wantWipe ? `${wantWipe} ${wantWipe === 1 ? "wants" : "want"} a wipe` : null,
+          hot && !wantWipe ? `${hot} running hot` : null,
+          flagged ? `${flagged} flagged` : null,
+          deepDue > 0 ? `${deepDue} due a deep clean` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || `A machine wants a wipe after ${wipeAfter} ${wipeAfter === 1 ? "session" : "sessions"}`;
+
   return (
-    <section className="fm" aria-label="The floor">
+    <section ref={sectionRef} className="fm" aria-label="The floor">
       <button type="button" className="rl-h fm__head" aria-expanded={shown} onClick={() => setChoice(!shown)}>
         {shown ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
         <h2 className="rl-h__title">The floor</h2>
-        <span className="rl-h__sub">
-          {care.error
-            ? care.error
-            : wantWipe || hot || flagged
-              ? [wantWipe ? `${wantWipe} ${wantWipe === 1 ? "wants" : "want"} a wipe` : null, hot && !wantWipe ? `${hot} running hot` : null, flagged ? `${flagged} flagged` : null].filter(Boolean).join(" · ")
-              : `A machine wants a wipe after ${wipeAfter} ${wipeAfter === 1 ? "session" : "sessions"}`}
-          {deepDue > 0 && !care.error ? ` · ${deepDue} due a deep clean` : ""}
-        </span>
+        <span className="rl-h__sub">{sub}</span>
       </button>
       {weekly && <p className="fm__weekly">{weekly}</p>}
-      {!shown ? null : machinesLoading && tiles.length === 0 ? (
+      {!shown ? null : machinesFailed ? (
+        <p className="rk-hint">Can't read the floor right now.</p>
+      ) : machinesLoading && tiles.length === 0 ? (
         <p className="sh__loading">Loading the floor…</p>
       ) : tiles.length === 0 ? (
         <p className="rk-hint">No equipment is set up for this studio yet.</p>
       ) : (
-        tiles.map((g) => (
-          <div key={g.key} className="fm__group">
-            <h3 className="fm__group-title">{g.label}</h3>
-            <div className="fm__grid">
-              {g.machines.map((m) => {
-                const w = wear[m.id];
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    className={cn("fm__tile", `fm__tile--heat${w.heat}`, w.flag && "fm__tile--flagged", w.deepDue && "fm__tile--deep", w.wantsWipe && "fm__tile--wipe")}
-                    onClick={() => open(m)}
-                    aria-label={`${m.name}: ${HEAT_WORD[w.heat].toLowerCase()}, ${w.touches} since the last wipe${w.wantsWipe ? ", wants a wipe" : ""}${w.flag ? ", flagged" : ""}`}
-                  >
-                    <span className="fm__name">{m.name}</span>
-                    <span className="fm__facts">
-                      <span className="fm__touches">{w.touches}</span>
-                      {w.flag && <Flag size={12} aria-hidden className="fm__flag" />}
-                    </span>
-                    <span className="fm__deep" aria-hidden>
-                      <span className="fm__deep-fill" style={{ width: `${Math.round(w.deepFraction * 100)}%` }} />
-                    </span>
-                  </button>
-                );
-              })}
+        <>
+          {mapDrawable && (
+            <div className="fm__views" role="group" aria-label="The floor as">
+              <button type="button" className="fm__view" aria-pressed={shownView === "map"} onClick={() => setView("map")}>
+                Map
+              </button>
+              <button type="button" className="fm__view" aria-pressed={shownView === "tiles"} onClick={() => setView("tiles")}>
+                Tiles
+              </button>
             </div>
-          </div>
-        ))
+          )}
+          {shownView === "map" && studioId ? (
+            <LazyFloorMapView
+              door="relay"
+              studioId={studioId}
+              studioName={relay.studioName}
+              rows={wipeRows}
+              sessions={relay.sessions}
+              authTrainer={relay.authTrainer}
+              onOpenCard={openCardById}
+              cleaningAsk={showCleaning}
+              onDone={() => setView("tiles")}
+            />
+          ) : (
+            <>
+              <div className="fm__modes">
+                <div className="fm__views" role="group" aria-label="What a tap does">
+                  <button type="button" className="fm__view" aria-pressed={!cleaning} onClick={() => setMode("machines")}>
+                    Look up
+                  </button>
+                  <button type="button" className="fm__view" aria-pressed={cleaning} onClick={() => setMode("cleaning")}>
+                    Cleaning
+                  </button>
+                </div>
+                {cleaning && targets.length > 0 && (
+                  <button type="button" className="pl__btn pl__btn--primary" onClick={() => mark(targets, `${targets.length} ${targets.length === 1 ? "machine" : "machines"} marked wiped today.`)}>
+                    <Check size={14} aria-hidden /> {`Mark all ${targets.length} wiped`}
+                  </button>
+                )}
+              </div>
+              {cleaning && <p className="fm__weekly">Tap a machine when it's wiped.</p>}
+              {tiles.map((g) => (
+                <div key={g.key} className="fm__group">
+                  <h3 className="fm__group-title">{g.label}</h3>
+                  <div className="fm__grid">
+                    {g.machines.map((m) => {
+                      const w = wear[m.id];
+                      const s = states.get(m.id) ?? "unknown";
+                      const word = cleaning ? CLEAN_WORDS[s] : s === "out" ? CLEAN_WORDS.out : "";
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className={cn(
+                            "fm__tile",
+                            !cleaning && `fm__tile--heat${w.heat}`,
+                            w.flag && "fm__tile--flagged",
+                            !cleaning && w.deepDue && "fm__tile--deep",
+                            !cleaning && w.wantsWipe && "fm__tile--wipe",
+                            cleaning && s === "wiped" && "fm__tile--wiped",
+                          )}
+                          aria-pressed={cleaning ? s === "wiped" : undefined}
+                          onClick={() => tapTile(m)}
+                          aria-label={
+                            cleaning
+                              ? `${m.name}${word ? `: ${word.toLowerCase()}` : ""}${s === "wiped" || s === "out" ? "" : ". Tap when it's wiped"}`
+                              : `${m.name}: ${HEAT_WORD[w.heat].toLowerCase()}, ${w.touches} since the last wipe${w.wantsWipe ? ", wants a wipe" : ""}${w.flag ? ", flagged" : ""}`
+                          }
+                        >
+                          <span className="fm__name">{m.name}</span>
+                          <span className="fm__facts">
+                            {cleaning ? (
+                              <>
+                                {s === "wiped" && <Check size={14} aria-hidden className="fm__tick" />}
+                                {word && <span className={s === "used" ? "fm__state fm__state--used" : "fm__state"}>{word}</span>}
+                              </>
+                            ) : (
+                              <span className="fm__touches">{w.touches}</span>
+                            )}
+                            {w.flag && <Flag size={12} aria-hidden className="fm__flag" />}
+                          </span>
+                          {!cleaning && (
+                            <span className="fm__deep" aria-hidden>
+                              <span className="fm__deep-fill" style={{ width: `${Math.round(w.deepFraction * 100)}%` }} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </>
       )}
     </section>
-  );
-}
-
-function CareSheet({ machineId, machineName, rows, actions, deepDays, wipeAfter }: { machineId: string; machineName: string; rows: TaskRow[]; actions: TaskActions; deepDays: number; wipeAfter: number }) {
-  const relay = useRelay();
-  const { activeStudio } = useActiveStudio();
-  const { success: toastSuccess, error: toastError } = useToast();
-  const care = useMachineCare(relay.studioId);
-  const record: MachineCare | undefined = care.byMachineId[machineId];
-  const w = wearOf(machineId, { sessions: relay.sessions, care: record, now: Date.now(), deepCleanDays: deepDays, wipeAfterSessions: wipeAfter });
-  const [flagging, setFlagging] = useState(false);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const author = relay.uid ? { id: relay.uid, name: relay.authTrainer?.fullName ?? "A trainer" } : null;
-
-  const doCare = async (kind: "wipe" | "deep-clean") => {
-    if (!relay.studioId || !author) return;
-    setBusy(true);
-    try {
-      await recordCare({ studioId: relay.studioId, machineId, kind, author });
-      // A wipe recorded here also ticks today's cleaning row for the machine.
-      const open = rows.filter((r) => r.status === "open" && r.template.category === "cleaning");
-      if (open.length) await actions.completeMany(open);
-      toastSuccess(kind === "wipe" ? `${machineName} wiped — the tile cools.` : `${machineName} deep cleaned.`);
-    } catch (err) {
-      console.warn("[relay] care failed:", err);
-      toastError("Could not record that. Check your connection.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doFlag = async () => {
-    if (!relay.studioId || !author) return;
-    setBusy(true);
-    try {
-      await flagMachine({ studioId: relay.studioId, machineId, machineName, note, author, leaderId: activeStudio?.headTrainerId ?? null });
-      setFlagging(false);
-      setNote("");
-      toastSuccess("Flagged — leaders see it on My Studio → Team, under Open loops.");
-    } catch (err) {
-      console.warn("[relay] flag failed:", err);
-      toastError("Could not flag that. Check your connection.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doClear = async () => {
-    if (!relay.studioId) return;
-    setBusy(true);
-    try {
-      await clearMachineFlag({ studioId: relay.studioId, machineId });
-      toastSuccess("Flag cleared.");
-    } catch (err) {
-      console.warn("[relay] clear flag failed:", err);
-      toastError("Could not clear that.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="fm__sheet">
-      <p className={cn("fm__heat", `fm__heat--${w.heat}`)}>
-        <Droplets size={14} aria-hidden /> {HEAT_WORD[w.heat]} · {w.touches} {w.touches === 1 ? "session" : "sessions"} since the last wipe
-      </p>
-      <p className="fm__line">{wipeSentence(w, record)}</p>
-      {wantsWipeSentence(w, wipeAfter) && <p className="fm__line fm__line--due">{wantsWipeSentence(w, wipeAfter)}</p>}
-      <p className={cn("fm__line", w.deepDue && "fm__line--due")}>{deepSentence(w, deepDays)}</p>
-
-      {w.flag && (
-        <div className="fm__flagbox">
-          <Flag size={14} aria-hidden />
-          <div>
-            <strong>{w.flag.by.name.split(" ")[0]} flagged it</strong>
-            <p>{w.flag.note}</p>
-          </div>
-          <button type="button" className="pl__btn" disabled={busy} onClick={() => void doClear()}>
-            <FlagOff size={13} aria-hidden /> Clear
-          </button>
-        </div>
-      )}
-
-      <div className="fm__actions">
-        <button type="button" className="pl__btn pl__btn--primary" disabled={busy || !author} onClick={() => void doCare("wipe")}>
-          <Check size={14} aria-hidden /> Wiped
-        </button>
-        <button type="button" className="pl__btn" disabled={busy || !author} onClick={() => void doCare("deep-clean")}>
-          <Sparkles size={14} aria-hidden /> Deep cleaned
-        </button>
-        {!w.flag && (
-          <button type="button" className="pl__btn" disabled={busy || !author} onClick={() => setFlagging((v) => !v)} aria-expanded={flagging}>
-            <Flag size={14} aria-hidden /> Flag
-          </button>
-        )}
-      </div>
-
-      {flagging && (
-        <div className="fm__flagform">
-          <textarea className="rk-textarea" rows={2} value={note} maxLength={500} placeholder="What's wrong? A torn pad, a squeak, a loose cable…" onChange={(e) => setNote(e.target.value)} />
-          <button type="button" className="pl__btn pl__btn--danger" disabled={busy || !note.trim()} onClick={() => void doFlag()}>
-            <Flag size={14} aria-hidden /> Flag the {machineName}
-          </button>
-        </div>
-      )}
-
-      {rows.length > 0 && (
-        <div className="fm__rows">
-          <h4 className="rl-h__title">Today on this machine</h4>
-          <ul className="nu__rows">
-            {rows.map((r) => {
-              const on = r.status !== "open";
-              return (
-                <li key={r.id}>
-                  <button type="button" className={cn("nu__rowtick", on && "nu__rowtick--on")} aria-pressed={on} disabled={actions.busyIds.has(r.id)} onClick={() => void (on ? actions.reopen(r) : actions.complete(r))}>
-                    <span className="nu__tick" aria-hidden>{on && <Check size={12} />}</span>
-                    <span>{r.title}</span>
-                    {r.instance?.completedBy && <span className="nu__who">{r.instance.completedBy.name.split(" ")[0]}</span>}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
   );
 }

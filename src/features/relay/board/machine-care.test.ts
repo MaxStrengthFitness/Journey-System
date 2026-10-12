@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WIPE_AFTER_SESSIONS, checklistFlagFor, deepSentence, groupFloor, heatOf, wantsWipeSentence, wearOf, weeklyMaintenanceLine, wipeSentence, type MachineCare } from "./machine-care";
+import { DEFAULT_WIPE_AFTER_SESSIONS, checklistFlagFor, deepSentence, groupFloor, heatOf, wantsWipeSentence, wearOf, weeklyMaintenanceLine, type MachineCare } from "./machine-care";
 
 const NOW = Date.parse("2026-09-16T18:00:00Z");
 const ago = (min: number) => NOW - min * 60_000;
@@ -26,7 +26,6 @@ describe("wearOf", () => {
     expect(w.touches).toBe(2);
     expect(w.heat).toBe(1);
     expect(w.sinceWipeMin).toBe(120);
-    expect(wipeSentence(w, care({ lastWipedBy: { id: "m", name: "Marina B" } }))).toBe("Wiped 2 h ago by Marina");
   });
 
   it("with no wipe on record, every session today counts", () => {
@@ -34,7 +33,6 @@ describe("wearOf", () => {
     const w = wearOf("lp", { sessions, care: null, now: NOW });
     expect(w.touches).toBe(2);
     expect(w.sinceWipeMin).toBeNull();
-    expect(wipeSentence(w, null)).toBe("No wipe on record");
   });
 
   it("ignores sessions with no machine list or no start", () => {

@@ -164,3 +164,100 @@ describe("firestore.rules stays under Firebase's size limits", () => {
     expect(pointers.filter((a) => !anchors.has(a))).toEqual([]);
   });
 });
+
+/**
+ * THE STUDIO MAP (Oct 2026): a machine's size, on its model and on its unit.
+ * The roster's create and update resolve the caller once (rosterLeaderOnce):
+ * the old helper pair ran out of the 1,000-expression budget on real writes
+ * (the round's review measured it), so it must not come back into that rule.
+ */
+describe("the studio map's sizes", () => {
+  it("defines the size checks and the once-resolved roster leader", () => {
+    for (const mark of ["function sizeMmOk(", "function modelSizeValid(", "function rosterUnitSizeOk(", "function rosterLeaderOnce("]) {
+      expect(SOURCE, mark).toContain(mark);
+    }
+  });
+
+  it("asks the roster's create and update with the once-resolved leader, never the old helper pair", () => {
+    const roster = /match \/roster\/\{machineId\} \{([\s\S]*?)\n {6}\}/.exec(SOURCE);
+    expect(roster).toBeTruthy();
+    const write = /allow create, update:([\s\S]*?);/.exec(stripped(roster![1]));
+    expect(write).toBeTruthy();
+    expect(write![1]).toContain("rosterUnitSizeOk()");
+    expect(write![1]).toContain("rosterLeaderOnce(studioId)");
+    expect(write![1]).not.toContain("isStudioOwnerOrHeadTrainer");
+    expect(write![1]).not.toContain("isSuperAdmin");
+  });
+
+  it("holds a size's lengths to the model editor's limits", async () => {
+    const { MODEL_LIMITS } = await import("../src/features/machine-codex/models");
+    const body = /function sizeMmOk\(v\) \{\s*return ([^;]+);/.exec(SOURCE);
+    expect(body?.[1]).toBe(`v is number && v >= ${MODEL_LIMITS.sizeMinMm} && v <= ${MODEL_LIMITS.sizeMaxMm}`);
+    const model = /function modelSizeValid\(s\) \{([\s\S]*?)\n {4}\}/.exec(SOURCE)?.[1] ?? "";
+    expect(model).toContain(`s.source.size() <= ${MODEL_LIMITS.sizeSource}`);
+    expect(model).toContain(`s.get('note', '').size() <= ${MODEL_LIMITS.sizeNote}`);
+  });
+});
+
+/**
+ * THE STUDIO MAP'S LAYOUT (Oct 2026, phase 2): studios/{s}/floorPlans. A
+ * rule can't loop over a list, so each box, place and placement is the app's
+ * to check (layout.ts planProblems before a write, readPlan after a read);
+ * the rule holds the shape, the caps, the slots, the rev and the writer. The
+ * caps here and the app's PLAN_LIMITS are one set of numbers: change them
+ * together.
+ */
+describe("the studio map's layout", () => {
+  const block = () => {
+    const m = /match \/floorPlans\/\{planId\} \{([\s\S]*?)\n {6}\}/.exec(SOURCE);
+    expect(m, "match /floorPlans/{planId}").toBeTruthy();
+    return m![1];
+  };
+
+  it("is there, read by the studio's people, written by its leaders, and never deleted", () => {
+    const b = block();
+    expect(b).toContain("allow read: if isAuthenticated() && writesForStudio(studioId);");
+    expect(b).toContain("allow delete: if false;");
+    expect(b).toContain("trainerLeads(r, callerTrainer(), studioId)");
+  });
+
+  it("holds the same caps and slots as the app", async () => {
+    const { PLAN_LIMITS, DRAFT_SLOTS } = await import("../src/features/studio-map/layout");
+    const b = block();
+    expect(b).toContain(`d.room.boxes.size() >= ${PLAN_LIMITS.boxesMin} && d.room.boxes.size() <= ${PLAN_LIMITS.boxes}`);
+    expect(b).toContain(`d.room.places.size() <= ${PLAN_LIMITS.places}`);
+    expect(b).toContain(`d.placements.size() <= ${PLAN_LIMITS.placements}`);
+    expect(b).toContain(`d.name.size() <= ${PLAN_LIMITS.name}`);
+    expect(b).toContain(`d.room.areaSqFt >= ${PLAN_LIMITS.sqFtMin} && d.room.areaSqFt <= ${PLAN_LIMITS.sqFtMax}`);
+    expect(DRAFT_SLOTS).toEqual(["d-1", "d-2", "d-3", "d-4", "d-5"]);
+    expect(b).toContain("planId.matches('d-[1-5]')");
+  });
+
+  it("is the room as boxes: no outline, doors or fixtures from the first design", () => {
+    const code = stripRulesComments(block());
+    for (const old of ["outline", "'doors'", "fixtures"]) expect(code, old).not.toContain(old);
+    expect(code).toContain("'boxes'");
+  });
+});
+
+
+/*
+ * THE CLEANING CHECKLIST ADDS NO RULE (the studio map, phase 4, Oct 2026).
+ * Mark all and Wiped write only `machineCare`'s existing fields under the
+ * rule that already took the care sheet's wipes (rules tests C1 to C5, B7).
+ * `machineCareValid` accepts any id, time and named wiper (an insider-only
+ * risk, accepted and said in the round document); tightening it is AJ's OK,
+ * not this round's. This pins it, `careActorValid` and the match block,
+ * byte for byte as they are on master (sha256 of the three as written).
+ */
+describe("the machine care rule the cleaning checklist writes under", () => {
+  it("is unchanged from master", async () => {
+    const { createHash } = await import("node:crypto");
+    const s = SOURCE.replace(/\r\n/g, "\n");
+    const fn = /    function careActorValid\(a\) \{[\s\S]*?\n    \}\n    function machineCareValid\(d, machineId\) \{[\s\S]*?\n    \}\n/.exec(s);
+    const match = /      match \/machineCare\/\{machineId\} \{[\s\S]*?\n      \}\n/.exec(s);
+    expect(fn, "careActorValid then machineCareValid").toBeTruthy();
+    expect(match, "match /machineCare/{machineId}").toBeTruthy();
+    expect(createHash("sha256").update(fn![0] + match![0]).digest("hex")).toBe("0b59c28a1201bf880b342200a52bf42229df7b606ca8cb2800a7d7df9f9977c7");
+  });
+});

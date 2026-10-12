@@ -41,6 +41,9 @@ export function useMachineModels(enabled = true): ModelsRead {
       setLoading(false);
       return;
     }
+    // Turned on after mount: loading again until the first answer, never
+    // "not loading" with no models for a render (the studio map's review).
+    setLoading(true);
     const unsub = onSnapshot(
       collection(db, MODELS_COLLECTION),
       (snap) => {

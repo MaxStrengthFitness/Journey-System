@@ -72,6 +72,17 @@ const NAME_RULES: { file: string; cls: string; exact?: string; what: string }[] 
   { file: "features/calendar/calendar.css", cls: "cal-wbk__name", what: "a client booked on the Calendar's Week" },
   { file: "features/calendar/calendar.css", cls: "cal-wbk__with", what: "who a booking on the Week is with" },
   { file: "features/client-history/client-history.css", cls: "hist-who__name", what: "the trainer on a history row" },
+  // The studio map (Oct 2026): Arrange the floor's names.
+  { file: "features/studio-map/studio-map.css", cls: "smap-chip__name", what: "a machine not placed yet, on the editor's chips" },
+  { file: "features/studio-map/studio-map.css", cls: "smap-item__name", what: "the selected machine, box or place in the editor" },
+  { file: "features/studio-map/studio-map.css", cls: "smap-sizes__name", what: "a machine on the Sizes sheet" },
+  { file: "features/studio-map/studio-map.css", cls: "smap-list__name", what: "a machine in the floor's walking order beside the map" },
+  { file: "features/studio-map/studio-map.css", cls: "smap-tabs__name", what: "a remodel plan's name on its tab" },
+  // Phase 4: a machine on the map's floor list, and the machine card's name and header lines.
+  { file: "features/studio-map/studio-map.css", cls: "smap-clean__name", what: "a machine on the map's floor list" },
+  { file: "features/machine-card/machine-card.css", cls: "mdc-head__name", what: "the machine's name on its card" },
+  { file: "features/machine-card/machine-card.css", cls: "mdc-head__line", what: "the movement and where the machine came from, on its card" },
+  { file: "features/machine-card/machine-card.css", cls: "mdc-flag", what: "Out of service with its reason and who set it, and the flag's words" },
   { file: "features/client-history/client-history.css", cls: "hsd-set__name", what: "a machine in the session pop-up" },
   { file: "features/trainer-profile/trainer-profile.css", cls: "tp-row__name", what: "a person or client on a My Profile row" },
   { file: "features/client-profile/profile-nav.css", cls: "psub__label", what: "a profile sub-tab's label (two words wrap, as its comment says)" },

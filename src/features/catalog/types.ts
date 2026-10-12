@@ -55,6 +55,12 @@ export interface CatalogMachine {
    * hasn't said, and then nothing about a model is shown (never a guess).
    */
   modelId?: string;
+  /**
+   * The unit's tape-measured size, raw (the studio map, Oct 2026): the roster
+   * entry's `unit.size`, judged later by studio-map/sizes.ts
+   * `measuredSizeOf`. Absent when the studio hasn't measured it.
+   */
+  unitSize?: unknown;
 
   // ── the figure ───────────────────────────────────────────────────
   anatomy: MachineAnatomy;

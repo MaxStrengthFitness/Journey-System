@@ -27,8 +27,16 @@
  * Trainers don't see how many floors have a machine (AJ, Sep 27 2026), so a
  * model says what it is, never where it is.
  *
+ * THE SIZE (the studio map, Oct 2026): a record with a valid size carries
+ * it (`size`, read by machine-codex/models.ts `modelSizeOf`, the one size
+ * reader both model shapes share); a record without one, or with one that
+ * is not a size, carries no `size` key at all.
+ *
  * PURE MODULE — no React, no Firestore.
  */
+
+import type { KnownSize } from "../../types/machines";
+import { modelSizeOf } from "../machine-codex/models";
 
 export interface MachineModel {
   id: string;
@@ -40,6 +48,8 @@ export interface MachineModel {
   dials: string[];
   /** Head office's note on the model. Empty when there is none. */
   notes: string;
+  /** The frame's size at rest, with its source and head office's note on it. Absent: not recorded. */
+  size?: KnownSize & { source: string; note: string | null };
 }
 
 const text = (v: unknown): string => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "");
@@ -61,13 +71,16 @@ function dialLabel(v: unknown): string {
  */
 export function machineModelOf(id: string, raw: unknown): MachineModel | null {
   if (!id || !raw || typeof raw !== "object") return null;
-  const r = raw as { brand?: unknown; model?: unknown; movementId?: unknown; dials?: unknown; notes?: unknown };
+  const r = raw as { brand?: unknown; model?: unknown; movementId?: unknown; dials?: unknown; notes?: unknown; size?: unknown };
   const brand = text(r.brand);
   const model = text(r.model);
   const movementId = text(r.movementId);
   if (!brand || !model || !movementId) return null;
   const dials = Array.isArray(r.dials) ? r.dials.map(dialLabel).filter(Boolean) : [];
-  return { id, brand, model, movementId, dials, notes: text(r.notes) };
+  const size = modelSizeOf(r.size);
+  return size
+    ? { id, brand, model, movementId, dials, notes: text(r.notes), size }
+    : { id, brand, model, movementId, dials, notes: text(r.notes) };
 }
 
 /** Which model a roster entry says its unit is, or null. */

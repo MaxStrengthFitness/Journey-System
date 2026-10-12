@@ -31,7 +31,7 @@ vi.mock("../../../firebase", () => ({
 type Write = { kind: string; path: string; data?: Record<string, unknown> };
 const writes: Write[] = [];
 /** When set, the next roster write waits for the test to let it through. */
-const gate = vi.hoisted(() => ({ hold: null as null | Promise<void> }));
+const gate = vi.hoisted(() => ({ hold: null as null | Promise<void>, batch: null as null | Promise<void> }));
 
 vi.mock("firebase/firestore", () => ({
   doc: (...parts: unknown[]) => ({ path: parts.filter((p) => typeof p === "string").join("/") }),
@@ -52,8 +52,10 @@ vi.mock("firebase/firestore", () => ({
   writeBatch: () => {
     const staged: Write[] = [];
     return {
-      set: (t: { path: string }, data: Record<string, unknown>) => staged.push({ kind: "batch", path: t.path, data }),
+      set: (t: { path: string }, data: Record<string, unknown>) => staged.push({ kind: "batch-set", path: t.path, data }),
+      update: (t: { path: string }, data: Record<string, unknown>) => staged.push({ kind: "batch", path: t.path, data }),
       commit: async () => {
+        if (gate.batch) await gate.batch;
         writes.push(...staged);
       },
     };
@@ -203,6 +205,7 @@ afterEach(async () => {
   writes.length = 0;
   toasts.length = 0;
   gate.hold = null;
+  gate.batch = null;
   seeded.calls = 0;
   roster.entries = ROSTER;
 });
@@ -380,6 +383,25 @@ describe("out of service, and why (wave 2, Sep 28 2026)", () => {
     expect(toasts).toEqual(["Leg Press is out of service. Trainers see why."]);
   });
 
+  it("goes through the one writer (roster-status.ts) and never waits on it: the dialog closes and the toast says so before the write lands", async () => {
+    let release = () => {};
+    gate.hold = new Promise<void>((r) => (release = r));
+    try {
+      const el = await mount({ authorName: "Beregond of the Guard" });
+      await act(async () => byText(rowOf(el, "Leg Press")!, "Out of service")!.click());
+      await typeReason("Pin sticks");
+      await act(async () => byText(dialog()!, "Take it out of service")!.click());
+      expect(dialog()).toBeNull();
+      expect(toasts).toEqual(["Leg Press is out of service. Trainers see why."]);
+      expect(writes).toEqual([]);
+      release();
+      await settle();
+      expect(writes.map((w) => [w.kind, w.path])).toEqual([["update", "studios/solon/roster/m-leg-press"]]);
+    } finally {
+      gate.hold = null;
+    }
+  });
+
   it("writes nothing on Cancel", async () => {
     const el = await mount();
     await act(async () => byText(rowOf(el, "Leg Press")!, "Out of service")!.click());
@@ -539,5 +561,94 @@ describe("the walking order", () => {
     await act(async () => byText(el, "Cancel")!.click());
     expect(writes).toEqual([]);
     expect(el.querySelector(".adm-rows")).not.toBeNull();
+  });
+
+  // The studio map (Oct 2026): a walking order being put together is unsaved
+  // work the List | Layout switch asks about, and Save never waits on the
+  // network, so an iPad offline is not left asking about an order it saved.
+  it("is unsaved work while it is being put together, and no longer once Save is tapped, before the batch lands", async () => {
+    const { UnsavedChangesProvider, useUnsavedStatus } = await import("../../unsaved-changes");
+    let status: { anyDirty: () => boolean } | null = null;
+    const Probe = () => {
+      status = useUnsavedStatus();
+      return null;
+    };
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(
+        <UnsavedChangesProvider>
+          <Probe />
+          <StudioInventoryManager studioId="solon" studioName="Solon" hideHeading />
+        </UnsavedChangesProvider>,
+      );
+    });
+    const el = host!;
+    expect(status!.anyDirty()).toBe(false);
+    await act(async () => byText(el, /Walking order/)!.click());
+    await act(async () => byLabel(el, "Move Lumbar Extension up")!.click());
+    expect(status!.anyDirty()).toBe(true);
+    let land!: () => void;
+    gate.batch = new Promise<void>((r) => (land = r));
+    await act(async () => byText(el, "Save order")!.click());
+    // The batch is still on its way: nothing has landed, and nothing is unsaved.
+    expect(writes).toEqual([]);
+    expect(status!.anyDirty()).toBe(false);
+    expect(el.querySelector(".adm-rows")).not.toBeNull();
+    await act(async () => {
+      land();
+      await new Promise((r) => setTimeout(r, 5));
+    });
+    expect(writes.map((w) => w.data?.order)).toEqual([1, 2, 3]);
+  });
+
+  // An update, never a merge set (the studio map's review): the rules check
+  // an update in fewer expressions, and every id comes from the roster.
+  it("puts the order back to the MSF standard without waiting on the network, and says so if it is refused", async () => {
+    const { UnsavedChangesProvider, useUnsavedStatus } = await import("../../unsaved-changes");
+    let status: { anyDirty: () => boolean } | null = null;
+    const Probe = () => {
+      status = useUnsavedStatus();
+      return null;
+    };
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(
+        <UnsavedChangesProvider>
+          <Probe />
+          <StudioInventoryManager studioId="solon" studioName="Solon" hideHeading />
+        </UnsavedChangesProvider>,
+      );
+    });
+    const el = host!;
+    await act(async () => byText(el, /Walking order/)!.click());
+    await act(async () => byLabel(el, "Move Lumbar Extension up")!.click());
+    expect(status!.anyDirty()).toBe(true);
+    let refuse!: (e: Error) => void;
+    gate.batch = new Promise<void>((_, rej) => (refuse = rej));
+    await act(async () => byText(el, "MSF standard")!.click());
+    // Still on its way: the list is back and nothing is unsaved.
+    expect(writes).toEqual([]);
+    expect(status!.anyDirty()).toBe(false);
+    expect(el.querySelector(".adm-rows")).not.toBeNull();
+    expect(toasts).toEqual(["Back to the MSF standard order."]);
+    await act(async () => {
+      refuse(new Error("permission-denied"));
+      await new Promise((r) => setTimeout(r, 5));
+    });
+    expect(toasts).toContain("The order wasn't put back to the MSF standard.");
+  });
+
+  it("says so when the walking order is refused", async () => {
+    const el = await mount();
+    await act(async () => byText(el, /Walking order/)!.click());
+    gate.batch = Promise.reject(new Error("permission-denied"));
+    gate.batch.catch(() => {});
+    await act(async () => byText(el, "Save order")!.click());
+    await settle();
+    expect(toasts).toContain("The walking order couldn't be saved.");
   });
 });

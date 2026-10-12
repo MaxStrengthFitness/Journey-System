@@ -30,6 +30,13 @@
  *     studios/{s}/clientStates, watch/journey and watch/hubMarks
  *   - client notes (journalEntries) with Critical ones on today's clients,
  *     FORD details, standing weeks, announcements and the lab user's bell
+ *   - the studio map (the studio map round, Oct 12 2026; buildFloorMap): the
+ *     twenty Imagine Strength models (machineModels/*) with `modelId` on
+ *     eighteen of the roster's units (two left unsized and off the map),
+ *     floorPlans/current from the practice layout (boxes, places, rev 1, a
+ *     fixed stamp), three remodel plans in d-1 to d-3 (d-2 holding two
+ *     machines still to buy), and machineCare for the twenty with half wiped
+ *     "today" by the held clock
  *
  * THE STUDIO'S CLOCK IS HELD. The seed's "now" is 09:40 Eastern on the day it
  * runs (whatever the wall clock says), and the driver holds every page's
@@ -58,6 +65,10 @@ import { linesOf } from "../../src/features/admin/journey/states";
 import { ALL_STARS_READ_DAYS, CLIENT_STATES, HUB_MARKS_ID, JOURNEY_WATCH_ID, nightStudio } from "../../src/features/admin/journey/nightly";
 import { MACHINE_TOTALS_COLLECTION, MACHINE_TOTALS_DOC_ID, planClientSplit } from "../../src/features/machine-totals/totals";
 import { studioDateKey } from "../../src/lib/studio-time";
+import { IMAGINE_STRENGTH_MODELS, IMAGINE_STRENGTH_SEED_BY, seedModelDocument } from "../../src/features/studio-map/imagine-strength";
+import { practiceLayout } from "../../src/features/studio-map/demo-layout";
+import { CURRENT_ID, LAYOUT_NAME, draftNames, planDocument, type Placement } from "../../src/features/studio-map/layout";
+import { newPlanned } from "../../src/features/studio-map/planned";
 import {
   DATABASE_ID,
   FIRESTORE_PORT,
@@ -200,6 +211,10 @@ const MACHINES = MACHINE_DEFINITION_LIST.filter((m) => m.inStandardSet !== false
   (a, b) => (a.defaultOrder ?? 999) - (b.defaultOrder ?? 999),
 );
 const HOLD = new Set(["m-lumbar", "m-abs"]);
+/** The studio map: each movement's Imagine Strength model, and the two units left unsized (round markers on the map). */
+const IS_MODEL_BY_MOVEMENT = new Map(IMAGINE_STRENGTH_MODELS.map((r) => [r.movementId, r]));
+const UNSIZED = new Set(["m-neck", "m-hip-add"]);
+const modelIdOf = (machineId: string): string | null => (UNSIZED.has(machineId) ? null : (IS_MODEL_BY_MOVEMENT.get(machineId)?.id ?? null));
 function dialLabels(m: (typeof MACHINES)[number]): string[] {
   return (m.settingFields ?? []).map((f) => (f.label || f.key || "").trim()).filter(Boolean);
 }
@@ -308,11 +323,76 @@ function buildStudio(): void {
       basedOn: m.id,
       status: "active",
       order: m.defaultOrder ?? 999,
+      ...(modelIdOf(m.id) ? { modelId: modelIdOf(m.id) } : {}),
       updatedAt: tsDay(TODAY),
       updatedBy: LAB_UID,
     });
     count("machines");
   }
+}
+
+/*
+ * THE STUDIO MAP (the studio map round, Oct 12 2026; design §E). What the
+ * map, clean, arrange and catalog-layout scenarios open: the twenty Imagine
+ * Strength models as the seed script writes them (seedModelDocument), the
+ * practice layout as the editor's "Start from the practice layout" draws it,
+ * written through planDocument (the store's own shape), three remodel plans
+ * and the care record. Half the floor was wiped this morning before the held
+ * clock (09:40), the other half last night, so Cleaning has both looks.
+ */
+function buildFloorMap(): void {
+  for (const row of IMAGINE_STRENGTH_MODELS) {
+    put(`machineModels/${row.id}`, { ...seedModelDocument(row), updatedAt: tsDay(addDays(TODAY, -2)), updatedBy: IMAGINE_STRENGTH_SEED_BY });
+    count("machineModels");
+  }
+  const sizeOf = (machineId: string) => {
+    const id = modelIdOf(machineId);
+    const row = id ? IMAGINE_STRENGTH_MODELS.find((r) => r.id === id) : null;
+    return row ? { lengthMm: row.lengthMm, widthMm: row.widthMm } : null;
+  };
+  // The two unsized units are left off the map (the editor's Not placed yet, and its Sizes line). Placed, each
+  // would be a 2 ft round marker, and one marker under 24 px makes a door show its list instead of the map: on a
+  // 60 ft room that is every iPad in portrait (the round document's residual risks, measured here on Oct 12 2026).
+  // PERF_LAB_MAP_MARKERS=1 places them, to see it.
+  const markersOnMap = process.env.PERF_LAB_MAP_MARKERS === "1";
+  const layout = practiceLayout(
+    MACHINES.filter((m) => markersOnMap || !UNSIZED.has(m.id)).map((m) => ({ machineId: m.id, basedOn: m.id })),
+    sizeOf,
+  );
+  const stamp = ts(new Date(NOW.getTime() - 3 * DAY_MS));
+  put(`studios/${STUDIO_ID}/floorPlans/${CURRENT_ID}`, planDocument(layout, LAYOUT_NAME, 1, LAB_UID, stamp));
+  count("floorPlans");
+  // Remodel 1: the layout with the leg press turned. Remodel 2: two machines still to buy in the middle of the
+  // room. Remodel 3: the layout as it is. Each at rev 1, as a plan made once and never saved again.
+  const turned = layout.placements.map((p): Placement => ("machineId" in p && p.machineId === "m-leg-press" ? { ...p, rotationDeg: (p.rotationDeg + 90) % 360 } : p));
+  const legPress = IS_MODEL_BY_MOVEMENT.get("m-leg-press")!;
+  const row = IS_MODEL_BY_MOVEMENT.get("m-compound-row")!;
+  const toBuy = [
+    newPlanned({ id: "pm-lab0001", movementId: "m-leg-press", modelId: legPress.id, label: legPress.model, typed: null, at: { x: 6096, y: 4572 } }),
+    newPlanned({ id: "pm-lab0002", movementId: "m-compound-row", modelId: row.id, label: row.model, typed: null, at: { x: 8534, y: 4572 } }),
+  ];
+  const plans: [string, Placement[]][] = [
+    ["d-1", turned],
+    ["d-2", [...layout.placements, ...toBuy]],
+    ["d-3", layout.placements],
+  ];
+  for (const [slot, placements] of plans) {
+    put(`studios/${STUDIO_ID}/floorPlans/${slot}`, planDocument({ room: layout.room, placements }, draftNames.draft(slot as "d-1"), 1, LAB_UID, stamp));
+    count("floorPlans");
+  }
+  MACHINES.forEach((m, i) => {
+    const by = TRAINERS[i % TRAINERS.length];
+    const wipedToday = i % 2 === 0;
+    put(`studios/${STUDIO_ID}/machineCare/${m.id}`, {
+      machineId: m.id,
+      lastWipedAt: wipedToday ? NOW.getTime() - (20 + i * 4) * 60000 : easternInstant(addDays(TODAY, -1), 19, 30).getTime(),
+      lastWipedBy: { id: by.id, name: fullName(by) },
+      lastDeepCleanAt: NOW.getTime() - (1 + (i % 9)) * DAY_MS,
+      lastDeepCleanBy: { id: by.id, name: fullName(by) },
+      updatedAt: ts(NOW),
+    });
+    count("machineCare");
+  });
 }
 
 interface LabClient {
@@ -1031,6 +1111,7 @@ async function main(): Promise<void> {
   await getAuth(app).setCustomUserClaims(LAB_UID, { role: "StudioLeader" });
 
   buildStudio();
+  buildFloorMap();
   const clients = buildClients();
   const appts = buildAppointments(clients);
   buildBookings(appts);

@@ -226,7 +226,8 @@ export function autoCheck(check: AutoCheck, facts: SetupFacts): { state: "done" 
       const n = facts.roster.onFloor;
       return n > 0
         ? { state: "done", proof: `${n} ${n === 1 ? "machine" : "machines"} on its floor.` }
-        : { state: "todo", proof: "No machines on its floor yet: its Floor tab adds the standard set." };
+        : // Floor's Map | List switch (the studio map, phase 4): adding machines lives on the List.
+          { state: "todo", proof: "No machines on its floor yet: Floor → List adds the standard set." };
     }
     case "leader": {
       const leaders = leadersOf(facts.trainers, id);

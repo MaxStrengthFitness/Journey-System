@@ -82,7 +82,9 @@ Lakeside (`lab-studio-lakeside`), America/New_York, a Journey cutover 400 days b
 - **The nightly record**, worked out by the nightly job's own pure core over the seeded data: each client's renewal snapshot (`clients/{id}.renewal`, `buildRenewalSnapshot` over the attendance the job reads), then `nightStudio` for `studios/{s}/clientStates`, `watch/journey` and `watch/hubMarks` (All stars). So Operations Today, the Directory and the Hub do the work they do in production.
 - About 600 notes (`journalEntries`), 14 of them Critical on today's or tomorrow's clients; about 250 FORD details; 5 announcements; 25 notifications in the lab user's bell.
 
-`PERF_LAB_CLIENTS` and `PERF_LAB_MAX_LOGS` change the size (`--clients` on `lab.mjs`). Not seeded: InBody, Relay's board and tasks, floor notes, cases, FileMaker imports.
+- **The studio map** (the studio map round, Oct 12 2026): the twenty Imagine Strength models (`machineModels/*`, as `scripts/seed-imagine-strength-models.ts` writes them) with `modelId` on eighteen of the roster's units; `floorPlans/current` from the practice layout (one 60 x 30 ft box with its door, AED, front desk, extinguisher and pillar; rev 1, a fixed stamp); three remodel plans in `d-1` to `d-3`, `d-2` holding two machines still to buy; and `machineCare` for the twenty, half wiped this morning before the held clock and half last night. The two unsized units (the neck and the hip adductor) are left off the map, under the editor's Not placed yet: placed, each is a 2 ft marker, and one marker under 24 px sends every door to its list on an iPad in portrait (`PERF_LAB_MAP_MARKERS=1` places them, to see it).
+
+`PERF_LAB_CLIENTS` and `PERF_LAB_MAX_LOGS` change the size (`--clients` on `lab.mjs`). Not seeded: InBody, Relay's board and tasks (so the wipe chore has no rows: a wipe writes the machine and an upkeep log entry), floor notes, cases, FileMaker imports.
 
 ## Profiles, and the slowdown calibrated to the PC
 
@@ -112,6 +114,11 @@ Every profile but `floor` adds 60 ms of latency at 20 Mbps down / 10 up (gym Wi-
 | f `ops` | The trainer menu, Open Operations, Today; back to the Hub, the Client tab, "Pat" typed in the search | **wall = Today settled**: nothing anywhere on the Operations page still "Reading..." and no spinner. Plus Today first drawn, the Directory drawn and settled, results after the last key |
 | g `scroll` | The Hub's grid scrolled down and up three times, the Directory once down, by script, 36 px a frame | frames the main thread missed, per pass |
 | h `live` (opt-in: `--scenarios live`) | The Directory left open across a minute tick, then one client document changed (the emulator's owner token, a field no screen reads, as a webhook or the nightly job would), then the same on the Hub | long tasks per phase (`lt.directoryIdle`, `lt.directoryWrite`, `lt.toHub`, `lt.hubWrite`) |
+| m1 `map` (opt-in, below) | My Studio from the bottom bar -> Machines, which opens on the map; a tap on the leg press -> its card at Set up; then List and Map again, and Cleaning on | the map drawn, from the Machines tap (`openToMapMs`); `tapToCardMs`; the page's DOM nodes on the map; Listen targets the map view (`mapViewTargetsNet`), the card and Cleaning add |
+| m2 `clean` | Relay's floor (opens in Cleaning) -> a tap on a machine still to wipe -> **Mark all** | Mark all to every tick drawn (`markAllToTicksMs`); `tapToTickMs`; `markAllAckMs` (the database's answer, apart, like Finish) |
+| m3 `arrange` | My Studio -> Machines -> Arrange the floor; the Machines tool; the chest press dragged onto the chest fly (30 moves, one a frame); The room; the box selected and its right edge pulled in (30 moves); Save; Done | the editor's drawing, from the tap (`openToEditorMs`); missed frames and the 95th-percentile frame of each drag; `dropToOverlapsMs` (the drop to the overlap line drawn, less the 120 ms the editor waits on purpose); `saveAckMs`; the page's DOM nodes in the editor |
+| m4 `catalog-layout` | Learning -> Catalog -> the floor lens -> Map -> a tap on the leg press -> the card at Learn -> Open its Catalog page | the card's Learn drawn, from the tap (`layoutToCardMs`); `cardToPageMs` |
+| m5 `catalog-layout-relay` | A machine's name in Relay's map list -> the card at Clean; Maintain unfolded and folded; Set up unfolded and folded | the card drawn (`relayTapToCardMs`); Listen targets at Clean (net), added by Maintain and Set up, and taken back when folded |
 
 ### How a number is taken
 
@@ -125,6 +132,14 @@ Every profile but `floor` adds 60 ms of latency at 20 Mbps down / 10 up (gym Wi-
 - **Phases.** client, session, ops and live name their phases (session: peek, start, onBriefing, toNowBar, sets, menu, finish, wrapUp; ops: open, settle, backToHub, directory, search). Each phase's long tasks are a step (`lt.<phase>`, the tasks that began in it), and in the profiled rep the report adds "By phase": each phase's CPU and its top functions, from the profile's samples between the phase's page times (matched to the profile's clock at Profiler.start, so a few ms either way).
 - **The timed reps run without the profiler.** The profiled rep (one per profile, kept out of the medians) is what "Where the time went" reads. A function's line there is where it is DEFINED, not the hot line (the bundle is minified to one line, so V8's line ticks can't help), and forced layout counts as the calling function's own time.
 - `--bare` drops every page instrument (no observers; only the clock shim stays), to measure what they cost: compare a `--bare` desktop run with a normal one. On Oct 6 2026 they cost about 1 to 2% of an open at 1x (cold Start tap to Hub 4,055 ms bare against 4,150, warm 835 against 854, after-deploy 2,230 against 2,258). The clock shim itself shows in the profile as `(LabDate)`, about 30 ms of a 5 s open at 3x.
+
+The studio map's scenarios (m1 to m5, `MAP_SCENARIOS` in `run.mjs`) are opt-in and run in that order, each starting where the one before left the app, on the iPad portrait profiles:
+
+```powershell
+node harness/perf-lab/lab.mjs all --profiles ipad10-portrait,ipadmini-portrait --scenarios map,clean,arrange,catalog-layout,catalog-layout-relay
+```
+
+The report adds "The studio map's targets" under the headline (the design's targets, each met or over). A **Listen target** is a query the page asks the server to keep live (an `addTarget` on the Listen channel; the SDK shares one between listeners on the same query), counted from the page's requests. The drags are pointer events dispatched on the drawing's `<svg>`, one an animation frame: they measure the app's work per frame, not Safari's touch path, and headless Chrome's frames come faster than 60 a second, so a frame counts as missed only past 16.7 ms.
 
 Every cell in the report is the median of the timed reps, then [min-max]; **!** flags a spread over 15% of the median.
 

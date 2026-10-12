@@ -17,6 +17,7 @@
  *
  * Options for all/run: --profiles ipad10-portrait,desktop  --reps 3
  *   --scenarios cold,warm,relaunch,afterdeploy,idle,client,session,ops,scroll
+ *   (opt-in: live; the studio map's map,clean,arrange,catalog-layout,catalog-layout-relay)
  *   --idleMs 70000  --no-profile-rep  --bare  --latency 0
  *   --build-a <name|dir> --build-b <name|dir>   two builds, alternated rep by rep, with deltas
  *   --out <folder> (default PERF_LAB_OUT, else <temp>/journey-perf-lab)

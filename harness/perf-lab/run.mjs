@@ -73,6 +73,12 @@ const NETWORK = { latencyMs: 60, downMbps: 20, upMbps: 10 };
 const BLOCKED_URLS = ["https://*"];
 
 export const SCENARIOS = ["cold", "warm", "relaunch", "afterdeploy", "idle", "client", "session", "ops", "scroll"];
+/**
+ * The studio map's scenarios (the studio map round, Oct 12 2026; design §E), opt-in and in this order (each
+ * starts where the one before left the app): run them with
+ * `--scenarios map,clean,arrange,catalog-layout,catalog-layout-relay --profiles ipad10-portrait,ipadmini-portrait`.
+ */
+export const MAP_SCENARIOS = ["map", "clean", "arrange", "catalog-layout", "catalog-layout-relay"];
 
 /* -- Args -- */
 
@@ -223,6 +229,8 @@ class Session {
     /** Firestore saying its disk cache could not start (it then runs on memory and downloads everything again). */
     this.cacheFallbacks = 0;
     this.net = { requests: 0, bytes: 0 };
+    /** Listen targets the page asked for and gave back (addTarget / removeTarget on the Listen channel). */
+    this.targets = { added: 0, removed: 0 };
     this.calibration = null;
   }
 
@@ -248,6 +256,16 @@ class Session {
     page.on("Network.dataReceived", (p) => {
       this.net.bytes += p.encodedDataLength || 0;
       this.lastDataAt = Date.now();
+    });
+    // The studio map's listener counts (Oct 12 2026): every query the page starts or stops listening to goes up
+    // the Listen channel as an addTarget or a removeTarget. The SDK shares one target between listeners on the
+    // same query, so this counts what the server is asked to keep live, which is what costs.
+    page.on("Network.requestWillBeSent", (p) => {
+      const u = p.request?.url || "";
+      if (p.request?.method !== "POST" || !/Firestore\/Listen\/channel/.test(u)) return;
+      const body = p.request.postData || "";
+      this.targets.added += (body.match(/addTarget/g) || []).length;
+      this.targets.removed += (body.match(/removeTarget/g) || []).length;
     });
     if (process.env.PERF_LAB_TRACE) {
       const fsT = await import("node:fs");
@@ -675,6 +693,134 @@ async function signInUnmeasured(s, ctx) {
   await s.settle();
 }
 
+/* -- The studio map's helpers (Oct 12 2026) -- */
+
+/** A machine on a map's drawing, by its roster id, inside `scope` (a selector for the map's root). */
+const mapMachine = (scope, id) => css(`${scope} svg .smap-m[data-id="${id}"]`);
+/** The nodes under the outermost element matching `sel` (the map's or the editor's own share of the page). */
+const subtreeNodes = (sel) =>
+  `[...document.querySelectorAll(${JSON.stringify(sel)})].filter((e) => !e.parentElement || !e.parentElement.closest(${JSON.stringify(sel)})).reduce((n, e) => n + 1 + e.getElementsByTagName("*").length, 0)`;
+const cardPartOpen = (part) => css(`.mdc .mdc-part[data-part="${part}"] .mdc-part__body`);
+
+/** Listen targets live now, as { added, removed } so far. */
+const targetsNow = (s) => ({ ...s.targets });
+/** What the server was asked to keep live since `before`: added, removed, and the net. Read after the page went quiet and a second for the requests to leave. */
+async function targetsSince(s, before) {
+  await s.settle(600, 10000);
+  await sleep(1200);
+  const added = s.targets.added - before.added;
+  const removed = s.targets.removed - before.removed;
+  return { added, removed, net: added - removed };
+}
+
+/** My Studio from the bottom bar, then a section from its menu (no-op when already on it). */
+async function myStudioSection(s, label) {
+  if (!(await s.ev(`!!document.querySelector(".msh__sect")`))) {
+    await s.tap(byText("button", "My Studio", { exact: true }), "My Studio");
+    await s.must(css(".msh__sect"), "My Studio's header", 30000);
+  }
+  if (await s.ev(`(document.querySelector(".msh__sect-name") || {}).textContent === ${JSON.stringify(label)}`)) return null;
+  await s.tap(css(".msh__sect"), "the section menu");
+  await s.must(byText('[role="menuitemradio"]', label, { exact: true }), "the section menu's items");
+  await s.frames();
+  return s.tap(byText('[role="menuitemradio"]', label, { exact: true }), label);
+}
+
+/**
+ * Relay's floor, open, on its map. It is folded until the floor asks for a hand, and whether it asks waits on
+ * the care read, so the head is tapped only once the page has gone quiet, and again if a tap fell early.
+ */
+async function openRelayFloor(s, scope) {
+  await myStudioSection(s, "Relay");
+  await s.must(css(".fm__head"), "Relay's floor", 30000);
+  await s.settle(600, 10000);
+  for (let i = 0; i < 3; i += 1) {
+    if (await s.ev(`document.querySelector(".fm__head").getAttribute("aria-expanded") === "true"`)) break;
+    await s.frames();
+    await s.tap(css(".fm__head"), "The floor");
+    await s.waitFor(`document.querySelector(".fm__head").getAttribute("aria-expanded") === "true"`, 3000);
+  }
+  const mapBtn = `[...document.querySelectorAll('.fm [aria-label="The floor as"] .fm__view')].find((b) => b.textContent.trim() === "Map")`;
+  await s.must(`${mapBtn} || document.querySelector(${JSON.stringify(scope)})`, "the floor's Map | Tiles", 30000);
+  if (await s.ev(`(() => { const b = ${mapBtn}; return !!b && b.getAttribute("aria-pressed") !== "true"; })()`)) await s.tap(mapBtn, "Map");
+  await s.must(css(`${scope} svg .smap-m`), "Relay's map, drawn", 45000);
+}
+
+/** The card closed (the Context Panel's Close), and gone. */
+async function closeCard(s) {
+  if (!(await s.ev(`!!document.querySelector(".mdc")`))) return;
+  await s.tap(css(".cp__close"), "Close the card").catch(() => s.key("Escape", "Escape", 27));
+  await s.must(`!document.querySelector(".mdc")`, "the card closed", 10000);
+}
+
+/**
+ * A drag driven in the page, one pointermove an animation frame, the way a finger arrives (the editor
+ * takes one move a frame): pointerdown at `from`, `moves` steps to `to`, pointerup. Synthetic pointer
+ * events on the drawing's <svg> (the app's handlers are the svg's), so this measures the app's work per
+ * frame, not Safari's touch path (AJ's real-iPad pass). Frames the main thread missed are counted as the
+ * scroll scenario counts them. With `watch` (a machine's id), it also times the drop: from the pointerup to
+ * the paint after that machine's aria-label changed (the overlap checks' line arriving, 120 ms after a
+ * drop by design).
+ */
+function dragInPage(s, svgSel, from, to, { moves = 30, watch = null } = {}) {
+  return s.ev(
+    `new Promise((res) => {
+      const svg = document.querySelector(${JSON.stringify(svgSel)});
+      if (!svg) return res(null);
+      const fire = (type, x, y) => svg.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, pointerId: 7, pointerType: "touch", isPrimary: true, button: 0, buttons: type === "pointerup" ? 0 : 1 }));
+      const from = ${JSON.stringify(from)}, to = ${JSON.stringify(to)}, N = ${moves};
+      const watched = ${watch ? `svg.querySelector('.smap-m[data-id="${watch}"]')` : "null"};
+      const ariaBefore = watched ? watched.getAttribute("aria-label") : null;
+      fire("pointerdown", from.x, from.y);
+      const frames = []; let last = null; let i = 0;
+      const done = () => {
+        const releaseAt = performance.now();
+        fire("pointerup", to.x, to.y);
+        const budget = 1000 / 60;
+        const ft = frames.slice(1);
+        const missed = ft.reduce((a, d) => a + Math.max(0, Math.round(d / budget) - 1), 0);
+        const sorted = [...ft].sort((a, b) => a - b);
+        const out = { moves: N, frames: ft.length, missedFrames: missed, worstFrameMs: Math.round(sorted[sorted.length - 1] || 0), p95FrameMs: Math.round(sorted[Math.floor(sorted.length * 0.95)] || 0), releaseAt };
+        if (!watched) return res(out);
+        let settled = false;
+        const mo = new MutationObserver(() => {
+          const el = svg.querySelector('.smap-m[data-id="${watch ?? ""}"]');
+          if (settled || !el || el.getAttribute("aria-label") === ariaBefore) return;
+          settled = true; mo.disconnect();
+          requestAnimationFrame(() => { const ch = new MessageChannel(); ch.port1.onmessage = () => res({ ...out, overlapsAt: performance.now(), ariaAfter: el.getAttribute("aria-label") }); ch.port2.postMessage(0); });
+        });
+        mo.observe(svg, { subtree: true, attributes: true, attributeFilter: ["aria-label"], childList: true });
+        setTimeout(() => { if (!settled) { settled = true; mo.disconnect(); res({ ...out, overlapsAt: -1 }); } }, 5000);
+      };
+      const tick = (now) => {
+        if (last !== null) frames.push(now - last);
+        last = now; i += 1;
+        const t = i / N;
+        fire("pointermove", from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
+        if (i < N) requestAnimationFrame(tick);
+        else requestAnimationFrame((n) => { frames.push(n - last); done(); });
+      };
+      requestAnimationFrame((n) => { last = n; requestAnimationFrame(tick); });
+    })`,
+    60000,
+  );
+}
+
+/** A tap in the page (pointerdown and up at one point, no move) on the drawing's <svg>: how the room tool selects a box. */
+function tapInPage(s, svgSel, at) {
+  return s.ev(
+    `(() => { const svg = document.querySelector(${JSON.stringify(svgSel)}); if (!svg) return false; for (const type of ["pointerdown", "pointerup"]) svg.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, clientX: ${at.x}, clientY: ${at.y}, pointerId: 8, pointerType: "touch", isPrimary: true, button: 0, buttons: type === "pointerup" ? 0 : 1 })); return true; })()`,
+  );
+}
+
+/** An element's centre in the page's coordinates (after scrolling it into view). */
+const centreOf = (s, finder) =>
+  s.ev(`(() => { const el = ${finder}; if (!el) return null; el.scrollIntoView({ block: "center", inline: "center" }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; })()`);
+
+/** The page's clock when every write this page made has reached the emulator (from `t`). */
+const writesAckedAt = (s, timeoutMs = 30000) =>
+  s.ev(`Promise.race([window.__perfLab.waitForWrites().then(() => performance.now()), new Promise((r) => setTimeout(() => r(-1), ${timeoutMs}))])`, timeoutMs + 15000);
+
 /* -- The scenarios -- */
 
 const SCENARIO_RUNS = {
@@ -1021,6 +1167,253 @@ const SCENARIO_RUNS = {
           directoryMissedFrames: dir?.missedFrames ?? null,
           directoryWorstFrameMs: dir?.worstFrameMs ?? null,
           directoryP95FrameMs: dir?.p95FrameMs ?? null,
+        },
+      };
+    });
+  },
+
+  /*
+   * THE STUDIO MAP (Oct 12 2026; design §E). Opt-in (MAP_SCENARIOS), in that order. The seed draws the
+   * practice layout with the twenty Imagine Strength sizes (two units unsized), three remodel plans, and
+   * half the floor wiped this morning.
+   */
+
+  /** My Studio -> Machines (opens on the map) -> a tap -> the card (Set up). Then the map's own listeners, and Cleaning's. */
+  async map(s) {
+    await s.must(hubReady, "the Hub");
+    const scope = '.smap-map[data-door="my-studio"]';
+    const drawn = `document.querySelector(${JSON.stringify(scope + " svg .smap-m")})`;
+    const r = await measured(s, async () => {
+      const tBar = await s.tap(byText("button", "My Studio", { exact: true }), "My Studio");
+      await s.must(css(".msh__sect"), "My Studio's header", 30000);
+      const tMachines = (await myStudioSection(s, "Machines")) ?? tBar;
+      const map = await s.must(drawn, "the map, drawn", 45000);
+      await s.settle(600, 10000);
+      const mapNodes = await s.ev(`document.getElementsByTagName("*").length`);
+      const mapOwnNodes = await s.ev(subtreeNodes(".smap-map"));
+      // A tap on the leg press (sized, on the far wall) -> the card at Set up.
+      const beforeCard = targetsNow(s);
+      const tTap = await s.tap(mapMachine(scope, "m-leg-press"), "the leg press on the map");
+      const card = await s.must(cardPartOpen("setup"), "the card, Set up open", 30000);
+      const cardTargets = await targetsSince(s, beforeCard);
+      await closeCard(s);
+      // The map's own listeners: List, then Map again.
+      await s.tap(byText('[role="tab"]', "List", { exact: true }), "List");
+      await s.must(`!document.querySelector(${JSON.stringify(scope)})`, "the list", 15000);
+      await s.settle(600, 10000);
+      const beforeMap = targetsNow(s);
+      await s.tap(byText('[role="tab"]', "Map", { exact: true }), "Map");
+      await s.must(drawn, "the map again", 30000);
+      const mapView = await targetsSince(s, beforeMap);
+      // Cleaning on My Studio: the task reads it adds.
+      const beforeClean = targetsNow(s);
+      const tClean = await s.tap(byText(`${scope} .smap-mode__btn`, "Cleaning", { exact: true }), "Cleaning");
+      const cleaningLine = await s.must(css(`${scope} .smap-head__line`), "Cleaning's head line", 15000);
+      const cleaning = await targetsSince(s, beforeClean);
+      await s.tap(byText(`${scope} .smap-mode__btn`, "Look up", { exact: true }), "Look up");
+      return {
+        phases: [["open", tMachines], ["card", tTap], ["cleaning", tClean]],
+        wallMs: round(map - tMachines),
+        steps: {
+          openToMapMs: round(map - tMachines),
+          fromBottomBarMs: round(map - tBar),
+          tapToCardMs: round(card - tTap),
+          cleaningLineMs: round(cleaningLine - tClean),
+          mapDomNodes: mapNodes,
+          mapOwnNodes,
+          mapViewTargetsNet: mapView.net,
+          cardTargetsNet: cardTargets.net,
+          cleaningTargetsNet: cleaning.net,
+        },
+      };
+    });
+    return r;
+  },
+
+  /** Relay's floor (opens in Cleaning) -> tap one machine (its tick drawn) -> Mark all (every tick drawn; the database's answer apart). */
+  async clean(s) {
+    const scope = '.smap-map[data-door="relay"]';
+    await openRelayFloor(s, scope);
+    const cleaningBtn = byText(`${scope} .smap-mode__btn`, "Cleaning", { exact: true });
+    const firstTime = await s.ev(`(${cleaningBtn}).getAttribute("aria-pressed") === "true"`);
+    if (!firstTime) await s.tap(cleaningBtn, "Cleaning");
+    await s.must(css(`${scope} svg .smap-m .smap-m__open`), "a machine still to wipe", 15000);
+    await s.settle(600, 10000);
+    return measured(s, async () => {
+      const id = await s.ev(
+        `(() => { const g = [...document.querySelectorAll(${JSON.stringify(scope + " svg .smap-m")})].find((x) => x.querySelector(".smap-m__open") && !x.classList.contains("smap-m--marker")); return g ? g.dataset.id : null; })()`,
+      );
+      if (!id) throw new Error("no machine left to wipe");
+      const tTap = await s.tap(mapMachine(scope, id), "a machine to wipe");
+      const tick = await s.must(css(`${scope} svg .smap-m[data-id="${id}"] .smap-m__wiped`), "its tick", 15000);
+      await s.settle(600, 10000);
+      const left = await s.ev(`document.querySelectorAll(${JSON.stringify(scope + " svg .smap-m .smap-m__open")}).length`);
+      const tAll = await s.tap(byText(`${scope} .smap-head button`, "Mark all"), "Mark all");
+      const acked = writesAckedAt(s);
+      const all = await s.must(`!document.querySelector(${JSON.stringify(scope + " svg .smap-m .smap-m__open")})`, "every tick", 30000);
+      const ack = await acked;
+      return {
+        phases: [["tap", tTap], ["markAll", tAll]],
+        wallMs: round(all - tAll),
+        steps: {
+          openedInCleaning: firstTime ? 1 : 0,
+          tapToTickMs: round(tick - tTap),
+          markedByMarkAll: left,
+          markAllToTicksMs: round(all - tAll),
+          markAllAckMs: ack > 0 ? round(ack - tAll) : null,
+          mapDomNodes: await s.ev(`document.getElementsByTagName("*").length`),
+        },
+      };
+    });
+  },
+
+  /** My Studio -> Machines -> Arrange the floor -> a machine dragged onto another (30 moves) -> The room -> a box edge dragged -> Save. */
+  async arrange(s) {
+    await myStudioSection(s, "Machines");
+    await s.must(css('.smap-map[data-door="my-studio"] svg .smap-m'), "the map", 45000);
+    await s.settle(600, 10000);
+    const svg = ".smap-frame--arrange svg.smap-svg";
+    return measured(s, async () => {
+      const tArrange = await s.tap(byText("button", "Arrange the floor", { exact: true }), "Arrange the floor");
+      const editor = await s.must(css(`${svg} .smap-m`), "the editor's drawing", 45000);
+      await s.settle(600, 10000);
+      const editorNodes = await s.ev(`document.getElementsByTagName("*").length`);
+      const editorOwnNodes = await s.ev(subtreeNodes(".smap-editor"));
+      await s.tap(byText(".smap-tool__btn", "Machines", { exact: true }), "the Machines tool");
+      await s.must(`(${byText(".smap-tool__btn", "Machines", { exact: true })}).getAttribute("aria-pressed") === "true"`, "the Machines tool on", 10000);
+      await s.settle(400, 8000);
+      // The chest press dragged onto the chest fly: an overlap the checks mark once it settles.
+      const a = await centreOf(s, css(`${svg} .smap-m[data-id="m-chest-press"]`));
+      const b = await centreOf(s, css(`${svg} .smap-m[data-id="m-chest-fly"]`));
+      if (!a || !b) throw new Error("the two machines to drag aren't on the drawing");
+      const tDrag = await s.now();
+      const drag = await dragInPage(s, svg, a, b, { moves: 30, watch: "m-chest-press" });
+      if (!drag) throw new Error("the drag found no drawing");
+      await s.settle(400, 8000);
+      // The room tool: the box selected, its right edge pulled in about 3 ft.
+      await s.tap(byText(".smap-tool__btn", "The room", { exact: true }), "The room");
+      await s.must(css(`${svg} .smap-box`), "the room's boxes", 10000);
+      const box = await centreOf(s, css(`${svg} .smap-box`));
+      await tapInPage(s, svg, { x: box.x - box.w * 0.15, y: box.y });
+      await s.must(css(`${svg} .smap--sel [data-edge="right"] .smap-handle--hit`), "the box's handles", 10000);
+      const edge = await centreOf(s, css(`${svg} .smap--sel [data-edge="right"] .smap-handle--hit`));
+      const tEdge = await s.now();
+      const pull = await dragInPage(s, svg, { x: edge.x, y: edge.y }, { x: edge.x - Math.max(30, box.w * 0.05), y: edge.y }, { moves: 30 });
+      await s.settle(400, 8000);
+      const tSave = await s.tap(byText("button", "Save", { exact: true }), "Save");
+      const acked = await writesAckedAt(s);
+      const saved = await s.waitFor(`document.body.textContent.includes("Layout saved.")`, 5000);
+      await s.settle(400, 8000);
+      await s.tap(byText("button", "Done", { exact: true }), "Done");
+      await s.must(css('.smap-map[data-door="my-studio"] svg .smap-m'), "the map again", 30000);
+      return {
+        phases: [["open", tArrange], ["drag", tDrag], ["edge", tEdge], ["save", tSave]],
+        wallMs: round(editor - tArrange),
+        steps: {
+          openToEditorMs: round(editor - tArrange),
+          editorDomNodes: editorNodes,
+          editorOwnNodes,
+          dragFrames: drag.frames,
+          dragMissedFrames: drag.missedFrames,
+          dragP95FrameMs: drag.p95FrameMs,
+          dragWorstFrameMs: drag.worstFrameMs,
+          // The overlap line arrives 120 ms after a drop by design (LayoutView: "once after a change settles"); this is the rest.
+          dropToOverlapsMs: drag.overlapsAt > 0 ? round(drag.overlapsAt - drag.releaseAt - 120) : null,
+          dropToOverlapsRawMs: drag.overlapsAt > 0 ? round(drag.overlapsAt - drag.releaseAt) : null,
+          edgeFrames: pull?.frames ?? null,
+          edgeMissedFrames: pull?.missedFrames ?? null,
+          edgeP95FrameMs: pull?.p95FrameMs ?? null,
+          edgeWorstFrameMs: pull?.worstFrameMs ?? null,
+          saveSaid: saved > 0 ? 1 : 0,
+          saveAckMs: acked > 0 ? round(acked - tSave) : null,
+        },
+      };
+    });
+  },
+
+  /** Learning -> Catalog -> the floor lens -> Map -> a tap -> the card (Learn) -> Open its Catalog page. */
+  async "catalog-layout"(s) {
+    const scope = ".smap-read";
+    return measured(s, async () => {
+      // A toast from the scenario before (Layout saved, with its Undo) can sit over the bottom bar for a few
+      // seconds: the tap is tried again until Learning answers.
+      let tLearning = null;
+      for (let i = 0; i < 4; i += 1) {
+        tLearning = await s.tap(byText("button", "Learning", { exact: true }), "Learning");
+        if ((await s.waitFor(byText("button", "Catalog", { exact: true }), 4000)) > 0) break;
+      }
+      await s.must(byText("button", "Catalog", { exact: true }), "Learning's sections", 30000);
+      await s.frames();
+      await s.tap(byText("button", "Catalog", { exact: true }), "Catalog");
+      await s.must(css('.mcat-lens[aria-label="Which machines"]'), "the Catalog's lenses", 30000);
+      const floorLens = `[...document.querySelectorAll('.mcat-lens[aria-label="Which machines"] .mcat-lens__btn')].find((b) => /'s floor$/.test(b.textContent.trim()))`;
+      if (await s.ev(`(${floorLens}).getAttribute("aria-pressed") !== "true"`)) await s.tap(floorLens, "the floor lens");
+      const mapBtn = `[...document.querySelectorAll('.mcat-lens[aria-label="The floor as"] .mcat-lens__btn')].find((b) => b.textContent.trim() === "Map")`;
+      await s.must(mapBtn, "the floor's Map | List", 30000);
+      const tMap = await s.tap(mapBtn, "Map");
+      const map = await s.must(css(`${scope} svg .smap-m`), "the Catalog's map", 45000);
+      await s.settle(600, 10000);
+      const name = await s.ev(`(${mapMachine(scope, "m-leg-press")}).getAttribute("aria-label").split(",")[0]`);
+      const tTap = await s.tap(mapMachine(scope, "m-leg-press"), "the leg press");
+      const card = await s.must(cardPartOpen("learn"), "the card, Learn open", 30000);
+      await s.settle(600, 10000);
+      const tPage = await s.tap(byText(".mdc button", "Open its Catalog page", { exact: true }), "Open its Catalog page");
+      const page = await s.must(
+        `!document.querySelector(".mdc") && [...document.querySelectorAll("h1")].some((h) => h.textContent.trim().includes(${JSON.stringify(name)}))`,
+        "the machine's Catalog page",
+        30000,
+      );
+      return {
+        phases: [["toMap", tLearning], ["card", tTap], ["page", tPage]],
+        wallMs: round(card - tTap),
+        steps: {
+          learningToMapMs: round(map - tLearning),
+          mapTapToDrawnMs: round(map - tMap),
+          layoutToCardMs: round(card - tTap),
+          cardToPageMs: round(page - tPage),
+        },
+      };
+    });
+  },
+
+  /** A card from Relay's map (Clean open), then Maintain and Set up unfolded and folded: the listeners each adds. */
+  async "catalog-layout-relay"(s) {
+    const scope = '.smap-map[data-door="relay"]';
+    await openRelayFloor(s, scope);
+    await s.must(css(`${scope} .smap-clean__name`), "Relay's map and its list", 45000);
+    await s.settle(600, 10000);
+    const toggle = (part) => css(`.mdc .mdc-part[data-part="${part}"] .mdc-part__head`);
+    return measured(s, async () => {
+      const before = targetsNow(s);
+      const tCard = await s.tap(css(`${scope} .smap-clean__name`), "a machine's name");
+      const card = await s.must(cardPartOpen("clean"), "the card, Clean open", 30000);
+      const atClean = await targetsSince(s, before);
+      const b1 = targetsNow(s);
+      const tMaintain = await s.tap(toggle("maintain"), "Maintain");
+      await s.must(cardPartOpen("maintain"), "Maintain open", 15000);
+      const maintain = await targetsSince(s, b1);
+      const b2 = targetsNow(s);
+      await s.tap(toggle("maintain"), "Maintain, folded");
+      await s.must(`!(${cardPartOpen("maintain")})`, "Maintain folded", 15000);
+      const maintainFolded = await targetsSince(s, b2);
+      const b3 = targetsNow(s);
+      const tSetup = await s.tap(toggle("setup"), "Set up");
+      await s.must(cardPartOpen("setup"), "Set up open", 15000);
+      const setup = await targetsSince(s, b3);
+      const b4 = targetsNow(s);
+      await s.tap(toggle("setup"), "Set up, folded");
+      const setupFolded = await targetsSince(s, b4);
+      await closeCard(s);
+      return {
+        phases: [["card", tCard], ["maintain", tMaintain], ["setup", tSetup]],
+        wallMs: round(card - tCard),
+        steps: {
+          relayTapToCardMs: round(card - tCard),
+          atCleanTargetsNet: atClean.net,
+          maintainTargetsAdded: maintain.added,
+          maintainFoldedTargetsRemoved: maintainFolded.removed,
+          setupTargetsAdded: setup.added,
+          setupFoldedTargetsRemoved: setupFolded.removed,
         },
       };
     });

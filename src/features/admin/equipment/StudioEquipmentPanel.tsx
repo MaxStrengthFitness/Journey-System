@@ -15,7 +15,8 @@
  */
 
 import { useMemo, useState } from "react";
-import { Dumbbell, Sparkles, Wrench } from "lucide-react";
+import { Dumbbell, Map as MapIcon, Sparkles, Wrench } from "lucide-react";
+import { auth } from "../../../firebase";
 import type { Studio, Trainer } from "../../../types";
 import { useStudioMachines } from "../../../hooks/useStudioMachines";
 import { useMachineCatalog } from "../../../hooks/useMachineCatalog";
@@ -42,15 +43,33 @@ import { DEFAULT_UPKEEP_POLICY, tallyUpkeep, worstStatus } from "../upkeep/upkee
 import { studioDateKey } from "../../../lib/studio-time";
 import { writesForStudioPerRules } from "../../learning/permissions";
 import { outOfServiceOfEntry, outOfServiceShort } from "../../catalog/out-of-service";
+import { leadsHere } from "../../relay/leads";
+import { LazyFloorMapView, LazyLayoutView } from "../../studio-map/lazy";
+import { useFloorPlan } from "../../studio-map/hooks";
+import { reconcile } from "../../studio-map/layout";
+import { CardFrame } from "../../machine-card/CardFrame";
+import { MachineCard } from "../../machine-card/MachineCard";
+import type { MapMode } from "../../machine-card/parts";
+import { MachineCareProvider } from "../../relay/board/machine-care-context";
+import "../admin.css";
+import { usePhone } from "../../phone/device";
+import { DEMO_STUDIO_ID } from "../../demo-mode/constants";
+import { UnsavedChangesScope, useLeaveScope } from "../../unsaved-changes";
 
 export interface StudioEquipmentPanelProps {
   studio: Studio;
   authTrainer?: Trainer | null;
+  /** Everyone the page already lists, so the floor editor can say who saved a newer copy. */
+  trainers?: readonly Trainer[];
+  /** The card's Learn: Admins → Standard → Machines → that catalog machine's page (the catalog editor). */
+  onOpenCatalogMachine?: (catalogMachineId: string) => void;
 }
 
 export function StudioEquipmentPanel({
   studio,
   authTrainer,
+  trainers,
+  onOpenCatalogMachine,
 }: StudioEquipmentPanelProps) {
   const studioId = studio.id ?? "";
   const { success: toastSuccess } = useToast();
@@ -78,8 +97,50 @@ export function StudioEquipmentPanel({
   const [editing, setEditing] = useState<string | null>(null);
   const [upkeepFor, setUpkeepFor] = useState<string | null>(null);
   const [showInventory, setShowInventory] = useState(false);
-  const { events: upkeepEvents } = useStudioUpkeep(studioId);
+  const upkeepRead = useStudioUpkeep(studioId);
+  const upkeepEvents = upkeepRead.events;
+  // Arrange the floor (the studio map, Oct 2026): the same editor My Studio →
+  // Machines opens, in place of this list. Administrators lead every studio.
+  // Leaving it while it holds unsaved work asks (its own leave scope).
+  const phone = usePhone();
+  const [arranging, setArranging] = useState(false);
+  const viewScope = useLeaveScope();
+  const canArrange = leadsHere(authTrainer ?? null, studioId);
   const todayKey = studioDateKey(new Date()) ?? "";
+  /*
+   * THE MAP (the studio map, phase 4): the same map and the same card as My
+   * Studio → Machines, the card's door "admins" (Set up first). Map first
+   * once the studio has a map with a machine on it; the list one tap away;
+   * a phone keeps the list. Always opens in Look up (only Relay remembers
+   * Cleaning).
+   */
+  const layout = useFloorPlan(studioId, { enabled: !phone && Boolean(studioId) });
+  const placed = useMemo(
+    () =>
+      layout.state === "ready" && layout.plan
+        ? reconcile(
+            layout.plan,
+            rosterEntries.filter((e) => e.status !== "inactive").map((e) => ({ machineId: e.machineId, name: "", code: "", status: e.status })),
+          ).placed.length
+        : 0,
+    [layout.state, layout.plan, rosterEntries],
+  );
+  const [picked, setPicked] = useState<"map" | "list" | null>(null);
+  const shownView: "map" | "list" = phone ? "list" : (picked ?? (placed > 0 ? "map" : "list"));
+  const pickView = (next: "map" | "list") => {
+    if (next !== shownView) viewScope.guard(() => setPicked(next));
+  };
+  // Draw or Arrange only once the layout read has answered: never "Draw the floor" over a map still loading.
+  const mapAnswer: "ready" | "empty" | null = layout.state === "ready" ? "ready" : layout.state === "empty" ? "empty" : null;
+  const cardScope = useLeaveScope();
+  const [card, setCard] = useState<{ machineId: string; mode: MapMode } | null>(null);
+  // Learn's door: the catalog editor's page, which only a machine from the MSF catalog has.
+  const cardEntry = card ? rosterEntries.find((e) => e.machineId === card.machineId) : undefined;
+  const cardCatalogId = cardEntry && cardEntry.source === "catalog" ? ((cardEntry as { basedOn?: string }).basedOn ?? null) : null;
+  const openCard = (machineId: string, mode: MapMode) => {
+    if (card?.machineId === machineId && card.mode === mode) return;
+    cardScope.guard(() => setCard({ machineId, mode }));
+  };
 
   const catalogById = useMemo(
     () => Object.fromEntries(catalog.map((c) => [c.id, c])),
@@ -171,127 +232,205 @@ export function StudioEquipmentPanel({
   };
 
   const editingRow = rows.find((r) => r.entry.machineId === editing) ?? null;
+  const cardName = card ? (rows.find((r) => r.entry.machineId === card.machineId)?.name ?? card.machineId) : "";
 
   return (
+    <MachineCareProvider studioId={studioId || null}>
     <AdminPanel
       title="Equipment"
       icon={<Dumbbell className="w-3.5 h-3.5" />}
       subtitle="What this location physically has. Machines follow the catalog unless this studio says otherwise, so an Academy correction still reaches every field nobody overrode."
       actions={
-        <AdminBadge tone="neutral">
-          {loading ? "…" : `${rows.length} on the floor`}
-        </AdminBadge>
+        <span className="flex items-center gap-2">
+          <AdminBadge tone="neutral">
+            {loading ? "…" : `${rows.length} on the floor`}
+          </AdminBadge>
+          {!phone && !arranging && rows.length > 0 && (
+            <div className="adm-segmented" role="tablist" aria-label="The floor as">
+              {(["map", "list"] as const).map((v) => (
+                <button key={v} type="button" role="tab" className="adm-seg" aria-selected={shownView === v} onClick={() => pickView(v)}>
+                  {v === "map" ? "Map" : "List"}
+                </button>
+              ))}
+            </div>
+          )}
+          {canArrange && !phone && !arranging && rows.length > 0 && mapAnswer && (
+            <AdminButton onClick={() => viewScope.guard(() => setArranging(true))}>
+              <MapIcon className="w-3.5 h-3.5" />
+              {mapAnswer === "ready" ? "Arrange the floor" : "Draw the floor"}
+            </AdminButton>
+          )}
+        </span>
       }
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <AdminButton
-          variant="primary"
-          busy={seeding || catalogLoading}
-          onClick={() => void runSeed()}
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          Add the standard set
-        </AdminButton>
-        <AdminButton variant="quiet" onClick={() => setShowInventory((v) => !v)}>
-          <Wrench className="w-3.5 h-3.5" />
-          {showInventory ? "Hide" : "Add, retire or build a machine"}
-        </AdminButton>
-        {seedSummary && (
-          <span className="adm-hint" style={{ margin: 0 }}>
-            {seedSummary}
-          </span>
-        )}
-      </div>
-
-      {rows.length === 0 && !loading && (
-        <div className="mt-4">
-          <AdminEmpty title="No equipment yet">
-            Most locations run the same twenty machines. Adding them is safe to
-            repeat — anything already on the floor is skipped.
-          </AdminEmpty>
-        </div>
-      )}
-
-      {rows.length > 0 && (
-        <div className="mt-4">
-          <AdminRows>
-            {rows.map((row) => (
-              <AdminRow
-                key={row.entry.machineId}
-                name={row.name}
-                meta={
-                  <>
-                    {row.summary}
-                    {row.serial ? ` · ${row.serial}` : ""}
-                    {row.notes ? ` · ${row.notes}` : ""}
-                    {row.outOfService ? ` · Out of service: ${outOfServiceShort(row.outOfService)}` : ""}
-                  </>
-                }
-                trailing={
-                  <span className="flex items-center gap-2">
-                    {row.risky.length > 0 && (
-                      <AdminBadge tone="warn">
-                        {row.risky.length} safety field
-                        {row.risky.length === 1 ? "" : "s"} overridden
-                      </AdminBadge>
-                    )}
-                    {row.entry.status === "maintenance" ? (
-                      <AdminBadge tone="warn">Out of service</AdminBadge>
-                    ) : row.entry.status !== "active" ? (
-                      <AdminBadge tone="neutral">
-                        {row.entry.status === "inactive" ? "Inactive" : row.entry.status}
-                      </AdminBadge>
-                    ) : null}
-                    {row.upkeep === "overdue" && (
-                      <AdminBadge tone="alert">Upkeep overdue</AdminBadge>
-                    )}
-                    {row.upkeep === "due" && (
-                      <AdminBadge tone="warn">Upkeep due</AdminBadge>
-                    )}
-                    {canLogUpkeep && (
-                      <AdminButton
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setUpkeepFor(row.entry.machineId)}
-                      >
-                        Upkeep
-                      </AdminButton>
-                    )}
-                    {/* A Max Strength machine's only, as on My Studio's
-                        door: saving it on the studio's own machine took the
-                        machine off the floor (Sep 28 2026). That one is
-                        Edit, under "Add, retire or build a machine". */}
-                    {row.entry.source === "catalog" && (
-                      <AdminButton
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditing(row.entry.machineId)}
-                      >
-                        Local setup
-                      </AdminButton>
-                    )}
-                  </span>
-                }
-              />
-            ))}
-          </AdminRows>
-        </div>
-      )}
-
-      {showInventory && (
-        <div className="mt-5" style={{ borderTop: "1px solid var(--adm-border)", paddingTop: 16 }}>
-          {/* scope="admin": this panel is on the Admins dashboard, which is
-              administrators and the founder only. Corporate reaching into a
-              location is not bound by the template boundary a studio leader
-              is — that is what makes the boundary safe to enforce on studios
-              at all. See lib/machine-template. */}
-          <StudioInventoryManager
+      {arranging ? (
+        <UnsavedChangesScope scope={viewScope}>
+          <LazyLayoutView
             studioId={studioId}
             studioName={studio.name}
-            scope="admin"
+            canLead={canArrange}
+            authUid={auth.currentUser?.uid ?? null}
             authorName={authTrainer?.fullName ?? null}
+            isDemo={studioId === DEMO_STUDIO_ID}
+            nameOf={(uid) => (trainers ?? []).find((t) => t.authUid === uid || t.id === uid)?.fullName ?? null}
+            onDone={() => viewScope.guard(() => setArranging(false))}
           />
-        </div>
+        </UnsavedChangesScope>
+      ) : shownView === "map" && rows.length > 0 ? (
+        <CardFrame
+          panel={
+            card
+              ? {
+                  kicker: "Machine",
+                  title: cardName,
+                  tall: true,
+                  body: (
+                    <UnsavedChangesScope scope={cardScope}>
+                      <MachineCard
+                        key={`${card.machineId}:${card.mode}`}
+                        door="admins"
+                        mode={card.mode}
+                        studioId={studioId}
+                        studioName={studio.name}
+                        machineId={card.machineId}
+                        authTrainer={authTrainer ?? null}
+                        trainers={trainers}
+                        reads={{ upkeep: { events: upkeepEvents, state: upkeepRead.state } }}
+                        onOpenCatalogPage={cardCatalogId && onOpenCatalogMachine ? () => cardScope.guard(() => onOpenCatalogMachine(cardCatalogId)) : undefined}
+                        onClose={() => cardScope.guard(() => setCard(null))}
+                        nameShown={false}
+                      />
+                    </UnsavedChangesScope>
+                  ),
+                }
+              : null
+          }
+          onClose={() => cardScope.guard(() => setCard(null))}
+        >
+          <UnsavedChangesScope scope={viewScope}>
+            <LazyFloorMapView
+              door="admins"
+              studioId={studioId}
+              studioName={studio.name}
+              authTrainer={authTrainer ?? null}
+              onOpenCard={openCard}
+              onDone={() => pickView("list")}
+            />
+          </UnsavedChangesScope>
+        </CardFrame>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <AdminButton
+              variant="primary"
+              busy={seeding || catalogLoading}
+              onClick={() => void runSeed()}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Add the standard set
+            </AdminButton>
+            <AdminButton variant="quiet" onClick={() => setShowInventory((v) => !v)}>
+              <Wrench className="w-3.5 h-3.5" />
+              {showInventory ? "Hide" : "Add, retire or build a machine"}
+            </AdminButton>
+            {seedSummary && (
+              <span className="adm-hint" style={{ margin: 0 }}>
+                {seedSummary}
+              </span>
+            )}
+          </div>
+
+          {rows.length === 0 && !loading && (
+            <div className="mt-4">
+              <AdminEmpty title="No equipment yet">
+                Most locations run the same twenty machines. Adding them is safe to
+                repeat — anything already on the floor is skipped.
+              </AdminEmpty>
+            </div>
+          )}
+
+          {rows.length > 0 && (
+            <div className="mt-4">
+              <AdminRows>
+                {rows.map((row) => (
+                  <AdminRow
+                    key={row.entry.machineId}
+                    name={row.name}
+                    meta={
+                      <>
+                        {row.summary}
+                        {row.serial ? ` · ${row.serial}` : ""}
+                        {row.notes ? ` · ${row.notes}` : ""}
+                        {row.outOfService ? ` · Out of service: ${outOfServiceShort(row.outOfService)}` : ""}
+                      </>
+                    }
+                    trailing={
+                      <span className="flex items-center gap-2">
+                        {row.risky.length > 0 && (
+                          <AdminBadge tone="warn">
+                            {row.risky.length} safety field
+                            {row.risky.length === 1 ? "" : "s"} overridden
+                          </AdminBadge>
+                        )}
+                        {row.entry.status === "maintenance" ? (
+                          <AdminBadge tone="warn">Out of service</AdminBadge>
+                        ) : row.entry.status !== "active" ? (
+                          <AdminBadge tone="neutral">
+                            {row.entry.status === "inactive" ? "Inactive" : row.entry.status}
+                          </AdminBadge>
+                        ) : null}
+                        {row.upkeep === "overdue" && (
+                          <AdminBadge tone="alert">Upkeep overdue</AdminBadge>
+                        )}
+                        {row.upkeep === "due" && (
+                          <AdminBadge tone="warn">Upkeep due</AdminBadge>
+                        )}
+                        {canLogUpkeep && (
+                          <AdminButton
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setUpkeepFor(row.entry.machineId)}
+                          >
+                            Upkeep
+                          </AdminButton>
+                        )}
+                        {/* A Max Strength machine's only, as on My Studio's
+                            door: saving it on the studio's own machine took the
+                            machine off the floor (Sep 28 2026). That one is
+                            Edit, under "Add, retire or build a machine". */}
+                        {row.entry.source === "catalog" && (
+                          <AdminButton
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditing(row.entry.machineId)}
+                          >
+                            Local setup
+                          </AdminButton>
+                        )}
+                      </span>
+                    }
+                  />
+                ))}
+              </AdminRows>
+            </div>
+          )}
+
+          {showInventory && (
+            <div className="mt-5" style={{ borderTop: "1px solid var(--adm-border)", paddingTop: 16 }}>
+              {/* scope="admin": this panel is on the Admins dashboard, which is
+                  administrators and the founder only. Corporate reaching into a
+                  location is not bound by the template boundary a studio leader
+                  is — that is what makes the boundary safe to enforce on studios
+                  at all. See lib/machine-template. */}
+              <StudioInventoryManager
+                studioId={studioId}
+                studioName={studio.name}
+                scope="admin"
+                authorName={authTrainer?.fullName ?? null}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {upkeepFor && (
@@ -318,5 +457,6 @@ export function StudioEquipmentPanel({
         />
       )}
     </AdminPanel>
+    </MachineCareProvider>
   );
 }

@@ -38,6 +38,9 @@ const NEVER_ON_THE_FIRST_SCREEN: Record<string, string> = {
   "features/subjective-report/subjective-report.css": "comes with Pulse",
   "features/catalog/catalog.css": "comes with the Catalog",
   "features/studio-tasks/studio-tasks.css": "comes with Studio To-Do's components",
+  "features/studio-map/lazy.tsx": "the studio map's editor comes with My Studio → Machines",
+  "features/studio-map/ui/LayoutView.tsx": "lazy: Arrange the floor is a leader's rare screen",
+  "features/studio-map/ui/StudioRoom.tsx": "the drawing comes with the screens that draw it",
 };
 
 const IMPORT_RE =
