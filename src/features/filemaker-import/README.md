@@ -28,9 +28,10 @@ AJ's answers and what the sample charts show (Oct 12 2026):
 | reps 0, or a 0 for next time with no count | skipped, reason unknown | "zero in either column either means it wasn't performed. Or to take it out". A 0 for next time BESIDE a count is ignored: Solon wrote one beside eleven timed holds. |
 | 30 or more | a timed hold, in seconds (`isTSC`, `isStaticHold`) | Solon writes them in the reps column, unmarked (60, 90, 120). |
 | a decimal on Torso Rotation | left and right (two logs) | Solon: "7.6" is 7 left, 6 right; "9.11" is 9 and 11. |
+| a minus before any of these ("-10") | the same, without the minus | Willoughby's try at marking rep quality, at the weight of the visits either side (AJ, Oct 12 2026: "we dont have to mind that"). Said once in the dry run as handled. |
 | 21 to 29, a decimal elsewhere, "7.1" (seven and one, or seven and ten: Excel drops a trailing zero), a side of 0 or above 20 | held back, said | can't be read safely |
 
-A **visit** is a client's entries on one day (AJ: the date is the key). The same machine twice on a day keeps the first entry with something on it (a blank entry never pushes one out) and holds a second such entry back; a machine with nothing written is left out and the visit still imports. A visit where nothing was done (every machine 0, blank or unreadable) is left out: a session with no set done would count as a visit that wasn't one.
+A **visit** is a client's entries on one day (AJ: the date is the key). The same machine twice on a day keeps the first entry with something on it, in its own place in the order (a blank entry, or one with only next time's weight, never pushes one out), and holds a second such entry back; a machine with nothing written is left out and the visit still imports. A visit where nothing was done (every machine 0, blank or unreadable) is left out: a session with no set done would count as a visit that wasn't one.
 
 ## What it writes
 

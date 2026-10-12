@@ -27,6 +27,9 @@
  *     the samples went above 15.
  *   - a number with a decimal on a machine done one side at a time: LEFT and
  *     RIGHT (Solon's Torso Rotation: "7.6" is 7 left, 6 right).
+ *   - a minus before any of these: the same, without the minus. Willoughby
+ *     wrote "-10" and "-12" at the weight of the visits either side, its try
+ *     at marking rep quality (AJ, Oct 12 2026: "we dont have to mind that").
  *   - anything else (21 to 29, a decimal elsewhere, "7.1" which may be seven
  *     and ten): UNCLEAR, held back for a person.
  *
@@ -86,7 +89,8 @@ export function readSet(
     if (weight === null) return { kind: "empty" };
     return { kind: "not-recorded" };
   }
-  if (reps < 0) return { kind: "unclear", why: `a negative count (${reps})` };
+  // A minus before the count was Willoughby's try at marking rep quality (AJ, Oct 12 2026: "we dont have to mind that").
+  if (reps < 0) return readSet({ ...line, reps: -reps }, perSide);
   if (!Number.isInteger(reps)) {
     if (!perSide) return { kind: "unclear", why: `a decimal count (${reps}) on a machine done both sides at once` };
     return readSides(reps);
@@ -108,9 +112,13 @@ export interface Visit {
   repeats: WorkoutLine[];
 }
 
-/** An entry with nothing on it: no weight, no count, no next time, no cell that failed to read. */
+/**
+ * An entry that says nothing about what was done: no weight and no count
+ * (readSet's "empty"; a next time's weight alone says nothing about today),
+ * and no cell that failed to read.
+ */
 function isBlank(line: WorkoutLine): boolean {
-  return line.weight === null && line.reps === null && line.nextWeight === null && line.problems.length === 0;
+  return line.problems.length === 0 && readSet(line, false).kind === "empty";
 }
 
 /**
@@ -134,21 +142,22 @@ export function groupVisits(lines: readonly WorkoutLine[]): { visits: Visit[]; u
     const sorted = [...byDay.get(day)!].sort(
       (a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.row - b.row,
     );
-    const seen = new Map<string, number>();
+    // A machine with an entry that says something is that entry, in its own place in the order
+    // (the biggest sample's Cx, Apr 3 2026: blank first, then with its weight).
+    const said = new Set(sorted.filter((l) => !isBlank(l)).map((l) => l.machine.toLowerCase()));
+    const seen = new Set<string>();
     const kept: WorkoutLine[] = [];
     const repeats: WorkoutLine[] = [];
     for (const line of sorted) {
       const key = line.machine.toLowerCase();
-      const at = key ? seen.get(key) : undefined;
-      if (at === undefined) {
-        if (key) seen.set(key, kept.length);
-        kept.push(line);
-      } else if (isBlank(line)) {
-        // Nothing written a second time: nothing to keep or weigh.
-      } else if (isBlank(kept[at])) {
-        // The entry with something on it takes the blank one's place (the biggest sample's Cx, Apr 3 2026).
-        kept[at] = line;
-      } else repeats.push(line);
+      if (key && isBlank(line) && said.has(key)) continue;
+      if (key && seen.has(key)) {
+        // Two entries that both say something: the first stands, the second is held back. A second blank says nothing.
+        if (!isBlank(line)) repeats.push(line);
+        continue;
+      }
+      if (key) seen.add(key);
+      kept.push(line);
     }
     visits.push({ day, lines: kept, repeats });
   }
@@ -223,6 +232,9 @@ export function findingsOf(
       if (!line.machine) add("held", "An entry with no machine", `${visit.day} row ${line.row}`);
       const reading = readSet(line, perSide(line.machine, visit.day));
       if (reading.kind === "unclear") add("held", "A count that can't be read safely", `${where(line)}: ${reading.why}`);
+      if (line.reps !== null && line.reps < 0 && reading.kind !== "unclear") {
+        add("handled", "A minus before the count (a mark for rep quality: the count imports, the minus doesn't)", `${where(line)}: ${line.reps}`);
+      }
       // Nothing to fix and nothing to import: the visit imports without it (the biggest sample has 81).
       if (reading.kind === "empty") add("handled", "A machine with nothing written (left out; the visit imports)", where(line));
       if (reading.kind !== "not-performed" && reading.kind !== "empty" && reading.kind !== "unclear" && !line.weight) {

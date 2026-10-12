@@ -44,7 +44,18 @@ describe("what one entry means", () => {
     expect(readSet({ weight: 20, reps: 0.5 }, true).kind).toBe("unclear");
     expect(readSet({ weight: 20, reps: 25.5 }, true).kind).toBe("unclear");
     expect(readSet({ weight: 20, reps: 7.255 }, true).kind).toBe("unclear");
-    expect(readSet({ weight: 20, reps: -3 }, false).kind).toBe("unclear");
+  });
+
+  it("reads a minus before the count as the count (Willoughby's mark for rep quality; AJ: 'we dont have to mind that')", () => {
+    expect(readSet({ weight: 245, reps: -10 }, false)).toEqual({ kind: "reps", reps: 10 });
+    expect(readSet({ weight: 88, reps: -60 }, false)).toEqual({ kind: "seconds", seconds: 60 });
+    expect(readSet({ weight: 20, reps: -7.6 }, true)).toEqual({ kind: "sides", left: 7, right: 6 });
+    expect(readSet({ weight: 40, reps: -25 }, false).kind).toBe("unclear");
+    const { visits } = groupVisits([line("2025-06-06", "Hip ADD", 1, 80, -10)]);
+    expect(findingsOf(visits, [], () => false)).toEqual([
+      { level: "handled", what: expect.stringMatching(/^A minus before the count/), where: "2025-06-06 Hip ADD: -10" },
+      expect.objectContaining({ what: expect.stringMatching(/one or two machines/) }),
+    ]);
   });
 });
 
@@ -84,6 +95,21 @@ describe("visits", () => {
     expect(visits[0].lines.map((l) => [l.machine, l.weight])).toEqual([["Cx", 34], ["Leg Press Nt", 250]]);
     expect(visits[0].repeats).toEqual([]);
     expect(findingsOf(visits, [], () => false).filter((f) => f.level === "held")).toEqual([]);
+  });
+
+  it("keeps the real entry in its own place in the order, and counts a next-time weight alone as blank", () => {
+    const { visits } = groupVisits([
+      line("2026-04-03", "Cx", 1, null, null),
+      line("2026-04-03", "Leg Press", 2, 250, 9),
+      line("2026-04-03", "Cx", 6, 34, 8),
+      line("2026-04-03", "Pullover", 3, null, null, 80),
+      line("2026-04-03", "Pullover", 4, 76, 9),
+      line("2026-04-03", "Abs", 5, 40, 8),
+      line("2026-04-03", "Abs", 7, 42, 7),
+    ]);
+    expect(visits[0].lines.map((l) => [l.machine, l.order])).toEqual([["Leg Press", 2], ["Pullover", 4], ["Abs", 5], ["Cx", 6]]);
+    // Two entries that both say something: the first stands, the second is held back.
+    expect(visits[0].repeats.map((l) => [l.machine, l.order])).toEqual([["Abs", 7]]);
   });
 });
 
