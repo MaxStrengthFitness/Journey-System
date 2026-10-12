@@ -94,7 +94,7 @@ describe("Add a machine to buy", () => {
     expect(added).toHaveBeenLastCalledWith({ movementId: "m-leg-press", modelId: null, label: "Leg Press", typed: { lengthMm: 1829, widthMm: 1219, heightMm: null } });
 
     click(button("Something else"));
-    type(host.querySelector<HTMLInputElement>("#smap-plan-name")!, "Hip sled");
+    type(host.querySelector<HTMLInputElement>("#smap-buy-name")!, "Hip sled");
     click(button("Size not known yet"));
     click(button("Add it"));
     expect(added).toHaveBeenLastCalledWith({ movementId: null, modelId: null, label: "Hip sled", typed: null });

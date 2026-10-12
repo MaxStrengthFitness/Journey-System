@@ -211,11 +211,11 @@ describe("Make this the map", () => {
 });
 
 describe("More", () => {
-  it("Delete draft retires the slot with its content kept, and Undo brings it back at the next rev", () => {
+  it("Delete plan retires the slot with its content kept, and Undo brings it back at the next rev", () => {
     const d1 = plan("d-1", "Remodel 1", 4, [toBuy("pm-a", "Hip Abductor")]);
     mount({ current: plan("current", "The layout", 3, []), slots: [d1], open: "d-1" });
     click(buttons("More")[0]);
-    click(buttons("Delete draft")[0]);
+    click(buttons("Delete plan")[0]);
     expect(fx.batches[0]).toHaveLength(1);
     expect(fx.batches[0][0]).toMatchObject({ path: "studios/solon/floorPlans/d-1", data: { rev: 5, retired: true, name: "Remodel 1" } });
     expect(calls.show[0]).toEqual(["current", null]);
@@ -236,6 +236,6 @@ describe("More", () => {
     click(buttons("Save")[0]);
     expect(fx.sets).toHaveLength(1);
     expect(fx.sets[0]).toMatchObject({ path: "studios/solon/floorPlans/d-1", data: { name: "Back wall move", rev: 5 } });
-    expect(calls.renamed).toEqual([["d-1", 5]]);
+    expect(calls.renamed).toEqual([["d-1", 4, 5]]);
   });
 });

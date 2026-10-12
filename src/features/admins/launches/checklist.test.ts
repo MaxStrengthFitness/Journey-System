@@ -113,7 +113,7 @@ describe("the setup checklist", () => {
     expect(failed).toEqual({ state: "unknown", proof: "Couldn't read its floor just now." });
     expect(autoCheck("floor-machines", facts({ roster: { state: "ok", onFloor: 0 } }))).toEqual({
       state: "todo",
-      proof: "No machines on its floor yet: Floor → List adds the standard set.",
+      proof: "No machines on its floor yet: Floor adds the standard set.",
     });
   });
 

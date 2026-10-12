@@ -52,11 +52,14 @@ import { UnsavedChangesScope, useLeaveScope } from "../../unsaved-changes";
 export interface StudioEquipmentPanelProps {
   studio: Studio;
   authTrainer?: Trainer | null;
+  /** Everyone the page already lists, so the floor editor can say who saved a newer copy. */
+  trainers?: readonly Trainer[];
 }
 
 export function StudioEquipmentPanel({
   studio,
   authTrainer,
+  trainers,
 }: StudioEquipmentPanelProps) {
   const studioId = studio.id ?? "";
   const { success: toastSuccess } = useToast();
@@ -213,6 +216,7 @@ export function StudioEquipmentPanel({
             authUid={auth.currentUser?.uid ?? null}
             authorName={authTrainer?.fullName ?? null}
             isDemo={studioId === DEMO_STUDIO_ID}
+            nameOf={(uid) => (trainers ?? []).find((t) => t.authUid === uid || t.id === uid)?.fullName ?? null}
             onDone={() => viewScope.guard(() => setArranging(false))}
           />
         </UnsavedChangesScope>

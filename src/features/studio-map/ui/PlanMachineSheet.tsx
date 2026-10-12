@@ -139,11 +139,11 @@ export function PlanMachineSheet({
         </div>
         {isElse && (
           <div className="smap-start__row">
-            <label className="smap-row-label" htmlFor="smap-plan-name">
+            <label className="smap-row-label" htmlFor="smap-buy-name">
               Its name
             </label>
             <AdminInput
-              id="smap-plan-name"
+              id="smap-buy-name"
               maxLength={PLAN_LIMITS.plannedLabel}
               value={otherName}
               onChange={(e) => {

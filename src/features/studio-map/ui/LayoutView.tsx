@@ -72,7 +72,7 @@ import "../studio-map.css";
  *
  * Nothing on a tap waits: Save issues the write and the screen moves on; a
  * refusal comes back as a notice, and a save someone else beat keeps the
- * copy as a draft. The working copy is unsaved work: leaving asks.
+ * copy as a plan. The working copy is unsaved work: leaving asks.
  */
 export default function LayoutView(props: LayoutViewProps) {
   if (!props.canLead) {
@@ -207,12 +207,19 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
     else if (id === CURRENT_ID) dispatch({ type: "load", id, rev: null, working: emptyWorking(EMPTY_ROOM), force: true });
   }, []);
 
-  // A plan another leader deleted while it was open here (and nothing typed on it): back to the map.
+  // A plan another leader deleted while it was open here (and nothing typed on it): back to the map. Only a delete
+  // at least as new as what the screen shows counts: a plan this screen is bringing back (Delete plan's Undo) or
+  // starting afresh in that slot (Plan a remodel) sits at a higher rev than the retired copy the listener still has,
+  // because the cache's answer to our own write arrives after this effect has run.
   const seen = useRef(new Set<string>());
   if (open) seen.current.add(open.id);
+  const retiredRev = onDraft && !open ? (plans.slots.find((s) => s.id === openId)?.rev ?? null) : null;
   useEffect(() => {
-    if (onDraft && !open && seen.current.has(openId) && !state.dirty && plans.state === "ready") showTab(CURRENT_ID, null);
-  }, [onDraft, open, openId, state.dirty, plans.state, showTab]);
+    if (!onDraft || open || !seen.current.has(openId) || state.dirty || plans.state !== "ready") return;
+    const shown = state.base.rev;
+    if (retiredRev !== null && shown !== null && retiredRev < shown) return;
+    showTab(CURRENT_ID, null);
+  }, [onDraft, open, openId, retiredRev, state.base.rev, state.dirty, plans.state, showTab]);
 
   const discard = () => showTab(openId, null);
   const { guard } = useUnsavedChanges(state.dirty, onDraft ? (open ? open.name : "the plan") : "the layout", { onDiscard: discard });
@@ -466,8 +473,8 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
         const keptName = draftNames.kept(authorName, Date.now());
         void keepAsDraft(studioId, copy, keptName, plansRef.current.slots, authUid).then((kept) => {
           if ("id" in kept) {
-            if (here()) setNote(`${who} saved ${what}, so yours was kept as a draft, “${keptName}”.`);
-            // Yours is safe in the draft: the screen shows theirs, at their rev, unless you've changed it since.
+            if (here()) setNote(`${who} saved ${what}, so yours was kept as a plan, “${keptName}”.`);
+            // Yours is safe in the plan: the screen shows theirs, at their rev, unless you've changed it since.
             const now = docOf(plansRef.current, planId);
             if (!here()) return;
             if (stateRef.current.dirty) dispatch({ type: "unsaved", rev: baseRev });
@@ -476,8 +483,8 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
             if (here()) {
               setNote(
                 "full" in kept
-                  ? `${who} saved ${what}, and all five drafts are in use, so yours is still on screen.`
-                  : `${who} saved ${what}, and yours couldn't be kept as a draft, so it's still on screen.`,
+                  ? `${who} saved ${what}, and all five plans are in use, so yours is still on screen.`
+                  : `${who} saved ${what}, and yours couldn't be kept as a plan, so it's still on screen.`,
               );
             }
             putBack();
@@ -685,8 +692,11 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
       onOpen={(id) => guard(() => showTab(id, null))}
       onPlan={planRemodel}
       onShow={showTab}
-      onRenamed={(id, rev) => {
-        if (stateRef.current.base.id === id && stateRef.current.dirty) dispatch({ type: "unsaved", rev });
+      onRenamed={(id, from, to) => {
+        // Only a copy based on the rev the rename moved from moves with it; one based on an older rev keeps its
+        // base, so the newer copy's note stays and Save keeps the work as a plan instead of overwriting it.
+        const s = stateRef.current;
+        if (s.base.id === id && s.dirty && s.base.rev === from) dispatch({ type: "unsaved", rev: to });
       }}
       guard={guard}
     />
@@ -783,7 +793,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
       {newer ? (
         <p className="smap-note" role="status">
           {(open && nameOf(open.updatedBy)) || "Someone"} saved {onDraft ? `a newer copy of ${open?.name ?? "this plan"}` : "a newer layout"}. Yours is still
-          on screen; Save keeps it as a draft.
+          on screen; Save keeps it as a plan.
         </p>
       ) : note ? (
         <p className="smap-note" role="status">

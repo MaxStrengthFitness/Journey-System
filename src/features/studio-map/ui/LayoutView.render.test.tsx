@@ -39,6 +39,14 @@ const fx = vi.hoisted(() => ({
   tries: [] as unknown[][],
   links: [] as unknown[][],
   toasts: [] as string[],
+  /** Each toast's action (an Undo), by its message. */
+  actions: new Map<string, () => void>(),
+  renames: [] as unknown[][],
+  retires: [] as unknown[][],
+  restores: [] as unknown[][],
+  undos: [] as unknown[][],
+  /** What planUseThisLayout works out; unset, a record with no old map (so no Undo). */
+  makeRecord: null as unknown,
   /** What the next saveLayout and keepAsDraft answer; unset, they never answer. */
   saveAnswer: null as unknown,
   keepAnswer: null as unknown,
@@ -59,12 +67,24 @@ vi.mock("../store", () => ({
     fx.tries.push(args);
     return new Promise(() => {});
   },
-  planUseThisLayout: () => ({ ops: [], record: { before: { current: null } }, free: null }),
+  planUseThisLayout: () => ({ ops: [], record: fx.makeRecord ?? { before: { current: null } }, free: null }),
   useThisLayout: () => new Promise(() => {}),
-  undoUseThisLayout: () => null,
-  renameDraft: () => new Promise(() => {}),
-  retireDraft: () => new Promise(() => {}),
-  restoreDraft: () => new Promise(() => {}),
+  undoUseThisLayout: (...args: unknown[]) => {
+    fx.undos.push(args);
+    return fx.makeRecord ? new Promise(() => {}) : null;
+  },
+  renameDraft: (...args: unknown[]) => {
+    fx.renames.push(args);
+    return new Promise(() => {});
+  },
+  retireDraft: (...args: unknown[]) => {
+    fx.retires.push(args);
+    return new Promise(() => {});
+  },
+  restoreDraft: (...args: unknown[]) => {
+    fx.restores.push(args);
+    return new Promise(() => {});
+  },
   linkModels: (...args: unknown[]) => {
     fx.links.push(args);
     return { written: (args[1] as { machineId: string }[]).map((l) => l.machineId), dropped: [], done: Promise.resolve() };
@@ -76,7 +96,10 @@ vi.mock("../store", () => ({
 }));
 vi.mock("../../../contexts/ToastContext", () => ({
   useToast: () => ({
-    toast: (m: string) => fx.toasts.push(m),
+    toast: (m: string, _t?: string, _d?: number, action?: { run: () => void }) => {
+      fx.toasts.push(m);
+      if (action) fx.actions.set(m, action.run);
+    },
     success: (m: string) => fx.toasts.push(m),
     error: (m: string) => fx.toasts.push(m),
     info: (m: string) => fx.toasts.push(m),
@@ -148,6 +171,12 @@ beforeEach(() => {
   fx.tries = [];
   fx.links = [];
   fx.toasts = [];
+  fx.actions = new Map();
+  fx.renames = [];
+  fx.retires = [];
+  fx.restores = [];
+  fx.undos = [];
+  fx.makeRecord = null;
   fx.saveAnswer = null;
   fx.keepAnswer = null;
   fx.models = IS;
@@ -339,7 +368,7 @@ describe("saving", () => {
     expect(fx.toasts).toContain("Layout saved.");
   });
 
-  it("after another leader's save beat it, keeps yours as a draft and shows theirs, so the next Save can't overwrite it", async () => {
+  it("after another leader's save beat it, keeps yours as a plan and shows theirs, so the next Save can't overwrite it", async () => {
     floor(true);
     layout(0);
     const original = fx.plans.current as Record<string, unknown>;
@@ -362,7 +391,7 @@ describe("saving", () => {
     });
     expect(turnOf("m-leg-press")).toBe("0");
     expect(turnOf("m-ext")).toBe("180");
-    expect(host!.textContent).toContain("saved a newer layout, so yours was kept as a draft");
+    expect(host!.textContent).toContain("saved a newer layout, so yours was kept as a plan");
     // The next change is made on theirs, at their rev.
     click([...host!.querySelectorAll(".smap-list__row")][0]);
     click(button("Turn right"));
@@ -549,5 +578,150 @@ describe("remodel plans and machines still to buy", () => {
     click(button("Save"));
     expect((fx.saves[0] as unknown[])[1]).toBe("d-1");
     expect((fx.saves[0] as unknown[])[4]).toBe(1);
+  });
+});
+
+describe("remodel plans: renames, Undo and deletes against what is on screen", () => {
+  const BOTH = [
+    { machineId: "m-leg-press", x: 4000, y: 4000, rotationDeg: 0 },
+    { machineId: "m-ext", x: 9000, y: 4000, rotationDeg: 0 },
+  ];
+  function withDraft() {
+    layout(0);
+    const current = fx.plans.current as Record<string, unknown>;
+    const d1 = { ...current, id: "d-1", name: "Remodel 1", rev: 2, placements: BOTH };
+    fx.plans = { ...fx.plans, drafts: [d1], slots: [d1] };
+    return d1;
+  }
+  /** The listener brings the plans as they now stand. */
+  function plansNow(p: { drafts: unknown[]; slots: unknown[] }) {
+    fx.plans = { ...fx.plans, ...p };
+    act(() => root!.render(view!()));
+  }
+  const tab = (name: string) => [...host!.querySelectorAll("[role=tab]")].find((t) => t.textContent?.startsWith(name));
+  const selected = () => host!.querySelector("[role=tab][aria-selected=true]")?.textContent ?? "";
+  /** The editor's Save, never the rename row's. */
+  const editorSave = () => [...host!.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Save" && !b.closest(".smap-tabs-wrap"));
+  const turnOne = () => {
+    click([...host!.querySelectorAll(".smap-list__row")][0]);
+    click(button("Turn right"));
+  };
+  const rename = (to: string) => {
+    click(button("More"));
+    click(button("Rename"));
+    type(host!.querySelector<HTMLInputElement>("#smap-plan-name")!, to);
+    click([...host!.querySelectorAll(".smap-tabs-wrap button")].find((b) => b.textContent?.trim() === "Save"));
+  };
+  const leaveAsked = () => !!document.querySelector('[data-action="leave"]');
+
+  it("Rename while an older copy is on screen keeps that copy on its rev, so Save keeps it as a plan instead of overwriting the newer save", () => {
+    floor(true);
+    const d1 = withDraft();
+    mount();
+    click(tab("Remodel 1"));
+    turnOne();
+    // Marina saves Remodel 1 at rev 3; the copy on screen is still based on rev 2.
+    const theirs = { ...d1, rev: 3, updatedAtMs: 77, updatedBy: "uid-marina", placements: [{ machineId: "m-leg-press", x: 12000, y: 4000, rotationDeg: 0 }] };
+    plansNow({ drafts: [theirs], slots: [theirs] });
+    expect(host!.textContent).toContain("a newer copy of Remodel 1");
+    rename("Spring remodel");
+    expect(fx.renames).toHaveLength(1);
+    expect((fx.renames[0][1] as { rev: number }).rev).toBe(3);
+    const renamed = { ...theirs, rev: 4, name: "Spring remodel" };
+    plansNow({ drafts: [renamed], slots: [renamed] });
+    // The newer copy's note stays, and Save is checked against rev 2, so it loses and keeps the work as a plan.
+    expect(host!.textContent).toContain("a newer copy of Spring remodel");
+    click(editorSave());
+    const [, planId, , name, baseRev] = fx.saves[0] as [string, string, unknown, string, number];
+    expect([planId, name, baseRev]).toEqual(["d-1", "Spring remodel", 2]);
+  });
+
+  it("Rename of the copy on screen moves the unsaved work onto the renamed rev", () => {
+    floor(true);
+    const d1 = withDraft();
+    mount();
+    click(tab("Remodel 1"));
+    turnOne();
+    rename("Spring remodel");
+    const renamed = { ...d1, rev: 3, name: "Spring remodel" };
+    plansNow({ drafts: [renamed], slots: [renamed] });
+    expect(host!.textContent).not.toContain("a newer copy");
+    click(editorSave());
+    expect((fx.saves[0] as unknown[])[4]).toBe(3);
+  });
+
+  it("Make this the map's Undo asks about work typed on the map since, and goes ahead only on Leave", () => {
+    floor(true);
+    withDraft();
+    const current = fx.plans.current as { room: unknown; placements: unknown[] };
+    fx.makeRecord = { before: { current: { room: current.room, placements: current.placements }, draft: {} }, currentRev: 4, draftId: "d-1", beforeSlot: null };
+    mount();
+    click(tab("Remodel 1"));
+    click(button("Make this the map"));
+    click([...document.querySelectorAll(".adm-dialog button")].find((b) => b.textContent?.trim() === "Make this the map"));
+    expect(selected()).toBe("The map");
+    turnOne();
+    expect(editorSave()).toBeTruthy();
+    act(() => fx.actions.get("Remodel 1 is the map.")!());
+    expect(leaveAsked()).toBe(true);
+    expect(fx.undos).toHaveLength(0);
+    click(document.querySelector('[data-action="keep-editing"]'));
+    expect(editorSave(), "the turn is still there").toBeTruthy();
+    act(() => fx.actions.get("Remodel 1 is the map.")!());
+    click(document.querySelector('[data-action="leave"]'));
+    expect(fx.undos).toHaveLength(1);
+    expect(selected()).toBe("The map");
+    expect(editorSave()).toBeUndefined();
+  });
+
+  it("Delete plan's Undo asks about work typed since, and opens the plan only on Leave", () => {
+    floor(true);
+    withDraft();
+    mount();
+    click(tab("Remodel 1"));
+    click(button("More"));
+    click(button("Delete plan"));
+    expect(fx.retires).toHaveLength(1);
+    expect(selected()).toBe("The map");
+    turnOne();
+    act(() => fx.actions.get("Remodel 1 deleted.")!());
+    expect(leaveAsked()).toBe(true);
+    expect(fx.restores).toHaveLength(0);
+    click(document.querySelector('[data-action="leave"]'));
+    expect(fx.restores).toHaveLength(1);
+    expect(selected()).toBe("Remodel 1");
+  });
+
+  it("Delete plan, then Undo, lands on the plan while the listener still has the deleted copy", () => {
+    floor(true);
+    const d1 = withDraft();
+    mount();
+    click(tab("Remodel 1"));
+    click(button("More"));
+    click(button("Delete plan"));
+    plansNow({ drafts: [], slots: [{ ...d1, rev: 3, retired: true }] });
+    expect(selected()).toBe("The map");
+    act(() => fx.actions.get("Remodel 1 deleted.")!());
+    plansNow({ drafts: [], slots: [{ ...d1, rev: 3, retired: true }] });
+    expect(selected()).toBe("Remodel 1");
+    const back = { ...d1, rev: 4 };
+    plansNow({ drafts: [back], slots: [back] });
+    expect(selected()).toBe("Remodel 1");
+  });
+
+  it("goes back to the map when another leader deletes the plan open here, and Plan a remodel into that slot stays put", () => {
+    floor(true);
+    const d1 = withDraft();
+    mount();
+    click(tab("Remodel 1"));
+    plansNow({ drafts: [], slots: [{ ...d1, rev: 3, retired: true, updatedBy: "uid-marina" }] });
+    expect(selected()).toBe("The map");
+    click(button("Plan a remodel"));
+    expect(fx.tries).toHaveLength(1);
+    plansNow({ drafts: [], slots: [{ ...d1, rev: 3, retired: true, updatedBy: "uid-marina" }] });
+    expect(selected()).toBe("Remodel 1");
+    turnOne();
+    click(editorSave());
+    expect((fx.saves[0] as unknown[]).slice(1, 2).concat((fx.saves[0] as unknown[])[4])).toEqual(["d-1", 4]);
   });
 });

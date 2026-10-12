@@ -280,7 +280,7 @@ export function StudioPage({
           </div>
         )}
 
-        {tab === "floor" && <StudioEquipmentPanel studio={studio} authTrainer={authTrainer} />}
+        {tab === "floor" && <StudioEquipmentPanel studio={studio} authTrainer={authTrainer} trainers={trainers} />}
 
         {tab === "team" && (
           <StudioTeam

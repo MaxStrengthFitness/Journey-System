@@ -37,11 +37,15 @@ export interface DraftTabsProps {
   onOpen: (id: string) => void;
   /** Plan a remodel: the editor copies what is on screen into a free slot. */
   onPlan: () => void;
-  /** After Make this the map, its Undo, or Delete draft: show this tab now, holding this (null: as the listener has it). */
+  /** After Make this the map, its Undo, or Delete plan: show this tab now, holding this (null: as the listener has it). */
   onShow: (id: string, content: ShownContent | null) => void;
-  /** A draft renamed: its stored copy now stands at `rev` (the copy on screen, if unsaved, moves onto it). */
-  onRenamed: (id: string, rev: number) => void;
-  /** The editor's own question about unsaved work, before Delete draft throws it away. */
+  /**
+   * A plan renamed: its stored copy moved from rev `from` to rev `to` (or back, when the rename was refused). An
+   * unsaved copy on screen moves with it only when it was based on `from`: a copy based on an older rev still holds
+   * work against that rev, and moving it would let Save overwrite the newer save it never saw.
+   */
+  onRenamed: (id: string, from: number, to: number) => void;
+  /** The editor's own question about unsaved work, before Delete plan, or an Undo that changes the tab, throws it away. */
   guard: (proceed: () => void) => void;
 }
 
@@ -58,9 +62,10 @@ export interface DraftTabsProps {
  * anything is sent). A plan holding machines still to buy keeps them: only
  * the floor's own machines become the map, and the old map is kept as a
  * plan in a free slot ("Before Oct 12, 3:40 PM") when one is free. Delete
- * draft gives the slot back, its content kept, and Undo brings it back.
- * Nothing here waits for the server: each write is issued and the screen
- * moves on, and a refusal comes back as a toast.
+ * plan gives the slot back, its content kept, and Undo brings it back. An
+ * Undo that changes the tab asks about unsaved work first, like any other
+ * way of changing it. Nothing here waits for the server: each write is
+ * issued and the screen moves on, and a refusal comes back as a toast.
  */
 export function DraftTabs(props: DraftTabsProps) {
   const { studioId, current, drafts, slots, open, dirty, authUid, onOpen, onPlan, onShow, onRenamed, guard } = props;
@@ -77,25 +82,27 @@ export function DraftTabs(props: DraftTabsProps) {
   const [asking, setAsking] = useState(false);
   const preview = asking && draft ? planUseThisLayout(current, draft, slots, Date.now()) : null;
 
-  const undoMake = (record: UndoRecord, uid: string) => () => {
-    const p = latest.current;
-    const revOf = (id: string) => p.slots.find((s) => s.id === id)?.rev ?? 0;
-    const revsNow = {
-      current: p.current?.rev ?? 0,
-      slot: revOf(record.draftId),
-      before: record.beforeSlot ? (p.slots.find((s) => s.id === record.beforeSlot!.id)?.rev ?? null) : null,
-    };
-    const sent = undoUseThisLayout(studioId, record, revsNow, uid);
-    if (!sent || !record.before.current) {
-      toastError("The map has changed since, so Undo can't put the old one back.");
-      return;
-    }
-    sent.catch((e: unknown) => {
-      console.error("[studio map] the old map wasn't put back", e);
-      toastError("The old map wasn't put back. The map is as it was made.");
+  // Asked first: the Undo shows the map, which would throw away work typed on whatever tab is open since.
+  const undoMake = (record: UndoRecord, uid: string) => () =>
+    latest.current.guard(() => {
+      const p = latest.current;
+      const revOf = (id: string) => p.slots.find((s) => s.id === id)?.rev ?? 0;
+      const revsNow = {
+        current: p.current?.rev ?? 0,
+        slot: revOf(record.draftId),
+        before: record.beforeSlot ? (p.slots.find((s) => s.id === record.beforeSlot!.id)?.rev ?? null) : null,
+      };
+      const sent = undoUseThisLayout(studioId, record, revsNow, uid);
+      if (!sent || !record.before.current) {
+        toastError("The map has changed since, so Undo can't put the old one back.");
+        return;
+      }
+      sent.catch((e: unknown) => {
+        console.error("[studio map] the old map wasn't put back", e);
+        toastError("The old map wasn't put back. The map is as it was made.");
+      });
+      p.onShow(CURRENT_ID, { ...record.before.current, rev: record.currentRev + 1 });
     });
-    onShow(CURRENT_ID, { ...record.before.current, rev: record.currentRev + 1 });
-  };
 
   const make = () => {
     setAsking(false);
@@ -127,7 +134,7 @@ export function DraftTabs(props: DraftTabsProps) {
     setAsking(true);
   };
 
-  /* ── More: Rename, Delete draft ────────────────────────────────── */
+  /* ── More: Rename, Delete plan ─────────────────────────────────── */
   const [more, setMore] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const renameDirty = renaming !== null && !!draft && renaming.trim() !== draft.name;
@@ -149,12 +156,14 @@ export function DraftTabs(props: DraftTabsProps) {
       return;
     }
     const before = draft;
+    const from = before.rev;
+    const to = from + 1;
     void renameDraft(studioId, before, name, authUid).then((out) => {
       if (out.ok) return;
-      onRenamed(before.id, before.rev);
+      latest.current.onRenamed(before.id, to, from);
       toastError(`${before.name} wasn't renamed.`);
     });
-    onRenamed(before.id, before.rev + 1);
+    onRenamed(before.id, from, to);
   };
 
   const remove = () => {
@@ -174,12 +183,14 @@ export function DraftTabs(props: DraftTabsProps) {
       onShow(CURRENT_ID, null);
       toast(`${gone.name} deleted.`, "success", 10000, {
         label: "Undo",
-        run: () => {
-          void restoreDraft(studioId, retired, uid).then((out) => {
-            if (!out.ok) toastError(`${gone.name} wasn't brought back.`);
-          });
-          onShow(gone.id, { room: gone.room, placements: gone.placements, rev: retired.rev + 1 });
-        },
+        // Asked first: the Undo opens the plan again, which would throw away work typed on the tab open since.
+        run: () =>
+          latest.current.guard(() => {
+            void restoreDraft(studioId, retired, uid).then((out) => {
+              if (!out.ok) toastError(`${gone.name} wasn't brought back.`);
+            });
+            latest.current.onShow(gone.id, { room: gone.room, placements: gone.placements, rev: retired.rev + 1 });
+          }),
       });
     });
   };
@@ -232,7 +243,7 @@ export function DraftTabs(props: DraftTabsProps) {
                 Rename
               </AdminButton>
               <AdminButton variant="ghost" onClick={remove}>
-                Delete draft
+                Delete plan
               </AdminButton>
             </>
           )}

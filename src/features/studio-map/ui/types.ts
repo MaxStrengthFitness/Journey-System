@@ -10,7 +10,7 @@ export interface LayoutViewProps {
   canLead: boolean;
   /** The Auth uid: the rules pin `updatedBy` to it. */
   authUid: string | null;
-  /** The writer's name, for a copy kept as a draft ("AJ's, Oct 12 3:40 PM"). */
+  /** The writer's name, for a copy kept as a plan ("AJ's, Oct 12 3:40 PM"). */
   authorName: string | null;
   /** Demo Mode: the practice layout is one tap away. */
   isDemo: boolean;
