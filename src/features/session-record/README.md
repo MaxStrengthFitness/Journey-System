@@ -23,7 +23,31 @@ It reads nothing and writes nothing.
 
 - `settleOrQueue` waits up to `FINISH_WAIT_MS` for the database's answer, and not at all while offline. Past that, the save is on the iPad, and the Wrap-up says "saved on this iPad" until the answer comes.
 - `finishedElsewhere` asks the server whether another iPad already finished the session. Finish then writes nothing, so the client's totals are never counted twice. Offline, or with no answer, it says no and Finish goes ahead.
-- What this cannot stop: an offline Finish that replays after another iPad finished the same session online. AJ judged that extremely unlikely (Sep 26 2026), so nothing on the database side guards it. Don't add a guard without asking.
+- ~~What this cannot stop: an offline Finish that replays after another iPad finished the same session online.~~ AJ judged that extremely unlikely on Sep 26 2026; on Oct 12 2026 the sessions round's audit found the same double count also comes from a take-over from an offline iPad, one trainer on two iPads and two "Finish it as it was", and AJ said "2 and 3 I will trust your decision please be sure!": the database now guards it (below).
+
+## A finish is counted once (the sessions round, Oct 12 2026)
+
+`finish-once.ts`, with `firestore.rules` `finishOnceOk` / `countedOnceOk` and `match /finish/{docId}` (their notes are `docs/ops/RULES-NOTES.md#finishonceok`, `#countedonceok`, `#sessions-finish-once`):
+
+- **The marker.** Finish's session batch (`lib/sync-utils.ts` `completeWorkoutSession`) creates `sessions/{id}/finish/once` = `{ finishId, by: the sign-in uid, at, clientId }`. The rules allow it only when the same request moves the session from not Completed to Completed. The totals batch marks it `{ countedAt, countedBy: finishId }`, once, by the person who made it. A second finish of the same session from the current app is refused whole: no second count, no older sets merged over newer ones, no trainer credit flipped back, no older weights over `clientMachineSettings`.
+- **Never block a save.** A first finish passes by construction. On a refusal the server is asked (`readFromServer`, bounded: failed, denied, missing or found, never null for two meanings) and `judgeFinishRefusal` decides: `mine` (a resend that landed: saved), `elsewhere` (`FinishedElsewhereError`), `gone` (`SessionGoneError`), `unmarked` (the session answered there and not Completed and the marker is missing or its read refused by the rules: finished again without the marker, awaited, then the totals without the mark, once), `refused` (anything else: thrown, nothing more written). A refused totals batch reads the marker too (`judgeTotalsRefusal`): counted by this finish is saved; ours and uncounted, the counters alone with the mark, then without it, once, logged `[finish] counted-refused`.
+- **What it does not cover:** an iPad still on the old version, a counter written outside Finish, two session documents for one visit. The sessions' own rules do NOT require the marker (that would refuse every old iPad's Finish); the guard lives only in documents the new app writes. **Any branch with its own `firestore.rules` must be merged with this one before its rules ship**: the rules lint fails without `match /finish/{docId}`, and `scripts/ship/ship-sessions.ps1` refuses the deploy.
+- **The words** (`finishedElsewhereWords`, `sessionGoneWords`, `finishRefusedWords`, `finishRefusedAgainWords`, `wrapUpRefusedLine`): "It counts once", never system words. A Finish refused after the Wrap-up came up says so in one line there, and the Wrap-up never claims "saved" over it.
+- **The session's number** is added at Finish (`sessionCount: increment(1)`), never set to the number shown at Start.
+
+## A trainer on two devices: Continue on this iPad (Oct 12 2026)
+
+- `device.ts` gives each browser an id (`journey_device_id`, read back after it is written, kept through a sign-out); null when it can't be kept. A session carries `recordingDeviceId`, written at Start, Resume, a take-over and Continue.
+- `isRecordedElsewhere` (`lib/live-session.ts`): another trainer's session, or this trainer's LIVE session on another device. A null id, or a session with none, is never "another device": a trainer is never locked out.
+- `WatchingSession` shows **Continue on this iPad** (the blue of a Save) for the trainer's own session: asked from the button while the other device saved in the last three minutes, asked at once when it is quieter (`continueHereWords`); watching is the default. The words say "another device", never "your other iPad" (the Home Screen app and a Safari tab are two devices to Journey).
+
+## A session left open, cleared by anyone at the studio (Oct 12 2026)
+
+AJ: "Anyone can clear a session". `discard.ts` and the stale question (`features/tracker/StaleSessionDialog.tsx`):
+
+- **Who:** anyone who works at the studio that hosts the session may resume it (a take-over), finish it as it was (a client's session only) or discard it, once it is left open (no sign of life for an hour). A session at another studio is described, never cleared. The rules' reach is wider (the client's home studio and approved studios); that gap is recorded in the rules tests and parked.
+- **Discard** asks twice. For someone else's session the server is read when the second question opens (`checkStillLeftOpen`); only "ok" lets the final Discard through. It is ONE batch with every set known and the session (`discardStaleSession`), issued at once, then a sweep.
+- **Not now** (someone else's session, any way of closing) leaves it as it is and goes back to the door it came from (`rememberLiveSession`'s `returnTo`, the tracker's `onReturn`).
 
 ## Start, Discard, Back to Hub and the machine Save never wait on the network
 
@@ -59,7 +83,7 @@ A session is recorded by the trainer running it, from any iPad they sign in on; 
 
 - **Whose session it is** is `isAnotherTrainersSession` with `myTrainerIds`, in `src/lib/live-session.ts`. It matches every id a trainer's sessions can carry, and fails toward recording: a session with no trainer, or a person the app cannot identify, is never someone else's.
 - **`WatchingSession`** is the Active Session drawn read-only: the session bar without its buttons, one line from `watchWords` (`watch.ts`), the grid with a Today column that only reads, and no Now Bar. `WorkoutTrackerView` holds the watched session as `watchedSession`, apart from `currentSession`, so nothing that records runs while watching.
-- **Take over** asks first (`takeOverWords`), then writes `takeOverPatch`: the new trainer, with `startedByTrainerId` kept. Finish credits whoever finishes, as it always has. The iPad it was taken from sends its waiting sets and turns to watching.
+- **Take over** asks first (`takeOverWords`), then writes `takeOverPatch`: the new trainer, with `startedByTrainerId` kept, and this device's id (Oct 12 2026). Finish credits whoever finishes, as it always has. The iPad it was taken from sends its waiting sets and turns to watching.
 - `sessionMachineList`, `firstOpenMachine` and `machinesDone` are what the watching screen reads off the session, by the same rules as the recording screen. `sessionMachineList` follows the tracker's seeding rule exactly (the first-session design round, Oct 8 2026): an empty list on record with no routine is a session started with nothing chosen and draws empty, never the floor; a routine with no list on record runs `todayFor` (its machines, else its plan's day one); only an older session with no list and no routine takes the floor. `whoStartedIt` names the starter after a take-over, for the profile's menu and the session pop-up (Activity Archive → Calendar or Sessions).
 
 ## Related pieces elsewhere
