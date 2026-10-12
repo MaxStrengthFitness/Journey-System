@@ -30,6 +30,7 @@ AJ called the old screen "a sad list". What he wants from it, in his words: "whe
 - **Age** only with a birth year (`ageAndBirthday`); a decade birthday within the week says "Turns 80 Thursday".
 - Names are never truncated (`First "Nickname" Last`, wrapping); rows are 64px or more; nothing tappable under 40px; no red anywhere on the screen; tokens only.
 - **Open session** in the header starts a session before the client is chosen, in one tap that never waits on the network; while it starts, the button says "Starting…", and while the trainer's own open session runs it says "Back to the open session" and goes back to it, so a second tap makes no second session (`openSessionStarting`, `openSessionRunning`; the open session round, Oct 9 2026, `src/features/open-session/README.md`).
+- **Open sessions left open here** (the sessions round, Oct 12 2026; AJ: "Anyone can clear a session"): under the title, one line per open session at this studio that nobody finished (the staleness rule), "Open session · Kim · Left open · last active 9:40 AM", with **Open**, which opens it on the Active Session for anyone who works here (resume it, or discard it; Not now comes back here). One bounded server read when the Directory opens (`left-open-here.ts`, the Active Session's own query and index); a cache answer, a timeout or an error lists nothing and says "Couldn't check for open sessions left open.", never none. `ClientDirectory.left-open.render.test.tsx` mounts it.
 
 ## Search
 

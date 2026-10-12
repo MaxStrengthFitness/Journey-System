@@ -1775,6 +1775,9 @@ export default function AppContent({
                     onStartOpenSession={startOpenSession}
                     openSessionStarting={startingOpenSession}
                     openSessionRunning={isOpenSession(myLiveSession)}
+                    // Open sessions left open here, for anyone who works
+                    // here (the sessions round, Oct 12 2026).
+                    onOpenOpenSession={(sessionId, returnTo) => openSessionFromDoor(null, sessionId, returnTo)}
                     // In today's Start: the Hub search card's own path.
                     onStartSession={(id) => {
                       setSelectedClientId(id);

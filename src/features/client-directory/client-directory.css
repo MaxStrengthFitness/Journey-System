@@ -57,6 +57,44 @@
   gap: 8px;
 }
 
+/* Open sessions left open here (the sessions round, Oct 12 2026): one line
+   each, with Open; the line wraps, never clipped. */
+.cd-left-open {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.cd-left-open__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--eq-divider);
+}
+
+.cd-left-open__line {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--eq-ink);
+  overflow-wrap: anywhere;
+}
+
+.cd-left-open__note {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--eq-ink-2);
+}
+
 .cd-search-row {
   display: flex;
   flex-wrap: wrap;
