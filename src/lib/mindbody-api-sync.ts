@@ -8,6 +8,7 @@ import {
   documentId,
   query,
   where,
+  serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
@@ -56,6 +57,13 @@ export interface SyncOptions {
    * pressing it is checking Mindbody, not saving a call.
    */
   fresh?: boolean;
+  /**
+   * Never answer this pull from a read older than this (ms, the proxy's
+   * clock). A near pull that hands a lost booking to the month sets it to its
+   * own answer's time, so the month that decides the booking is at least as
+   * new as the answer that lost it (the review of the savings round).
+   */
+  notBefore?: number;
 }
 
 export interface MindbodySyncResult {
@@ -642,6 +650,8 @@ export async function syncMindbodySchedules(
    * name. Only those. A client the rule would NOT find is created from the
    * lookup's answer (phase 1), and a skipped lookup would create them nameless.
    */
+  /** When Mindbody's answer for this pull was read (the proxy's clock), once known. */
+  let answerReadAt: number | null = null;
   /** Runs the wider pull a near pull handed its losses to, and folds it in. */
   const settleWithWiderWindow = async (win: { start: string; end: string }) => {
     const settle = await syncMindbodySchedules(
@@ -654,7 +664,11 @@ export async function syncMindbodySchedules(
       win.end,
       targetStudioIdOverride,
       targetLocationId,
-      { skipKnownClientLookups: options.skipKnownClientLookups, fresh: options.fresh },
+      {
+        skipKnownClientLookups: options.skipKnownClientLookups,
+        fresh: options.fresh,
+        notBefore: answerReadAt ?? undefined,
+      },
     );
     result.added += settle.added;
     result.updated += settle.updated;
@@ -719,6 +733,10 @@ export async function syncMindbodySchedules(
         locationId: effectiveLocationId ?? undefined,
         skipClientLookupIds,
         fresh: options.fresh === true ? true : undefined,
+        notBefore:
+          typeof options.notBefore === "number" && Number.isFinite(options.notBefore)
+            ? options.notBefore
+            : undefined,
         keepLocationIds: studiosOnSite
           .map((s) => s.mindbodyLocationId)
           .filter((id): id is string | number => id !== undefined && id !== null && String(id).trim() !== "")
@@ -763,6 +781,7 @@ export async function syncMindbodySchedules(
      */
     const fetchedAt: number | null =
       typeof data.fetchedAt === "number" && Number.isFinite(data.fetchedAt) ? data.fetchedAt : null;
+    answerReadAt = fetchedAt;
     const newerThanAnswer = (row: unknown): boolean => {
       const newer = rowIsNewerThanAnswer(row as Record<string, unknown> | null, fetchedAt);
       if (newer) result.newerThanAnswer = (result.newerThanAnswer ?? 0) + 1;
@@ -913,6 +932,8 @@ export async function syncMindbodySchedules(
     const unseenIds = [...new Set(appointments.map((a) => String(a.Id)))].filter(
       (id) => !existingByMbId[id],
     );
+    /** Ids whose read above failed: whether Journey holds a row is unknown. */
+    const unreadIds = new Set<string>();
     for (let i = 0; i < unseenIds.length; i += 30) {
       const chunk = unseenIds.slice(i, i + 30);
       try {
@@ -929,6 +950,7 @@ export async function syncMindbodySchedules(
         });
       } catch (readErr) {
         console.warn("[sync] could not read rows for bookings moved into the window", readErr);
+        for (const id of chunk) unreadIds.add(id);
       }
     }
 
@@ -1378,7 +1400,9 @@ export async function syncMindbodySchedules(
           status: isCancelled ? "Cancelled" : "Scheduled",
           serviceName: appt.SessionTypeName || "Training Session",
           source: "MindBody",
-          lastSyncAt: Timestamp.now(),
+          // Google's clock, as the webhook's is: rowIsNewerThanAnswer compares
+          // it with when Mindbody was read, and an iPad's clock can be off.
+          lastSyncAt: serverTimestamp(),
         };
 
         // Only written when reported, so a payload without pass data cannot
@@ -1396,7 +1420,12 @@ export async function syncMindbodySchedules(
         const scheduleRef = doc(db, "schedules", mbId);
         const existing = existingByMbId[mbId];
 
-        if (!existing) {
+        if (!existing && unreadIds.has(mbId) && fetchedAt !== null) {
+          // Its row could not be read, so whether Journey already holds a
+          // newer one (the webhook's) is unknown: never written whole over
+          // it from this answer. The next pull, or the webhook, brings it.
+          result.skipped++;
+        } else if (!existing) {
           batch.set(scheduleRef, { ...payload, createdAt: Timestamp.now() });
           result.added++;
         } else if (existing.docId !== mbId) {
@@ -1474,7 +1503,7 @@ export async function syncMindbodySchedules(
     for (const [, existing] of settleWith ? [] : leftWindow) {
       batch.update(doc(db, "schedules", existing.docId), {
         status: "Cancelled",
-        lastSyncAt: Timestamp.now(),
+        lastSyncAt: serverTimestamp(),
         // The Changes list (Operations overhaul, Sep 2026): WHEN it went,
         // and that it was the sweep that noticed rather than Mindbody
         // saying so. The calendar hides a cancelled row; the day's

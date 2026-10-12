@@ -267,3 +267,44 @@ describe("SharedSiteReads.read — a sibling's wider read in flight", () => {
     await a;
   });
 });
+
+describe("SharedSiteReads — never older than the caller already holds (notBefore)", () => {
+  it("a kept read older than the caller's own answer is not used", async () => {
+    const c = new SharedSiteReads();
+    c.keep(read({ end: "2026-11-11", fetchedAt: 1_000_000 }), true);
+    expect(c.find("29068", "2026-10-12", "2026-11-11", 1_010_000, 1_005_000)).toBeNull();
+    expect(c.find("29068", "2026-10-12", "2026-11-11", 1_010_000, 1_000_000)).not.toBeNull();
+    const fetch = vi.fn(async () => ({ read: read({ end: "2026-11-11", fetchedAt: 1_010_000 }), complete: true }));
+    const got = await c.read("29068", "2026-10-12", "2026-11-11", () => 1_010_000, fetch, 1_005_000);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(got?.read.fetchedAt).toBe(1_010_000);
+  });
+
+  it("does not join a read that started before the caller's own answer", async () => {
+    const c = new SharedSiteReads();
+    let release: (v: { read: SiteRead; complete: boolean }) => void = () => undefined;
+    const slow = vi.fn(
+      () =>
+        new Promise<{ read: SiteRead; complete: boolean }>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const a = c.read("29068", "2026-10-12", "2026-11-11", () => 1_000_000, slow);
+    const fresh = vi.fn(async () => ({ read: read({ end: "2026-11-11", fetchedAt: 1_003_000 }), complete: true }));
+    const b = await c.read("29068", "2026-10-12", "2026-11-11", () => 1_003_000, fresh, 1_002_000);
+    expect(fresh).toHaveBeenCalledTimes(1);
+    expect(b?.shared).toBeNull();
+    release({ read: read({ end: "2026-11-11" }), complete: true });
+    await a;
+  });
+});
+
+describe("SharedSiteReads — memory", () => {
+  it("drops the oldest answers once the bookings kept pass the total", () => {
+    const c = new SharedSiteReads(SHARED_READ_MS, 8, 10_000, 5);
+    c.keep(read({ siteId: "a" }), true); // 3 bookings
+    c.keep(read({ siteId: "b" }), true); // 6 in all: over 5
+    expect(c.find("a", "2026-10-12", "2026-10-13", 1_000_000)).toBeNull();
+    expect(c.find("b", "2026-10-12", "2026-10-13", 1_000_000)).not.toBeNull();
+  });
+});

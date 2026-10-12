@@ -537,6 +537,7 @@ async function startServer() {
         keepLocationIds,
         skipClientLookupIds,
         fresh,
+        notBefore,
       } = req.body || {};
 
       if (!siteId) {
@@ -603,8 +604,12 @@ async function startServer() {
        * (Operations -> Mindbody's "Pull the schedule now") always asks
        * Mindbody itself.
        */
-      const shareable =
-        !(staffIds && Array.isArray(staffIds) && staffIds.length > 0) && fresh !== true;
+      const wholeSite = !(staffIds && Array.isArray(staffIds) && staffIds.length > 0);
+      const shareable = wholeSite && fresh !== true;
+      // The sync asks for a read at least as new as one it already holds
+      // (a near pull handing a lost booking to the month).
+      const readNotBefore =
+        typeof notBefore === "number" && Number.isFinite(notBefore) ? notBefore : null;
       let refused: { status: number; error: string } | null = null;
       const readMindbody = async () => {
         const fetchedAt = Date.now();
@@ -688,8 +693,13 @@ async function startServer() {
 
       let pages = 1;
       const answer = shareable
-        ? await sharedSiteReads.read(String(siteId), start, end, Date.now, readMindbody)
-        : await readMindbody().then((r) => (r ? { ...r, shared: null } : null));
+        ? await sharedSiteReads.read(String(siteId), start, end, Date.now, readMindbody, readNotBefore)
+        : await readMindbody().then((r) => {
+            // A fresh whole-site read still refreshes what the next request
+            // is answered from, so nothing older is handed out after it.
+            if (r && wholeSite) sharedSiteReads.keep(r.read, r.complete);
+            return r ? { ...r, shared: null } : null;
+          });
       if (!answer) {
         const why = refused ?? { status: 502, error: "Mindbody did not answer." };
         return res

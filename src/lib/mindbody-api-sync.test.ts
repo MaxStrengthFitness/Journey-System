@@ -114,6 +114,7 @@ vi.mock("firebase/firestore", () => {
       fromDate: (d: Date) => ({ __ms: d.getTime(), toMillis: () => d.getTime() }),
       now: () => ({ __ms: 0, toMillis: () => 0 }),
     },
+    serverTimestamp: () => ({ __serverTimestamp: true }),
   };
 });
 
@@ -1818,5 +1819,67 @@ describe("syncMindbodySchedules — an older answer never undoes a newer write (
     await run();
     const plain = JSON.parse((global.fetch as any).mock.calls[0][1].body);
     expect(plain.fresh).toBeUndefined();
+  });
+});
+
+describe("syncMindbodySchedules — the review of the savings round", () => {
+  const run = (options = {}) =>
+    syncMindbodySchedules(
+      SITE, TRAINERS, CLIENTS, SHARED_SITE_STUDIOS, null, undefined, undefined, "studio-solon", "2", options,
+    );
+
+  it("stamps what it writes on Google's clock, not the iPad's", async () => {
+    mockAppointments([appointment({ Id: 7001, LocationId: 2 })], { complete: true, fetchedAt: 1 });
+    await run();
+    const set = batchOps.find((op) => op.kind === "set" && op.id === "7001");
+    expect(set?.data.lastSyncAt).toEqual({ __serverTimestamp: true });
+  });
+
+  it("never writes a booking whole over a row it could not read, when the answer may be older", async () => {
+    mockAppointments([appointment({ Id: 7002, LocationId: 2 })], { complete: true, fetchedAt: 1 });
+    // The by-id read of rows moved into the window fails.
+    const realGetDocs = (getDocs as any).getMockImplementation();
+    (getDocs as any).mockImplementation(async (target: any) => {
+      if ((target.constraints ?? []).some((c: any) => c.field === "__name__")) throw new Error("unavailable");
+      return realGetDocs(target);
+    });
+    const res = await run();
+    (getDocs as any).mockImplementation(realGetDocs);
+    expect(batchOps.find((op) => op.id === "7002")).toBeUndefined();
+    expect(res.skipped).toBeGreaterThan(0);
+  });
+
+  it("passes on a floor for the proxy's read when asked", async () => {
+    mockAppointments([appointment({ Id: 1, LocationId: 2 })], { complete: true });
+    await run({ notBefore: 1234 });
+    const body = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    expect(body.notBefore).toBe(1234);
+  });
+});
+
+describe("syncMindbodySchedules — the month that settles a lost booking is never older than the near answer", () => {
+  it("asks the proxy for the month no older than the answer that lost the booking", async () => {
+    mockAppointments([appointment({ Id: 1, LocationId: 2 })], { complete: true, fetchedAt: 5555 });
+    snapshots.schedules = [
+      {
+        id: "left",
+        data: () => ({
+          mindbodyAppointmentId: "999",
+          studioId: "studio-solon",
+          status: "Scheduled",
+          startTime: { toMillis: () => Date.now() + 2 * 60 * 60 * 1000 },
+        }),
+      },
+    ];
+    const near = syncWindow("America/New_York", NEAR_WINDOW_DAYS);
+    const month = syncWindow("America/New_York", DEEP_WINDOW_DAYS);
+    await syncMindbodySchedules(
+      SITE, TRAINERS, CLIENTS, SHARED_SITE_STUDIOS, null, near.start, near.end, "studio-solon", "2",
+      { settleSweepWith: month },
+    );
+    const calls = (global.fetch as any).mock.calls;
+    expect(calls.length).toBe(2);
+    expect(JSON.parse(calls[0][1].body).notBefore).toBeUndefined();
+    expect(JSON.parse(calls[1][1].body).notBefore).toBe(5555);
   });
 });

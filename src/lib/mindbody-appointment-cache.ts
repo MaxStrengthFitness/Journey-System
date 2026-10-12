@@ -53,10 +53,17 @@ export const SHARED_READ_MS = 2 * 60 * 1000;
  * month is several thousand bookings; this keeps the web service's memory
  * flat however many studios join.
  */
-export const MAX_SHARED_READS = 12;
+export const MAX_SHARED_READS = 8;
 
 /** An answer bigger than this is not kept at all (memory, not correctness). */
-export const MAX_SHARED_BOOKINGS = 25_000;
+export const MAX_SHARED_BOOKINGS = 10_000;
+
+/**
+ * At most this many bookings across every kept answer, oldest answers dropped
+ * first. A raw booking carries its client, staff and location; twenty
+ * thousand is a few tens of megabytes, small beside the web service's memory.
+ */
+export const MAX_SHARED_TOTAL = 20_000;
 
 export interface SiteRead<A = unknown> {
   siteId: string;
@@ -104,13 +111,14 @@ export class SharedSiteReads<A = unknown> {
   private reads: SiteRead<A>[] = [];
   private inFlight = new Map<
     string,
-    { siteId: string; start: string; end: string; done: Promise<SiteRead<A> | null> }
+    { siteId: string; start: string; end: string; startedAt: number; done: Promise<SiteRead<A> | null> }
   >();
 
   constructor(
     private readonly maxAgeMs: number = SHARED_READ_MS,
     private readonly maxReads: number = MAX_SHARED_READS,
     private readonly maxBookings: number = MAX_SHARED_BOOKINGS,
+    private readonly maxTotal: number = MAX_SHARED_TOTAL,
   ) {}
 
   /**
@@ -120,12 +128,16 @@ export class SharedSiteReads<A = unknown> {
    * is narrower than the read (it could be on any day); for the same window
    * it is kept, exactly as a fresh read would have returned it.
    */
-  find(siteId: string, start: string, end: string, now: number): SiteRead<A> | null {
+  find(siteId: string, start: string, end: string, now: number, notBefore?: number | null): SiteRead<A> | null {
     if (!DAY.test(start) || !DAY.test(end) || start > end) return null;
     this.forgetOld(now);
+    const floor = typeof notBefore === "number" && Number.isFinite(notBefore) ? notBefore : -Infinity;
     let best: SiteRead<A> | null = null;
     for (const r of this.reads) {
       if (r.siteId !== siteId || r.start > start || r.end < end) continue;
+      // A caller that already holds a newer answer (the near pull handing a
+      // lost booking to the month) must not be answered from an older one.
+      if (r.fetchedAt < floor) continue;
       if (!best || r.fetchedAt > best.fetchedAt) best = r;
     }
     if (!best) return null;
@@ -143,6 +155,11 @@ export class SharedSiteReads<A = unknown> {
     );
     this.reads.push(read);
     while (this.reads.length > this.maxReads) this.reads.shift();
+    let total = this.reads.reduce((n, r) => n + r.appointments.length, 0);
+    while (total > this.maxTotal && this.reads.length > 1) {
+      total -= this.reads[0].appointments.length;
+      this.reads.shift();
+    }
     return true;
   }
 
@@ -158,8 +175,10 @@ export class SharedSiteReads<A = unknown> {
     end: string,
     now: () => number,
     fetch: () => Promise<{ read: SiteRead<A>; complete: boolean } | null>,
+    notBefore?: number | null,
   ): Promise<{ read: SiteRead<A>; complete: boolean; shared: "kept" | "joined" | null } | null> {
-    const kept = this.find(siteId, start, end, now());
+    const floor = typeof notBefore === "number" && Number.isFinite(notBefore) ? notBefore : -Infinity;
+    const kept = this.find(siteId, start, end, now(), notBefore);
     if (kept) return { read: kept, complete: true, shared: "kept" };
 
     // A read on its way that covers these days (the same window, or a
@@ -167,7 +186,7 @@ export class SharedSiteReads<A = unknown> {
     const key = `${siteId}|${start}|${end}`;
     let waiting: Promise<SiteRead<A> | null> | null = null;
     for (const f of this.inFlight.values()) {
-      if (f.siteId === siteId && f.start <= start && f.end >= end) {
+      if (f.siteId === siteId && f.start <= start && f.end >= end && f.startedAt >= floor) {
         waiting = f.done;
         break;
       }
@@ -185,7 +204,7 @@ export class SharedSiteReads<A = unknown> {
     const done = new Promise<SiteRead<A> | null>((resolve) => {
       settle = resolve;
     });
-    const mine = { siteId, start, end, done };
+    const mine = { siteId, start, end, startedAt: now(), done };
     const registered = !this.inFlight.has(key);
     if (registered) this.inFlight.set(key, mine);
     try {
@@ -244,9 +263,11 @@ const millisOf = (v: unknown): number | null => {
  *   - `mindbodyEventAt`: when Mindbody's webhook event happened (Mindbody's
  *     clock). Newer than the answer, less a minute's margin, means the change
  *     came after the read.
- *   - `lastSyncAt`: the row's last write (the webhook's is the server's clock;
- *     a pull's is the iPad's). At or after the read means someone wrote it
- *     since.
+ *   - `lastSyncAt`: the row's last write, on Google's clock for both writers
+ *     (the webhook's `serverTimestamp()`, and the pull's since this round:
+ *     an iPad's own clock can be minutes off, and a fast one would have
+ *     frozen its rows, a slow one let an older answer cancel a newer
+ *     booking). At or after the read means someone wrote it since.
  *
  * Without `fetchedAt` (an older proxy) nothing is newer, so the pull behaves
  * exactly as it did. Skipping is always the safe direction: it writes

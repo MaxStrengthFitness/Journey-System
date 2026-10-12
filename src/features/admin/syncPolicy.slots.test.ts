@@ -95,11 +95,11 @@ describe("decideSync on the site's slots", () => {
     // Both land on a slot of the site, so after one more pull each they agree.
     expect(((a! - off) % HALF + HALF) % HALF).toBe(0);
     expect(((b! - off) % HALF + HALF) % HALF).toBe(0);
-    const a2 = nextDueAt(ctx({ lastSyncAt: a! + 30_000, slotOffsetMs: off }));
-    const b2 = nextDueAt(ctx({ lastSyncAt: b! + 50_000, slotOffsetMs: off }));
-    expect(a2).toBe(b! === a! ? b2 : a2);
-    expect(nextDueAt(ctx({ lastSyncAt: a2! + 20_000, slotOffsetMs: off }))).toBe(
-      nextDueAt(ctx({ lastSyncAt: a2! + 45_000, slotOffsetMs: off })),
+    // Whoever pulled at a slot, a few seconds apart, is next due at the
+    // same slot as the other.
+    const later = Math.max(a!, b!);
+    expect(nextDueAt(ctx({ lastSyncAt: later + 20_000, slotOffsetMs: off }))).toBe(
+      nextDueAt(ctx({ lastSyncAt: later + 55_000, slotOffsetMs: off })),
     );
   });
 

@@ -37,6 +37,20 @@ At 70 studios Mindbody becomes the largest line of the bill (about $350–450 a 
 - **Pulling the site from the server instead of the iPads.** The web service has no Firestore key, and an iPad at Westlake may not write Strongsville's bookings (the rules). Phases 1 and 2 get the same saving without either change.
 - **Asking Mindbody to filter by location** (`scripts/probe-mindbody-location-filter.ts`). It has never been run. It would shrink a shared site's month pull from about 8 pages to about 3. Run it once; it is read-only and costs two calls.
 
+## The independent review, and what it changed
+
+A separate review read the three phases against the code. It found no blocking defect, and the fifth commit fixes what it raised:
+
+- **Two clocks.** The guard compared a row's `lastSyncAt`, which the pull stamped with the iPad's clock, against `fetchedAt` on the server's clock. On an iPad a few minutes slow, a later pull answered from an older shared read could cancel a booking the slow iPad had just written. On a fast iPad, its rows froze until the clock caught up. **The pull now stamps `lastSyncAt` with `serverTimestamp()`**, Google's clock, as the webhook already did. Nothing on screen reads that field.
+- **A fresh read now refreshes the shared copy.** After "Pull the schedule now", nothing older is handed out.
+- **The month that settles a lost booking is never older than the answer that lost it.** A near pull passes its own read time as `notBefore`, and the proxy will not answer it from, or join, an older read.
+- **A booking whose row could not be read is not written whole.** If the by-id read of rows moved into the window fails, Journey can't tell whether it already holds a newer row. That booking is skipped for this pull. It used to be written as new over whatever was there.
+- **Memory:** at most 8 answers and 20,000 bookings kept, oldest dropped first.
+- **The freshness wording is exact now.** Today can be up to about 37 minutes old at worst, against AJ's "about 30": a skipped slot adds up to 5 minutes, and a shared read up to 2. Studios on one site line up only when they share an interval.
+- A slots test that could pass without asserting anything now asserts.
+
+Left as it was: the legacy random-id branch (folding an old random-id row onto the canonical id) still writes without the guard. It is rare, and older than this round.
+
 ## What changes where
 
 - **Web service (Render):** `server.ts`. The schedule route shares reads and sends `fetchedAt`. Nothing else on the server changed, and no cron changed.
@@ -55,7 +69,7 @@ At 70 studios Mindbody becomes the largest line of the bill (about $350–450 a 
 | | |
 | --- | --- |
 | Typecheck | 2, the baseline (the cloud copy shows 5; the extra three are only the missing `firebase-applet-config.json`, which is not in git) |
-| New tests | `mindbody-appointment-cache.test.ts` (26), `syncPolicy.slots.test.ts` (13), `near-checks.test.ts` (15), five new cases in `mindbody-api-sync.test.ts`, one new rules test |
+| New tests | `mindbody-appointment-cache.test.ts` (29), `syncPolicy.slots.test.ts` (13), `near-checks.test.ts` (15), nine new cases in `mindbody-api-sync.test.ts`, one new rules test |
 | `src/features/admin` + `src/lib` | 2,818 passing in 196 files |
 | Full suite | **14,708 passing (1 skipped) in 884 files**, `TZ=America/New_York npx vitest run src --testTimeout=30000` |
 | Build | `vite build` clean; first screen 469.6 KB gzip (budget 480); the server and cron bundles build |

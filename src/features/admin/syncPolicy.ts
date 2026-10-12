@@ -144,11 +144,15 @@ export function intervalWithBackoff(
  * call. Different sites get different offsets, so seventy studios do not all
  * call Mindbody at :00 and :30.
  *
- * Today's freshness is unchanged: a pull still comes at least every
- * interval. The one exception is the first slot after a pull that landed
- * just before one (under five minutes, or half the interval): that slot is
- * skipped rather than pulling twice in a row, so once a day the gap can be
- * up to five minutes longer than the interval. A failing pull keeps the old
+ * Today's freshness is nearly unchanged: a pull still comes about every
+ * interval. A pull that landed just before a slot (under five minutes, or
+ * half the interval) skips that slot rather than pulling twice in a row, so
+ * after one (the day's first, or a recovery after errors) the gap can be up
+ * to five minutes longer than the interval; and the proxy may answer from a
+ * read up to two minutes old. So today can be up to about 37 minutes old at
+ * worst, against AJ's "about 30" (the webhook brings most changes in
+ * seconds). Studios on one site line up only when they share an interval:
+ * the offset is taken within each studio's own. A failing pull keeps the old
  * backoff from its own last attempt.
  * ------------------------------------------------------------------ */
 
