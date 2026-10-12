@@ -1,7 +1,7 @@
 {
   "generatedFrom": "docs/msf-academy",
-  "corpusHash": "ebc0897297b9",
-  "totalWords": 111666,
+  "corpusHash": "9cc3a9cf517c",
+  "totalWords": 113473,
   "modules": [
     {
       "id": "intro",
@@ -106,6 +106,12 @@
           "title": "Other Health Factors",
           "readingMinutes": 1,
           "words": 202
+        },
+        {
+          "id": "benefits-sarcopenia",
+          "title": "Sarcopenia",
+          "readingMinutes": 4,
+          "words": 843
         }
       ]
     },
@@ -348,6 +354,12 @@
           "title": "FAQ",
           "readingMinutes": 9,
           "words": 1780
+        },
+        {
+          "id": "programming-msf-suggested-starting-weights",
+          "title": "MSF - Suggested Starting Weights",
+          "readingMinutes": 3,
+          "words": 670
         }
       ]
     },
@@ -634,8 +646,8 @@
         {
           "id": "further-research",
           "title": "Research",
-          "readingMinutes": 5,
-          "words": 965
+          "readingMinutes": 6,
+          "words": 1259
         },
         {
           "id": "further-resistance-transfer-techniques",
