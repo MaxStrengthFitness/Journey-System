@@ -20,15 +20,23 @@ import { isPerformedLog, repsOf } from "./set-outcome";
  * of it is the same two collections for one client, so they are now read
  * ONCE per report (`loadTrainingHistory`) and every number on the report is
  * computed from that in memory (`attendanceStatsFrom`, `machineStatsFrom`).
- * Changing the report window costs no read at all.
+ *
+ * Since the history-ready round (Oct 12 2026: a client with years of
+ * FileMaker history has thousands of sets) the sets are read only for the
+ * sessions in the report's window, by session (`in`, 30 at a time, side by
+ * side), and read again only when the window is moved EARLIER than what was
+ * read (`historyCovers`). The default window, since the first session, still
+ * reads every set: the report says what it always said.
  * ------------------------------------------------------------------ */
 
 /** Everything the report counts from, for one client. */
 export interface TrainingHistory {
   /** Completed sessions, oldest first. */
   sessions: WorkoutSession[];
-  /** Every exercise log for the client, in no particular order. */
+  /** The exercise logs of the sessions from `logsFrom` on, in no particular order. */
   logs: ExerciseLog[];
+  /** The first day whose sessions' sets were read ("" or absent: every session's). */
+  logsFrom?: string;
 }
 
 /**
@@ -37,7 +45,7 @@ export interface TrainingHistory {
  * Throws on a failed read — the caller treats that as "unknown", never as an
  * empty history.
  */
-export async function loadTrainingHistory(clientId: string): Promise<TrainingHistory> {
+export async function loadTrainingHistory(clientId: string, fromDay = ""): Promise<TrainingHistory> {
   const sessionsSnap = await getDocs(
     query(
       collection(db, "sessions"),
@@ -49,15 +57,23 @@ export async function loadTrainingHistory(clientId: string): Promise<TrainingHis
   const sessions = sessionsSnap.docs.map(
     (d) => ({ id: d.id, ...d.data() }) as WorkoutSession,
   );
-  if (sessions.length === 0) return { sessions, logs: [] };
+  if (sessions.length === 0) return { sessions, logs: [], ...(fromDay ? { logsFrom: fromDay } : {}) };
 
-  const logsSnap = await getDocs(
-    query(collection(db, "exerciseLogs"), where("clientId", "==", clientId)),
+  // The window's sessions' sets only, 30 sessions to a query (Firestore's `in`), side by side.
+  const ids = sessionsInWindow(sessions, fromDay).map((s) => s.id).filter((id): id is string => !!id);
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+  const snaps = await Promise.all(
+    chunks.map((chunk) => getDocs(query(collection(db, "exerciseLogs"), where("sessionId", "in", chunk)))),
   );
-  const logs = logsSnap.docs.map(
-    (d) => ({ id: d.id, ...d.data() }) as ExerciseLog,
-  );
-  return { sessions, logs };
+  const logs = snaps.flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ExerciseLog));
+  return { sessions, logs, ...(fromDay ? { logsFrom: fromDay } : {}) };
+}
+
+/** Does a history read from `logsFrom` hold the sets a window starting at `startDate` needs? */
+export function historyCovers(history: Pick<TrainingHistory, "logsFrom">, startDate: string | undefined): boolean {
+  const from = history.logsFrom ?? "";
+  return from === "" || (!!startDate && startDate >= from);
 }
 
 /** Sessions on or after the window start (blank = every session). */

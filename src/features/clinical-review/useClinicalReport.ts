@@ -53,14 +53,18 @@ export interface ClinicalReportState {
 
 const rangeKey = (r: ReportRange) => `${r.from ?? "all"}:${r.to}`;
 
+/**
+ * The sets of the range's sessions only: 30 sessions to a query (Firestore's
+ * `in`), side by side. Until the history-ready round (Oct 12 2026) a range of
+ * more than 60 sessions read every set the client ever had and filtered it,
+ * so a 90-day Deep Dive of a client with years of FileMaker history read
+ * thousands of sets it never used.
+ */
 async function fetchLogsForSessions(sessionIds: string[]): Promise<ExerciseLog[]> {
-  const out: ExerciseLog[] = [];
-  for (let i = 0; i < sessionIds.length; i += 10) {
-    const chunk = sessionIds.slice(i, i + 10);
-    const snap = await getDocs(query(collection(db, "exerciseLogs"), where("sessionId", "in", chunk)));
-    for (const d of snap.docs) out.push({ id: d.id, ...(d.data() as ExerciseLog) });
-  }
-  return out;
+  const chunks: string[][] = [];
+  for (let i = 0; i < sessionIds.length; i += 30) chunks.push(sessionIds.slice(i, i + 30));
+  const snaps = await Promise.all(chunks.map((chunk) => getDocs(query(collection(db, "exerciseLogs"), where("sessionId", "in", chunk)))));
+  return snaps.flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...(d.data() as ExerciseLog) })));
 }
 
 export function useClinicalReport(clientId: string | null, options: { enabled?: boolean } = {}): ClinicalReportState {
@@ -114,14 +118,7 @@ export function useClinicalReport(clientId: string | null, options: { enabled?: 
 
         setProgress(`Loading sets for ${sessions.length} sessions…`);
         const ids = sessions.map((s) => s.id!).filter(Boolean);
-        let logs: ExerciseLog[];
-        if (ids.length <= 60) {
-          logs = await fetchLogsForSessions(ids);
-        } else {
-          const idSet = new Set(ids);
-          const snap = await getDocs(query(collection(db, "exerciseLogs"), where("clientId", "==", clientId)));
-          logs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as ExerciseLog) })).filter((l) => idSet.has(l.sessionId));
-        }
+        const logs = await fetchLogsForSessions(ids);
         if (requestId.current !== myId) return;
 
         setProgress("Loading incidents…");

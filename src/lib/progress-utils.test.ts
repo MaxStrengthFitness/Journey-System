@@ -19,6 +19,7 @@ import {
   AVG_DURATION_MIN_SESSIONS,
   AVG_REST_MIN_GAPS,
   attendanceStatsFrom,
+  historyCovers,
   loadTrainingHistory,
   machineStatsFrom,
   sessionsInWindow,
@@ -184,6 +185,31 @@ describe("loadTrainingHistory", () => {
     getDocs.mockResolvedValueOnce(snap([]));
     expect(await loadTrainingHistory("c1")).toEqual({ sessions: [], logs: [] });
     expect(getDocs).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads only the window's sessions' sets, 30 sessions to a query (the history-ready round)", async () => {
+    const sessions = Array.from({ length: 70 }, (_, i) => ({ id: `s${i + 1}`, date: `2025-${String(1 + Math.floor(i / 28)).padStart(2, "0")}-${String(1 + (i % 28)).padStart(2, "0")}`, status: "Completed" }));
+    getDocs.mockResolvedValueOnce(snap(sessions)).mockResolvedValue(snap([]));
+    const h = await loadTrainingHistory("c1", "2025-03-01");
+    // 14 sessions in March: one query, by session, never by client.
+    expect(getDocs).toHaveBeenCalledTimes(2);
+    const logsQuery = getDocs.mock.calls[1][0];
+    expect(logsQuery.constraints[0]).toMatchObject({ field: "sessionId", op: "in" });
+    expect(logsQuery.constraints[0].value).toHaveLength(14);
+    expect(h.logsFrom).toBe("2025-03-01");
+    // The whole history: 70 sessions, three queries side by side.
+    getDocs.mockReset();
+    getDocs.mockResolvedValueOnce(snap(sessions)).mockResolvedValue(snap([]));
+    await loadTrainingHistory("c1");
+    expect(getDocs).toHaveBeenCalledTimes(4);
+  });
+
+  it("knows whether what was read holds a window's sets", () => {
+    expect(historyCovers({}, "")).toBe(true);
+    expect(historyCovers({ logsFrom: "2025-03-01" }, "2025-04-01")).toBe(true);
+    // An earlier window, or the whole history, needs another read.
+    expect(historyCovers({ logsFrom: "2025-03-01" }, "2025-02-01")).toBe(false);
+    expect(historyCovers({ logsFrom: "2025-03-01" }, "")).toBe(false);
   });
 
   it("lets a failed read fail — unknown is not empty", async () => {

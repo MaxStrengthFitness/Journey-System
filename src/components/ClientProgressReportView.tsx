@@ -54,6 +54,7 @@ import {
 import {
   attendanceStatsFrom,
   loadTrainingHistory,
+  historyCovers,
   machineStatsFrom,
   sessionsInWindow,
   AVG_DURATION_MIN_SESSIONS,
@@ -418,6 +419,9 @@ export function ClientProgressReportView({
   const [history, setHistory] = useState<TrainingHistory | null>(null);
   const [historyStatus, setHistoryStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const historyLoadedFor = useRef<string | null>(null);
+  // The history read so far, for the effect below to ask without depending on it.
+  const historyRef = useRef<TrainingHistory | null>(null);
+  historyRef.current = history;
   /** The auto-populate runs once per open report, never over the trainer's edits. */
   const autoPopulated = useRef(false);
 
@@ -653,12 +657,15 @@ export function ClientProgressReportView({
 
   // Read the client's history once while editing (auto or manual — the
   // machine picker and step 3 want it either way).
+  /* Only the window's sets are read (progress-utils.ts, the history-ready
+     round): moving the window earlier than what was read reads again. */
+  const windowStart = report.attendance.customStartDate || "";
   useEffect(() => {
     if (mode !== "editing" || !client.id) return;
-    if (historyLoadedFor.current === client.id) return;
+    if (historyLoadedFor.current === client.id && historyRef.current && historyCovers(historyRef.current, windowStart)) return;
     let cancelled = false;
     setHistoryStatus("loading");
-    loadTrainingHistory(client.id)
+    loadTrainingHistory(client.id, windowStart)
       .then((h) => {
         if (cancelled) return;
         historyLoadedFor.current = client.id!;
@@ -673,7 +680,7 @@ export function ClientProgressReportView({
     return () => {
       cancelled = true;
     };
-  }, [client.id, mode]);
+  }, [client.id, mode, windowStart]);
 
   // Read the client's coaching focuses once while editing. Bounded, and
   // ordered by the (clientId, updatedAt) index that firestore.indexes.json

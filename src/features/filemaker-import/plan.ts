@@ -415,6 +415,12 @@ export function clientWriteFor(
   const split = splitMachineTotalsUpdates(rollup);
   Object.assign(write.client, split.client);
   Object.assign(write.totals, split.totals);
+  /* The stats now count every session the client has (a client Journey
+     already holds sessions for is never imported): the profile's one-time
+     rebuild (equipment/useMachineStats.ts), which reads every session and set
+     the client ever had, has nothing to do. Its marker says so, as the
+     duplicate-merge script's does. */
+  write.totals.machineStatsBackfilledAt = ops.serverTimestamp();
 
   // "Last time" per machine: the newest set done with a weight, never over a newer one on file.
   const lastBy = new Map<string, { session: PlannedSession; log: Record<string, unknown> }>();

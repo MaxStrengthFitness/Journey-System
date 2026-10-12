@@ -264,6 +264,8 @@ describe("the client's own documents, written with the sessions", () => {
     expect(w.totals["currentMachineMetrics.m-leg-press"]).toMatchObject({ weight: "86", reps: "10", lastSessionId: "fm_100000001_2026-03-26", lastPerformedSessionNumber: 2 });
     expect(w.totals).not.toHaveProperty("currentMachineMetrics.m-pullover");
     expect(Object.keys(w.client).some((k) => k.startsWith("machineStats"))).toBe(false);
+    // The profile's one-time rebuild of every session's sets has nothing to do: its marker says so.
+    expect(w.totals).toHaveProperty("machineStatsBackfilledAt");
   });
 
   it("keeps 'last time' on the newest set with a weight", () => {
