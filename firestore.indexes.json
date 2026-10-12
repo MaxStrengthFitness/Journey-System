@@ -1023,6 +1023,20 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "mindbodyStaffId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "accessibleStudioIds",
+          "arrayConfig": "CONTAINS"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "trainers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "initials",
           "order": "ASCENDING"
         },
