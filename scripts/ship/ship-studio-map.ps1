@@ -1,4 +1,8 @@
 <#
+ DO NOT RUN THIS ONE. This round ships inside the Oct 12 release, with
+ scripts\ship\ship-oct12.ps1 (docs\rounds\2026-10-12-release.md). This script
+ is kept for the record only.
+
  SCRIPT-VERSION: v1  (Oct 12 2026, the studio map)
 
  Ships branch oct10/studio-map: the studio map round of Oct 10 to 12 2026

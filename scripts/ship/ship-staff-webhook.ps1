@@ -1,4 +1,8 @@
 <#
+ DO NOT RUN THIS ONE. This round ships inside the Oct 12 release, with
+ scripts\ship\ship-oct12.ps1 (docs\rounds\2026-10-12-release.md). This script
+ is kept for the record only.
+
  SCRIPT-VERSION: v1  (Oct 12 2026, the staff webhook)
 
  Ships branch oct12/staff-webhook: the Mindbody webhook matches a staff update

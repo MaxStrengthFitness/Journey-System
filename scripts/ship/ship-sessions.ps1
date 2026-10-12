@@ -1,4 +1,8 @@
 <#
+ DO NOT RUN THIS ONE. This round ships inside the Oct 12 release, with
+ scripts\ship\ship-oct12.ps1 (docs\rounds\2026-10-12-release.md). This script
+ is kept for the record only.
+
  SCRIPT-VERSION: v1  (Oct 12 2026, the sessions round; master at 5a0bf7ea)
 
  Ships branch oct12/sessions-fixes: the sessions round of Oct 12 2026
