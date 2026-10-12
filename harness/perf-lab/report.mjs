@@ -107,7 +107,28 @@ const SCENARIO_WORDS = {
   ops: "(f) Operations Today settled (ms from Open Operations), then the Client Directory and a search",
   scroll: "(g) Scrolling the Hub grid (3 times down and up) and the Directory (once down)",
   live: "(h) live, opt-in: the Directory across a minute tick, one client document changed there, then on the Hub (long tasks per phase, lt.*)",
+  // The studio map (Oct 12 2026), opt-in: run.mjs MAP_SCENARIOS. *TargetsNet: Listen targets added less removed.
+  map: "(m1) The studio map: My Studio -> Machines opens on the map (wall = the Machines tap to the map drawn), a tap -> the card (Set up), the listeners each adds",
+  clean: "(m2) Cleaning on Relay's map: a tap -> its tick, Mark all -> every tick (wall = Mark all to every tick; the database's answer apart)",
+  arrange: "(m3) Arrange the floor: open (wall), a machine dragged 30 moves onto another, a box edge dragged 30 moves, Save",
+  "catalog-layout": "(m4) The Catalog's map: Learning -> Catalog -> the floor -> Map, a tap -> the card (Learn; wall), Open its Catalog page",
+  "catalog-layout-relay": "(m5) A card from Relay's map (Clean open; wall), then Maintain and Set up unfolded and folded: the listeners each adds",
 };
+
+/** The studio map's targets (design §E), checked against a run's medians: [label, scenario, step, most]. */
+const MAP_TARGETS = [
+  ["Missed frames in a 30-move machine drag", "arrange", "dragMissedFrames", 1],
+  ["Missed frames in a 30-move box-edge drag", "arrange", "edgeMissedFrames", 1],
+  ["Drop -> overlaps drawn (less the 120 ms settle)", "arrange", "dropToOverlapsMs", 50],
+  ["Tap -> its tick", "clean", "tapToTickMs", 100],
+  ["DOM nodes on the map (the page)", "map", "mapDomNodes", 650],
+  ["DOM nodes in the editor (the page)", "arrange", "editorDomNodes", 750],
+  ["Listeners the map adds (List -> Map)", "map", "mapViewTargetsNet", 3],
+  ["Listeners Cleaning adds on My Studio", "map", "cleaningTargetsNet", 2],
+  ["Listeners the card adds from Relay at Clean", "catalog-layout-relay", "atCleanTargetsNet", 1],
+  ["Listeners Maintain adds", "catalog-layout-relay", "maintainTargetsAdded", 6],
+  ["Listeners Set up adds", "catalog-layout-relay", "setupTargetsAdded", 2],
+];
 
 const n = (v) => (typeof v === "number" ? v.toLocaleString("en-US") : "-");
 /** "1,234 [1,100-1,300]" with "!" when the spread is over 15%. */
@@ -195,9 +216,28 @@ export function writeReport(results, outDir) {
 
   for (const v of variantNames) {
     L();
-    L(`## What a trainer feels${variantNames.length > 1 ? ` (build ${v})` : ""}`);
-    L();
-    headlineTable(lines, summary[v], profiles);
+    // The headline only when one of its scenarios ran (a run of the studio map's alone has none).
+    if (profiles.some((p) => HEADLINE.some(([, sc]) => summary[v][p]?.[sc]))) {
+      L(`## What a trainer feels${variantNames.length > 1 ? ` (build ${v})` : ""}`);
+      L();
+      headlineTable(lines, summary[v], profiles);
+    }
+    // The studio map's targets (design §E), when its scenarios ran.
+    if (profiles.some((p) => MAP_TARGETS.some(([, sc]) => summary[v][p]?.[sc]))) {
+      L();
+      L(`### The studio map's targets${variantNames.length > 1 ? ` (build ${v})` : ""}`);
+      L();
+      L(`| target | at most | ${profiles.join(" | ")} |`);
+      L(`| --- | ---: | ${profiles.map(() => "---:").join(" | ")} |`);
+      for (const [label, sc, step, most] of MAP_TARGETS) {
+        const cells = profiles.map((p) => {
+          const st = pick(summary[v][p], sc, step);
+          if (!st) return "-";
+          return `${fs(st)} ${st.med <= most ? "met" : "**over**"}`;
+        });
+        L(`| ${label} | ${n(most)} | ${cells.join(" | ")} |`);
+      }
+    }
   }
 
   // Sanity: the throttle must show in the main-thread column. On relaunch, the open that is mostly work (cold is mostly waiting).
