@@ -2368,12 +2368,18 @@ service cloud.firestore {
         allow read: if isAuthenticated();
         allow create, update: if isAnyAuthenticatedTrainer()
                     && writesForStudio(studioId)
-                    && docId == 'lease'
+                    && ((docId == 'lease'
                     && request.resource.data.keys()
                          .hasOnly(['lastScheduleSyncAt', 'scheduleSyncFailures', 'lastDeepScheduleSyncAt'])
                     && (!('lastScheduleSyncAt' in request.resource.data) || request.resource.data.lastScheduleSyncAt is number)
                     && (!('scheduleSyncFailures' in request.resource.data) || request.resource.data.scheduleSyncFailures is number)
-                    && (!('lastDeepScheduleSyncAt' in request.resource.data) || request.resource.data.lastDeepScheduleSyncAt is number);
+                    && (!('lastDeepScheduleSyncAt' in request.resource.data) || request.resource.data.lastDeepScheduleSyncAt is number))
+                    // Why: docs/ops/RULES-NOTES.md#studios-studioid-sync-near-day
+                    || (docId.matches('^near-[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+                    && request.resource.data.keys().hasOnly(['checks', 'finds', 'rows'])
+                    && request.resource.data.get('checks', 0) is number
+                    && request.resource.data.get('finds', 0) is number
+                    && request.resource.data.get('rows', 0) is number));
         allow delete: if isSuperAdmin();
       }
 

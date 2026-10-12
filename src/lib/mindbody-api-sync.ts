@@ -80,6 +80,14 @@ export interface MindbodySyncResult {
    */
   newerThanAnswer?: number;
   /**
+   * Bookings this pull changed inside its OWN window (added, updated,
+   * cancelled, or handed to the wider pull), before any wider pull it asked
+   * for. On a background pull of today and tomorrow this is what the webhook
+   * had not already brought: Operations -> Mindbody counts it (the Mindbody
+   * savings round, Oct 12 2026).
+   */
+  windowChanges?: number;
+  /**
    * This studio's bookings in Mindbody's answer, after the location filter.
    * 0 means the pull returned before its sweep: it checked nothing Journey
    * holds for the window (an empty answer can be a glitch, or a wrong
@@ -1495,6 +1503,8 @@ export async function syncMindbodySchedules(
         `Skipped appointments from unmapped MindBody location(s): ${[...unresolvedLocations].join(", ")}. Assign these Location IDs to a studio in Admin → Studios.`,
       );
     }
+
+    result.windowChanges = result.added + result.updated + (result.sweepDeferred ?? 0);
 
     if (settleWith) {
       // Something left today or tomorrow. Ask for the wider window now: a

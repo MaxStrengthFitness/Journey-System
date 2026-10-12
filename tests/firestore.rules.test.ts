@@ -2847,6 +2847,23 @@ describe("Firestore Security Rules", () => {
     await assertFails(deleteDoc(lease));
   });
 
+  // The Mindbody savings round (Oct 12 2026): what the near pull found that
+  // the webhook had not, one small document a day.
+  it("lets a trainer's iPad count the day's near pulls, three numbers and nothing else", async () => {
+    const trainer = testEnv.authenticatedContext("trainerA", { email: "trainera@test.com" }).firestore();
+    const day = doc(trainer, "studios", "studioA", "sync", "near-2026-10-12");
+    await assertSucceeds(setDoc(day, { checks: increment(1), finds: increment(0), rows: increment(0) }, { merge: true }));
+    await assertSucceeds(setDoc(day, { checks: increment(1), finds: increment(1), rows: increment(3) }, { merge: true }));
+    await assertSucceeds(getDoc(day));
+    await assertFails(setDoc(day, { checks: 1, clientName: "Alice" }, { merge: true }));
+    await assertFails(setDoc(day, { checks: "many" }, { merge: true }));
+    await assertFails(setDoc(doc(trainer, "studios", "studioA", "sync", "near-today"), { checks: 1 }));
+    await assertFails(setDoc(doc(trainer, "studios", "studioA", "sync", "near-2026-10-12"), { lastScheduleSyncAt: 1 }, { merge: true }));
+    const b = testEnv.authenticatedContext("trainerB", { email: "trainerb@test.com" }).firestore();
+    await assertFails(setDoc(doc(b, "studios", "studioA", "sync", "near-2026-10-12"), { checks: increment(1) }, { merge: true }));
+    await assertFails(deleteDoc(day));
+  });
+
   it("refuses the sync lease to someone signed in who is not a trainer", async () => {
     const stranger = testEnv.authenticatedContext("stranger", { email: "stranger@test.com" }).firestore();
     await assertFails(setDoc(doc(stranger, "studios", "studioA", "sync", "lease"), { lastScheduleSyncAt: 1 }));

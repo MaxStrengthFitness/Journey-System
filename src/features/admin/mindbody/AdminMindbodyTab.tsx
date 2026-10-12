@@ -54,6 +54,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Copy,
+  Info,
   RefreshCw,
   Terminal,
   Webhook,
@@ -94,6 +95,13 @@ import {
 } from "./diagnostics";
 import { useSyncLeases, withLease } from "../sync-lease";
 import { watchLine, type WebhookWatch } from "../../../lib/webhook-watch";
+import {
+  lastStudioDays,
+  nearChecksLine,
+  summariseNearChecks,
+  type NearCheckDay,
+  type NearCheckSummary,
+} from "./near-checks";
 import { studioTodayKey } from "../../../lib/studio-time";
 import { recordCoverage } from "../../openings/coverage-record";
 
@@ -217,6 +225,40 @@ function MindbodyPage({
     };
   }, []);
   const webhookLine = useMemo(() => watchLine(webhookWatch, now), [webhookWatch, now]);
+
+  /* What the 30-minute check of today and tomorrow found that the webhook
+     hadn't, over the last fourteen days (the Mindbody savings round, Oct 12
+     2026; ./near-checks.ts). Fourteen small reads when the studio changes. */
+  const [nearChecks, setNearChecks] = useState<NearCheckSummary | null | undefined>(undefined);
+  useEffect(() => {
+    const id = selected?.id;
+    if (!id) {
+      setNearChecks(undefined);
+      return;
+    }
+    let cancelled = false;
+    const days = lastStudioDays(studioTodayKey(new Date()));
+    Promise.all(
+      days.map((day) =>
+        getDoc(doc(db, "studios", id, "sync", `near-${day}`)).then((snap) =>
+          snap.exists() ? (snap.data() as NearCheckDay) : null,
+        ),
+      ),
+    )
+      .then((found) => {
+        if (!cancelled) setNearChecks(summariseNearChecks(found));
+      })
+      .catch(() => {
+        if (!cancelled) setNearChecks(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id]);
+  const nearLine = useMemo(
+    () => (nearChecks === undefined ? null : nearChecksLine(nearChecks)),
+    [nearChecks],
+  );
   const selectedRow = rows.find((r) => r.studioId === selected?.id) ?? null;
 
   /* ---------------- live connection check ---------------- */
@@ -462,6 +504,18 @@ function MindbodyPage({
         )}
         <div>{webhookLine.text}</div>
       </AdminNotice>
+
+      {/* 1c. What the background check finds that the webhook hadn't (Oct 12 2026) */}
+      {nearLine && (
+        <AdminNotice tone={nearLine.tone}>
+          {nearLine.tone === "ok" ? (
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+          ) : (
+            <Info className="w-4 h-4 shrink-0" />
+          )}
+          <div>{nearLine.text}</div>
+        </AdminNotice>
+      )}
 
       {checkResult && (
         <AdminNotice tone={checkResult.ok ? "ok" : "alert"}>

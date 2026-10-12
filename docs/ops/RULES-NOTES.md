@@ -1421,6 +1421,21 @@ holds those three numbers and nothing else. The old-field allowance
 above stays until every iPad has reloaded onto this build.
 ```
 
+<a id="studios-studioid-sync-near-day"></a>
+### `studios/{studioId}/sync/near-YYYY-MM-DD`
+
+```text
+WHAT THE BACKGROUND PULL FOUND THAT THE WEBHOOK HAD NOT (the Mindbody
+savings round, Oct 12 2026). One small document a day per studio,
+three counts written with increment() by the iPad that ran the pull:
+checks (pulls of today and tomorrow that Mindbody answered in full),
+finds (those that changed anything) and rows (how many bookings they
+changed). Operations -> Mindbody reads the last fourteen days to say
+whether the 30-minute pull is still catching what the webhook misses,
+the evidence AJ needs before the pull is ever slowed. Same writers as
+the lease (an iPad at the studio); numbers only, nothing about a client.
+```
+
 <a id="studios-studioid-schedulecoverage-month"></a>
 ### `match /studios/{studioId}/scheduleCoverage/{month}`
 

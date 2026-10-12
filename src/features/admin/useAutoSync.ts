@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { runTransaction, setDoc } from "firebase/firestore";
+import { doc, increment, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import type { Client, Studio, Trainer } from "../../types";
 import {
@@ -20,7 +20,8 @@ import {
   withinPullHours,
   type SyncVerdict,
 } from "./syncPolicy";
-import { DEFAULT_TIME_ZONE, isValidTimeZone } from "../../lib/studio-time";
+import { DEFAULT_TIME_ZONE, isValidTimeZone, studioDateKey } from "../../lib/studio-time";
+import { nearCheckAdds, nearCheckDocId } from "./mindbody/near-checks";
 import { leaseOf, leaseRef, useSyncLease, type SyncLease } from "./sync-lease";
 import { recordCoverage } from "../openings/coverage-record";
 
@@ -228,6 +229,19 @@ export function useAutoSync({
       // a studio with a lasting warning then saw a same-day cancellation hours
       // late (the review, Sep 25 2026).
       const failed = res.windowComplete !== true;
+      // What this check of today and tomorrow found that the webhook hadn't
+      // (the Mindbody savings round, Oct 12 2026; mindbody/near-checks.ts).
+      // Three counts on the studio day's document, said on Operations ->
+      // Mindbody. Best-effort: a refused write changes nothing about the pull.
+      const adds = nearCheckAdds({ deep, windowComplete: res.windowComplete, windowChanges: res.windowChanges });
+      const dayId = nearCheckDocId(studioDateKey(new Date(now), timeZone));
+      if (adds && dayId) {
+        void setDoc(
+          doc(db, "studios", studio.id, "sync", dayId),
+          { checks: increment(adds.checks), finds: increment(adds.finds), rows: increment(adds.rows) },
+          { merge: true },
+        ).catch((countErr) => console.warn("[auto-sync] could not count the near check", countErr));
+      }
       setLastError(res.errors?.[0] ?? null);
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
