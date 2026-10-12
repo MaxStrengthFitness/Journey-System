@@ -37,6 +37,15 @@ describe("sessionTotalOf: sessions before Journey + Journey's (Atlas answers, Oc
     expect(beforeJourneyGuess(t)).toBe(306);
   });
 
+  it("Journey's sessions come off Mindbody's count with no first Journey day: 10 and 310 is #310, never #320 (sessions round, #3)", () => {
+    // A client whose first Journey session came from Log past session has no
+    // firstSessionDate. Mindbody's 310 visits already include Journey's 10.
+    const t = sessionTotalOf({ sessionCount: 10, clientsNumberOfVisitsAtSite: 310 }, "partial");
+    expect(t).toMatchObject({ basis: "mindbody", total: 310, journey: 10, before: 300 });
+    expect(beforeJourneyGuess(t)).toBe(300);
+    expect(sessionNumberWords(t.total, t.basis)).toBe("#310");
+  });
+
   it("no Journey session yet: every Mindbody visit is before Journey", () => {
     const t = sessionTotalOf({ sessionCount: 0, clientsNumberOfVisitsAtSite: 40 }, "partial");
     expect(t).toMatchObject({ basis: "mindbody", total: 40, before: 40 });

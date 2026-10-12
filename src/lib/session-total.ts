@@ -54,7 +54,11 @@ export interface SessionTotalClient {
   priorHistory?: unknown;
   /** Mindbody's lifetime visit count at the site, when a sync has brought it. */
   clientsNumberOfVisitsAtSite?: number | null;
-  /** Her first Journey session: only then are Journey's own sessions taken off Mindbody's count. */
+  /**
+   * Her first Journey session. Accepted with the rest of a client, and no
+   * longer read here: Journey's own sessions come off Mindbody's count
+   * whenever Journey has any, first day or not (sessions round, Oct 12 2026).
+   */
   firstSessionDate?: unknown;
 }
 
@@ -94,10 +98,7 @@ export function sessionTotalOf(
   }
   const visits = client?.clientsNumberOfVisitsAtSite;
   if (typeof visits === "number" && Number.isInteger(visits) && visits >= 0) {
-    const before = visitsBeforeJourney(visits, {
-      journeySessions: count,
-      firstJourneyDay: client?.firstSessionDate ? "known" : null,
-    });
+    const before = visitsBeforeJourney(visits, { journeySessions: count });
     return { basis: "mindbody", total: count === null ? null : count + before, journey: count, before };
   }
   return { basis: "journey-only", total: null, journey: count, before: null };

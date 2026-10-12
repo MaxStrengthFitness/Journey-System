@@ -334,11 +334,16 @@ export function historyCoverage(
  * plan's known limit, Sep 26 2026). Her visits BEFORE Journey are the count
  * less Journey's own sessions; the new-client line is drawn on those.
  *
- * Only Journey's own sessions are taken off, and only once she has one
- * (`firstJourneyDay`): a count with no Journey session behind it is all
- * before Journey. With no prior record (the only way this is reached),
- * `sessionCount` is exactly what Journey can see. The answer errs the safe
- * way wherever it can:
+ * Only Journey's own sessions are taken off, whenever Journey has any: a
+ * count with no Journey session behind it is all before Journey. This used
+ * to wait for her first Journey day too (`firstJourneyDay`), and a client
+ * whose first Journey session came from Log past session never gets one
+ * (only a live Finish stamps `firstSessionDate`), so her Journey sessions
+ * were counted twice: 10 in Journey and 310 Mindbody visits read #320, and
+ * Account offered 310 as "before Journey" (sessions round, Oct 12 2026, #3).
+ * The count of Journey's sessions is the proof that she has some. With no
+ * prior record (the only way this is reached), `sessionCount` is exactly
+ * what Journey can see. The answer errs the safe way wherever it can:
  *   - a Journey count that is stale or unknown takes off less, or nothing,
  *     so she reads "partial" (cautious), never "complete";
  *   - Mindbody also counts a no-show or a consult as a visit, which the
@@ -352,10 +357,9 @@ export function historyCoverage(
  */
 export function visitsBeforeJourney(
   visits: number,
-  client: Pick<CoverageInput, "journeySessions" | "firstJourneyDay"> | null | undefined,
+  client: Pick<CoverageInput, "journeySessions"> | null | undefined,
 ): number {
   const journey = client?.journeySessions;
-  if (!client?.firstJourneyDay) return visits;
   if (typeof journey !== "number" || !Number.isFinite(journey) || journey <= 0) return visits;
   return Math.max(0, visits - Math.trunc(journey));
 }

@@ -167,8 +167,14 @@ describe("coverageOfClient: Mindbody's visits Journey itself logged are not prio
     expect(coverageOfClient({ firstSessionDate: "2026-09-08", sessionCount: 3, clientsNumberOfVisitsAtSite: 12 }, CUTOVER)).toBe("partial");
   });
 
-  it("takes nothing off without a Journey session behind the count, or with Journey's count unknown", () => {
-    expect(coverageOfClient({ sessionCount: 6, clientsNumberOfVisitsAtSite: 7 }, CUTOVER)).toBe("partial");
+  it("takes Journey's own sessions off whenever it has any, first day or not, and nothing with its count unknown", () => {
+    // Sessions round, Oct 12 2026 (#3): this used to read "partial", because
+    // nothing came off until a first Journey day was stamped, and a client
+    // whose first Journey session came from Log past session never gets one.
+    // Her 6 Journey sessions were then counted twice. 7 − 6 = 1 visit
+    // Journey can't account for, inside the new-client line.
+    expect(coverageOfClient({ sessionCount: 6, clientsNumberOfVisitsAtSite: 7 }, CUTOVER)).toBe("complete");
+    expect(coverageOfClient({ sessionCount: 0, clientsNumberOfVisitsAtSite: 7 }, CUTOVER)).toBe("partial");
     expect(coverageOfClient({ firstSessionDate: "2026-09-08", clientsNumberOfVisitsAtSite: 7 }, CUTOVER)).toBe("partial");
   });
 });

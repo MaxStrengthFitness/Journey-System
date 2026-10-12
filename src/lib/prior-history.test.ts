@@ -235,7 +235,7 @@ describe("visitsBeforeJourney (hub fixes, Oct 1 2026): Mindbody's count less Jou
 
   it("keeps a client with visits before Journey partial", () => {
     expect(historyCoverage({ firstJourneyDay: "2027-11-02", mindbodyVisits: 300, journeySessions: 6 }, CUTOVER)).toBe("partial");
-    expect(visitsBeforeJourney(300, { firstJourneyDay: "2027-11-02", journeySessions: 6 })).toBe(294);
+    expect(visitsBeforeJourney(300, { journeySessions: 6 })).toBe(294);
   });
 
   it("lets a FileMaker prior record decide, whatever the counts", () => {
@@ -243,12 +243,26 @@ describe("visitsBeforeJourney (hub fixes, Oct 1 2026): Mindbody's count less Jou
   });
 
   it("takes nothing off without a Journey session, or with Journey's count unknown or nonsense", () => {
-    expect(visitsBeforeJourney(7, { journeySessions: 6 })).toBe(7);
-    expect(visitsBeforeJourney(7, { firstJourneyDay: "2027-11-02", journeySessions: null })).toBe(7);
-    expect(visitsBeforeJourney(7, { firstJourneyDay: "2027-11-02", journeySessions: Number.NaN })).toBe(7);
-    expect(visitsBeforeJourney(7, { firstJourneyDay: "2027-11-02", journeySessions: -3 })).toBe(7);
+    expect(visitsBeforeJourney(7, { journeySessions: 0 })).toBe(7);
+    expect(visitsBeforeJourney(7, {})).toBe(7);
+    expect(visitsBeforeJourney(7, null)).toBe(7);
+    expect(visitsBeforeJourney(7, { journeySessions: null })).toBe(7);
+    expect(visitsBeforeJourney(7, { journeySessions: Number.NaN })).toBe(7);
+    expect(visitsBeforeJourney(7, { journeySessions: -3 })).toBe(7);
     // More Journey sessions than visits (a count Mindbody hasn't refreshed): none before.
-    expect(visitsBeforeJourney(2, { firstJourneyDay: "2027-11-02", journeySessions: 9 })).toBe(0);
+    expect(visitsBeforeJourney(2, { journeySessions: 9 })).toBe(0);
+  });
+
+  it("takes Journey's own sessions off with no first Journey day (sessions round, Oct 12 2026, #3)", () => {
+    // This used to give 7: it waited for a first Journey day, and a client
+    // whose first Journey session came from Log past session never gets one,
+    // so her Journey sessions were counted twice. A count of them is proof enough.
+    expect(visitsBeforeJourney(7, { journeySessions: 6 })).toBe(1);
+    // The brief's worked example: 310 Mindbody visits, 10 of them Journey's.
+    expect(visitsBeforeJourney(310, { journeySessions: 10 })).toBe(300);
+    // So the new-client line is drawn on the visits Journey can't account for.
+    expect(historyCoverage({ mindbodyVisits: 7, journeySessions: 6 }, CUTOVER)).toBe("complete");
+    expect(historyCoverage({ mindbodyVisits: 310, journeySessions: 10 }, CUTOVER)).toBe("partial");
   });
 });
 

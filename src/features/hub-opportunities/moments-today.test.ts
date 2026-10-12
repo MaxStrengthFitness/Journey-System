@@ -119,8 +119,12 @@ describe("milestones: Operations' one list, only when the total may be quoted", 
   });
 
   it("a migrating client is numbered from Mindbody's guess, but no milestone is claimed off it (Atlas answers, Oct 2 2026)", () => {
-    // 400 visits before Journey (no Journey session yet) + 99 = 499 so far: this booking is the 500th.
-    const entries = run([makeClient({ id: "m", sessionCount: 99, clientsNumberOfVisitsAtSite: 400 })], [makeBooking({ clientId: "m", start: today("16:00") })]);
+    // 400 visits before Journey + 99 in Journey = 499 so far: this booking is the 500th.
+    // Mindbody's 499 visits include Journey's 99 (each was booked there). This
+    // test used to give Mindbody 400 and read 500 off it, which was the double
+    // count: with no first Journey day, Journey's sessions weren't taken off
+    // Mindbody's count and were added on top (sessions round, Oct 12 2026, #3).
+    const entries = run([makeClient({ id: "m", sessionCount: 99, clientsNumberOfVisitsAtSite: 499 })], [makeBooking({ clientId: "m", start: today("16:00") })]);
     expect(entries[0].sessionNumber).toBe(500);
     expect(entries[0].sessionBasis).toBe("mindbody");
     expect(kinds(entries[0])).toEqual([]);
