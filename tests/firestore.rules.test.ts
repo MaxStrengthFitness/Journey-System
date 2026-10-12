@@ -4045,7 +4045,7 @@ describe("a cross-train visitor's session", () => {
     const { client, totals: maps } = splitMachineTotalsUpdates(u);
     const b = writeBatch(db);
     b.update(doc(db, "clients", CLIENT), client);
-    addMachineTotalsWrite(b, db, CLIENT, maps);
+    addMachineTotalsWrite(b, db as never, CLIENT, maps);
     b.update(marker(db), { countedAt: serverTimestamp(), countedBy: finishId });
     return b;
   };
@@ -8981,7 +8981,7 @@ describe("a finish is counted once (Oct 12 2026)", () => {
     const { client, totals } = splitMachineTotalsUpdates(u);
     const b = writeBatch(db);
     b.update(doc(db, "clients", clientId), client);
-    addMachineTotalsWrite(b, db, clientId, totals);
+    addMachineTotalsWrite(b, db as never, clientId, totals);
     if (o.finishId !== null) {
       b.update(markerOf(db, o.sessionId ?? S), { countedAt: serverTimestamp(), countedBy: o.finishId ?? "f1" });
     }
