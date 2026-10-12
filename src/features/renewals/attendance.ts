@@ -19,7 +19,13 @@
  *              leader marked "didn't come" on Operations → Today (wave 2,
  *              Sep 28 2026; `studios/{s}/bookingMarks`) IS a no-show, before
  *              the cutover as after it: a leader chased it and knows.
- *   sessions   Journey workouts recorded on the iPad. Always a visit.
+ *   sessions   Journey workouts recorded on the iPad. A FINISHED one is a
+ *              visit (status "Completed", the rule `loggedSessions` already
+ *              reads bookings by). A session still in progress, or one left
+ *              open on an iPad and never finished, is not a visit yet: it
+ *              used to count, so a stranded session moved her last visit,
+ *              her pace and her Journey state while the booking side said
+ *              nothing happened (sessions round, Oct 12 2026, #2).
  *
  * Both become AttendanceRow on the studio's calendar, which is all the engine
  * reads. A day with a booking AND a workout is still one visit day.
@@ -91,6 +97,8 @@ export function attendanceFromSessions(
 ): AttendanceRow[] {
   const out: AttendanceRow[] = [];
   for (const s of sessions) {
+    // Only a finished session is a visit: the same rule as `loggedSessions`.
+    if (s.status !== "Completed") continue;
     const day = sessionDayKey(s as HistorySession, tz);
     if (!day || day > today) continue;
     out.push({ day, kind: "visit", trainerId: s.trainerId ?? null });
