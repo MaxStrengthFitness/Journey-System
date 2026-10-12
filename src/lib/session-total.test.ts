@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   beforeJourneyGuess,
+  beforeJourneySum,
   canClaimMilestone,
   sessionNumberWords,
   sessionTotalOf,
@@ -13,7 +14,7 @@ const prior = (sessions: number) => ({ sessions, through: "2026-09-01", source: 
 describe("sessionTotalOf: sessions before Journey + Journey's (Atlas answers, Oct 2 2026)", () => {
   it("a confirmed record: the reconciled count is her total, and the split is kept", () => {
     const t = sessionTotalOf({ sessionCount: 312, priorHistory: prior(306) }, "partial");
-    expect(t).toEqual({ basis: "confirmed", total: 312, journey: 6, before: 306 });
+    expect(t).toEqual({ basis: "confirmed", total: 312, journey: 6, before: 306, visits: null });
     expect(canClaimMilestone(t.basis)).toBe(true);
   });
 
@@ -24,14 +25,14 @@ describe("sessionTotalOf: sessions before Journey + Journey's (Atlas answers, Oc
 
   it("a whole story: Journey's count is her total", () => {
     const t = sessionTotalOf({ sessionCount: 14 }, "complete");
-    expect(t).toEqual({ basis: "whole-story", total: 14, journey: 14, before: 0 });
+    expect(t).toEqual({ basis: "whole-story", total: 14, journey: 14, before: 0, visits: null });
     expect(canClaimMilestone(t.basis)).toBe(true);
   });
 
   it("unconfirmed: Mindbody's visits less Journey's own sessions are the guess, and no milestone is claimed", () => {
     // Mindbody counts the 6 Journey logged too: 312 visits is 306 before + 6.
     const t = sessionTotalOf({ sessionCount: 6, clientsNumberOfVisitsAtSite: 312, firstSessionDate: "2026-09-20" }, "partial");
-    expect(t).toEqual({ basis: "mindbody", total: 312, journey: 6, before: 306 });
+    expect(t).toEqual({ basis: "mindbody", total: 312, journey: 6, before: 306, visits: 312 });
     expect(canClaimMilestone(t.basis)).toBe(false);
     expect(totalIsSayable(t)).toBe(true);
     expect(beforeJourneyGuess(t)).toBe(306);
@@ -53,7 +54,7 @@ describe("sessionTotalOf: sessions before Journey + Journey's (Atlas answers, Oc
 
   it("no guess anywhere: Journey's own count only, and no total", () => {
     const t = sessionTotalOf({ sessionCount: 5 }, "unknown");
-    expect(t).toEqual({ basis: "journey-only", total: null, journey: 5, before: null });
+    expect(t).toEqual({ basis: "journey-only", total: null, journey: 5, before: null, visits: null });
     expect(totalIsSayable(t)).toBe(false);
     expect(beforeJourneyGuess(t)).toBeNull();
   });
@@ -61,6 +62,38 @@ describe("sessionTotalOf: sessions before Journey + Journey's (Atlas answers, Oc
   it("an unknown Journey count is an unknown total, never zero", () => {
     expect(sessionTotalOf({ clientsNumberOfVisitsAtSite: 40 }, "partial").total).toBeNull();
     expect(sessionTotalOf({ priorHistory: prior(40) }, "partial").total).toBeNull();
+  });
+});
+
+describe("beforeJourneySum: the sum beside Confirm (sessions round, Oct 12 2026)", () => {
+  it("says how the guess was worked out", () => {
+    const t = sessionTotalOf({ sessionCount: 6, clientsNumberOfVisitsAtSite: 312 }, "partial");
+    expect(beforeJourneySum(t)).toBe("312 visits in Mindbody − 6 in Journey = 306");
+    // The brief's worked example: the sum shows 300, the total #310.
+    const ten = sessionTotalOf({ sessionCount: 10, clientsNumberOfVisitsAtSite: 310 }, "partial");
+    expect(beforeJourneySum(ten)).toBe("310 visits in Mindbody − 10 in Journey = 300");
+  });
+
+  it("with none in Journey yet, says so instead of subtracting nothing", () => {
+    expect(beforeJourneySum(sessionTotalOf({ sessionCount: 0, clientsNumberOfVisitsAtSite: 40 }, "partial"))).toBe(
+      "40 visits in Mindbody, none in Journey yet",
+    );
+    expect(beforeJourneySum(sessionTotalOf({ sessionCount: 0, clientsNumberOfVisitsAtSite: 1 }, "partial"))).toBe(
+      "1 visit in Mindbody, none in Journey yet",
+    );
+  });
+
+  it("when Journey has more than Mindbody counted, says why the guess is none", () => {
+    expect(beforeJourneySum(sessionTotalOf({ sessionCount: 9, clientsNumberOfVisitsAtSite: 2 }, "partial"))).toBe(
+      "2 visits in Mindbody, fewer than the 9 in Journey, so none before Journey",
+    );
+  });
+
+  it("is null with nothing to confirm, or with Journey's own count unknown", () => {
+    expect(beforeJourneySum(sessionTotalOf({ sessionCount: 312, priorHistory: prior(306) }, "partial"))).toBeNull();
+    expect(beforeJourneySum(sessionTotalOf({ sessionCount: 14 }, "complete"))).toBeNull();
+    expect(beforeJourneySum(sessionTotalOf({ sessionCount: 5 }, "unknown"))).toBeNull();
+    expect(beforeJourneySum(sessionTotalOf({ clientsNumberOfVisitsAtSite: 40 }, "partial"))).toBeNull();
   });
 });
 

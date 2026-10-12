@@ -117,7 +117,18 @@ export interface PriorHistoryDoorState {
   onConfirm?: () => void;
   /** The confirm is being written. */
   confirming?: boolean;
+  /**
+   * How Mindbody's guess was worked out, drawn under it beside Confirm so a
+   * trainer sees what one tap would lock in: "312 visits in Mindbody − 6 in
+   * Journey = 306" (`beforeJourneySum` in lib/session-total.ts; sessions
+   * round, Oct 12 2026). Absent when there is no guess waiting, or the sum
+   * can't be shown.
+   */
+  sum?: string;
 }
+
+/** The caveat under the sum: Mindbody counts more than sessions. */
+export const MINDBODY_COUNT_CAVEAT = "Mindbody's count can include late cancels and no-shows.";
 
 /**
  * THE CONFIRM (Atlas answers, Oct 2 2026). Mindbody's guess, as the

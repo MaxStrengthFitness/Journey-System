@@ -18,7 +18,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { studioHour, formatStudioTime, studioTodayKey, studioDayKeyOf } from "../lib/studio-time";
-import { beforeJourneyGuess, sessionTotalOf } from "../lib/session-total";
+import { beforeJourneyGuess, beforeJourneySum, sessionTotalOf } from "../lib/session-total";
 import { useClientLateCancels } from "../features/admin/attention/booking-marks";
 import { sessionDayKey } from "../features/client-history/model";
 import { isEveryStudioRole } from "../features/renewals/permissions";
@@ -541,6 +541,8 @@ export function ClientProfileView({
     [client, completedTotal, clientCoverage],
   );
   const mindbodyGuess = sessionTotals ? beforeJourneyGuess(sessionTotals) : null;
+  // The arithmetic behind the guess, drawn beside Confirm (sessions round, Oct 12 2026).
+  const mindbodyGuessSum = sessionTotals ? beforeJourneySum(sessionTotals) : null;
 
   /*
    * LATE CANCELS, BESIDE THE VISITS (Atlas answers, Oct 2 2026): "40
@@ -782,9 +784,10 @@ export function ClientProfileView({
             canEdit: canEditPrior,
             onOpen: () => openPriorEditor.current(true),
             ...(canConfirmGuess ? { onConfirm: () => void confirmGuessRef.current(), confirming: confirmingGuess } : {}),
+            ...(canConfirmGuess && mindbodyGuessSum ? { sum: mindbodyGuessSum } : {}),
           }
         : null,
-    [priorDoorText, canEditPrior, canConfirmGuess, confirmingGuess],
+    [priorDoorText, canEditPrior, canConfirmGuess, confirmingGuess, mindbodyGuessSum],
   );
 
   /**
