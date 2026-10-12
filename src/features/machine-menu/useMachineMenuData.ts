@@ -63,7 +63,7 @@ import type { Door } from "./doors";
 import { knownElsewhere as totalsKnowIt, lastTimeLine, type HeaderLine } from "./header-words";
 import { machineTotalsKnown } from "../machine-totals/totals";
 import type { OlderLoad } from "./MachineTimeline";
-import { hasOlderToRead, olderMemoryKey, olderSetsFor, readOlderSets, rememberOlderSets, trustedReadIds } from "./older-read";
+import { hasOlderToRead, nextOlderSessionIds, olderMemoryKey, olderSetsFor, readOlderSets, rememberOlderSets, trustedReadIds } from "./older-read";
 import { progressFromModel, type ProgressFigure } from "./progress-figure";
 import { criticalLinesOf, safetySummary, type CriticalRead, type SafetySummary } from "./safety";
 import type { SettingRow } from "./setting-history";
@@ -105,8 +105,18 @@ export interface MachineMenuHost {
   /** The sessions whose sets were read; absent, every session in `sessions` was. */
   readIds?: ReadonlySet<string> | null;
   historyState: HistoryReadState;
-  /** The profile: more pages on the server (`hasMoreSessions`). A session works it out from `readIds`. */
+  /**
+   * More sessions on the server than the door holds: the profile's next page
+   * (`hasMoreSessions`), or, in a session, older than the tracker's window
+   * and the pages Load older fetched (the history-ready round, Oct 12 2026).
+   */
   moreOnServer?: boolean;
+  /**
+   * In a session: fetch the next page of the client's older SESSIONS (not
+   * their sets), oldest known first, and hand them back. Load older calls it
+   * when every session the door knows has had its sets read.
+   */
+  loadOlderSessions?: () => Promise<WorkoutSession[]>;
   /** Read the first page again after a failed read. */
   onRetryHistory?: () => void;
   /** The profile: the grid's own next page; resolves false when it failed. */
@@ -280,7 +290,11 @@ export function useMachineMenuData(
 
   const reading = host.historyState === "loading";
   const moreToLoad =
-    host.historyState === "failed" ? false : door === "session" ? hasOlderToRead(host.sessions, readIds) : !!host.moreOnServer;
+    host.historyState === "failed"
+      ? false
+      : door === "session"
+        ? hasOlderToRead(host.sessions, readIds) || !!host.moreOnServer
+        : !!host.moreOnServer;
   // Only a read the server answered counts as every session read: a
   // cache-only one may be partial (offline, or the cache's first answer), so
   // it is drawn, hedged, and never claims a start, a first time or a wall.
@@ -410,11 +424,18 @@ export function useMachineMenuData(
 
   const sessions = host.sessions;
   const loadOlderHost = host.loadOlder;
+  const loadOlderSessions = host.loadOlderSessions;
   const loadOlder = useCallback(async () => {
     if (door === "session") {
       setOlderState("loading");
       try {
-        const read = await readOlderSets(fetchSetsOf, sessions, readIds);
+        /* Every session the door knows has had its sets read: fetch the next
+           page of older sessions first (the tracker reads a window of them). */
+        let known: readonly WorkoutSession[] = sessions;
+        if (nextOlderSessionIds(known, readIds).length === 0 && loadOlderSessions) {
+          known = [...known, ...(await loadOlderSessions())];
+        }
+        const read = await readOlderSets(fetchSetsOf, known, readIds);
         rememberOlderSets(memoryKey, read);
         setOlderRound((r) => r + 1);
         setOlderState("idle");
@@ -432,7 +453,7 @@ export function useMachineMenuData(
     } catch {
       setOlderState("failed");
     }
-  }, [door, sessions, readIds, memoryKey, loadOlderHost]);
+  }, [door, sessions, readIds, memoryKey, loadOlderHost, loadOlderSessions]);
 
   const canLoadOlder = moreToLoad && (door === "session" || !!loadOlderHost);
   const olderBusy = olderState === "loading" || (door === "profile" && !!host.loadingOlder);

@@ -94,6 +94,19 @@ describe("inbodyDue", () => {
     expect(back).toMatchObject({ sessions: 31, atLeast: false });
   });
 
+  it("takes the server's count when the list is only a page (the session screen's window)", () => {
+    // 40 sessions in the window, all after the scan: the page alone says "at least 40", not due at 50.
+    expect(inbodyDue({ ...base, sessionDays: days(40), listComplete: false })).toMatchObject({ sessions: 40, atLeast: true, due: false });
+    // The server counts 63: due, and an exact count for a client whose whole story Journey holds.
+    expect(inbodyDue({ ...base, sessionDays: days(40), listComplete: false, countFromServer: 63 })).toMatchObject({ sessions: 63, atLeast: false, due: true });
+    // A migrating client: still Journey's whole count, still a floor of the real one.
+    expect(inbodyDue({ ...base, coverage: "partial", sessionDays: days(40), listComplete: false, countFromServer: 63 })).toMatchObject({ sessions: 63, atLeast: true, due: true });
+    // No scan, whole story: every Completed session, counted by the server.
+    expect(inbodyDue({ ...base, latestScanDay: null, sessionDays: days(40), listComplete: false, countFromServer: 70 })).toMatchObject({ sessions: 70, atLeast: false, since: "first-session", due: true });
+    // A complete list never asks the server; a count given anyway is ignored.
+    expect(inbodyDue({ ...base, sessionDays: days(6), listComplete: true, countFromServer: 99 })).toMatchObject({ sessions: 6 });
+  });
+
   it("counts nothing while her sessions are unread: an unread list is not an empty one", () => {
     const r = inbodyDue({ ...base, sessionDays: [], sessionsRead: false });
     expect(r).toEqual({ kind: "unread" });

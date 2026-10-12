@@ -30,8 +30,11 @@ import {
   getDocFromServer,
   limit,
   orderBy,
+  startAfter,
+  getDocsFromServer,
   Timestamp,
   deleteField,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { User as FirebaseUser } from "firebase/auth";
 
@@ -298,7 +301,7 @@ import { NOW_BAR_SIDE_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 import { usePhone } from "../features/phone/device";
 import { PhoneSessionStage } from "../features/phone/PhoneSessionStage";
 import { traineeLevelOf } from "../lib/progression-cue";
-import { createJournalEntry, useClientJournal } from "../hooks/useClientJournal";
+import { createJournalEntry, SESSION_SUMMARY_LIMIT, useClientJournal } from "../hooks/useClientJournal";
 import { flagLineOf, machineFlags, sessionFlags } from "../features/journey-grid/session-flags";
 import { SessionFlagsSheet } from "../features/journey-grid/SessionFlagsSheet";
 import { formatStudioDate, formatStudioTime, studioDayKeyOf } from "../lib/studio-time";
@@ -320,7 +323,7 @@ import {
   type SessionNoteDraft,
 } from "../features/client-notes/session-draft";
 import { floorCarryOf } from "../features/machine-menu/note-target";
-import { hasOlderToRead, logsWindowIds } from "../features/machine-menu/older-read";
+import { hasOlderToRead, logsWindowIds, OLDER_PAGE } from "../features/machine-menu/older-read";
 import { addFloorNote } from "../features/floor-notes/store";
 import { ActiveSessionTimer } from "./ActiveSessionTimer";
 import { MachineMenu } from "../features/machine-menu/MachineMenu";
@@ -388,6 +391,9 @@ type RoutineType = "A" | "B" | "Free";
 /** How long a locally-created session is protected from being cleared by a
  *  snapshot that has not caught up with the write yet. */
 const JUST_STARTED_GRACE_MS = 15000;
+
+/** The newest sessions the tracker reads for a client: the journal's window, so one listener serves both. */
+const SESSION_WINDOW = SESSION_SUMMARY_LIMIT;
 
 /** No settings: one map, so a client with none never redraws for a new empty one. */
 const NO_SETTINGS: Record<string, ClientMachineSetting> = {};
@@ -576,6 +582,16 @@ export function WorkoutTrackerView({
      then, and the Wrap-up must not call a machine the client has done for
      years "First time" off it. */
   const [sessionsServerFor, setSessionsServerFor] = useState<string | null>(null);
+  /* The client's sessions are read as a WINDOW, the newest SESSION_WINDOW
+     (the history-ready round, Oct 12 2026: a client with years of FileMaker
+     history behind them had every session read at every Start). The window
+     is the journal's own query, so the SDK holds one listener for both.
+     Whether the server may hold older ones (the window came back full), and
+     the older pages Load older on the machine card fetched, by cursor. */
+  const [sessionsMoreFor, setSessionsMoreFor] = useState<string | null>(null);
+  const [olderSessions, setOlderSessions] = useState<{ clientId: string; list: WorkoutSession[]; exhausted: boolean } | null>(null);
+  const windowLastRef = useRef<{ clientId: string; doc: QueryDocumentSnapshot } | null>(null);
+  const olderCursorRef = useRef<{ clientId: string; doc: QueryDocumentSnapshot } | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   /* The client's machine totals (the last set on each machine: Start's
      prefilled weights) have answered. They live in their own document since
@@ -1877,17 +1893,42 @@ export function WorkoutTrackerView({
         },
       );
 
-      // Fetch Sessions
-      const sessionsQuery = query(
+      /* Fetch Sessions: the newest SESSION_WINDOW (the journal's own query, so
+         one listener serves both), and any session still open whatever its
+         age (the Hub's In-Progress check, hooks/useActiveSessionCheck.ts), so
+         an unfinished session from long ago is still asked about. The two
+         are read together as one list. Until the history-ready round (Oct 12
+         2026) this read every session the client ever had. */
+      windowLastRef.current = null;
+      olderCursorRef.current = null;
+      setOlderSessions(null);
+      const windowQuery = query(
         collection(db, "sessions"),
         where("clientId", "==", clientId),
+        orderBy("date", "desc"),
+        limit(SESSION_WINDOW),
       );
+      const openQuery = query(
+        collection(db, "sessions"),
+        where("clientId", "==", clientId),
+        where("status", "==", "In-Progress"),
+        limit(20),
+      );
+      let windowDocs: WorkoutSession[] | null = null;
+      let openDocs: WorkoutSession[] = [];
+      // Answers that arrive after this client's listeners closed are not this screen's.
+      let listening = true;
 
-      const unsubscribeSessions = onSnapshot(
-        sessionsQuery,
-        async (snapshot) => {
-          const sessionsData = snapshot.docs
-            .map((doc) => ({ id: doc.id, ...doc.data() }) as WorkoutSession)
+      const applySessions = () => {
+          if (!listening || windowDocs === null) return;
+          /* The window's copy of a session wins: it is the one that follows a
+             session to Completed (the open check only drops it, and the two
+             listeners answer a write separately). The open check adds only
+             what the window doesn't hold. */
+          const byId = new Map<string, WorkoutSession>();
+          for (const s of openDocs) byId.set(s.id ?? "", s);
+          for (const s of windowDocs) byId.set(s.id ?? "", s);
+          const sessionsData = [...byId.values()]
             .sort((a, b) => {
               // Sort by the session's actual workout date (parseSessionDate),
               // the same field the History grid's date headers display —
@@ -1908,8 +1949,6 @@ export function WorkoutTrackerView({
               return timeB - timeA;
             });
           setSessions(sessionsData);
-          // The server's answer has been heard for this client (the Wrap-up's comparisons wait on it after Who's this?).
-          if (!snapshot.metadata?.fromCache) setSessionsServerFor((v) => (v === clientId ? v : clientId));
           // What the stream says each session is, the moment it says it (Finish reads it at the tap, R9).
           streamStatusRef.current = new Map(sessionsData.map((s) => [s.id ?? "", s.status ?? null]));
 
@@ -2003,6 +2042,30 @@ export function WorkoutTrackerView({
               setIsPreSessionMode(true);
             }
           }
+      };
+
+      const unsubscribeSessions = onSnapshot(
+        windowQuery,
+        (snapshot) => {
+          windowDocs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as WorkoutSession);
+          // The server's answer has been heard for this client (the Wrap-up's comparisons wait on it after Who's this?).
+          if (!snapshot.metadata?.fromCache) setSessionsServerFor((v) => (v === clientId ? v : clientId));
+          // A full window: the server may hold older sessions (Load older fetches them; nothing claims "every session").
+          const full = snapshot.size >= SESSION_WINDOW;
+          setSessionsMoreFor((v) => (full ? (v === clientId ? v : clientId) : v === null ? v : null));
+          const last = snapshot.docs[snapshot.docs.length - 1];
+          windowLastRef.current = last ? { clientId, doc: last } : null;
+          applySessions();
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.GET, "sessions");
+        },
+      );
+      const unsubscribeOpen = onSnapshot(
+        openQuery,
+        (snapshot) => {
+          openDocs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as WorkoutSession);
+          applySessions();
         },
         (error) => {
           handleFirestoreError(error, OperationType.GET, "sessions");
@@ -2010,9 +2073,11 @@ export function WorkoutTrackerView({
       );
 
       return () => {
+        listening = false;
         unsubscribeSettings();
         unsubscribeRoutines();
         unsubscribeSessions();
+        unsubscribeOpen();
       };
     }
   }, [clientId, user?.uid]);
@@ -4825,8 +4890,11 @@ export function WorkoutTrackerView({
     if (sendsAtOnce(patch)) flushAllLogWrites();
   };
 
+  /* A session's number when it carries none: the count so far. The list is a
+     window, so past it the client's own count (the running session not yet in it). */
+  const countSoFar = Math.max(sessions.length, (selectedClient?.sessionCount ?? 0) + (currentSession || watchedSession ? 1 : 0));
   const sessionBarNumber = sessionNumberTag(
-    currentSession?.sessionNumber || sessions.length,
+    currentSession?.sessionNumber || countSoFar,
     canQuoteNumber,
   );
 
@@ -4871,7 +4939,7 @@ export function WorkoutTrackerView({
     [flushAllLogWrites],
   );
   const liveSessionId = currentSession?.id ?? null;
-  const liveSessionNumber = currentSession?.sessionNumber || sessions.length;
+  const liveSessionNumber = currentSession?.sessionNumber || countSoFar;
   const liveDate = currentSession?.date || null;
   const liveInitials = (currentSession?.trainerInitials || authTrainer?.initials || "").toUpperCase();
   const gridLiveSession = useMemo(
@@ -4917,6 +4985,36 @@ export function WorkoutTrackerView({
    */
   const menuSession = currentSession ?? watchedSession;
   const menuReadIds = useMemo(() => (logsWindow ? new Set(logsWindow.ids) : new Set<string>()), [logsWindow]);
+  /* The sessions the machine card knows: the window, and the older pages its
+     Load older fetched. More may wait on the server while the window came
+     back full and the last page did too. */
+  const olderForClient = olderSessions && olderSessions.clientId === clientId ? olderSessions : null;
+  const menuSessions = useMemo(() => {
+    if (!olderForClient || olderForClient.list.length === 0) return sessions;
+    const ids = new Set(sessions.map((s) => s.id));
+    return [...sessions, ...olderForClient.list.filter((s) => !ids.has(s.id))];
+  }, [sessions, olderForClient]);
+  const sessionsMore = !!clientId && sessionsMoreFor === clientId && !olderForClient?.exhausted;
+  const loadOlderSessions = React.useCallback(async (): Promise<WorkoutSession[]> => {
+    if (!clientId) return [];
+    const after =
+      (olderCursorRef.current?.clientId === clientId ? olderCursorRef.current.doc : null) ??
+      (windowLastRef.current?.clientId === clientId ? windowLastRef.current.doc : null);
+    if (!after) return [];
+    // The server's answer only: a page this iPad's cache answered may be partial (older-read.ts).
+    const snap = await getDocsFromServer(
+      query(collection(db, "sessions"), where("clientId", "==", clientId), orderBy("date", "desc"), startAfter(after), limit(OLDER_PAGE)),
+    );
+    const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as WorkoutSession);
+    const last = snap.docs[snap.docs.length - 1];
+    if (last) olderCursorRef.current = { clientId, doc: last };
+    setOlderSessions((prev) => ({
+      clientId,
+      list: [...(prev?.clientId === clientId ? prev.list : []), ...list],
+      exhausted: snap.size < OLDER_PAGE,
+    }));
+    return list;
+  }, [clientId]);
   /* Every one of the client's sessions has had its sets read by the window
      (no older session unread, the read not failed): only then may the Now
      Bar's start fall back to the first counted set, and the phone's strip
@@ -4924,7 +5022,7 @@ export function WorkoutTrackerView({
   /* Only a window the server answered counts: a cache-only one may be
      partial (offline, or the cache's first answer), so the Now Bar and the
      phone stay cautious with it, as the card does (useMachineMenuData). */
-  const sessionsAllRead = logsWindow?.state === "ready" && !hasOlderToRead(sessions, menuReadIds);
+  const sessionsAllRead = logsWindow?.state === "ready" && !hasOlderToRead(menuSessions, menuReadIds) && !sessionsMore;
   const menuLogs = useMemo(() => Object.values(logs) as ExerciseLog[], [logs]);
   const menuFloorStudioId = currentSession?.hostedAtStudioId || contextActiveStudioId || null;
   const menuWatching =
@@ -4955,7 +5053,9 @@ export function WorkoutTrackerView({
       roster: clients,
       coverage: clientCoverage,
       window: ownedWindow({ coverage: clientCoverage, prior: priorHistoryOf(selectedClient), cutover: homeCutover }),
-      sessions,
+      sessions: menuSessions,
+      moreOnServer: sessionsMore,
+      loadOlderSessions,
       logs: menuLogs,
       readIds: menuReadIds,
       historyState: logsWindow?.state ?? "loading",
@@ -4982,7 +5082,9 @@ export function WorkoutTrackerView({
       clients,
       clientCoverage,
       homeCutover,
-      sessions,
+      menuSessions,
+      sessionsMore,
+      loadOlderSessions,
       menuLogs,
       menuReadIds,
       logsWindow,
@@ -5312,7 +5414,7 @@ export function WorkoutTrackerView({
     const watchLive: LiveColumn = {
       session: {
         id: watchedSession.id,
-        sessionNumber: watchedSession.sessionNumber || sessions.length,
+        sessionNumber: watchedSession.sessionNumber || countSoFar,
         date: toIsoDate(watchedSession.date || studioTodayKey()),
         trainerInitials: runner.toUpperCase(),
       },
@@ -5332,7 +5434,7 @@ export function WorkoutTrackerView({
               ? "Open session"
               : (watchedSession.clientName || "").trim() || "This session"
         }
-        sessionTag={sessionNumberTag(watchedSession.sessionNumber || sessions.length, canQuoteNumber)}
+        sessionTag={sessionNumberTag(watchedSession.sessionNumber || countSoFar, canQuoteNumber)}
         runnerInitials={runner || "—"}
         startedLabel={sessionStartedLabel}
         timer={{
@@ -5501,9 +5603,10 @@ export function WorkoutTrackerView({
             sessions.filter((s) => s.status === "Completed")[0] || null
           }
           sessions={sessions.filter((s) => s.status === "Completed")}
-          /* The client's sessions stream has no limit: every one she has
-             in Journey, so the InBody count is exact (features/inbody/due.ts). */
-          sessionsAreAll
+          /* The client's sessions are a window (the newest SESSION_WINDOW):
+             every one in Journey only while the window isn't full. Past it the
+             InBody count comes from the server (features/inbody/due.ts). */
+          sessionsAreAll={!sessionsMore}
           /* Whether the routines' answer can be trusted (a failed or empty
              cache answer is not "no routine"): the briefing claims nothing
              about a client starting out until it is. */

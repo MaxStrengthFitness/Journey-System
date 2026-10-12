@@ -74,6 +74,14 @@ export interface InBodyDueInput {
    * Defaults to true.
    */
   sessionsRead?: boolean;
+  /**
+   * When `sessionDays` is only a page (`listComplete` false): the server's
+   * count of her Completed sessions after the scan, or of all of them with no
+   * scan (useInBodyCount.ts; the history-ready round, Oct 12 2026). It is
+   * Journey's whole count, so it decides "due"; only her coverage can still
+   * make it a floor. Null or absent: the page is counted, as a floor.
+   */
+  countFromServer?: number | null;
 }
 
 export type InBodyDue =
@@ -108,23 +116,30 @@ export function inbodyDue(input: InBodyDueInput): InBodyDue {
 
   if (input.latestScanDay) {
     const scan = input.latestScanDay.slice(0, 10);
-    const after = days.filter((d) => d > scan).length;
     // Every session we hold is after the scan: what came between the scan and
     // the first of them is either on a page not given, or before Journey.
     const allAfter = days.every((d) => d > scan);
+    const server = !input.listComplete && typeof input.countFromServer === "number" ? input.countFromServer : null;
+    if (server !== null) {
+      // Journey's whole count after the scan; only her coverage leaves a floor.
+      return { kind: "count", sessions: server, atLeast: allAfter && !whole, since: "scan", every, everySource, due: server >= every };
+    }
+    const after = days.filter((d) => d > scan).length;
     const atLeast = allAfter && (!input.listComplete || !whole);
     return { kind: "count", sessions: after, atLeast, since: "scan", every, everySource, due: after >= every };
   }
 
   if (!whole) return { kind: "no-scan", every, everySource };
+  const server = !input.listComplete && typeof input.countFromServer === "number" ? input.countFromServer : null;
+  const counted = server ?? days.length;
   return {
     kind: "count",
-    sessions: days.length,
-    atLeast: !input.listComplete,
+    sessions: counted,
+    atLeast: !input.listComplete && server === null,
     since: "first-session",
     every,
     everySource,
-    due: days.length >= every,
+    due: counted >= every,
   };
 }
 

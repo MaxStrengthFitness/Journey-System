@@ -129,6 +129,7 @@ import {
   viewsToDraw,
 } from "./stack";
 import { completedSessionDays, inbodyDue, inbodyDueLine } from "../inbody/due";
+import { useInBodyCount } from "../inbody/useInBodyCount";
 import { variationStudioIdOf } from "../inbody/variation";
 import { useStudioSettings } from "../studio-settings";
 import { useNewClientsStart } from "../routine-plan/ui/useNewClientsStart";
@@ -550,19 +551,23 @@ export function BriefingScreen({
      else her own (features/inbody/due.ts). */
   const studioSettings = useStudioSettings(variationStudioIdOf(client));
   const studioEvery = Number(studioSettings.value("inbodyEverySessions"));
+  // Past the session screen's window the list is a page: the server counts instead (useInBodyCount.ts).
+  const scanDay = client.inbodySummary?.latestTestedAt ?? null;
+  const inbodyCount = useInBodyCount(client.id, scanDay, !sessionsAreAll && (!!scanDay || coverage === "complete") && client.inbodyEvery !== "never");
   const inbodyLine = useMemo(
     () =>
       inbodyDueLine(
         inbodyDue({
-          latestScanDay: client.inbodySummary?.latestTestedAt ?? null,
+          latestScanDay: scanDay,
           sessionDays: completedSessionDays(sessions),
           listComplete: sessionsAreAll,
           coverage,
           studioEvery,
           clientEvery: client.inbodyEvery,
+          countFromServer: inbodyCount,
         }),
       ),
-    [client, sessions, sessionsAreAll, coverage, studioEvery],
+    [client, scanDay, sessions, sessionsAreAll, coverage, studioEvery, inbodyCount],
   );
 
 

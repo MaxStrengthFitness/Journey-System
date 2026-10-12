@@ -479,6 +479,34 @@ describe("a read only this iPad's cache answered", () => {
     expect(document.querySelector(".mm-chart")?.textContent).toContain("Couldn't load older sessions");
   });
 
+  it("in a session, past the tracker's window, Load older fetches the next page of sessions first, then their sets", async () => {
+    const older = { id: "s0", date: "2026-02-23", trainerInitials: "AJ", status: "Completed" } as unknown as WorkoutSession;
+    let asked = 0;
+    await mount({
+      open: true,
+      machineId: "leg-press",
+      onClose: () => {},
+      host: host({
+        door: "session",
+        sessions,
+        readIds: new Set(["s1", "s2"]),
+        moreOnServer: true,
+        loadOlderSessions: async () => {
+          asked += 1;
+          return [older];
+        },
+        session: { id: "s3", number: 3, day: "2026-10-04" },
+      }),
+    });
+    await settle();
+    const load = document.querySelector<HTMLButtonElement>("[data-load-older]");
+    // Every session the door holds is read, and the server may hold more: Load older is offered.
+    expect(load?.textContent).toBe("Load older");
+    await click(load);
+    expect(asked).toBe(1);
+    expect([...olderSetsFor(olderMemoryKey("judy", "s3")).ids]).toEqual(["s0"]);
+  });
+
   it("on the profile, with nothing cached, never says first time: the cautious words, no start wall", async () => {
     await mount({
       open: true,

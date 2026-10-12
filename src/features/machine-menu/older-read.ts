@@ -1,11 +1,14 @@
 /**
  * THE MACHINE MENU — "Load older" in a session.
  *
- * The Active Session holds every one of the client's sessions (its sessions
- * listener has no limit) but reads the SETS of only the newest 30: its logs
- * listener asks `where("sessionId", "in", ids)`, and Firestore takes at most
- * 30 ids in one `in`. Load older on the menu runs that same query again for
- * the next 30 sessions whose sets haven't been read, newest first. So:
+ * The Active Session holds a WINDOW of the client's sessions (the newest
+ * 40, since the history-ready round of Oct 12 2026; it held every one until
+ * then) and reads the SETS of only the newest 30: its logs listener asks
+ * `where("sessionId", "in", ids)`, and Firestore takes at most 30 ids in one
+ * `in`. Load older on the menu runs that same query again for the next 30
+ * sessions whose sets haven't been read, newest first, and when every session
+ * the tracker holds has been read it first fetches the next page of older
+ * sessions by cursor (the tracker's `loadOlderSessions`). So:
  *
  *   - no new index (it is the tracker's own query shape);
  *   - session order comes from the sessions, never from a log's `createdAt`,
