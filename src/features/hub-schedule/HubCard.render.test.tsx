@@ -84,6 +84,7 @@ function mount({
   logged = NOTHING_LOGGED,
   marks = null,
   workoutSession = null,
+  quietWord = null,
   withClient = true,
   who = client,
   criticalNotes = null,
@@ -99,6 +100,7 @@ function mount({
   logged?: LoggedSessions | null;
   marks?: BookingMarks | null;
   workoutSession?: WorkoutSession | null;
+  quietWord?: string | null;
   withClient?: boolean;
   who?: Client;
   criticalNotes?: readonly JournalEntry[] | null;
@@ -148,6 +150,7 @@ function mount({
           newToJourney={newToJourney}
           usualService={usualService}
           workoutSession={workoutSession}
+          quietWord={quietWord}
           logged={logged}
           noShows={marks}
           now={NOW}
@@ -423,6 +426,9 @@ describe("your own column, in words", () => {
     expect(c.faded).toBe(true);
     expect(c.card.querySelector(".hs-card-when .hs-card-state")?.textContent).toBe("Left open");
     expect(c.text).not.toContain("In session");
+    // Why it went quiet, when the Hub knows (the sessions round, Oct 12 2026).
+    const paused = mount({ hm: "09:00", workoutSession: left, quietWord: "Paused" });
+    expect(paused.card.querySelector(".hs-card-when .hs-card-state")?.textContent).toBe("Paused");
     // Still beating: in session, past its slot too.
     const running = { ...session("In-Progress", "11:02"), lastHeartbeatAt: at("11:55") } as WorkoutSession;
     const r = mount({ hm: "11:00", workoutSession: running });

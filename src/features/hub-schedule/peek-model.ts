@@ -26,6 +26,7 @@
 import { ordinal, type MomentFamily, type MomentKind, type RunSheetEntry } from "../hub-opportunities/moments-today";
 import { ASK_UNREAD_LINE } from "../hub-opportunities/get-to-know";
 import type { HubCardState } from "../../lib/hub-card-state";
+import { QUIET_WORDS, type QuietKind } from "../../lib/session-quiet";
 import { LATE_CANCEL_WORDS } from "../../lib/late-cancels";
 import { canClaimMilestone, MINDBODY_GUESS_WORDS, sessionNumberWords, type SessionTotalBasis } from "../../lib/session-total";
 
@@ -179,18 +180,34 @@ export function peekState(
     machines?: number | null;
     /** The day's logged session is in hand to open. */
     loggedSessionHeld?: boolean;
+    /**
+     * Why a session left open went quiet (the sessions round, Oct 12 2026;
+     * lib/session-quiet.ts): its kind, its line ("Paused at 2:10 PM") and
+     * the client's first name for where to discard it.
+     */
+    quiet?: { kind: QuietKind; line: string; first?: string | null } | null;
   } = {},
 ): PeekState {
   switch (state) {
     case "in-session":
       return { words: "In session", primary: { kind: "open-session", label: "Back to the session" }, note: null, lateCancel: null };
-    case "left-open":
+    case "left-open": {
+      const q = opts.quiet ?? null;
+      const first = (q?.first || "").trim();
+      const profile = first ? `${first}'s profile` : "the profile";
+      const note =
+        q?.kind === "paused"
+          ? `${q.line}, nothing saved since. Resume it, or discard it from ${profile}.`
+          : q?.kind === "at-end-session"
+            ? `${q.line}, never finished. Resume it to finish, or discard it from ${profile}.`
+            : "Started and quiet for over an hour. Resume it here, or close it from the profile (Discard).";
       return {
-        words: "Left open",
+        words: q ? QUIET_WORDS[q.kind] : "Left open",
         primary: { kind: "open-session", label: "Resume or start new" },
-        note: "Started and quiet for over an hour. Resume it here, or close it from the profile (Discard).",
+        note,
         lateCancel: null,
       };
+    }
     case "done": {
       const n = opts.machines;
       const words = typeof n === "number" && Number.isFinite(n) && n > 0 ? `Logged · ${n} ${n === 1 ? "machine" : "machines"}` : "Logged";

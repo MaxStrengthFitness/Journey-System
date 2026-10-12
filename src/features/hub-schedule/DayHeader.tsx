@@ -287,8 +287,8 @@ const STATES: ReadonlyArray<{ state: string; name: string; means: string }> = [
   { state: "in-session", name: "In session", means: "A Journey session is open for this client." },
   {
     state: "left-open",
-    name: "Left open",
-    means: "A session was started and has gone quiet for over an hour (the app’s one rule for an unfinished session). Tap it to resume it or close it.",
+    name: "Left open · Paused · At End Session",
+    means: "Started but not finished, and nothing saved for an hour (the app’s one rule for an unfinished session). Tap it to resume it or close it.",
   },
   { state: "done", name: "Done or not logged", means: "It steps back and goes quiet. “Not logged” says nobody pressed End Session." },
   { state: "unlinked", name: "Not synced yet", means: "No Max Strength profile yet; the next Mindbody sync links it." },

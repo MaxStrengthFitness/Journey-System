@@ -27,7 +27,7 @@ import {
   studioDateKey,
   studioTodayKey,
 } from "../lib/studio-time";
-import { safeToDate, getMillis } from "../lib/utils";
+import { safeToDate, getMillis, isSessionValid } from "../lib/utils";
 
 import { openProfileAt } from "../features/client-profile/profile-nav";
 import { useLeaveGuard } from "../features/unsaved-changes";
@@ -61,6 +61,7 @@ import { NextStrip, type NextStripItem } from "../features/hub-schedule/NextStri
 import { focusColumnId, readFocus, writeFocus, type HubFocus } from "../features/hub-schedule/focus";
 import { hubCardState } from "../lib/hub-card-state";
 import { peekState } from "../features/hub-schedule/peek-model";
+import { QUIET_WORDS, quietKindOf, quietLine } from "../lib/session-quiet";
 import { trainerLookup } from "../features/client-history/trainers";
 import type { HistorySession } from "../features/client-history/model";
 import { clientDisplayName } from "../lib/client-name";
@@ -751,6 +752,13 @@ export function ClientsView({
       const clientObj = isStaffBlock(session) ? null : findClientForSession(session);
       const workoutSession = workoutSessionFor(session, clientObj);
       const entry = clientObj?.id ? dayMoments.byClientId.get(clientObj.id) ?? null : null;
+      /* Why a session left open went quiet (the sessions round, Oct 12 2026):
+         the card says it in place of "Left open". A string, so the card's
+         memo compares it by value. */
+      const quietWord =
+        workoutSession?.status === "In-Progress" && !isSessionValid(workoutSession, currentTime.getTime())
+          ? QUIET_WORDS[quietKindOf(workoutSession, currentTime.getTime())]
+          : null;
       return (
         <HubCard
           booking={session}
@@ -766,6 +774,7 @@ export function ClientsView({
           rosterFailed={rosterFailed}
           staffName={block.columnId === UNASSIGNED_ID ? staffLabel(session.trainerName) : null}
           workoutSession={workoutSession}
+          quietWord={quietWord}
           logged={logged}
           noShows={bookingMarks.marks}
           now={currentTime}
@@ -994,9 +1003,14 @@ export function ClientsView({
                   { session: daySession, marks: bookingMarks.marks },
                 );
                 const loggedSession = peekCardState === "done" && daySession?.status === "Completed" && daySession.id ? daySession : null;
+                const quietKind = peekCardState === "left-open" && daySession ? quietKindOf(daySession, currentTime.getTime()) : null;
                 const peekView = peekState(peekCardState, {
                   machines: Array.isArray(loggedSession?.sessionMachineIds) ? loggedSession!.sessionMachineIds!.length : null,
                   loggedSessionHeld: !!loggedSession,
+                  quiet:
+                    quietKind && daySession
+                      ? { kind: quietKind, line: quietLine(daySession, quietKind, currentTime.getTime()), first: entry.client?.firstName ?? null }
+                      : null,
                 });
                 /* LATE CANCEL · SESSION TAKEN (Atlas answers, Oct 2 2026):
                    anyone at the studio marks a booking nobody logged; a

@@ -149,6 +149,16 @@ describe("peekState: what happened, and the button that follows it (hub fixes, O
     expect(left.primary).toEqual({ kind: "open-session", label: "Resume or start new" });
     expect(left.note).toContain("Discard");
   });
+  it("says why a session left open went quiet: Paused, or At End Session (the sessions round, Oct 12 2026)", () => {
+    const paused = peekState("left-open", { quiet: { kind: "paused", line: "Paused at 2:10 PM", first: "Ann" } });
+    expect(paused.words).toBe("Paused");
+    expect(paused.note).toBe("Paused at 2:10 PM, nothing saved since. Resume it, or discard it from Ann's profile.");
+    const ended = peekState("left-open", { quiet: { kind: "at-end-session", line: "Stopped at End Session at 2:10 PM", first: null } });
+    expect(ended.words).toBe("At End Session");
+    expect(ended.note).toBe("Stopped at End Session at 2:10 PM, never finished. Resume it to finish, or discard it from the profile.");
+    expect(ended.primary).toEqual({ kind: "open-session", label: "Resume or start new" });
+    expect(peekState("left-open", { quiet: { kind: "left-open", line: "Left open", first: "Ann" } }).words).toBe("Left open");
+  });
   it("not logged offers Log past session; didn't come offers nothing to start", () => {
     expect(peekState("not-logged").primary).toEqual({ kind: "log-past", label: "Log past session" });
     // Atlas answers, Oct 2 2026: anyone at the studio may mark a late cancel here.
