@@ -1,0 +1,75 @@
+# The FileMaker import
+
+A client's FileMaker history (visits, machines, weights, reps) into Journey, written exactly as a finished session is, so every screen reads it with no second code path. Built Oct 12 2026 from the first three sample clients the FileMaker developer exported (AJ: "build a migration tool that works with our current files"). The round is `docs/rounds/2026-10-12-filemaker-import.md`.
+
+**Read this before you change anything here, and before you run it against the real database.**
+
+## The pieces
+
+| File | What it is |
+| --- | --- |
+| `files.ts` | Reads an export: an Excel workbook (a ZIP of XML, read directly; the project has no Excel library) or a CSV / tab / FileMaker Merge file. Gives back rows of text, a date-styled cell as its day. Refuses a CSV with no column names on its first row (FileMaker's plain CSV). |
+| `records.ts` | Which column is which (by name, prefix and case ignored), and what each cell says. **The swap lives here**: FileMaker's `NextSet` is the reps done and its `Reps` is next time's weight. The profile's `JSON` column (Mindbody's whole record, card details included) is never read. |
+| `visits.ts` | What one entry means (`readSet`), what a visit is (`groupVisits`), and what a person should know about the data (`findingsOf`). |
+| `machine-map.ts` | The machine table: which Journey machine each FileMaker name is, per studio, settled by a person. Suggests from Journey's own names for the twenty movements (`catalog/names.ts`). `tableProblems` checks a person's table before anything is planned: every machine on that studio's floor, no two rows claiming one name on a day. |
+| `plan.ts` | One client's history as Journey documents (`planClient`) and the updates to the client's own documents that go with each batch of them (`clientWriteFor`). Pure. |
+| `report.ts` | The dry run's words. |
+| `scripts/import-filemaker.ts` | The only part that reads files and Firestore and writes. Its header is the safety model and the usage. |
+| `scripts/lib/stub-assets.mjs` | Lets the script load `catalog/names.ts`, which reaches the machines' photos (Vite handles those; Node does not). |
+
+## What an entry means
+
+AJ's answers and what the sample charts show (Oct 12 2026):
+
+| FileMaker | Journey | Why |
+| --- | --- | --- |
+| reps 1 to 20 | performed, those reps | |
+| a weight, reps blank | performed, **reps not recorded** (`repsNotRecorded: true`) | FileMaker never fills a weight in by itself ("no trainer puts it in"), so the machine was done. Strongsville left reps blank on two thirds of one long client's entries. Counts toward weight progress, never toward a rep average. |
+| reps 0, or a 0 for next time with no count | skipped, reason unknown | "zero in either column either means it wasn't performed. Or to take it out". A 0 for next time BESIDE a count is ignored: Solon wrote one beside eleven timed holds. |
+| 30 or more | a timed hold, in seconds (`isTSC`, `isStaticHold`) | Solon writes them in the reps column, unmarked (60, 90, 120). |
+| a decimal on Torso Rotation | left and right (two logs) | Solon: "7.6" is 7 left, 6 right; "9.11" is 9 and 11. |
+| 21 to 29, a decimal elsewhere, "7.1" (seven and one, or seven and ten: Excel drops a trailing zero), a side of 0 or above 20 | held back, said | can't be read safely |
+
+A **visit** is a client's entries on one day (AJ: the date is the key). The same machine twice on a day keeps the first. A visit where nothing was done (every machine 0, blank or unreadable) is left out: a session with no set done would count as a visit that wasn't one.
+
+## What it writes
+
+- `sessions/fm_{client}_{day}`: Completed, the home studio as host (AJ: the studio a visit was at isn't needed), `legacy_filemaker_id` (History says "Imported"; the pre-launch reset keeps these), `rollupCounted` (the trainer-rollup trigger does nothing per document; rebuild trainers' counts once after), `createdAt` and `endTime` at **noon of the visit's own day** in the studio's zone. Never the import's time: the Hub, Insights, Hours, the month tally and the machine trends all read `createdAt`; the briefing's "Last session" reads `endTime`.
+- `exerciseLogs/{session}_{machine}[_Left|_Right]`: the id Journey derives for a set; `machineSettings: {}` (FileMaker keeps today's dials, not that day's).
+- The client document: `completedSessions` up by what was created; `priorHistory.importedCount` raised by the same when a person stated a total (`recordImportedSessions`, the importer's contract); `sessionCount` set as the profile's reconciler sets it (Journey's Completed sessions plus what the stated total still holds uncounted), so a stated total stays the total and Start numbers the next session after it; `lastSessionDate` only forward; `lifetimeReps` / `lifetimeWeight` as Finish counts them; the trainer tally added to what is on file; `legacy_filemaker_id`.
+- `clients/{id}/machineTotals/current`: the machine stats (the importer's rollup) and "last time" per machine, never over a newer one.
+- `clientMachineSettings/{client}_{machine}`: next time's weight (FileMaker's when set, else the last weight done), never over a newer one; a starting weight only from the machine's first FileMaker day, and only when FileMaker holds the client from the first visit.
+
+Every id is derived: a second run writes nothing it wrote before. The sessions go in batches of whole visits, **each batch in one transaction with the client's documents** above, read in the same transaction: a stop leaves all of a batch or none of it, never sessions without their counts, and a batch whose sessions are already there writes nothing.
+
+## What it never does
+
+- **Makes a client.** A client is found by Mindbody id and site (`lib/mindbody-site.ts`), never by name; one not in Journey is reported, and the report prints Journey's name beside FileMaker's.
+- **Imports a client Journey already holds sessions for.** Journey numbers its own from 1, and the imported numbers would clash: import before a client's first Journey session, after the pre-launch reset. Also left out, and said: a client whose earlier imported sessions are gone from the export (or after `--through`), and one whose numbering has moved since an earlier run.
+- **Imports a day Journey owns**: nothing after `--through` (the day before the studio's switch-over; a `--through` on or after it stops the run).
+- **Guesses a machine.** While any visit has a FileMaker name nobody has matched, the client waits whole (a gap in the numbers would be filled twice by Start, which numbers from the count); `--allow-waiting` writes the other clients. The draft table fills in only sure matches (the same name on the floor, or a movement's own name with one unit of it); "Leg Press Imag." beside "Leg Press Hoist" is a person's call.
+- **Writes to the real database in this round.** `PRODUCTION_IMPORT_READY` is false until the session screen stops reading a client's whole history at Start, every reader of reps understands `repsNotRecorded` (the round document's §6 lists them), and the pre-launch reset has run (after an import it would zero imported clients' counts). Until then `--commit` writes to the emulator only.
+
+## Numbering
+
+Imported sessions are numbered in date order from 1 with no gap, or from the stated total before Journey when a person has stated one (`numberOffsetFor`). A visit is numbered only once it imports (the client waits whole while anything waits), and a run whose numbers differ from what an earlier run stored stops for that client. Without a stated total the numbers start at 1 even for a client whose FileMaker history starts years after the first visit (one Strongsville sample: Mindbody since 2020, FileMaker since late 2023); the dry run says so for each such client. Screens that claim "#N" go through `lib/history-claims.ts`, which judges coverage from Mindbody's count, not from these numbers.
+
+## Running it
+
+From the project folder, in PowerShell (it needs `service-account.json`, like the other data scripts):
+
+```
+npx tsx scripts/import-filemaker.ts "C:\Users\austi\Downloads\ClientProfile.xlsx" "C:\Users\austi\Downloads\ClientWorkouts.xlsx"
+```
+
+1. The dry run reads Journey, writes nothing, and saves `backups\filemaker\machine-table.csv` and a report.
+2. Open the machine table in Excel. Fill in every blank "Journey machine" (an id from Suggested or Note, or `skip`). Use From / Until when a studio replaced a machine under the same FileMaker name. Save as CSV.
+3. Run again with `--map backups\filemaker\machine-table.csv --through 2026-10-11`.
+
+The rehearsal on a throwaway emulator (nothing real touched): see the script's header.
+
+## Still to come
+
+- **Notes**: the profile's standing note is reported, not imported, until AJ answers how loud imported notes come in.
+- **The full export** adds the client id on every workout line, the trainer per visit, the list of workouts (the Solon sample has 8 workouts with nothing entered that only the list would carry), and the per-client machine settings. The reader already looks for `__ID_Client` and a trainer column on the lines.
+- **Machines replaced under one name** (a Strongsville sample's Pullover, Abs and Overhead in October 2024) need the studio's dates in the machine table, and a retired unit on the floor to point the old history at.
