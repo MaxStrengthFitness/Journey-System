@@ -321,8 +321,13 @@ async function readEverything(db: Firestore): Promise<ResetInput> {
     renewalCycles,
     studios,
   ] = await Promise.all([
-    // Under each session, at any depth, and any old `logs` whose session document is gone.
-    Promise.all([readChildren(db, sessions), readGroup(db, "logs", /^sessions\/[^/]+\/logs\/[^/]+$/)]).then(([a, b]) => uniqueByPath([...a, ...b])),
+    // Under each session, at any depth, and any old `logs` or "counted once" marker
+    // (`finish/once`, Oct 12 2026) whose session document is gone.
+    Promise.all([
+      readChildren(db, sessions),
+      readGroup(db, "logs", /^sessions\/[^/]+\/logs\/[^/]+$/),
+      readGroup(db, "finish", /^sessions\/[^/]+\/finish\/[^/]+$/),
+    ]).then(([a, b, c]) => uniqueByPath([...a, ...b, ...c])),
     Promise.all([readChildren(db, routines), readGroup(db, "planChanges", /^routines\/[^/]+\/planChanges\/[^/]+$/)]).then(([a, b]) => uniqueByPath([...a, ...b])),
     readCollection(db, "exerciseLogs"),
     readCollection(db, "sessionNotes"),
