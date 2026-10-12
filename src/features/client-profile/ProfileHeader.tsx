@@ -682,10 +682,16 @@ export function ProfileHeader({
                   <span className="font-bold text-[14px]">Watch session</span>
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={onDiscardSession} className="rounded-xl hover:bg-red-50 dark:hover:bg-red-500/20 cursor-pointer flex items-center gap-2 p-3 text-red-600 dark:text-red-500">
-                <Trash2 className="w-4 h-4" />
-                <span className="font-bold text-[14px]">Discard session</span>
-              </DropdownMenuItem>
+              {/* Only the trainer's own session (the sessions round, Oct 12
+                  2026): a colleague's running session is watched, and taken
+                  over from there, never discarded from here while they may
+                  still be with the client. */}
+              {sessionIsMine && (
+                <DropdownMenuItem onClick={onDiscardSession} className="rounded-xl hover:bg-red-50 dark:hover:bg-red-500/20 cursor-pointer flex items-center gap-2 p-3 text-red-600 dark:text-red-500">
+                  <Trash2 className="w-4 h-4" />
+                  <span className="font-bold text-[14px]">Discard session</span>
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (

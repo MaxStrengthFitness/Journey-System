@@ -107,10 +107,19 @@ import { StaleSessionNotice } from "../features/client-profile/StaleSessionNotic
 import {
   forgetLiveSession,
   isAnotherTrainersSession,
+  isRecordedElsewhere,
+  lastSignOfLife,
   myTrainerIds,
   rememberLiveSession,
   staleSessionStartedLine,
 } from "../lib/live-session";
+import {
+  DISCARD_REFUSED_WORDS,
+  checkStillLeftOpen,
+  discardStaleSession,
+  stillLeftOpenWords,
+  type StillLeftOpen,
+} from "../features/session-record/discard";
 import { StrongConfirmationModal } from "./StrongConfirmationModal";
 
 import {
@@ -350,54 +359,77 @@ export function ClientProfileView({
     [codexFloor, machines],
   );
 
-  // Discard Session (round: In-Progress dropdown) — lets a trainer scrap
-  // someone else's abandoned/stuck in-progress session right from the
-  // profile, without having to take it over first. Mirrors the exact
-  // deletion sequence WorkoutTrackerView's own "Scrap Session" flow uses
-  // (logs, then notes, then the session doc itself) so a discarded session
-  // leaves nothing orphaned behind.
+  // Discard Session (round: In-Progress dropdown) — lets a trainer scrap a
+  // stuck in-progress session right from the profile, without having to
+  // take it over first.
   //
   // Sep 24 2026: Discard takes the session it was opened for — the live one
   // from the "In progress" menu, or an abandoned one from the unfinished-
   // session notice under the header. Before, it could only reach a live
   // session, and an abandoned one could not be reached from anywhere.
+  //
+  // The sessions round (Oct 12 2026; AJ: "Anyone can clear a session"): the
+  // menu's Discard is drawn only for this trainer's own session, and the
+  // notice's for a session left at this studio. When the session isn't this
+  // trainer's, the question asks the server when it OPENS (still left open,
+  // nothing newer than the screen showed; features/session-record/discard.ts)
+  // and the final Discard waits for that answer. The final tap issues ONE
+  // batch, every set and the session, and never waits on it: no
+  // `sessionNotes` (only administrators may delete one, so a trainer's
+  // discard used to stop there half done), no per-set awaits.
   const [discardTarget, setDiscardTarget] = useState<WorkoutSession | null>(null);
-  const [isDiscardingActiveSession, setIsDiscardingActiveSession] =
-    useState(false);
+  const [discardCheck, setDiscardCheck] = useState<StillLeftOpen | "checking" | null>(null);
+  const discardForRef = useRef<string | null>(null);
+  const discardTargetIsMine =
+    !!discardTarget && !isAnotherTrainersSession(discardTarget, myTrainerIds(liveAuthTrainer, user?.uid));
 
-  const handleDiscardActiveSession = async () => {
-    if (!discardTarget?.id) return;
-    setIsDiscardingActiveSession(true);
-    try {
-      const sessionId = discardTarget.id;
-      const logsQ = query(
-        collection(db, "exerciseLogs"),
-        where("sessionId", "==", sessionId),
-      );
-      const logsSnap = await getDocs(logsQ);
-      for (const logDoc of logsSnap.docs) {
-        await deleteDoc(logDoc.ref);
-      }
-      const notesQ = query(
-        collection(db, "sessionNotes"),
-        where("sessionId", "==", sessionId),
-      );
-      const notesSnap = await getDocs(notesQ);
-      for (const noteDoc of notesSnap.docs) {
-        await deleteDoc(noteDoc.ref);
-      }
-      await deleteDoc(doc(db, "sessions", sessionId));
-
-      forgetLiveSession(sessionId);
-
-      toastSuccess("Session discarded.");
-      setDiscardTarget(null);
-    } catch (err) {
-      console.error("Error discarding active session:", err);
-      toastError("Couldn't discard that session. Try again.");
-    } finally {
-      setIsDiscardingActiveSession(false);
+  const openDiscard = (session: WorkoutSession | null | undefined) => {
+    if (!session?.id) return;
+    const id = session.id;
+    discardForRef.current = id;
+    setDiscardTarget(session);
+    if (!isAnotherTrainersSession(session, myTrainerIds(liveAuthTrainer, user?.uid))) {
+      setDiscardCheck(null);
+      return;
     }
+    setDiscardCheck("checking");
+    void checkStillLeftOpen(db, session, session.lastHeartbeatAt).then((answer) => {
+      if (discardForRef.current === id) setDiscardCheck(answer);
+    });
+  };
+  const closeDiscard = () => {
+    discardForRef.current = null;
+    setDiscardTarget(null);
+    setDiscardCheck(null);
+  };
+
+  const handleDiscardActiveSession = () => {
+    const target = discardTarget;
+    if (!target?.id) return;
+    if (!discardTargetIsMine && discardCheck !== "ok") return;
+    const sessionId = target.id;
+    discardStaleSession(db, target).then(
+      () => {},
+      (err) => {
+        console.error("Error discarding the session:", err);
+        toastError(DISCARD_REFUSED_WORDS);
+      },
+    );
+    forgetLiveSession(sessionId);
+    toastSuccess("Session discarded.");
+    closeDiscard();
+  };
+
+  /** Who runs a session, as a person says it: the first name, else initials. */
+  const sessionTrainerName = (session: WorkoutSession): string => {
+    const t = trainers.find((x) => x.id === session.trainerId || x.authUid === session.trainerId);
+    const named = (t?.fullName || (session as { trainerName?: string }).trainerName || "").trim().split(/\s+/)[0];
+    return named || (session.trainerInitials || "").trim() || "the trainer";
+  };
+  /** "2:14 PM" when its last sign of life is today; null otherwise. */
+  const lastOnItToday = (session: WorkoutSession): string | null => {
+    const at = new Date(lastSignOfLife(session));
+    return studioDayKeyOf(at) === studioTodayKey() ? formatStudioTime(at, undefined, "") || null : null;
   };
 
   const client = clients.find((c) => c.id === clientId);
@@ -1936,14 +1968,17 @@ export function ClientProfileView({
         /* Continue is this trainer's own session; anyone else's opens
            read-only, with Take over there (session record, Sep 26 2026). */
         sessionIsMine={
-          !isAnotherTrainersSession(activeInProgressSession, myTrainerIds(liveAuthTrainer, user?.uid))
+          /* The trainer test only (no device), so a trainer's own session
+             running on another device still offers Continue and Discard
+             (the sessions round, Oct 12 2026). */
+          !isRecordedElsewhere(activeInProgressSession, myTrainerIds(liveAuthTrainer, user?.uid), null)
         }
         onContinueSession={() => {
           if (activeInProgressSession?.id) rememberLiveSession(activeInProgressSession.id);
           setView("workouts");
         }}
         onWatchSession={() => setView("workouts")}
-        onDiscardSession={() => setDiscardTarget(activeInProgressSession)}
+        onDiscardSession={() => openDiscard(activeInProgressSession)}
         renewal={
           renewalNow
             ? {
@@ -1956,12 +1991,28 @@ export function ClientProfileView({
         }
       />
       {/* An abandoned session: Start is still offered above, and this is
-          where it can be discarded (features/client-profile/StaleSessionNotice). */}
+          where it can be resumed, finished or discarded, by anyone at the
+          studio it was left at (features/client-profile/StaleSessionNotice;
+          AJ, Oct 12 2026: "Anyone can clear a session"). At another studio
+          it is described, never cleared from here. */}
       {!activeInProgressSession && staleInProgressSession && (
         <StaleSessionNotice
           session={staleInProgressSession}
           todayKey={studioTodayKey()}
-          onDiscard={() => setDiscardTarget(staleInProgressSession)}
+          onResume={() => {
+            // The header's own Start: the Active Session asks Resume it,
+            // Finish it as it was, Discard it or Start a new session.
+            localStorage.removeItem("max_strength_active_session_id");
+            setView("workouts");
+          }}
+          onDiscard={() => openDiscard(staleInProgressSession)}
+          elsewhereStudioName={
+            staleInProgressSession.hostedAtStudioId &&
+            activeStudioId &&
+            staleInProgressSession.hostedAtStudioId !== activeStudioId
+              ? (studios?.find((st) => st.id === staleInProgressSession.hostedAtStudioId)?.name ?? "")
+              : null
+          }
         />
       )}
       <RenewalCardDialog
@@ -2315,71 +2366,52 @@ export function ClientProfileView({
           from Journey, Notes & Profile or the Activity Archive the header's
           Discard and the notice's "Discard it" did nothing, and the question
           appeared later, on Programming. */}
-      {/* Discard Session confirmation (round: Discard Session option) —
-          same delete sequence, same "are you sure" pattern as
-          WorkoutTrackerView's own Scrap Session dialog, just reachable
-          from the profile's In-Progress dropdown so a trainer can clear
-          a stuck/abandoned session without opening it first. */}
-      <Dialog
-        open={!!discardTarget}
-        onOpenChange={(v) => !isDiscardingActiveSession && !v && setDiscardTarget(null)}
-      >
+      {/* Discard confirmation (the sessions round, Oct 12 2026): plain words,
+          the destructive token (no pulse, no glow, no white on red), and for
+          someone else's session the server's word first (openDiscard). */}
+      <Dialog open={!!discardTarget} onOpenChange={(v) => !v && closeDiscard()}>
         <DialogContent className="sm:max-w-100 rounded-[32px] p-0 overflow-hidden border-none">
           <div className="bg-card p-8 text-foreground space-y-3">
-            <div
-              className={cn(
-                "w-12 h-12 rounded-2xl flex items-center justify-center mb-2 transition-colors",
-                isDiscardingActiveSession
-                  ? "bg-red-500/20 text-red-500 animate-pulse"
-                  : "bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)]",
-              )}
-            >
-              {isDiscardingActiveSession ? (
-                <Loader2 className="w-6 h-6 animate-spin text-red-500" />
-              ) : (
-                <Trash2 className="w-6 h-6" />
-              )}
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-2 bg-destructive/10 text-destructive">
+              <Trash2 className="w-6 h-6" aria-hidden />
             </div>
-            <h3 className="text-[22px] font-extrabold tracking-[-0.015em]">
-              {isDiscardingActiveSession
-                ? "Discarding session..."
-                : discardTarget && discardTarget.id !== activeInProgressSession?.id
-                  ? "Discard unfinished session?"
-                  : "Discard active session?"}
-            </h3>
-            <p className="text-muted-foreground font-medium text-sm leading-relaxed">
-              {isDiscardingActiveSession
-                ? "Scrapping all logged sets, timers, and notes. Cleaning database records..."
-                : [
-                    "This will end and permanently clear this session.",
-                    discardTarget ? staleSessionStartedLine(discardTarget, studioTodayKey()) : "",
-                    "All data logged in it will be scrapped and will not be recorded in the database.",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+            <h3 className="text-[22px] font-bold tracking-[-0.015em]">Discard this unfinished session?</h3>
+            <p className="text-ink-d2 text-sm leading-relaxed" data-testid="discard-line">
+              {[
+                discardTarget ? staleSessionStartedLine(discardTarget, studioTodayKey()) : "",
+                "Every set in it is deleted. This can't be undone.",
+              ]
+                .filter(Boolean)
+                .join(" ")}
             </p>
+            {discardTarget && !discardTargetIsMine && lastOnItToday(discardTarget) && (
+              <p className="text-ink-d2 text-sm leading-relaxed" data-testid="discard-last-on-it">
+                {`${sessionTrainerName(discardTarget)} was last on it at ${lastOnItToday(discardTarget)}. If ${sessionTrainerName(discardTarget)} might still be with the client, check with ${sessionTrainerName(discardTarget)} first.`}
+              </p>
+            )}
+            {discardTarget && !discardTargetIsMine && discardCheck && discardCheck !== "checking" && discardCheck !== "ok" && (
+              <p className="text-destructive text-sm font-semibold leading-relaxed" role="alert" data-testid="discard-check">
+                {stillLeftOpenWords(discardCheck, sessionTrainerName(discardTarget))}
+              </p>
+            )}
           </div>
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-card border-t border-slate-100 dark:border-slate-800">
-            <Button
-              variant="outline"
-              disabled={isDiscardingActiveSession}
-              className="h-14 rounded-2xl"
-              onClick={() => setDiscardTarget(null)}
-            >
-              Keep session
+            <Button variant="outline" className="min-h-14 h-auto rounded-2xl" onClick={closeDiscard}>
+              Keep it
             </Button>
             <Button
-              disabled={isDiscardingActiveSession}
-              className="h-14 rounded-2xl bg-red-600 text-white shadow-(--elev-1) hover:bg-red-700 disabled:opacity-80 flex items-center justify-center gap-2"
+              variant="destructive"
+              disabled={!discardTargetIsMine && discardCheck !== "ok"}
+              className="min-h-14 h-auto rounded-2xl flex items-center justify-center gap-2"
               onClick={handleDiscardActiveSession}
             >
-              {isDiscardingActiveSession ? (
+              {!discardTargetIsMine && discardCheck === "checking" ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Discarding...</span>
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                  <span>Checking…</span>
                 </>
               ) : (
-                "Discard session"
+                "Discard"
               )}
             </Button>
           </div>
