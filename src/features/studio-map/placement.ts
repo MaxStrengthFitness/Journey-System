@@ -23,7 +23,9 @@
  *
  * A machine with no size is a round marker: Back to the wall does nothing
  * for it (the screen hides the button), and its centre stays where the
- * whole 2 ft marker is inside the room's bounds.
+ * whole 2 ft marker is inside the room's bounds. A sized machine's centre
+ * stays inside the plan's 0–200 ft whatever a drag or a nudge does, so the
+ * copy on screen is always one Save can send.
  *
  * Undo while editing keeps the last 20 changes. A copy the listener brings
  * while the leader has changes is ignored unless it is forced (Discard, the
@@ -147,7 +149,9 @@ export type Action =
   | { type: "addPlanned"; planned: PlannedPlacement }
   | { type: "swapIn"; plannedId: string; machineId: string }
   | { type: "undo" }
-  | { type: "saved"; id: string; rev: number };
+  | { type: "saved"; id: string; rev: number }
+  /** A save that didn't land: what is on screen is unsaved work again, against the rev it was opened at. */
+  | { type: "unsaved"; rev: number | null };
 
 export const DEAD_PX = 8;
 export const HISTORY_MAX = 20;
@@ -194,6 +198,20 @@ export function clampMarker<P extends { x: number; y: number }>(p: P, bounds: Bo
     ...p,
     x: Math.round(Math.max(bounds.x0 + r, Math.min(bounds.x1 - r, p.x))),
     y: Math.round(Math.max(bounds.y0 + r, Math.min(bounds.y1 - r, p.y))),
+  };
+}
+
+/**
+ * A sized machine's centre, held inside 0–200 ft (what a layout may store),
+ * so a few nudges toward a wall or a drag beyond it never make a copy Save
+ * refuses. Past the wall it may go (the overlap shows it); off the plan it
+ * may not.
+ */
+export function clampCentre<P extends { x: number; y: number }>(p: P): P {
+  return {
+    ...p,
+    x: Math.round(Math.max(0, Math.min(PLAN_LIMITS.coordMax, p.x))),
+    y: Math.round(Math.max(0, Math.min(PLAN_LIMITS.coordMax, p.y))),
   };
 }
 
@@ -266,7 +284,7 @@ function dragged(s: EditorState, id: string, edge: Edge | null, origin: Item, dx
     return movePlace(origin, dxMm, dyMm, shape);
   }
   const at = { ...(origin as Placement), x: origin.x + snap6(dxMm), y: origin.y + snap6(dyMm) };
-  return marker ? clampMarker(at, boundsOf(s.working.room.boxes)) : at;
+  return marker ? clampMarker(at, boundsOf(s.working.room.boxes)) : clampCentre(at);
 }
 
 const samePos = (a: Item, b: Item) =>
@@ -345,7 +363,7 @@ export function editorReducer(s: EditorState, a: Action): EditorState {
       else if (kind === "place") at = movePlace(p as RoomPlace, d.x * SNAP_MM, d.y * SNAP_MM, shapeOf(s.working.room.boxes));
       else {
         at = { ...(p as Placement), x: Math.round(p.x + d.x * SNAP_MM), y: Math.round(p.y + d.y * SNAP_MM) };
-        if (a.marker) at = clampMarker(at as Placement, boundsOf(s.working.room.boxes));
+        at = a.marker ? clampMarker(at as Placement, boundsOf(s.working.room.boxes)) : clampCentre(at as Placement);
       }
       if (samePos(at, p)) return s;
       return changed(s, withItem(s.working, id, at));
@@ -475,6 +493,8 @@ export function editorReducer(s: EditorState, a: Action): EditorState {
     }
     case "saved":
       return { ...s, base: { id: a.id, rev: a.rev }, dirty: false };
+    case "unsaved":
+      return { ...s, base: { ...s.base, rev: a.rev }, dirty: true };
   }
 }
 

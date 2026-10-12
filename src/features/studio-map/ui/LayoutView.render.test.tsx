@@ -12,7 +12,7 @@
  * times at all, the overlaps once after it settles.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act } from "react";
+import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -38,6 +38,9 @@ const fx = vi.hoisted(() => ({
   saves: [] as unknown[][],
   links: [] as unknown[][],
   toasts: [] as string[],
+  /** What the next saveLayout and keepAsDraft answer; unset, they never answer. */
+  saveAnswer: null as unknown,
+  keepAnswer: null as unknown,
 }));
 
 vi.mock("../../../hooks/useStudioMachines", () => ({
@@ -48,9 +51,9 @@ vi.mock("../../catalog/useMachineModels", () => ({ useMachineModels: () => fx.mo
 vi.mock("../store", () => ({
   saveLayout: (...args: unknown[]) => {
     fx.saves.push(args);
-    return new Promise(() => {});
+    return fx.saveAnswer ? Promise.resolve(fx.saveAnswer) : new Promise(() => {});
   },
-  keepAsDraft: () => new Promise(() => {}),
+  keepAsDraft: () => (fx.keepAnswer ? Promise.resolve(fx.keepAnswer) : new Promise(() => {})),
   linkModels: (...args: unknown[]) => {
     fx.links.push(args);
     return { written: (args[1] as { machineId: string }[]).map((l) => l.machineId), dropped: [], done: Promise.resolve() };
@@ -133,6 +136,8 @@ beforeEach(() => {
   fx.saves = [];
   fx.links = [];
   fx.toasts = [];
+  fx.saveAnswer = null;
+  fx.keepAnswer = null;
   fx.models = IS;
   fx.plans = { state: "empty", current: null, drafts: [], slots: [] };
   floor(false);
@@ -146,19 +151,25 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+let view: (() => ReactElement) | null = null;
 function mount(props: { canLead?: boolean; onDone?: () => void } = {}) {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
-  act(() =>
-    root!.render(
-      <UnsavedChangesProvider>
-        <LayoutView studioId="solon" studioName="Solon" canLead={props.canLead ?? true} authUid="uid-aj" authorName="AJ Jurgens" isDemo={false} onDone={props.onDone ?? (() => {})} />
-      </UnsavedChangesProvider>,
-    ),
+  view = () => (
+    <UnsavedChangesProvider>
+      <LayoutView studioId="solon" studioName="Solon" canLead={props.canLead ?? true} authUid="uid-aj" authorName="AJ Jurgens" isDemo={false} onDone={props.onDone ?? (() => {})} />
+    </UnsavedChangesProvider>
   );
+  act(() => root!.render(view!()));
   return host;
 }
+/** The listener brings another snapshot of `current`. */
+function snapshot(current: Record<string, unknown>) {
+  fx.plans = { ...fx.plans, current };
+  act(() => root!.render(view!()));
+}
+const turnOf = (id: string) => /rotate\((\d+)\)/.exec(host!.querySelector(`[data-id="${id}"]`)!.getAttribute("transform") ?? "")![1];
 
 const button = (name: string | RegExp) =>
   [...host!.querySelectorAll("button")].find((b) => (typeof name === "string" ? b.textContent?.trim() === name : name.test(b.textContent ?? "")));
@@ -209,7 +220,49 @@ describe("the room tool", () => {
     expect(el.querySelector(".smap-item__name")!.textContent).toBe("AED");
     click(button("Add a box"));
     expect(el.textContent).toContain("Box 2 · 10 ft × 10 ft");
-    expect(el.querySelector(".smap-area")!.textContent).toBe("Drawn: 1,900 of 1,800 sq ft");
+    expect(el.querySelector(".smap-area")!.textContent).toBe("Drawn: 1,900 sq ft · Studio: 1,800 sq ft");
+  });
+
+  it("puts each place on a spot of its own: the extinguisher and the AED never hide each other", () => {
+    const el = mount();
+    type(el.querySelector<HTMLInputElement>("#smap-sqft")!, "1800");
+    click(button("Draw the room"));
+    click(button("Fire extinguisher"));
+    click(button("AED"));
+    click(button("Pillar"));
+    const boxes = [...el.querySelectorAll(".smap-safety__box")].map((r) => ({ x: Number(r.getAttribute("x")), y: Number(r.getAttribute("y")), w: Number(r.getAttribute("width")) }));
+    expect(boxes).toHaveLength(2);
+    const [a, b] = boxes;
+    expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.w && b.y < a.y + a.w).toBe(false);
+  });
+
+  it("keeps a box's Width box in step with an edge that was dragged, and the drawing's scale where it was", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(0), 16) as unknown as number);
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
+    const el = mount();
+    type(el.querySelector<HTMLInputElement>("#smap-sqft")!, "1800");
+    click(button("Draw the room"));
+    const width = () => el.querySelector<HTMLInputElement>("#smap-box-w-bx-1")!.value;
+    expect(width()).toBe("60");
+    const svg = el.querySelector("svg")!;
+    const widthBefore = svg.getAttribute("width");
+    const s = (720 - 56) / ft(60);
+    const at = (x: number, y: number) => ({ clientX: 28 + x * s, clientY: 28 + y * s });
+    // The right edge's handle sits 8 px outside it.
+    const out = 8 / s;
+    act(() => svg.dispatchEvent(pointer("pointerdown", at(ft(60) + out, ft(15)))));
+    act(() => {
+      svg.dispatchEvent(pointer("pointermove", at(ft(47) + out, ft(15))));
+      vi.advanceTimersByTime(20);
+    });
+    act(() => svg.dispatchEvent(pointer("pointerup", at(ft(47) + out, ft(15)))));
+    expect(el.textContent).toContain("Box 1 · 47 ft × 30 ft");
+    expect(width()).toBe("47");
+    // The edge stays where the finger left it: the drawing hasn't rescaled to the smaller room.
+    expect(el.querySelector("svg")!.getAttribute("width")).toBe(widthBefore);
+    expect(button("Fit")!.hasAttribute("disabled")).toBe(false);
+    vi.unstubAllGlobals();
   });
 });
 
@@ -273,14 +326,75 @@ describe("saving", () => {
     expect(button("Save")).toBeUndefined();
     expect(fx.toasts).toContain("Layout saved.");
   });
+
+  it("after another leader's save beat it, keeps yours as a draft and shows theirs, so the next Save can't overwrite it", async () => {
+    floor(true);
+    layout(0);
+    const original = fx.plans.current as Record<string, unknown>;
+    fx.saveAnswer = { ok: false, why: "changed", by: "uid-marina" };
+    fx.keepAnswer = { id: "d-1" };
+    mount();
+    click([...host!.querySelectorAll(".smap-list__row")][0]);
+    click(button("Turn right"));
+    click(button("Save"));
+    // The listener: our own write at rev 4 first, then the SDK puts back Marina's rev 4, which beat it.
+    snapshot({ ...original, rev: 4, updatedAtMs: 50, updatedBy: "uid-aj", placements: [{ machineId: "m-leg-press", x: 4000, y: 4000, rotationDeg: 90 }] });
+    const theirs = [
+      { machineId: "m-leg-press", x: 4000, y: 4000, rotationDeg: 0 },
+      { machineId: "m-ext", x: 9000, y: 4000, rotationDeg: 180 },
+    ];
+    snapshot({ ...original, rev: 4, updatedAtMs: 99, updatedBy: "uid-marina", placements: theirs });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(turnOf("m-leg-press")).toBe("0");
+    expect(turnOf("m-ext")).toBe("180");
+    expect(host!.textContent).toContain("saved a newer layout, so yours was kept as a draft");
+    // The next change is made on theirs, at their rev.
+    click([...host!.querySelectorAll(".smap-list__row")][0]);
+    click(button("Turn right"));
+    fx.saveAnswer = null;
+    click(button("Save"));
+    const [, , working, , baseRev] = fx.saves[1] as [string, string, { placements: { machineId: string; rotationDeg: number }[] }, string, number];
+    expect(baseRev).toBe(4);
+    expect(working.placements.find((p) => p.machineId === "m-ext")!.rotationDeg).toBe(180);
+  });
+
+  it.each([
+    ["refused", "The layout wasn't saved. Only a studio leader arranges the floor."],
+    ["unchecked", "The layout wasn't saved, and Journey couldn't check why. It's still on screen: tap Save to try again."],
+  ])("a save %s puts the copy back as unsaved work, whatever the listener showed in between", async (why, words) => {
+    floor(true);
+    layout(0);
+    const original = fx.plans.current as Record<string, unknown>;
+    fx.saveAnswer = { ok: false, why };
+    mount();
+    click([...host!.querySelectorAll(".smap-list__row")][0]);
+    click(button("Turn right"));
+    click(button("Save"));
+    snapshot({ ...original, rev: 4, updatedAtMs: 50, updatedBy: "uid-aj", placements: [{ machineId: "m-leg-press", x: 4000, y: 4000, rotationDeg: 90 }] });
+    // The SDK takes the refused write back: the server's rev 3 again.
+    snapshot({ ...original });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(turnOf("m-leg-press")).toBe("90");
+    expect(button("Save")).toBeTruthy();
+    expect(fx.toasts).toContain(words);
+    expect(fx.toasts.join(" ")).not.toMatch(/kept on this iPad|back online/);
+    fx.saveAnswer = null;
+    click(button("Save"));
+    expect((fx.saves[1] as unknown[])[4]).toBe(3);
+  });
 });
 
 describe("who arranges", () => {
-  it("is a leader; anyone else gets one line and Back to the map", () => {
+  it("is a leader; anyone else gets one line and Done", () => {
     const done = vi.fn();
     const el = mount({ canLead: false, onDone: done });
     expect(el.textContent).toContain("Only a studio leader arranges the floor.");
-    click(button("Back to the map"));
+    click(button("Done"));
     expect(done).toHaveBeenCalled();
   });
 });

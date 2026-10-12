@@ -91,6 +91,27 @@ describe("the Sizes sheet", () => {
     expect((fx.undone[0][1] as string[]).length).toBe(20);
   });
 
+  it("puts what needs a size first, so the ticked rows sit beside the buttons, and the sized ones after", () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const [a, b] = TWENTY;
+    const sized = IMAGINE_STRENGTH_MODELS.find((m) => m.movementId === a)!;
+    const three = [
+      { machineId: a, name: "First on the walk", source: "catalog" },
+      { machineId: b, name: "Second on the walk", source: "catalog" },
+      { machineId: "sm-solon-sled", name: "Solon Sled", source: "custom" },
+    ];
+    const facts: Record<string, UnitFacts> = {
+      [a]: { unitSize: null, modelId: sized.id, movementId: a },
+      [b]: { unitSize: null, modelId: null, movementId: b },
+      "sm-solon-sled": { unitSize: null, modelId: null, movementId: "m-sled-none" },
+    };
+    act(() => root!.render(<SizesSheet studioId="solon" floor={three} units={facts} models={IS} authUid="uid-aj" />));
+    const order = [...host.querySelectorAll(".smap-sizes__name, .smap-sizes__rows > .smap-quiet")].map((n) => n.textContent);
+    expect(order).toEqual(["Second on the walk", "Solon Sled", "Already sized", "First on the walk"]);
+  });
+
   it("says so when head office hasn't recorded the Imagine Strength sizes", () => {
     host = document.createElement("div");
     document.body.appendChild(host);

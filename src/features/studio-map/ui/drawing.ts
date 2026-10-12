@@ -3,9 +3,10 @@
  * 2026). The drawing and the editor work their scale out the same way, so
  * a press lands on what is drawn under it.
  *
- * Plain SVG with the viewBox equal to its pixel size. At zoom 1 the room's
- * width (its boxes and anything placed past them, a door straddling a wall)
- * fits the container's width, less a pad either side for the handles and
+ * Plain SVG with the viewBox equal to its pixel size. At zoom 1 the room
+ * (its boxes and anything placed past them, a door straddling a wall) fits
+ * the container's width and, where the host knows it, its height, less a
+ * pad either side for the handles and
  * the safety markers' words; zoom makes it wider and the frame scrolls.
  *
  * PURE MODULE — no React, no Firestore.
@@ -46,11 +47,18 @@ export interface Frame {
   toMm: (p: PlanPoint) => PlanPoint;
 }
 
-export function frameOf(bounds: Box, containerWidthPx: number, zoom = 1): Frame {
+/**
+ * `containerHeightPx`, when known (over 0), is the most the frame may be
+ * tall: at zoom 1 the whole room fits both ways, so Fit is true in landscape
+ * too. Unknown, the width alone decides.
+ */
+export function frameOf(bounds: Box, containerWidthPx: number, zoom = 1, containerHeightPx = 0): Frame {
   const w = containerWidthPx > 0 ? containerWidthPx : FALLBACK_WIDTH_PX;
   const roomW = Math.max(1, bounds.x1 - bounds.x0);
   const roomH = Math.max(1, bounds.y1 - bounds.y0);
-  const s = (Math.max(80, w - 2 * PAD_PX) / roomW) * zoom;
+  const byWidth = Math.max(80, w - 2 * PAD_PX) / roomW;
+  const byHeight = containerHeightPx > 0 ? Math.max(80, containerHeightPx - 2 * PAD_PX) / roomH : Infinity;
+  const s = Math.min(byWidth, byHeight) * zoom;
   const widthPx = Math.round(roomW * s + 2 * PAD_PX);
   const heightPx = Math.round(roomH * s + 2 * PAD_PX);
   return {

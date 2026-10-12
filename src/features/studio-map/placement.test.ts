@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Placement, PlannedPlacement, PlanRoom, RoomBox, RoomPlace } from "./layout";
+import { planProblems, type Placement, type PlannedPlacement, type PlanRoom, type RoomBox, type RoomPlace } from "./layout";
 import { dragStep, editorReducer, emptyWorking, HISTORY_MAX, initialEditor, kindOfId, type Action, type Edge, type EditorState } from "./placement";
 import { ftMm, snapDoor, roomShape } from "./room";
 
@@ -83,6 +83,28 @@ describe("a machine's drag", () => {
     const s0 = run(state([unit("m-a", 3000, 500)]), { type: "select", id: "m-a" });
     const s = run(s0, { type: "nudge", dir: "down" });
     expect(at(s, "m-a").y).toBe(Math.round(500 + 152.4));
+  });
+
+  it("never leaves a copy Save refuses: nudged or dragged past the left or top wall, its centre stops at the plan's edge", () => {
+    const problems = (s: EditorState) => planProblems({ name: "The layout", room: s.working.room, placements: s.working.placements }, { planId: "current" });
+    let s = run(state([unit("m-a", 400, 800)]), { type: "select", id: "m-a" });
+    for (let i = 0; i < 6; i++) s = run(s, { type: "nudge", dir: "left" });
+    expect(at(s, "m-a").x).toBe(0);
+    expect(problems(s)).toEqual([]);
+    // A drag of -100 px at 10 mm/px, from y 800.
+    const d = run(state([unit("m-a", 3000, 800)]), ...drag("m-a", 0, -100, 10));
+    expect(at(d, "m-a").y).toBeGreaterThanOrEqual(0);
+    expect(problems(d)).toEqual([]);
+  });
+
+  it("keeps a place inside the plan however far it is moved", () => {
+    const s0 = run(state([], room(), "room"), { type: "addPlace", kind: "desk", at: { x: 3000, y: 3000 } });
+    const id = s0.working.room.places[0].id;
+    const s = run(s0, ...drag(id, 70_000, 70_000));
+    const desk = s.working.room.places[0];
+    expect(desk.x + desk.w).toBeLessThanOrEqual(60_960);
+    expect(desk.y + desk.h).toBeLessThanOrEqual(60_960);
+    expect(planProblems({ name: "The layout", room: s.working.room, placements: [] }, { planId: "current" })).toEqual([]);
   });
 
   it("turns about the centre and goes back to the wall", () => {
@@ -178,5 +200,13 @@ describe("Undo and loading", () => {
     expect(forced.working).toBe(other);
     expect(forced.dirty).toBe(false);
     expect(forced.base.rev).toBe(9);
+  });
+
+  it("a save that didn't land is unsaved work again at the rev it was opened at, the copy untouched", () => {
+    const s = run(state([unit("m-a", 3000, 3000)]), { type: "select", id: "m-a" }, { type: "turn", by: 90 }, { type: "saved", id: "current", rev: 4 });
+    expect([s.dirty, s.base.rev]).toEqual([false, 4]);
+    const back = run(s, { type: "unsaved", rev: 3 });
+    expect([back.dirty, back.base.rev]).toEqual([true, 3]);
+    expect(back.working).toBe(s.working);
   });
 });

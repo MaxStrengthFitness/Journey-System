@@ -124,4 +124,13 @@ describe("brokenPanelWords", () => {
       "Pulse couldn't be loaded on this iPad just now. It will open after this session.",
     );
   });
+
+  it("on an ordinary screen (Arrange the floor) never mentions a session", () => {
+    expect(brokenPanelWords("Arrange the floor", false, "screen")).toBe(
+      "Arrange the floor couldn't be loaded on this iPad just now. Tap Done and try again.",
+    );
+    expect(brokenPanelWords("Arrange the floor", true, "screen")).toBe(
+      "Arrange the floor is part of a newer version of Journey. It opens once this iPad loads it on the Hub.",
+    );
+  });
 });

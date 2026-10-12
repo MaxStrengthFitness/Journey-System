@@ -20,7 +20,9 @@
  *   kind="panel"   Around a panel inside the Active Session (Pulse). It never
  *                  reloads anything: it says the panel will open after this
  *                  session, and marks this page as wanting a reload, which the
- *                  Hub gives it once the session is over.
+ *                  Hub gives it once the session is over. With where="screen"
+ *                  (Arrange the floor, on My Studio → Machines) it says so for
+ *                  a screen instead, with a Done that calls `onDone`.
  */
 import { Component, createContext, useContext, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { isChunkLoadError } from "./chunk-error";
@@ -45,7 +47,7 @@ export function ScreenRecoveryProvider({ value, children }: { value: ScreenRecov
 
 type Props =
   | { kind: "screen"; resetKey?: unknown; sessionScreen?: boolean; children: ReactNode }
-  | { kind: "panel"; panel: string; children: ReactNode };
+  | { kind: "panel"; panel: string; where?: "session" | "screen"; onDone?: () => void; children: ReactNode };
 
 interface State {
   error: unknown;
@@ -94,7 +96,7 @@ export class LoadBoundary extends Component<Props, State> {
     if (error === null) return this.props.children;
     if (!isChunkLoadError(error)) throw error;
     return this.props.kind === "panel" ? (
-      <BrokenPanel panel={this.props.panel} />
+      <BrokenPanel panel={this.props.panel} where={this.props.where ?? "session"} onDone={this.props.onDone} />
     ) : (
       <BrokenScreen sessionScreen={!!this.props.sessionScreen} />
     );
@@ -167,7 +169,7 @@ function BrokenScreen({ sessionScreen }: { sessionScreen: boolean }) {
   );
 }
 
-function BrokenPanel({ panel }: { panel: string }) {
+function BrokenPanel({ panel, where, onDone }: { panel: string; where: "session" | "screen"; onDone?: () => void }) {
   const live = useNewVersionLive();
   useEffect(() => {
     versionStore.markBroken();
@@ -175,7 +177,16 @@ function BrokenPanel({ panel }: { panel: string }) {
   }, []);
   return (
     <div className="p-6 text-center" role="status" aria-live="polite" data-testid="broken-panel">
-      <p className="m-0 text-base leading-relaxed text-muted-foreground">{brokenPanelWords(panel, live)}</p>
+      <p className="m-0 text-base leading-relaxed text-muted-foreground">{brokenPanelWords(panel, live, where)}</p>
+      {where === "screen" && onDone && (
+        <button
+          type="button"
+          onClick={onDone}
+          className="mt-6 min-h-12 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          Done
+        </button>
+      )}
     </div>
   );
 }

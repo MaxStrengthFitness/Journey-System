@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useEffect, useId, useMemo, useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { FireExtinguisher, HeartPulse } from "lucide-react";
 import type { KnownSize } from "../../../types/machines";
 import { footprint } from "../geometry";
@@ -64,6 +64,8 @@ export interface StudioRoomProps {
   machines: readonly MapMachine[];
   /** The container's width; the drawing fits it at zoom 1. */
   widthPx: number;
+  /** The most the container may be tall, when the host knows it: the drawing fits that too at zoom 1. */
+  heightPx?: number;
   zoom?: number;
   selectedId?: string | null;
   /** The editor's overlaps: a plum edge. */
@@ -185,6 +187,8 @@ const RoomLayers = memo(function RoomLayers({
   const f = frame;
   const doors = room.places.filter((p) => p.kind === "door");
   const ft = 304.8 * f.s;
+  // The grid is the floor's alone: clipped to the boxes, so a notch outside the room stays plain tray.
+  const clipId = `smap-floor-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   let gridPath = "";
   if (grid && ft >= 6 && shape.boxes.length > 0) {
     const { x0, y0, x1, y1 } = shape.bbox;
@@ -201,13 +205,25 @@ const RoomLayers = memo(function RoomLayers({
     }
     gridPath = segs.join("");
   }
+  const floorRects = room.boxes.map((b) => {
+    const p = f.toPx(b);
+    return { id: b.id, x: p.x, y: p.y, w: b.w * f.s, h: b.h * f.s };
+  });
   return (
     <g>
-      {room.boxes.map((b) => {
-        const p = f.toPx(b);
-        return <rect key={b.id} className="smap-floor" x={p.x} y={p.y} width={b.w * f.s} height={b.h * f.s} />;
-      })}
-      {gridPath && <path className="smap-grid" d={gridPath} />}
+      {floorRects.map((r) => (
+        <rect key={r.id} className="smap-floor" x={r.x} y={r.y} width={r.w} height={r.h} />
+      ))}
+      {gridPath && (
+        <>
+          <clipPath id={clipId}>
+            {floorRects.map((r) => (
+              <rect key={r.id} x={r.x} y={r.y} width={r.w} height={r.h} />
+            ))}
+          </clipPath>
+          <path className="smap-grid" d={gridPath} clipPath={`url(#${clipId})`} />
+        </>
+      )}
       <path className="smap-wall" d={wallPath(shape, doors, f)} />
       {doors.map((d) => {
         const arc = doorArc(d, shape, f);
@@ -343,18 +359,57 @@ function Label({ m, frame }: { m: MapMachine; frame: Frame }) {
  * The safety layer and the handles
  * ------------------------------------------------------------------ */
 
-function Safety({ p, frame }: { p: RoomPlace; frame: Frame }) {
-  const f = frame;
-  const c = f.toPx({ x: p.x + p.w / 2, y: p.y + p.h / 2 });
-  const side = Math.max(SAFETY_MIN_PX, p.w * f.s);
-  const name = placeName(p);
+/** The safety markers' words: 12px, as studio-map.css draws them. */
+const SAFETY_LABEL_PX = 12;
+
+interface SafetyMark {
+  p: RoomPlace;
+  c: PlanPoint;
+  side: number;
+  name: string;
+  /** The words' baseline: under the marker, or over it where under would run into words already drawn. */
+  labelY: number;
+}
+
+type PxRect = { x0: number; y0: number; x1: number; y1: number };
+const meets = (a: PxRect, b: PxRect) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+/**
+ * Where each safety marker's words go: under it, unless they would run into
+ * words already drawn or another marker, then over it. Two markers a foot
+ * apart never merge their words ("Fire exAEDuisher").
+ */
+export function safetyMarks(places: readonly RoomPlace[], f: Frame): SafetyMark[] {
+  const marks = places
+    .filter((p) => isSafety(p.kind))
+    .map((p) => {
+      const c = f.toPx({ x: p.x + p.w / 2, y: p.y + p.h / 2 });
+      const side = Math.max(SAFETY_MIN_PX, p.w * f.s);
+      return { p, c, side, name: placeName(p) };
+    });
+  const boxes: PxRect[] = marks.map((m) => ({ x0: m.c.x - m.side / 2, y0: m.c.y - m.side / 2, x1: m.c.x + m.side / 2, y1: m.c.y + m.side / 2 }));
+  const drawn: PxRect[] = [];
+  return marks.map((m, i) => {
+    const half = textWidth(m.name, SAFETY_LABEL_PX) / 2 + 2;
+    const at = (baseline: number): PxRect => ({ x0: m.c.x - half, y0: baseline - SAFETY_LABEL_PX, x1: m.c.x + half, y1: baseline + 3 });
+    const under = m.c.y + m.side / 2 + 14;
+    const over = m.c.y - m.side / 2 - 6;
+    const clear = (r: PxRect) => !drawn.some((d) => meets(r, d)) && !boxes.some((b, j) => j !== i && meets(r, b));
+    const labelY = clear(at(under)) || !clear(at(over)) ? under : over;
+    drawn.push(at(labelY));
+    return { ...m, labelY };
+  });
+}
+
+function Safety({ m }: { m: SafetyMark }) {
+  const { p, c, side, name, labelY } = m;
   const Glyph = p.kind === "aed" ? HeartPulse : FireExtinguisher;
   const g = side * 0.64;
   return (
     <g className="smap-safety" role="img" aria-label={name}>
       <rect className="smap-safety__box" x={c.x - side / 2} y={c.y - side / 2} width={side} height={side} rx={4} />
       <Glyph className="smap-safety__glyph" x={c.x - g / 2} y={c.y - g / 2} width={g} height={g} aria-hidden="true" />
-      <text className="smap-safety__name" x={c.x} y={c.y + side / 2 + 14} textAnchor="middle">
+      <text className="smap-safety__name" x={c.x} y={labelY} textAnchor="middle">
         {name}
       </text>
     </g>
@@ -392,6 +447,7 @@ function StudioRoomImpl({
   bounds: givenBounds,
   machines,
   widthPx,
+  heightPx = 0,
   zoom = 1,
   selectedId = null,
   warnIds,
@@ -403,7 +459,7 @@ function StudioRoomImpl({
 }: StudioRoomProps) {
   const shape = useMemo(() => given ?? roomShape(room.boxes), [given, room.boxes]);
   const bounds = useMemo(() => givenBounds ?? roomBounds(room, shape), [givenBounds, room, shape]);
-  const frame = useMemo(() => frameOf(bounds, widthPx, zoom), [bounds, widthPx, zoom]);
+  const frame = useMemo(() => frameOf(bounds, widthPx, zoom, heightPx), [bounds, widthPx, zoom, heightPx]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const down = useRef<{ x: number; y: number } | null>(null);
   const tool = interaction?.tool ?? null;
@@ -446,7 +502,7 @@ function StudioRoomImpl({
     }
   };
 
-  const safety = room.places.filter((p) => isSafety(p.kind));
+  const safety = useMemo(() => safetyMarks(room.places, frame), [room.places, frame]);
 
   return (
     <svg
@@ -515,8 +571,8 @@ function StudioRoomImpl({
         ))}
       </g>
       <g className="smap-safety-layer">
-        {safety.map((p) => (
-          <Safety key={p.id} p={p} frame={frame} />
+        {safety.map((m) => (
+          <Safety key={m.p.id} m={m} />
         ))}
       </g>
       {interaction?.tool === "room" && interaction.selected && (

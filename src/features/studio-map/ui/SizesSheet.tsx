@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import { useToast } from "../../../contexts/ToastContext";
 import { formatStudioDate } from "../../../lib/studio-time";
@@ -34,7 +34,11 @@ function shortWords(r: UnitSizeRead): string {
  * Imagine Strength: "Yes, nearly all". So every catalog copy that offers
  * one STARTS TICKED, and a leader unticks the odd ones out; a studio's own
  * machines start unticked. NOTHING IS WRITTEN until Mark {n} as Imagine
- * Strength, with every ticked row on screen, and its toast carries Undo.
+ * Strength, and its toast carries Undo. The rows that need a size come
+ * first (the Imagine Strength offers, then any other machine with none),
+ * each group in walking order, so every ticked row is on screen beside the
+ * buttons that act on it; the machines already sized follow under a quiet
+ * "Already sized".
  * The same two controls as a machine's own Its size (one editor, two ways
  * in), each writing on its own and never awaited.
  */
@@ -53,6 +57,13 @@ export function SizesSheet({
 }) {
   const { toast, success: toastSuccess, error: toastError } = useToast();
   const rows = useMemo(() => sizeRows(floor, units, models), [floor, units, models]);
+  // What needs a size first; the rest after, in walking order within each.
+  const groups = useMemo(() => {
+    const offered = rows.filter((r) => r.isOffer);
+    const unsized = rows.filter((r) => !r.isOffer && r.size.state !== "known");
+    const sized = rows.filter((r) => !r.isOffer && r.size.state === "known");
+    return { first: [...offered, ...unsized], sized };
+  }, [rows]);
   const offers = rows.filter((r) => r.isOffer);
   // The opening ticks, once the models have answered (a pre-tick writes nothing).
   const [ticked, setTicked] = useState<Set<string> | null>(null);
@@ -111,44 +122,48 @@ export function SizesSheet({
       </div>
       {noImagine && <AdminNotice tone="info">Head office hasn't recorded the Imagine Strength sizes yet.</AdminNotice>}
       <div className="smap-sizes__rows">
-        {rows.map((r) => {
+        {[...groups.first, ...groups.sized].map((r, i) => {
           const on = live.has(r.machineId);
+          const firstSized = i === groups.first.length && groups.first.length > 0;
           return (
-            <div key={r.machineId} className="smap-sizes__row">
-              {r.isOffer ? (
-                <button
-                  type="button"
-                  className="smap-sizes__tick"
-                  aria-pressed={on}
-                  aria-label={`${r.name} is an Imagine Strength ${r.isOffer.model}`}
-                  onClick={() => toggle(r.machineId)}
-                >
-                  {on && <Check className="w-5 h-5" aria-hidden="true" />}
-                </button>
-              ) : null}
-              <div className="smap-sizes__main">
-                <span className="smap-sizes__name">{r.name}</span>
-                <span className="smap-quiet">{shortWords(r.size)}</span>
-                {measuring === r.machineId ? (
-                  <SizeForm idPrefix={`smap-sizes-${r.machineId}`} onSave={(size) => saveSize(r, size)} onCancel={() => setMeasuring(null)} />
-                ) : (
-                  <div className="smap-item__row">
-                    {r.movementId && r.models.length > 0 && (
-                      <UnitModelField
-                        studioId={studioId}
-                        machineId={r.machineId}
-                        machineName={r.name}
-                        movementId={r.movementId}
-                        value={units[r.machineId]?.modelId ?? null}
-                        models={r.models}
-                        id={`smap-sizes-model-${r.machineId}`}
-                      />
-                    )}
-                    <AdminButton onClick={() => setMeasuring(r.machineId)}>Measure</AdminButton>
-                  </div>
-                )}
+            <Fragment key={r.machineId}>
+              {firstSized && <p className="smap-quiet">Already sized</p>}
+              <div className="smap-sizes__row">
+                {r.isOffer ? (
+                  <button
+                    type="button"
+                    className="smap-sizes__tick"
+                    aria-pressed={on}
+                    aria-label={`${r.name} is an Imagine Strength ${r.isOffer.model}`}
+                    onClick={() => toggle(r.machineId)}
+                  >
+                    {on && <Check className="w-5 h-5" aria-hidden="true" />}
+                  </button>
+                ) : null}
+                <div className="smap-sizes__main">
+                  <span className="smap-sizes__name">{r.name}</span>
+                  <span className="smap-quiet">{shortWords(r.size)}</span>
+                  {measuring === r.machineId ? (
+                    <SizeForm idPrefix={`smap-sizes-${r.machineId}`} onSave={(size) => saveSize(r, size)} onCancel={() => setMeasuring(null)} />
+                  ) : (
+                    <div className="smap-item__row">
+                      {r.movementId && r.models.length > 0 && (
+                        <UnitModelField
+                          studioId={studioId}
+                          machineId={r.machineId}
+                          machineName={r.name}
+                          movementId={r.movementId}
+                          value={units[r.machineId]?.modelId ?? null}
+                          models={r.models}
+                          id={`smap-sizes-model-${r.machineId}`}
+                        />
+                      )}
+                      <AdminButton onClick={() => setMeasuring(r.machineId)}>Measure</AdminButton>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            </Fragment>
           );
         })}
       </div>

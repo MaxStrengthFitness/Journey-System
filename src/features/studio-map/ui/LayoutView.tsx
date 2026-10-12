@@ -73,7 +73,7 @@ export default function LayoutView(props: LayoutViewProps) {
       <div className="smap-editor">
         <p className="smap-note">Only a studio leader arranges the floor.</p>
         <div className="smap-bar">
-          <AdminButton onClick={props.onDone}>Back to the map</AdminButton>
+          <AdminButton onClick={props.onDone}>Done</AdminButton>
         </div>
       </div>
     );
@@ -150,12 +150,19 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
   const { working } = state;
   const current = plans.current;
   const floorKey = floorUnits.map((u) => u.machineId).join("|");
+  // The latest of each, for a save's answer that comes back later.
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  const stateRef = useRef(state);
+  stateRef.current = state;
   useEffect(() => {
     if (!current) return;
     dispatch({ type: "load", id: CURRENT_ID, rev: current.rev, working: workingOf(current, floorUnits) });
-    // The layout's rev and the floor's machines are what change it; a snapshot that differs only in metadata never reloads.
+    // The layout's rev, who wrote it and when, and the floor's machines are what change it. Who and when matter at the
+    // same rev: a refused save of ours is put back by the SDK to the other leader's document at the rev ours had
+    // claimed, and that copy must reach the screen (unless ours is still unsaved work there, which `load` keeps).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.rev, floorKey, plans.state]);
+  }, [current?.rev, current?.updatedAtMs, current?.updatedBy, floorKey, plans.state]);
 
   const discard = () => {
     if (current) dispatch({ type: "load", id: CURRENT_ID, rev: current.rev, working: workingOf(current, floorUnits), force: true });
@@ -169,17 +176,46 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
   const [zoomIx, setZoomIx] = useState(0);
   const zoom = ZOOMS[zoomIx];
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const [widthPx, setWidthPx] = useState(0);
+  // The frame's width, and the most it may grow to (its max-height, read from the stylesheet so the measure never
+  // depends on what is drawn in it): 0 until measured, and where there is nothing to read (a test).
+  const [box, setBox] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const el = frameRef.current;
     if (!el) return;
-    setWidthPx(el.clientWidth);
+    const measure = () => {
+      let h = 0;
+      try {
+        h = parseFloat(getComputedStyle(el).maxHeight) || 0;
+      } catch {
+        h = 0;
+      }
+      setBox((b) => (b.w === el.clientWidth && b.h === h ? b : { w: el.clientWidth, h }));
+    };
+    measure();
     if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setWidthPx(el.clientWidth));
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, [working.room.boxes.length > 0]);
-  const frame = useMemo(() => frameOf(bounds, widthPx, zoom), [bounds, widthPx, zoom]);
+  const widthPx = box.w;
+  // The drawing keeps its scale while the room is edited: an edge pulled in stays where the finger left it, and the
+  // drawing rescales only when the room grows past what is drawn, or on Fit, a zoom, a new tool or a resized frame.
+  const [fitTick, setFitTick] = useState(0);
+  const held = useRef<{ key: string; bounds: typeof bounds } | null>(null);
+  const holdKey = `${zoomIx}|${state.tool}|${box.w}|${box.h}|${fitTick}`;
+  const drawnBounds = useMemo(() => {
+    const h = held.current;
+    const within = !!h && h.key === holdKey && bounds.x0 >= h.bounds.x0 && bounds.y0 >= h.bounds.y0 && bounds.x1 <= h.bounds.x1 && bounds.y1 <= h.bounds.y1;
+    if (within) return h!.bounds;
+    held.current = { key: holdKey, bounds };
+    return bounds;
+  }, [bounds, holdKey]);
+  const frame = useMemo(() => frameOf(drawnBounds, widthPx, zoom, box.h), [drawnBounds, widthPx, zoom, box.h]);
+  const fitted = zoomIx === 0 && drawnBounds === bounds;
 
   /* ── What is drawn: the working copy, with a drag in progress ───── */
   const live = state.drag.phase === "dragging" ? state.drag : null;
@@ -330,7 +366,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
     return () => window.removeEventListener("keydown", onKey, true);
   }, [dragging]);
 
-  /* ── Save, and a save someone else beat ─────────────────────────── */
+  /* ── Save, and a save that didn't land ──────────────────────────── */
   const [note, setNote] = useState<string | null>(null);
   const save = () => {
     if (!authUid) {
@@ -347,6 +383,13 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
     dispatch({ type: "saved", id: CURRENT_ID, rev: (baseRev ?? 0) + 1 });
     setNote(null);
     toastSuccess("Layout saved.");
+    // Any refusal is final (nothing retries it), so what was sent is unsaved work again, against the rev it was
+    // opened at: changes made since stay as they are; otherwise the copy that was sent comes back on screen, whatever
+    // the listener showed in between.
+    const putBack = () => {
+      if (stateRef.current.dirty) dispatch({ type: "unsaved", rev: baseRev });
+      else dispatch({ type: "load", id: CURRENT_ID, rev: baseRev, working: copy, force: true, dirty: true });
+    };
     void saveLayout(studioId, CURRENT_ID, copy, LAYOUT_NAME, baseRev, authUid).then((out) => {
       if (!("why" in out)) return;
       if (out.why === "changed") {
@@ -355,15 +398,24 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
         void keepAsDraft(studioId, copy, name, plans.slots, authUid).then((kept) => {
           if ("id" in kept) {
             setNote(`${who} saved a newer layout, so yours was kept as a draft, “${name}”.`);
+            // Yours is safe in the draft: the screen shows theirs, at their rev, unless you've changed it since.
+            const now = currentRef.current;
+            if (stateRef.current.dirty) dispatch({ type: "unsaved", rev: baseRev });
+            else if (now) dispatch({ type: "load", id: CURRENT_ID, rev: now.rev, working: workingOf(now, floorUnits), force: true });
           } else {
-            setNote(`${who} saved a newer layout, and all five drafts are in use, so yours is still on screen.`);
-            dispatch({ type: "load", id: CURRENT_ID, rev: baseRev, working: copy, force: true, dirty: true });
+            setNote(
+              "full" in kept
+                ? `${who} saved a newer layout, and all five drafts are in use, so yours is still on screen.`
+                : `${who} saved a newer layout, and yours couldn't be kept as a draft, so it's still on screen.`,
+            );
+            putBack();
           }
         });
         return;
       }
+      putBack();
       if (out.why === "invalid") toastError(out.problem);
-      else if (out.why === "offline-kept") toast("The layout is kept on this iPad and goes to the studio when it's back online.", "info");
+      else if (out.why === "unchecked") toastError("The layout wasn't saved, and Journey couldn't check why. It's still on screen: tap Save to try again.");
       else toastError("The layout wasn't saved. Only a studio leader arranges the floor.");
     });
   };
@@ -503,9 +555,9 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
   if (floor.length === 0) {
     return (
       <div className="smap-editor">
-        <p className="smap-note">Add machines to the floor first: switch to List.</p>
+        <p className="smap-note">Add machines to the floor first.</p>
         <div className="smap-bar">
-          <AdminButton onClick={onDone}>List</AdminButton>
+          <AdminButton onClick={onDone}>Done</AdminButton>
         </div>
       </div>
     );
@@ -613,36 +665,25 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
         </AdminButton>
       </div>
 
-      <p className="smap-area" aria-live="polite">
-        {areaWords(shape, working.room.areaSqFt, tally)}
-      </p>
-
-      {/* The drawing. */}
-      <div className="smap-stage">
-        <div ref={frameRef} className={`smap-frame smap-frame--arrange smap-frame--${state.tool}`}>
-          <StudioRoom
-            ariaLabel={`${studioName}'s map`}
-            room={displayRoom}
-            shape={shape}
-            bounds={bounds}
-            machines={mapMachines}
-            widthPx={widthPx}
-            zoom={zoom}
-            selectedId={selKind === "unit" || selKind === "planned" ? sel : null}
-            warnIds={warnIds}
-            ariaOf={(id) => {
-              const lines = checks.linesById.get(id);
-              return lines && lines.length ? lines.map((l) => l.text.replace(/\.$/, "").toLowerCase()).join(", ") : null;
-            }}
-            onPick={(id) => dispatch({ type: "select", id })}
-            interaction={interaction}
-          />
-        </div>
+      {/* The tally, and the zoom beside it: nothing drawn is ever under a control. */}
+      <div className="smap-area-row">
+        <p className="smap-area" aria-live="polite">
+          {areaWords(shape, working.room.areaSqFt, tally)}
+        </p>
         <div className="smap-zoom" role="group" aria-label="Zoom">
           <button type="button" className="smap-zoom__btn" aria-label="Zoom out" disabled={zoomIx === 0} onClick={() => setZoomIx((i) => Math.max(0, i - 1))}>
             −
           </button>
-          <button type="button" className="smap-zoom__btn" aria-label="Fit the room" disabled={zoomIx === 0} onClick={() => setZoomIx(0)}>
+          <button
+            type="button"
+            className="smap-zoom__btn"
+            aria-label="Fit the room"
+            disabled={fitted}
+            onClick={() => {
+              setZoomIx(0);
+              setFitTick((t) => t + 1);
+            }}
+          >
             Fit
           </button>
           <button
@@ -657,14 +698,45 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
         </div>
       </div>
 
+      {/* The drawing. */}
+      <div className="smap-stage">
+        <div ref={frameRef} className={`smap-frame smap-frame--arrange smap-frame--${state.tool}`}>
+          <StudioRoom
+            ariaLabel={`${studioName}'s map`}
+            room={displayRoom}
+            shape={shape}
+            bounds={drawnBounds}
+            machines={mapMachines}
+            widthPx={widthPx}
+            heightPx={box.h}
+            zoom={zoom}
+            selectedId={selKind === "unit" || selKind === "planned" ? sel : null}
+            warnIds={warnIds}
+            ariaOf={(id) => {
+              const lines = checks.linesById.get(id);
+              return lines && lines.length ? lines.map((l) => l.text.replace(/\.$/, "").toLowerCase()).join(", ") : null;
+            }}
+            onPick={(id) => dispatch({ type: "select", id })}
+            interaction={interaction}
+          />
+        </div>
+      </div>
+
       {/* The selected thing. */}
-      {panel && <ItemPanel key={sel ?? ""} item={panel} actions={actions} />}
+      {/* Keyed on the size too, so its Width and Length boxes follow an edge that was dragged. */}
+      {panel && (
+        <ItemPanel
+          key={panel.kind === "box" ? `${sel}:${panel.box.w}x${panel.box.h}` : panel.kind === "place" ? `${sel}:${panel.place.w}x${panel.place.h}` : (sel ?? "")}
+          item={panel}
+          actions={actions}
+        />
+      )}
 
       {state.tool === "machines" ? (
         <>
           {noSize > 0 && (
             <p className="smap-note">
-              {noSize === 1 ? "1 machine has no size yet" : `${noSize} machines have no size yet`} ·
+              {noSize === 1 ? "1 machine has no size yet." : `${noSize} machines have no size yet.`}
               <AdminButton onClick={() => setSizesOpen(true)}>Sizes</AdminButton>
             </p>
           )}
@@ -763,8 +835,10 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
                   <span className="smap-list__name">
                     {i + 1} · {u.name}
                   </span>
-                  <span className="smap-list__meta">{size ? sizeLine(size) : "Size not known"}</span>
-                  {!placedIds.has(u.machineId) && <span className="smap-list__meta">Not placed yet</span>}
+                  <span className="smap-list__meta">
+                    {size ? sizeLine(size) : "Size not known"}
+                    {!placedIds.has(u.machineId) && " · Not placed yet"}
+                  </span>
                 </button>
               </li>
             );
@@ -792,7 +866,7 @@ function Editor({ studioId, studioName, authUid, authorName, isDemo, nameOf = ()
       <ConfirmDialog
         open={practiceAsk}
         title="Start over from the practice layout?"
-        body={`The room and every machine's spot go back to the practice layout. Nothing is saved until you tap Save; Undo brings back what's on screen now. ${sqFtWords(1800)}.`}
+        body={`The room and every machine's spot go back to the practice layout. Nothing is saved until you tap Save; Undo brings back what's on screen now. The practice room is ${sqFtWords(1800)}.`}
         confirmLabel="Start over"
         onConfirm={() => {
           setPracticeAsk(false);

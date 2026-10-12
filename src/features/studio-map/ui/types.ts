@@ -16,6 +16,6 @@ export interface LayoutViewProps {
   isDemo: boolean;
   /** A trainer's name from their uid, from the list the host already has. */
   nameOf?: (uid: string) => string | null;
-  /** Back to the map (through the host's leave guard). */
+  /** Done: back where the leader came from (through the host's leave guard); the map itself comes in phase 3. */
   onDone: () => void;
 }

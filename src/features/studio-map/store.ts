@@ -11,8 +11,11 @@
  * A REFUSED LAYOUT SAVE IS TOLD APART. The rules answer a stale save and a
  * forbidden one alike (PERMISSION_DENIED), so the store reads the document
  * it wrote, once, from the server: a newer rev there means someone else
- * saved in between ("changed"), otherwise it was refused. If that read
- * can't reach the server, the write is still queued: "offline-kept".
+ * saved in between ("changed"), otherwise it was refused. A refusal is
+ * never retried: the server has answered and the write is off the queue.
+ * If that follow-up read can't reach the server, the save is "unchecked":
+ * not saved, and the reason not known. A write still waiting for the server
+ * never comes back here at all (its promise simply hasn't settled).
  *
  * NOTHING ON A TAP AWAITS THESE. Each write is issued and the screen moves
  * on; the roster listener's latency-compensated snapshot already shows it,
@@ -128,7 +131,8 @@ export type SaveOutcome =
   | { ok: true; rev: number }
   /** Someone saved this document since the copy was opened; `by` is their uid when the server says. */
   | { ok: false; why: "changed"; by: string | null }
-  | { ok: false; why: "refused" | "offline-kept" | "full" }
+  /** Not saved: refused, refused and the reason couldn't be checked, or (a draft) every slot in use. */
+  | { ok: false; why: "refused" | "unchecked" | "full" }
   /** The editor made something the store won't send (a bug, never a person): the first sentence. */
   | { ok: false; why: "invalid"; problem: string };
 
@@ -143,7 +147,7 @@ const planRef = (studioId: string, planId: string) => doc(db, "studios", studioI
 
 const denied = (e: unknown) => (e as { code?: unknown } | null)?.code === "permission-denied";
 
-/** After a refusal: a newer rev on the server is "changed", anything else "refused"; no server, "offline-kept". */
+/** After a refusal: a newer rev on the server is "changed", anything else "refused"; no answer to the check, "unchecked" (still not saved). */
 async function explain(studioId: string, planId: string, baseRev: number | null): Promise<SaveOutcome> {
   try {
     const snap = await getDocFromServer(planRef(studioId, planId));
@@ -154,7 +158,7 @@ async function explain(studioId: string, planId: string, baseRev: number | null)
     }
     return { ok: false, why: "refused" };
   } catch {
-    return { ok: false, why: "offline-kept" };
+    return { ok: false, why: "unchecked" };
   }
 }
 
@@ -266,11 +270,11 @@ function commitOps(studioId: string, ops: readonly Op[], uid: string): Promise<v
 
 export type UseOutcome =
   | { ok: true; record: UndoRecord }
-  | { ok: false; why: "changed" | "refused" | "offline-kept" }
+  | { ok: false; why: "changed" | "refused" | "unchecked" }
   | { ok: false; why: "invalid"; problem: string };
 
 /** Read the documents a refused batch wrote: did any move on since? */
-async function explainPair(studioId: string, checks: { id: string; baseRev: number | null }[]): Promise<"changed" | "refused" | "offline-kept"> {
+async function explainPair(studioId: string, checks: { id: string; baseRev: number | null }[]): Promise<"changed" | "refused" | "unchecked"> {
   try {
     for (const c of checks) {
       const snap = await getDocFromServer(planRef(studioId, c.id));
@@ -279,7 +283,7 @@ async function explainPair(studioId: string, checks: { id: string; baseRev: numb
     }
     return "refused";
   } catch {
-    return "offline-kept";
+    return "unchecked";
   }
 }
 

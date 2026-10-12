@@ -99,6 +99,46 @@ describe("the drawing", () => {
     expect(Number(aed.querySelector(".smap-safety__box")!.getAttribute("width"))).toBeGreaterThanOrEqual(28);
   });
 
+  it("gives two safety markers a foot apart two sets of words that don't run together", () => {
+    const close: PlanRoom = {
+      ...room,
+      places: [
+        { id: "pc-a", kind: "extinguisher", x: ftMm(10), y: ftMm(10), w: 305, h: 305 },
+        { id: "pc-b", kind: "aed", x: ftMm(11), y: ftMm(10), w: 305, h: 305 },
+      ],
+    };
+    const { svg } = mount({ room: close, machines: [] });
+    const words = [...svg.querySelectorAll(".smap-safety__name")].map((t) => {
+      const x = Number(t.getAttribute("x"));
+      const y = Number(t.getAttribute("y"));
+      // The drawing's own estimate in a test: 0.62 of 12 px a character.
+      const half = (0.62 * 12 * (t.textContent ?? "").length) / 2;
+      return { x0: x - half, x1: x + half, y0: y - 12, y1: y + 3, text: t.textContent };
+    });
+    expect(words.map((w) => w.text)).toEqual(["Fire extinguisher", "AED"]);
+    const [a, b] = words;
+    const overlap = a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+    expect(overlap).toBe(false);
+  });
+
+  it("clips the editor's grid to the floor, so a notch outside the room stays plain", () => {
+    const L: PlanRoom = { areaSqFt: 900, boxes: [{ id: "bx-1", x: 0, y: 0, w: ftMm(30), h: ftMm(20) }, { id: "bx-2", x: 0, y: ftMm(20), w: ftMm(10), h: ftMm(10) }], places: [] };
+    const interaction = { tool: "machines" as const, selected: null, onPointerDown: () => {}, onPointerMove: () => {}, onPointerUp: () => {}, onPointerCancel: () => {} };
+    const { svg } = mount({ room: L, machines: [], interaction });
+    const grid = svg.querySelector(".smap-grid")!;
+    const ref = /url\(#([^)]+)\)/.exec(grid.getAttribute("clip-path") ?? "")![1];
+    expect(svg.querySelectorAll(`clipPath[id="${ref}"] rect`)).toHaveLength(2);
+  });
+
+  it("fits a wide room to the frame's height as well when it knows it, and to the width alone when it doesn't", () => {
+    const { svg } = mount({ machines: [], heightPx: 300 });
+    expect(Number(svg.getAttribute("height"))).toBeLessThanOrEqual(300);
+    act(() => root!.unmount());
+    host!.remove();
+    const wide = mount({ machines: [] });
+    expect(Number(wide.svg.getAttribute("width"))).toBe(800);
+  });
+
   it("labels every machine, marks one still to buy and one with no size", () => {
     const { svg } = mount();
     const labels = [...svg.querySelectorAll(".smap-m")].map((g) => g.getAttribute("aria-label"));

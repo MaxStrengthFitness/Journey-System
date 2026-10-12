@@ -385,19 +385,123 @@ export function resnapDoors(places: readonly RoomPlace[], shape: RoomShape): Roo
   return places.map((p) => (p.kind === "door" ? snapDoor(p, shape) : p));
 }
 
-/** A new place, its defaults centred on `at`; a door snapped onto the nearest wall. */
-export function addPlace(kind: PlaceKind, at: PlanPoint, shape: RoomShape, places: readonly RoomPlace[]): RoomPlace {
-  const { w, h } = placeDefaults(kind);
-  if (kind === "door") {
-    // Centred on `at` exactly; snapDoor puts it on the nearest wall.
-    return snapDoor({ id: nextPlaceId(places), kind, x: Math.round(at.x - w / 2), y: Math.round(at.y - h / 2), w, h }, shape);
+type Rect = { x: number; y: number; w: number; h: number };
+
+/** Two rectangles share some floor (touching edges don't count). */
+const touches = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+/** A rectangle on the floor: its four corners and its centre in the room (rough, like the rest). */
+const onFloor = (r: Rect, shape: RoomShape) =>
+  [
+    { x: r.x, y: r.y },
+    { x: r.x + r.w, y: r.y },
+    { x: r.x, y: r.y + r.h },
+    { x: r.x + r.w, y: r.y + r.h },
+    centreOf(r),
+  ].every((p) => inRoom(p, shape));
+/** A place's top-left kept inside 0–200 ft, its far side included. */
+const inside = <P extends Rect>(p: P): P => ({
+  ...p,
+  x: Math.round(clamp(p.x, 0, PLAN_LIMITS.coordMax - p.w)),
+  y: Math.round(clamp(p.y, 0, PLAN_LIMITS.coordMax - p.h)),
+});
+
+const STEP = ftMm(2);
+/**
+ * The AED and the extinguisher are drawn at least 28 px whatever the scale,
+ * larger than their true foot: anything new keeps 3 ft clear of one (and one
+ * new keeps 3 ft clear of anything), so neither hides the other on the
+ * drawing.
+ */
+const SAFETY_CLEAR = ftMm(3);
+type Kinded = Rect & { kind: PlaceKind };
+/** Clear of every other place, with the safety markers' room. */
+const clearOf = (r: Rect, kind: PlaceKind, others: readonly Kinded[]) =>
+  !others.some((o) => {
+    const g = isSafety(kind) || isSafety(o.kind) ? SAFETY_CLEAR : 0;
+    return touches({ x: r.x - g, y: r.y - g, w: r.w + 2 * g, h: r.h + 2 * g }, o);
+  });
+
+/**
+ * The AED and the extinguisher hang on walls: just inside the wall nearest
+ * `at`, then 2 ft along it either way, then the next wall, until the spot is
+ * clear of every place already there (a doorway included). Null when no wall
+ * has one.
+ */
+function onAWall(r: Rect, kind: PlaceKind, at: PlanPoint, shape: RoomShape, others: readonly Kinded[]): Rect | null {
+  const walls = [...shape.walls].sort((p, q) => segDist(at, p.a, p.b) - segDist(at, q.a, q.b));
+  for (const w of walls) {
+    const vertical = w.a.x === w.b.x;
+    const lo = vertical ? Math.min(w.a.y, w.b.y) : Math.min(w.a.x, w.b.x);
+    const hi = vertical ? Math.max(w.a.y, w.b.y) : Math.max(w.a.x, w.b.x);
+    const along = vertical ? r.h : r.w;
+    if (hi - lo < along) continue;
+    const want = clamp(vertical ? at.y : at.x, lo + along / 2, hi - along / 2);
+    for (let k = 0; k <= Math.ceil((hi - lo) / STEP); k++) {
+      for (const sign of k === 0 ? [1] : [1, -1]) {
+        const mid = want + sign * k * STEP;
+        if (mid < lo + along / 2 || mid > hi - along / 2) continue;
+        let x: number;
+        let y: number;
+        if (vertical) {
+          x = w.inward === "right" ? w.a.x : w.a.x - r.w;
+          y = mid - r.h / 2;
+        } else {
+          x = mid - r.w / 2;
+          y = w.inward === "down" ? w.a.y : w.a.y - r.h;
+        }
+        const c = inside({ ...r, x: Math.round(x), y: Math.round(y) });
+        if (onFloor(c, shape) && clearOf(c, kind, others)) return c;
+      }
+    }
   }
-  return { id: nextPlaceId(places), kind, x: Math.max(0, snap6(at.x - w / 2)), y: Math.max(0, snap6(at.y - h / 2)), w, h };
+  return null;
 }
 
-/** A place moved on 6 in steps; a door slides along its wall. */
+/** Stepped 2 ft to the right, then a row down, until clear of every place and on the floor; null when nothing is. */
+function steppedClear(r: Rect, kind: PlaceKind, shape: RoomShape, others: readonly Kinded[]): Rect | null {
+  const { x0, y0, x1, y1 } = shape.bbox;
+  // From where it was put to the room's far side, then from the near side back round to it.
+  const steps = (from: number, lo: number, hi: number) => {
+    const out: number[] = [];
+    for (let v = from; v <= hi; v += STEP) out.push(v);
+    for (let v = lo; v < from; v += STEP) out.push(v);
+    return out;
+  };
+  const xs = steps(r.x, x0, x1 - r.w);
+  const ys = steps(r.y, y0, y1 - r.h);
+  for (const y of ys) {
+    for (const x of xs) {
+      const c = inside({ ...r, x: snap6(x), y: snap6(y) });
+      if (onFloor(c, shape) && clearOf(c, kind, others)) return c;
+    }
+  }
+  return null;
+}
+
+/**
+ * A new place, its defaults centred on `at`, on a spot of its own: a door
+ * snapped onto the nearest wall; the AED and the extinguisher just inside
+ * the nearest wall where nothing else is; anything else stepped 2 ft to the
+ * right, then down, until it touches no other place (3 ft clear where a
+ * safety marker is either one). Never on top of another place, so the
+ * safety markers and their words never hide each other (where the room has
+ * no clear spot at all, it stays where it was put).
+ */
+export function addPlace(kind: PlaceKind, at: PlanPoint, shape: RoomShape, places: readonly RoomPlace[]): RoomPlace {
+  const { w, h } = placeDefaults(kind);
+  const id = nextPlaceId(places);
+  if (kind === "door") {
+    // Centred on `at` exactly; snapDoor puts it on the nearest wall.
+    return snapDoor({ id, kind, x: Math.round(at.x - w / 2), y: Math.round(at.y - h / 2), w, h }, shape);
+  }
+  const start = inside({ x: snap6(at.x - w / 2), y: snap6(at.y - h / 2), w, h });
+  const spot = (isSafety(kind) ? onAWall(start, kind, at, shape, places) : null) ?? steppedClear(start, kind, shape, places) ?? start;
+  return { id, kind, x: spot.x, y: spot.y, w, h };
+}
+
+/** A place moved on 6 in steps, kept inside 0–200 ft; a door slides along its wall. */
 export function movePlace(p: RoomPlace, dxMm: number, dyMm: number, shape: RoomShape): RoomPlace {
-  const moved = { ...p, x: Math.max(0, p.x + snap6(dxMm)), y: Math.max(0, p.y + snap6(dyMm)) };
+  const moved = inside({ ...p, x: p.x + snap6(dxMm), y: p.y + snap6(dyMm) });
   return p.kind === "door" ? snapDoor(moved, shape) : moved;
 }
 
@@ -428,7 +532,7 @@ export function resizePlaceEdge(p: RoomPlace, edge: BoxEdge, toMm: number, shape
     h = clamp(bottom - to, r.min, r.max);
     y = bottom - h;
   }
-  const out = { ...p, x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)), w: Math.round(w), h: Math.round(h) };
+  const out = inside({ ...p, x, y, w: Math.round(w), h: Math.round(h) });
   return p.kind === "door" ? snapDoor(out, shape) : out;
 }
 
@@ -464,9 +568,10 @@ const thousands = (n: number) => String(Math.max(0, Math.round(n))).replace(/\B(
 
 /**
  * The square-footage line: a tally, never a correction (AJ: "it tells you
- * like how much square footage you've used"). "Drawn: 1,600 of 1,800 sq ft"
- * when the boxes and the typed number are more than 2% apart, else "Drawn:
- * 1,790 sq ft"; then what the machines with a size take, "about", saying
+ * like how much square footage you've used"). "Drawn: 1,600 sq ft · Studio:
+ * 1,800 sq ft" when the boxes and the typed number are more than 2% apart,
+ * the same either way round (never "1,900 of 1,800", which reads as an
+ * error), else "Drawn: 1,790 sq ft"; then what the machines with a size take, "about", saying
  * how many have none, and how much of it is still to buy on a draft. A total
  * never counts a guess.
  */
@@ -478,7 +583,7 @@ export function areaWords(
   const drawn = sqFtOf(shape.areaMm2);
   const parts: string[] = [];
   if (typeof typedSqFt === "number" && typedSqFt > 0 && Math.abs(drawn - typedSqFt) / typedSqFt > 0.02) {
-    parts.push(`Drawn: ${thousands(drawn)} of ${sqFtWords(typedSqFt)}`);
+    parts.push(`Drawn: ${sqFtWords(drawn)}`, `Studio: ${sqFtWords(typedSqFt)}`);
   } else {
     parts.push(`Drawn: ${sqFtWords(drawn)}`);
   }

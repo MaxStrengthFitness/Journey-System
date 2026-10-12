@@ -192,6 +192,34 @@ describe("places", () => {
     expect(taller.h).toBeGreaterThan(door.h);
     expect(placeDefaults("aed")).toEqual({ w: 305, h: 305 });
   });
+
+  it("each land on a spot of their own, never on another place, however often they're put on one point", () => {
+    const at = { x: ftMm(30), y: ftMm(15) };
+    const places: RoomPlace[] = [];
+    for (const kind of ["door", "pillar", "desk", "bathroom", "extinguisher", "aed"] as const) places.push(addPlace(kind, at, room, places));
+    const area = places.filter((p) => p.kind !== "door");
+    for (const a of area) {
+      for (const b of places) {
+        if (a === b) continue;
+        const touch = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+        expect(touch, `${a.kind} and ${b.kind}`).toBe(false);
+      }
+      expect(a.x).toBeGreaterThanOrEqual(0);
+      expect(a.y).toBeGreaterThanOrEqual(0);
+      expect(a.x + a.w).toBeLessThanOrEqual(ftMm(60));
+      expect(a.y + a.h).toBeLessThanOrEqual(ftMm(30));
+    }
+  });
+
+  it("the AED and the extinguisher hang just inside the nearest wall", () => {
+    const aed = addPlace("aed", { x: ftMm(2), y: ftMm(15) }, room, []);
+    expect(aed.x).toBe(0);
+    const ext = addPlace("extinguisher", { x: ftMm(2), y: ftMm(15) }, room, [aed]);
+    expect(ext.x).toBe(0);
+    expect(Math.abs(ext.y - aed.y)).toBeGreaterThanOrEqual(aed.h);
+    const top = addPlace("aed", { x: ftMm(30), y: ftMm(1) }, room, []);
+    expect(top.y).toBe(0);
+  });
 });
 
 describe("the square-footage line", () => {
@@ -199,7 +227,9 @@ describe("the square-footage line", () => {
   const none = { sized: 0, unsized: 0, mm2: 0, planned: 0 };
 
   it("says what is drawn, against the number typed when they are more than 2% apart", () => {
-    expect(areaWords(roomShape([box("bx-1", 0, 0, 40, 40)]), 1800, none)).toBe("Drawn: 1,600 of 1,800 sq ft");
+    expect(areaWords(roomShape([box("bx-1", 0, 0, 40, 40)]), 1800, none)).toBe("Drawn: 1,600 sq ft · Studio: 1,800 sq ft");
+    // The same either way round: never "1,900 of 1,800".
+    expect(areaWords(roomShape([box("bx-1", 0, 0, 60, 30), box("bx-2", 60, 0, 10, 10)]), 1800, none)).toBe("Drawn: 1,900 sq ft · Studio: 1,800 sq ft");
     expect(areaWords(one, 1800, none)).toBe("Drawn: 1,800 sq ft");
     expect(areaWords(one, 1790, none)).toBe("Drawn: 1,800 sq ft");
     expect(areaWords(one, undefined, none)).toBe("Drawn: 1,800 sq ft");
