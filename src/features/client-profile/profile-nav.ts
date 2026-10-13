@@ -181,6 +181,7 @@ export const RECORD_ANCHORS = [
   "body-pulse",
   "body-inbody",
   // Goals & Focus
+  "goals-training",
   "goals-coach",
   "goals-why",
   "goals-now",

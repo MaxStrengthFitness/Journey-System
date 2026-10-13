@@ -59,6 +59,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Activity,
   ChevronDown,
+  Compass,
   Crosshair,
   HeartPulse,
   History,
@@ -73,6 +74,7 @@ import {
   X,
 } from "lucide-react";
 import { BodyModel, figureGenderOf } from "../../components/anatomy";
+import { focusLine as trainingFocusLine, focusOf } from "../progress-report/report-page";
 import { ClientCheckInPanel } from "../../components/journal/ClientCheckInPanel";
 import {
   RoutineBuilder,
@@ -545,6 +547,8 @@ export function BriefingScreen({
     totals.basis === "mindbody" && totals.total !== null
       ? `This is session ${sessionNumberWords(totals.total + 1, "mindbody", { explain: true })}.`
       : null;
+  /* Training for (Oct 13 2026): the client's own focus, in words. */
+  const trainingFor = trainingFocusLine(focusOf(client.trainingFocus));
   /* Due an InBody (FileMaker parity, Oct 1 2026): one quiet line, only when
      she is due, and never in the way of Start. Her HOME studio's number,
      else her own (features/inbody/due.ts). */
@@ -892,6 +896,16 @@ export function BriefingScreen({
                 </button>
               </div>
 
+              {/* Why they train (Oct 13 2026): the client's own focus, set on
+                  Goals & Focus or a progress report. Said only when chosen. */}
+              {trainingFor && (
+                <p className="br__focusline" data-testid="briefing-training-for">
+                  <Compass className="w-3.5 h-3.5" aria-hidden />
+                  <span>
+                    <span className="br__focusline-key">Training for</span> {trainingFor}
+                  </span>
+                </p>
+              )}
               {client.globalNotes && (
                 <p className="br__goalline">
                   <Lightbulb className="w-3.5 h-3.5" aria-hidden />

@@ -44,6 +44,7 @@ import { Target } from "lucide-react";
 import type { Client, Machine, Trainer } from "../../types";
 import type { JournalLoad, UseClientJournalResult } from "../../hooks/useClientJournal";
 import type { HistoryCoverage } from "../../lib/prior-history";
+import type { TrainingFocus } from "../progress-report/report-page";
 import type { FordEntry } from "../ford/types";
 import { FocusBoard } from "../../components/journal/FocusBoard";
 import { SharedNotesCard } from "../relay/notes/SharedNotesCard";
@@ -53,6 +54,7 @@ import type { CodexFordStatus } from "../client-codex/codex-data";
 import { Card, Meta, Page, agree, type CodexGo, type Pronouns } from "../client-codex/kit";
 import { HowToCoachCard } from "./HowToCoachCard";
 import { HerWhyCard } from "./HerWhyCard";
+import { TrainingForCard } from "./TrainingForCard";
 import { WorkingTowardCard } from "./WorkingTowardCard";
 import { ReachedShelf } from "./ReachedShelf";
 import { herWhyLinks, reachedShelf } from "./goals-page";
@@ -140,13 +142,27 @@ export function GoalsPage({
     [formData.goalHistory, client.goalHistory, focusesState, journal.focuses],
   );
 
+  const trainingFocus = (formData.trainingFocus !== undefined ? formData.trainingFocus : client.trainingFocus) as
+    | TrainingFocus
+    | null
+    | undefined;
+
   const lede =
-    `How to be the best trainer for ${p.object}, ${p.possessive} why, what ${p.subject} ${agree(p, "is", "are")} ` +
+    `What ${p.subject} ${agree(p, "trains", "train")} for, how to be the best trainer for ${p.object}, ${p.possessive} why, what ${p.subject} ${agree(p, "is", "are")} ` +
     "working toward now, and what each coach is working on.";
 
   return (
     <Page id="goals" title="Goals & Focus" lede={lede} go={go}>
       <div className="gf-page">
+        <TrainingForCard
+          value={trainingFocus}
+          updateField={updateField}
+          canEdit={canEdit}
+          dirty={isDirty("trainingFocus")}
+          revision={revision}
+          pronouns={p}
+        />
+
         <div className="gf-grid gf-grid--coach">
           <HowToCoachCard
             value={text("discoveryNotes")}

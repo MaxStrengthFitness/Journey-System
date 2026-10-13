@@ -66,7 +66,8 @@ export const RECORD_FORM_KEYS = [
   "clinicalNotes",
   // Body & Pulse · InBody: how many sessions between her scans (Oct 1 2026)
   "inbodyEvery",
-  // Goals & Focus
+  // Goals & Focus. Training for: why they train (Oct 13 2026; the report reads it too)
+  "trainingFocus",
   "discoveryNotes",
   "globalNotes",
   "smartGoal",
@@ -122,6 +123,7 @@ const BUILD: FieldHome = { page: "body", anchor: "body-build", label: "Build" };
 const TRAINING_STORY: FieldHome = { page: "body", anchor: "body-training-story", label: "Training story" };
 const WATCH_OUTS: FieldHome = { page: "body", anchor: "body-watchouts", label: "Watch-outs" };
 const INBODY: FieldHome = { page: "body", anchor: "body-inbody", label: "InBody" };
+const TRAINING_FOR: FieldHome = { page: "goals", anchor: "goals-training", label: "Training for" };
 const HOW_TO_COACH: FieldHome = { page: "goals", anchor: "goals-coach", label: "How to coach" };
 const THE_WHY: FieldHome = { page: "goals", anchor: "goals-why", label: "The why" };
 const WORKING_TOWARD: FieldHome = { page: "goals", anchor: "goals-now", label: "Working toward" };
@@ -150,6 +152,7 @@ export const FIELD_HOME: Readonly<Record<RecordFormKey, FieldHome>> = {
   medicalHistory: WATCH_OUTS,
   clinicalNotes: WATCH_OUTS,
   inbodyEvery: INBODY,
+  trainingFocus: TRAINING_FOR,
   discoveryNotes: HOW_TO_COACH,
   globalNotes: THE_WHY,
   smartGoal: WORKING_TOWARD,

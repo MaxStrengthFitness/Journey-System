@@ -311,7 +311,7 @@ describe("Goals & Focus — the page", () => {
   it("lays out every card once, each on its anchor, with the neighbours and a Next card to Story", async () => {
     const go = vi.fn();
     const host = await mount({ go });
-    for (const anchor of ["goals-coach", "goals-why", "goals-now", "goals-focus", "goals-plans", "goals-reached"]) {
+    for (const anchor of ["goals-training", "goals-coach", "goals-why", "goals-now", "goals-focus", "goals-plans", "goals-reached"]) {
       expect(host.querySelectorAll(`[id="${anchor}"][data-cx-anchor]`), anchor).toHaveLength(1);
     }
     expect(host.querySelector('[aria-label="Previous page: Body & Pulse"]')).not.toBeNull();
@@ -427,6 +427,7 @@ describe("Goals & Focus — who may do what", () => {
     expect(host.querySelector('[aria-label^="Edit"]')).toBeNull();
     expect(buttonIn(host, "Mark achieved")).toBeUndefined();
     expect(buttonIn(host, "Write it")).toBeUndefined();
+    expect(buttonIn(host, "Choose it")).toBeUndefined();
     // Any trainer may set a focus and check in (the clientFocuses and journal rules).
     expect(buttonIn(cardOf(host, "goals-focus"), "Set a focus")).toBeTruthy();
     expect(host.textContent).toContain("Walk 10 miles two days running");
@@ -480,5 +481,63 @@ describe("Goals & Focus — focuses, plans and Reached", () => {
     ]);
     expect(rows[1].textContent).toContain("Goal · Jan 22, 2027 · marked by AJ");
     expect(reached.textContent).toContain("Only what was marked in Journey.");
+  });
+});
+
+describe("Goals & Focus — training for", () => {
+  const typeInto = async (input: HTMLInputElement, value: string) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+
+  it("says it isn't chosen yet, and picks one of the five through the record form, unsaved until Save", async () => {
+    const host = await mount();
+    const card = cardOf(host, "goals-training");
+    expect(card.textContent).toContain("Not chosen yet.");
+    await click(buttonIn(card, "Choose it"));
+    const picks = Array.from(card.querySelectorAll<HTMLButtonElement>(".cx-pick"));
+    expect(picks.map((b) => b.querySelector("span")?.textContent)).toEqual([
+      "Everyday strength and independence",
+      "Pain-free movement",
+      "Body composition",
+      "A goal to hit",
+      "Their own goal",
+    ]);
+    expect(picks.every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
+    await click(picks[1]);
+    expect(picks[1].getAttribute("aria-pressed")).toBe("true");
+    await click(card.querySelector('[aria-label="Done editing Training for"]'));
+    expect(card.querySelector(".cx-lede")?.textContent).toBe("Pain-free movement");
+    expect(card.textContent).toContain("Unsaved");
+  });
+
+  it("takes a client's own goal in the trainer's words, and tapping the chosen one again clears it", async () => {
+    const host = await mount();
+    const card = cardOf(host, "goals-training");
+    await click(buttonIn(card, "Choose it"));
+    await click(buttonIn(card, "Their own goal"));
+    const words = card.querySelector<HTMLInputElement>("input")!;
+    expect(card.textContent).toContain("Their goal, in your words");
+    await typeInto(words, "Hike the Camino in May");
+    await click(card.querySelector('[aria-label="Done editing Training for"]'));
+    expect(card.querySelector(".cx-lede")?.textContent).toBe("Hike the Camino in May");
+    expect(card.textContent).toContain("Their own goal, in the trainer's words.");
+
+    await click(card.querySelector('[aria-label="Edit Training for"]'));
+    await click(buttonIn(card, "Their own goal"));
+    expect(card.querySelector("input")).toBeNull();
+    await click(card.querySelector('[aria-label="Done editing Training for"]'));
+    expect(card.textContent).toContain("Not chosen yet.");
+    // Back to what the record holds: nothing to save.
+    expect(card.textContent).not.toContain("Unsaved");
+  });
+
+  it("reads the focus on the record", async () => {
+    const host = await mount({ client: carol({ trainingFocus: { kind: "body" } }) });
+    const card = cardOf(host, "goals-training");
+    expect(card.querySelector(".cx-lede")?.textContent).toBe("Body composition");
+    expect(card.textContent).toContain("It leads their progress report, and the briefing says it.");
   });
 });

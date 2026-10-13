@@ -715,6 +715,19 @@ describe("her total while it is Mindbody's guess (Atlas answers, Oct 2 2026)", (
     const host = await mount(<Screen who={{ ...client, sessionCount: 6 } as Client} coverage="complete" />);
     expect(host.querySelector('[data-testid="briefing-session-guess"]')).toBeNull();
   });
+
+  it("says what the client is training for once it is chosen, the client's own words for their own goal (Oct 13 2026)", async () => {
+    const chosen = await mount(<Screen who={{ ...client, trainingFocus: { kind: "pain-free" } } as Client} coverage="complete" />);
+    expect(chosen.querySelector('[data-testid="briefing-training-for"]')?.textContent).toBe("Training for Pain-free movement");
+
+    const own = await mount(
+      <Screen who={{ ...client, trainingFocus: { kind: "custom", words: "Hike the Camino in May" } } as Client} coverage="complete" />,
+    );
+    expect(own.querySelector('[data-testid="briefing-training-for"]')?.textContent).toBe("Training for Hike the Camino in May");
+
+    const none = await mount(<Screen who={{ ...client, trainingFocus: { kind: "custom", words: "  " } } as Client} coverage="complete" />);
+    expect(none.querySelector('[data-testid="briefing-training-for"]')).toBeNull();
+  });
 });
 
 /* ---------------------------------------------------------------- */

@@ -688,6 +688,19 @@
   color: var(--br-ink-2);
 }
 .br__goalline svg { flex: none; margin-top: 2px; color: var(--br-ink-muted); }
+/* Training for (Oct 13 2026): why they train, said plainly above their why. */
+.br__focusline {
+  margin: 8px 0 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--br-ink-2);
+}
+.br__focusline svg { flex: none; margin-top: 2px; color: var(--br-ink-muted); }
+.br__focusline-key { font-weight: 700; color: var(--br-ink); }
 .br__before { display: flex; flex-direction: column; gap: 10px; }
 .br__before--clear { padding-top: 12px; padding-bottom: 12px; }
 .br__before-head { margin-bottom: 0; }
