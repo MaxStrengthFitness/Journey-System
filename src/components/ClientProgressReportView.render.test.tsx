@@ -231,11 +231,11 @@ describe("ClientProgressReportView — the session tile and a client's past", ()
     });
   }
 
-  it("prints 'Total Sessions' and 'First Session' when Journey holds her whole story", async () => {
+  it("says 'sessions in all' and 'since your first session' when Journey holds her whole story", async () => {
     nextRead = filed;
     await mountFor(bo, "complete");
-    expect(text()).toContain("Total Sessions");
-    expect(text()).toContain("First Session");
+    expect(text()).toContain("sessions in all");
+    expect(text()).toContain("since your first session, September 2, 2026");
   });
 
   it("prints what the window counts for a migrating client, with her recorded sessions before Journey", async () => {
@@ -245,17 +245,16 @@ describe("ClientProgressReportView — the session tile and a client's past", ()
       priorHistory: { sessions: 412, importedCount: 0, through: "2026-08-31", source: "filemaker" },
     } as Client;
     await mountFor(recorded, "partial");
-    expect(text()).not.toContain("Total Sessions");
-    expect(text()).not.toContain("First Session");
-    expect(text()).toContain("412 before Journey");
-    expect(text()).toMatch(/Since/);
+    expect(text()).not.toContain("sessions in all");
+    expect(text()).not.toContain("your first session");
+    expect(text()).toContain("since September 2, 2026 · 412 before Journey");
   });
 
   it("claims neither when nobody knows how much of her story is here", async () => {
     nextRead = filed;
     await mountFor(bo);
-    expect(text()).not.toContain("Total Sessions");
-    expect(text()).not.toContain("First Session");
+    expect(text()).not.toContain("sessions in all");
+    expect(text()).not.toContain("your first session");
   });
 
   it("counts a window widened past what was read once the older sets are here, never the narrower window's totals", async () => {

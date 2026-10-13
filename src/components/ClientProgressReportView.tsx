@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
-  CheckCircle2,
   ArrowLeft,
   Calendar,
   Zap,
@@ -10,13 +9,9 @@ import {
   Award,
   LayoutGrid,
   FileText,
-  User,
-  Quote,
   Map as MapIcon,
   Dumbbell,
   Search,
-  ShieldAlert,
-  Activity,
 } from "lucide-react";
 import { motion } from "motion/react";
 import {
@@ -64,35 +59,27 @@ import {
 import { allTimeLabel, reportSessionWords } from "../lib/history-claims";
 import { priorHistoryOf, type HistoryCoverage } from "../lib/prior-history";
 import type { ClientFocus } from "../types/journal";
-import { cn, parseSessionDate } from "../lib/utils";
+import { cn } from "../lib/utils";
 import { OperationType, handleFirestoreError } from "../lib/firestore-errors";
-import { MaxStrengthLogo } from "./MaxStrengthLogo";
 import {
   SubjectiveDashboard,
-  SubjectiveClientCopy,
-  answeredCount,
   loadPreviousCheckIn,
   type HistoryPoint,
   type PreviousAssessmentRef,
 } from "../features/subjective-report";
-import { HeartPulse, Flag } from "lucide-react";
+import { HeartPulse, Flag, PenLine } from "lucide-react";
 import {
   ReportStepper,
   ReportStepNav,
   MachineProgressionStep,
   GoalsBlock,
-  MachineProgressionCard,
-  GoalsCard,
-  FourPsCards,
   FourPsStep,
   FOUR_PS,
   PulseSnapshot,
   UNRATED_SCORE,
   rankFromScore,
-  AccoladeCards,
   AccoladeSlotEditor,
   FocusHistoryPanel,
-  FocusSnapshotCard,
   REPORT_STEPS,
   STEP_INDEX,
   FOCUS_HISTORY_LIMIT,
@@ -116,13 +103,13 @@ import {
 import "../features/progress-report/progress-report.css";
 import { ReportNotOpened } from "../features/progress-report/ReportNotOpened";
 import { studioTodayKey } from "../lib/studio-time";
-import { InBodyReportSection } from "../features/inbody/InBodyReportSection";
 import { useInBodyVariation } from "../features/inbody/useInBodyVariation";
 import { useInBodyScans } from "../features/inbody/useInBodyScans";
 import { useUnsavedChanges } from "../features/unsaved-changes";
 import { useOptionalActiveStudio } from "../contexts/ActiveStudioContext";
 import { ROLE_LABELS } from "../types";
 import { ReportSheet } from "../features/progress-report/ReportSheet";
+import { ReportScreen } from "../features/progress-report/ReportScreen";
 import { ReportPageStep } from "../features/progress-report/ReportPageStep";
 import { FocusPicker } from "../features/progress-report/FocusPicker";
 import { planSheet, reportFocus } from "../features/progress-report/sheet-from-report";
@@ -1112,76 +1099,47 @@ export function ClientProgressReportView({
   }
 
   if (mode === "view") {
-    return (
-      <div
-        data-print-root
-        className="min-h-screen bg-(--pr-navy) text-(--pr-paper) selection:bg-(--pr-hero)/30 selection:text-white print:bg-white print:text-(--pr-navy)"
-      >
-        <style>{`
-          @media print {
-            @page { size: letter; margin: 0.4in; }
-            /* White paper, navy ink. Cards that carry their own dark
-               background keep it (translucent white surfaces become solid
-               navy so the white text inside them stays readable). */
-            body, html {
-               background-color: var(--pr-print-paper) !important;
-               -webkit-print-color-adjust: exact !important;
-               print-color-adjust: exact !important;
-            }
-            .print-area {
-               width: 100% !important;
-               max-width: none !important;
-               color: var(--pr-navy);
-            }
-            /* translucent-white surfaces become pale paper cards… */
-            .print-area .bg-white\\/5,
-            .print-area .bg-white\\/10 {
-               background-color: var(--pr-print-card) !important;
-               border-color: var(--pr-print-border) !important;
-            }
-            /* …and white ink on them becomes navy… */
-            .print-area :is(.text-white, .text-white\\/60, .text-white\\/70, .text-white\\/80,
-                            .text-white\\/85, .text-white\\/90, .text-\\(--pr-paper\\)) {
-               color: var(--pr-navy) !important;
-            }
-            /* …except inside cards that keep a solid dark or orange fill. */
-            .print-area :is(.bg-\\(--pr-hero\\), .bg-slate-800\\/50, .bg-\\(--pr-navy\\))
-              :is(.text-white, .text-white\\/60, .text-white\\/70, .text-white\\/80, .text-white\\/85, .text-white\\/90) {
-               color: var(--pr-hero-on) !important;
-            }
-            .print-area .bg-slate-800\\/50 { background-color: var(--pr-navy) !important; }
-            .print-area .border-white\\/10, .print-area .border-white\\/20 { border-color: var(--pr-print-border) !important; }
-            .print-area .translate-y-full { display: none !important; } /* hover overlays */
-            .print-area .no-print { display: none !important; }
-            .no-print { display: none !important; }
-            header, section, .break-inside-avoid {
-               break-inside: avoid !important;
-               page-break-inside: avoid !important;
-            }
-          }
-        `}</style>
+    const emailReport = () => {
+      // Opens the trainer's own mail app with the subject and a short body
+      // filled in; they attach the printed PDF. The app itself never emails
+      // clients (no provider is wired, and client-contact features are
+      // switched off for now).
+      const subject = encodeURIComponent(`${client.firstName}, your progress report from Max Strength`);
+      const body = encodeURIComponent(
+        `Hi ${client.firstName},
 
+Your progress report from ${shortDate(report.date) || report.date} is attached.` +
+          (report.goals?.nextGoal ? `
+
+Your goal for the next 90 days: ${report.goals.nextGoal}` : "") +
+          (report.goals?.followUpDate ? `
+We check in again on ${shortDate(report.goals.followUpDate)}.` : "") +
+          `
+
+— ${trainer.fullName}`,
+      );
+      window.location.href = `mailto:${client.email || ""}?subject=${subject}&body=${body}`;
+    };
+    return (
+      // The client view (Oct 13 2026): the app's own look on screen
+      // (ReportScreen), the one-page sheet on paper (ReportSheet). Both draw
+      // the same plan, so they never disagree.
+      <div data-print-root className="rsc-page">
         {/* What prints: the one-page sheet, off screen until then (report-sheet.css). */}
         <div className="rs-print-only" aria-hidden="true">
           <ReportSheet model={sheetPlan.model} />
         </div>
 
-        <div className="max-w-4xl mx-auto px-6 py-4 space-y-4 print-area">
-          {/* Controls */}
-          <div className="flex justify-between items-center no-print">
+        <div className="rsc-shell">
+          <div className="rsc-bar">
             {/* Short on screen for the row's width; the name says where it lands. */}
-            <Button
-              variant="ghost"
-              onClick={onBack}
-              aria-label="Back to Reports"
-              title="Back to Reports"
-              className="h-12 text-white hover:bg-white/10 rounded-2xl gap-2 font-bold px-6"
-            >
-              <ArrowLeft className="w-5 h-5" /> Back
+            <Button variant="outline" onClick={onBack} aria-label="Back to Reports" title="Back to Reports">
+              <ArrowLeft className="h-4 w-4" aria-hidden /> Back
             </Button>
-            <div className="flex gap-3">
+            <div className="rsc-bar__actions">
               {report.isCheckInOnly ? (
                 <Button
+                  variant="outline"
                   onClick={() => {
                     // A Pulse-only report becomes a full one: clear the flag,
                     // drop into the editor at the start of the conversation,
@@ -1193,606 +1151,62 @@ export function ClientProgressReportView({
                     setActiveStep("celebrate");
                     setMode("editing");
                   }}
-                  className="h-12 bg-white text-(--pr-navy) hover:bg-white/90 rounded-2xl gap-2 font-bold px-6 shadow-none"
                 >
-                  <Flag className="w-5 h-5" /> Build the full report
+                  <Flag className="h-4 w-4" aria-hidden /> Build the full report
                 </Button>
               ) : (
-                <Button
-                  onClick={() => setMode("editing")}
-                  variant="outline"
-                  className="h-12 text-white bg-transparent border-white/20 hover:bg-white/10 rounded-2xl gap-2 font-bold px-6 shadow-none"
-                >
-                  Edit Data
+                <Button variant="outline" onClick={() => setMode("editing")}>
+                  <PenLine className="h-4 w-4" aria-hidden /> Edit the report
                 </Button>
               )}
               <Button
-                onClick={() => {
-                  // Opens the trainer's own mail app with the subject and a
-                  // short body filled in; they attach the printed PDF. The
-                  // app itself never emails clients (no provider is wired,
-                  // and client-contact features are switched off for now).
-                  const subject = encodeURIComponent(
-                    `${client.firstName}, your progress report from Max Strength`,
-                  );
-                  const body = encodeURIComponent(
-                    `Hi ${client.firstName},\n\nYour progress report from ${shortDate(report.date) || report.date} is attached.` +
-                      (report.goals?.nextGoal ? `\n\nYour goal for the next 90 days: ${report.goals.nextGoal}` : "") +
-                      (report.goals?.followUpDate ? `\nWe check in again on ${shortDate(report.goals.followUpDate)}.` : "") +
-                      `\n\n— ${trainer.fullName}`,
-                  );
-                  window.location.href = `mailto:${client.email || ""}?subject=${subject}&body=${body}`;
-                }}
                 variant="outline"
-                className="h-12 text-white bg-transparent border-white/20 hover:bg-white/10 rounded-2xl gap-2 font-bold px-6 shadow-none"
-                title="Opens your mail app with the subject filled in — print to PDF first and attach it"
+                onClick={emailReport}
+                title="Opens your mail app with the subject filled in. Print to PDF first and attach it."
               >
-                <Mail className="w-5 h-5" /> Email
+                <Mail className="h-4 w-4" aria-hidden /> Email
               </Button>
               <Button
                 onClick={() => window.print()}
-                className="h-12 bg-(--pr-hero) hover:bg-(--pr-hero-hover) text-white rounded-2xl gap-2 font-bold px-8 shadow-lg shadow-(color:--pr-hero)/20"
+                className="bg-(--eq-go) text-(--eq-go-on) hover:bg-(--eq-go) shadow-(--go-lift) active:translate-y-px active:shadow-(--press)"
               >
-                <Printer className="w-5 h-5" /> Print Report
+                <Printer className="h-4 w-4" aria-hidden /> Print
               </Button>
             </div>
           </div>
+          <p className="rsc-bar__note">Print gives the one-page copy to take home.</p>
 
           {/* Coach-only: an older report's own Pulse. On screen, never on paper. */}
           {report.subjective && (
-            <div className="no-print rounded-3xl border border-white/10 bg-white/5 p-4">
+            <section className="rsc-panel rsc-coachview" aria-label="Coach view">
               <button
                 type="button"
                 onClick={() => setShowCoachView((v) => !v)}
                 aria-expanded={showCoachView}
-                className="flex w-full items-center justify-between gap-3 text-left"
+                className="rsc-coachview__toggle"
               >
-                <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-white">
-                  <HeartPulse className="h-4 w-4 text-(--pr-hero)" /> Coach view · Pulse (as saved with this report)
-                  {(report.subjective.summary?.flags.length ?? 0) > 0 && (
-                    <span className="rounded-md bg-rose-500 px-1.5 py-0.5 text-[10px] text-white">
-                      {report.subjective.summary!.flags.filter((f) => f.severity === "red").length} red ·{" "}
-                      {report.subjective.summary!.flags.filter((f) => f.severity === "watch").length} watch
-                    </span>
-                  )}
-                </span>
-                <span className="text-[11px] font-bold uppercase tracking-widest text-white/60">
-                  {showCoachView ? "Hide" : "Show"} — not printed
-                </span>
+                <HeartPulse className="h-4 w-4" aria-hidden />
+                <span className="rsc-coachview__title">Coach view: the Pulse saved with this report</span>
+                {(report.subjective.summary?.flags.length ?? 0) > 0 && (
+                  <span className="rsc-coachview__flags">
+                    {report.subjective.summary!.flags.filter((f) => f.severity === "red").length} red ·{" "}
+                    {report.subjective.summary!.flags.filter((f) => f.severity === "watch").length} watch
+                  </span>
+                )}
+                <span className="rsc-coachview__hint">{showCoachView ? "Hide" : "Show"} · not printed</span>
               </button>
               {showCoachView && (
-                <div className="mt-4 rounded-2xl bg-white p-4 dark:bg-slate-900">
-                  <SubjectiveDashboard
-                    assessment={report.subjective}
-                    previous={previousPulseForReport}
-                    history={historyForReport}
-                    machines={machines}
-                  />
-                </div>
+                <SubjectiveDashboard
+                  assessment={report.subjective}
+                  previous={previousPulseForReport}
+                  history={historyForReport}
+                  machines={machines}
+                />
               )}
-            </div>
+            </section>
           )}
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="report-card space-y-3"
-          >
-            {/* 1. HERO HEADER: ATTENDANCE & DEDICATION */}
-            <header className="space-y-3 break-inside-avoid">
-              <div className="flex flex-col md:flex-row md:items-end justify-between border-b-2 border-(--pr-hero) pb-4 gap-4">
-                <div>
-                  <h1 className="text-4xl font-bold tracking-tighter leading-none mb-3 print:text-(--pr-navy)">
-                    {report.isCheckInOnly ? (
-                      <>
-                        Client <br />
-                        <span className="text-(--pr-hero)">Pulse</span>
-                      </>
-                    ) : (
-                      <>
-                        Performance <br />
-                        <span className="text-(--pr-hero)">Report Card</span>
-                      </>
-                    )}
-                  </h1>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5 text-[11px] font-bold uppercase tracking-[0.25em] text-(--pr-slate)">
-                    <div className="flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-(--pr-hero)" />
-                      <span className="text-white print:text-(--pr-navy)">
-                        {client.firstName} {client.lastName}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-(--pr-hero)" />
-                      Report:{" "}
-                      <span className="text-white print:text-(--pr-navy)">
-                        {new Date(
-                          parseSessionDate(report.date),
-                        ).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 opacity-80">
-                      <CheckCircle2 className="w-3 h-3 text-(--pr-hero)/60" />
-                      Joined:{" "}
-                      <span className="text-white/60">
-                        {shortDate(
-                          reportJoinedDate(client, report.attendance.firstSessionDate, coverage),
-                        ) || "—"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 opacity-80">
-                      <CheckCircle2 className="w-3 h-3 text-(--pr-hero)/60" />
-                      Prev Report:{" "}
-                      <span className="text-white/60">
-                        {shortDate(previousReport?.date) || "First report"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end md:text-right">
-                  <div className="mb-2">
-                    <MaxStrengthLogo
-                      size="sm"
-                      showText={false}
-                      theme="dark"
-                      className="print:hidden"
-                    />
-                    <MaxStrengthLogo
-                      size="sm"
-                      showText={false}
-                      theme="light"
-                      className="hidden print:flex"
-                    />
-                  </div>
-                  <p className="text-[7px] font-bold uppercase tracking-[0.4em] text-(--pr-slate) mb-1">
-                    Authenticated By
-                  </p>
-                  <p className="text-base font-bold tracking-tight print:text-(--pr-navy) leading-none mb-1">
-                    {trainer.fullName}
-                  </p>
-                  <div className="bg-(--pr-hero) px-2 py-0.5 rounded-md">
-                    <p className="text-[7px] font-bold text-white uppercase tracking-widest">
-                      Life Transformer • MSF Studio
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-            {!report.isCheckInOnly && (
-              <div className="flex flex-col gap-4 mt-6">
-                {/* Highlighted Primary Stats & Narrative */}
-                <div className="flex flex-col md:flex-row gap-4">
-                  {report.attendance.toggles?.totalSessions !== false && (
-                    <div className="bg-(--pr-hero) p-6 rounded-[25px] text-white flex flex-col justify-center items-center text-center shadow-xl shadow-(color:--pr-hero)/30 relative overflow-hidden group min-w-50">
-                      <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-                      <Award className="w-8 h-8 mb-2 opacity-50 relative z-10" />
-                      <p className="font-display text-5xl font-extrabold leading-none relative z-10">
-                        {realStat(report.attendance.totalSessions)?.toLocaleString() ?? "—"}
-                      </p>
-                      <p className="text-[11px] font-bold uppercase tracking-widest opacity-90 mt-2 relative z-10">
-                        {sessionWords.total}
-                      </p>
-                      {sessionWords.before && (
-                        <p className="text-[11px] font-bold uppercase tracking-widest text-white/80 mt-1 relative z-10">
-                          {sessionWords.before}
-                        </p>
-                      )}
-                      <div className="mt-3 pt-3 border-t border-white/20 w-full relative z-10">
-                        <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">
-                          {sessionWords.first}
-                        </p>
-                        <p className="text-[11px] font-bold uppercase tracking-tighter opacity-100">
-                          {report.attendance.firstSessionDate
-                            ? new Date(
-                                parseSessionDate(
-                                  report.attendance.firstSessionDate,
-                                ),
-                              ).toLocaleDateString()
-                            : "--"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex-1 bg-white/5 p-6 rounded-[25px] border border-white/10 flex flex-col justify-center relative">
-                    <Quote className="w-12 h-12 text-(--pr-hero) absolute top-4 right-4 opacity-10" />
-                    <p className="text-lg md:text-xl font-bold italic tracking-tight leading-tight text-white print:text-(--pr-navy) max-w-[90%]">
-                      "
-                      {report.attendance.narrative ||
-                        `Incredible work, ${client.firstName}. Your dedication to this clinical protocol is exactly what drives meaningful biological change.`}
-                      "
-                    </p>
-                  </div>
-                </div>
-
-                {/* Secondary Toggled Metrics */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-                  {report.attendance.toggles?.totalVolume !== false && (
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm text-center">
-                      <h4 className="text-[11px] font-bold uppercase tracking-widest text-(--pr-slate) mb-1">
-                        {/* AJ, Oct 12 2026 ("2a"): with sets whose reps were never written down, the recorded ones. */}
-                        {report.attendance.unrecordedSets ? "Total Volume Lifted (recorded)" : "Total Volume Lifted"}
-                      </h4>
-                      <StatValue
-                        value={realStat(report.attendance.totalVolume)}
-                        unit="lbs"
-                        className="font-display text-2xl font-extrabold text-(--pr-navy)"
-                      />
-                    </div>
-                  )}
-                  {report.attendance.toggles?.totalReps !== false && (
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm text-center">
-                      <h4 className="text-[11px] font-bold uppercase tracking-widest text-(--pr-slate) mb-1">
-                        {report.attendance.unrecordedSets ? "Total Reps (recorded)" : "Total Reps"}
-                      </h4>
-                      <StatValue
-                        value={realStat(report.attendance.totalReps)}
-                        className="font-display text-2xl font-extrabold text-(--pr-navy)"
-                      />
-                    </div>
-                  )}
-                  {report.attendance.toggles?.totalGoodReps !== false && (
-                    <div className="dark:bg-slate-900 p-4 rounded-2xl border border-emerald-100 shadow-sm text-center bg-emerald-50/10">
-                      <h4 className="text-[11px] font-bold uppercase tracking-widest text-emerald-700 mb-1">
-                        Green Quality Reps
-                      </h4>
-                      <StatValue
-                        value={realStat(report.attendance.totalGoodReps)}
-                        className="font-display text-2xl font-extrabold text-emerald-600"
-                        why="No top-quality sets rated in this window."
-                      />
-                    </div>
-                  )}
-                  {report.attendance.toggles?.avgRestDays !== false && (
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm text-center">
-                      <h4 className="text-[11px] font-bold uppercase tracking-widest text-(--pr-slate) mb-1">
-                        Average Rest
-                      </h4>
-                      <StatValue
-                        value={realStat(report.attendance.avgRestDays)}
-                        unit="days"
-                        className="font-display text-2xl font-extrabold text-(--pr-navy)"
-                        why={`Needs ${AVG_REST_MIN_GAPS + 1} sessions in the window.`}
-                      />
-                    </div>
-                  )}
-                  {report.attendance.toggles?.avgDuration !== false && (
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm text-center">
-                      <h4 className="text-[11px] font-bold uppercase tracking-widest text-(--pr-slate) mb-1">
-                        Avg Session Length
-                      </h4>
-                      <StatValue
-                        value={realStat(report.attendance.avgDuration)}
-                        unit="mins"
-                        className="font-display text-2xl font-extrabold text-(--pr-navy)"
-                        why={`Needs ${AVG_DURATION_MIN_SESSIONS} sessions with a recorded start and end.`}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            </header>
-
-            {/* 2. ACCOLADES — only slots with real data are drawn (accolades.ts) */}
-            {!report.isCheckInOnly && <AccoladeCards slots={report.highlights} />}
-
-            {/* 2b. MACHINE PROGRESSION */}
-            {report.machineProgression && (
-              <MachineProgressionCard value={report.machineProgression} />
-            )}
-
-            {/* 2c. BODY COMPOSITION (Renewals round, Sep 2026) — read live
-                from the client's InBody scans up to this report's date, never
-                copied into the report: see features/inbody. */}
-            <InBodyReportSection clientId={client.id} reportDate={report.date} variation={inbodyVariation} />
-
-            {/* 3. REINSTATED 4 P'S MATRIX - THE CENTERPIECE */}
-            {!report.isCheckInOnly && (
-            <section className="space-y-4 break-inside-avoid">
-              <div className="flex items-center gap-2">
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.3em] text-(--pr-hero) shrink-0">
-                  Methodology Mastery: The 4 P's
-                </h3>
-                <div className="h-px bg-(--pr-hero)/20 flex-1"></div>
-              </div>
-
-              {/* The mastery word per P, never the number (four-ps.ts). */}
-              <FourPsCards value={report.performanceMatrix} />
-
-              {/* The focus history as saved with the report — no live read. */}
-              <FocusSnapshotCard entries={report.focusSnapshot} />
-
-              {(report.performanceMatrix.includedNotes || []).length > 0 && (
-                <div className="bg-(--pr-paper) p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-inner mt-4">
-                  <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-(--pr-slate) mb-3">
-                    Clinical Highlights
-                  </h4>
-                  <ul className="space-y-2">
-                    {(report.performanceMatrix.includedNotes || []).map(
-                      (note, idx) => (
-                        <li
-                          key={idx}
-                          className="flex gap-2 items-start opacity-90"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-(--pr-hero) shrink-0 mt-0.5" />
-                          <span className="text-xs font-bold text-(--pr-navy) leading-relaxed italic">
-                            "{note}"
-                          </span>
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                </div>
-              )}
-            </section>
-            )}
-
-            {/* 3b. THE PULSE (client copy). An older report prints the Pulse
-                it saved; a report from the reporting round on prints the
-                client's most recent finalized Pulse as a dated snapshot.
-                Either way sentences only (Oct 2 2026: no 0-96 score and no
-                coloured topic scores, SubjectiveClientCopy), and nothing at
-                all when there is no Pulse or nothing was answered. */}
-            {(() => {
-              const printed = report.subjective
-                ? { assessment: report.subjective, date: report.subjective.completedAt || report.date, previous: previousPulseForReport }
-                : pulseSnapshot.status === "ready" && pulseSnapshot.pulse
-                  ? { assessment: pulseSnapshot.pulse.assessment, date: pulseSnapshot.pulse.date, previous: pulseSnapshot.previous }
-                  : null;
-              if (!printed || answeredCount(printed.assessment) === 0) return null;
-              return (
-                <section className="space-y-3 break-inside-avoid">
-                  <div className="flex items-center gap-2">
-                    <HeartPulse className="w-4 h-4 text-(--pr-hero)" />
-                    <h3 className="text-[11px] font-bold uppercase tracking-[0.3em] text-(--pr-hero) shrink-0">
-                      Your Pulse · as of {shortDate(printed.date) || printed.date}
-                    </h3>
-                    <div className="h-px bg-(--pr-hero)/20 flex-1"></div>
-                  </div>
-                  <div className="rounded-[24px] bg-(--pr-paper) p-4 text-(--pr-navy) dark:bg-slate-900 dark:text-white">
-                    <SubjectiveClientCopy
-                      assessment={printed.assessment}
-                      previous={printed.previous}
-                      clientFirstName={client.firstName}
-                      machines={machines}
-                    />
-                  </div>
-                </section>
-              );
-            })()}
-
-            {/* 4. GOALS */}
-            {report.goals && <GoalsCard value={report.goals} clientFirstName={client.firstName} />}
-
-            {/* 4b. TRAINING PLAN (roadmap track) */}
-            {!report.isCheckInOnly && (
-            <section className="break-inside-avoid space-y-4">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-(--pr-hero)" />
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.3em] text-(--pr-hero) shrink-0">
-                  Your Training Plan
-                </h3>
-                <div className="h-px bg-(--pr-hero)/20 flex-1"></div>
-              </div>
-
-              {report.roadmap && (
-                <>
-                  {report.roadmap.trackType === "maintenance" && (
-                    <div className="bg-(--pr-paper) dark:bg-slate-900/50 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-lg relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-                        <Activity className="w-16 h-16 text-blue-500" />
-                      </div>
-                      <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400 mb-4 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4" /> Maintenance Track:
-                        Lifestyle & Longevity
-                      </div>
-
-                      <div className="space-y-6 relative z-10">
-                        {report.roadmap.selectedHabits &&
-                          report.roadmap.selectedHabits.length > 0 && (
-                            <div>
-                              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-                                Focus Habits
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {report.roadmap.selectedHabits.map((habit) => (
-                                  <span
-                                    key={habit}
-                                    className="px-3 py-1.5 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 rounded-lg text-xs font-bold shadow-sm"
-                                  >
-                                    {habit}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                        {report.roadmap.routineChangeRequested && (
-                          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-l-4 border-l-blue-500">
-                            <p className="text-[11px] font-bold uppercase tracking-widest text-(--pr-navy) dark:text-slate-300 mb-1">
-                              Routine Modification
-                            </p>
-                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                              {report.roadmap.routineModifications ||
-                                "Routine updates requested."}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {report.roadmap.trackType === "goals" && (
-                    <div className="bg-(--pr-paper) dark:bg-slate-900/50 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-lg relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-                        <Target className="w-16 h-16 text-(--pr-hero)" />
-                      </div>
-                      <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-(--pr-hero) mb-4 flex items-center gap-1.5">
-                        <Target className="w-4 h-4" /> Goal Setting Track:
-                        Performance
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
-                        {report.roadmap.emotionalAnchor && (
-                          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">
-                              The "Why"
-                            </p>
-                            <p className="text-sm font-medium italic text-slate-700 dark:text-slate-300 border-l-2 border-slate-300 dark:border-slate-600 pl-3">
-                              "{report.roadmap.emotionalAnchor}"
-                            </p>
-                          </div>
-                        )}
-
-                        {report.roadmap.smartGoal && (
-                          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">
-                              SMART Goal
-                            </p>
-                            <p className="text-sm font-bold text-(--pr-navy) dark:text-slate-200">
-                              {report.roadmap.smartGoal}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
-                        {report.roadmap.targetMachineId && (
-                          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-l-4 border-(--pr-hero)">
-                            <p className="text-[11px] font-bold uppercase tracking-widest text-(--pr-hero) mb-1 flex items-center gap-1">
-                              <Dumbbell className="w-3 h-3" /> Target Machine
-                            </p>
-                            <p className="text-sm font-black uppercase text-(--pr-navy) dark:text-slate-200">
-                              {machines.find(
-                                (m) => m.id === report.roadmap?.targetMachineId,
-                              )?.name || "Specified Machine"}
-                            </p>
-                          </div>
-                        )}
-                        {report.roadmap.goalActions &&
-                          report.roadmap.goalActions.length > 0 && (
-                            <div className="space-y-1">
-                              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">
-                                Action Plan
-                              </p>
-                              <ul className="space-y-1">
-                                {report.roadmap.goalActions.map((action) => (
-                                  <li
-                                    key={action}
-                                    className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"
-                                  >
-                                    <div className="w-1.5 h-1.5 rounded-full bg-(--pr-hero)"></div>{" "}
-                                    {action}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                      </div>
-
-                      {report.roadmap.machinePlan && (
-                        <div className="mt-4 bg-(--pr-navy) text-white p-4 rounded-xl shadow-sm relative z-10">
-                          <p className="text-[11px] font-bold uppercase tracking-widest text-white/70 mb-1">
-                            Integration Plan
-                          </p>
-                          <p className="text-sm">
-                            {report.roadmap.machinePlan}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {report.roadmap.trackType === "refinement" && (
-                    <div className="bg-(--pr-paper) dark:bg-slate-900/50 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-lg relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-                        <Search className="w-16 h-16 text-emerald-500" />
-                      </div>
-                      <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 mb-4 flex items-center gap-1.5">
-                        <ShieldAlert className="w-4 h-4" /> Refinement Track:
-                        Form & Technique
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10 mb-4">
-                        {report.roadmap.refinementFocusArea && (
-                          <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl sm:border border-emerald-100 dark:border-emerald-800/50 shadow-sm flex items-center justify-between">
-                            <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-800 dark:text-emerald-400">
-                              4 P's Focus
-                            </p>
-                            <span className="text-lg font-black uppercase text-emerald-600 dark:text-emerald-300">
-                              {report.roadmap.refinementFocusArea}
-                            </span>
-                          </div>
-                        )}
-                        {report.roadmap.targetMachineId && (
-                          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">
-                              Target Machine
-                            </p>
-                            <p className="text-sm font-black uppercase text-(--pr-navy) dark:text-slate-200">
-                              {machines.find(
-                                (m) => m.id === report.roadmap?.targetMachineId,
-                              )?.name || "Specified Machine"}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {report.roadmap.routineIntervention && (
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-l-4 border-l-emerald-500 relative z-10">
-                          <p className="text-[11px] font-bold uppercase tracking-widest text-(--pr-navy) dark:text-slate-300 mb-1">
-                            Intervention Strategy
-                          </p>
-                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                            {report.roadmap.routineIntervention}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
-            )}
-
-            {/* 5. NOTES & FOOTER */}
-            {!report.isCheckInOnly && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch break-inside-avoid">
-              <div className="col-span-2 bg-(--pr-paper) p-3 rounded-[20px] border border-slate-100 dark:border-slate-800 relative">
-                <div className="flex items-center gap-2 mb-1">
-                  <FileText className="w-3 h-3 text-(--pr-hero)" />
-                  <h4 className="text-[11px] font-bold uppercase tracking-[0.3em] text-(--pr-navy)">
-                    Summative Analysis
-                  </h4>
-                </div>
-                <div className="bg-white dark:bg-slate-900 rounded-xl p-2 shadow-inner min-h-12.5">
-                  <p className="text-[11px] font-medium italic text-(--pr-navy) leading-relaxed">
-                    {report.trainerNotes ||
-                      "Incredible work this quarter. Your neurological adaptations are now clearly visible in the data. Your force output is reaching peak clinical efficiency. Keep showing up."}
-                  </p>
-                </div>
-              </div>
-              <div className="col-span-1 flex flex-col justify-end text-right space-y-2 pb-2">
-                <div className="space-y-1">
-                  <div className="text-[7px] font-bold uppercase tracking-[0.3em] text-(--pr-slate) mb-1">
-                    Document Ref: MSF-
-                    {report.id?.slice(-8).toUpperCase() || "SYSTEM-NEW"}
-                  </div>
-                  <div className="h-px bg-(--pr-hero)/20 w-3/4 ml-auto" />
-                  <div className="text-[12px] font-bold text-(--pr-hero) uppercase tracking-[0.2em] leading-none pt-1">
-                    Max Strength <br />
-                    Professional
-                  </div>
-                </div>
-              </div>
-            </div>
-            )}
-          </motion.div>
+          <ReportScreen plan={sheetPlan} clientFirstName={client.firstName} machines={machines} />
         </div>
       </div>
     );

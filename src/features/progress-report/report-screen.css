@@ -1,0 +1,688 @@
+/* ==========================================================================
+   THE CLIENT VIEW ON SCREEN (Oct 13 2026; AJ: "currently you cant read all
+   the text, we could enhance the look to feel more like our app")
+   --------------------------------------------------------------------------
+   A finalized report on the iPad, in the app's own look rather than the old
+   navy page of translucent cards and 7px capitals: the Hub's palette
+   (--eq-*, equipment.tokens.css), so it is calm daylight in light and the
+   studio navy in dark, like every other screen.
+
+   The rules it keeps:
+     - Words are 12, 14, 17, 22 or 30px; labels 12/700 in their own
+       capitalisation, the body 14, a panel's title 17/700 in the display
+       face, upright; nothing under 12px, nothing slanted.
+     - A panel is the soft edge seen from outside and a short navy lift
+       (--eq-edge, --eq-elev-2), the fill clipped to the padding box; its
+       head is the title, no band and no rule. A box inside a panel is a well
+       (--eq-surface-2, --eq-elev-0, no edge, radius 12).
+     - Colour carries meaning only: a gain is the hero text (the report's
+       orange, the same as the printed page's), green is good, plum is
+       caution, crimson is a P that needs work. Words on a fill sit on that
+       colour's own fill.
+     - Names wrap; nothing is clipped or cut short.
+
+   Portrait first: one column under 900px of the report's own width (an
+   iPad held upright reads one column), the page's pairs side by side from
+   900 (on its side). A machines table longer than six rows always takes a
+   row of its own (ReportScreen's screenRows).
+   ========================================================================== */
+
+@import "../equipment/equipment.tokens.css";
+
+.rsc {
+  container: rsc / inline-size;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  color: var(--eq-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.rsc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+@container rsc (min-width: 900px) {
+  .rsc-row[data-two] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.rsc-panel {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--eq-edge);
+  border-radius: var(--eq-radius);
+  background: var(--eq-surface);
+  background-clip: padding-box;
+  box-shadow: var(--eq-elev-2), var(--eq-panel-highlight);
+}
+
+.rsc-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  min-width: 0;
+}
+
+.rsc-title h2 {
+  margin: 0;
+  color: var(--eq-ink);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.rsc-title__aside {
+  color: var(--eq-ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rsc-well {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--eq-surface-2);
+  box-shadow: var(--eq-elev-0);
+}
+
+.rsc-label {
+  margin: 0;
+  color: var(--eq-ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.rsc-text {
+  margin: 0;
+  color: var(--eq-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.rsc-text--strong {
+  font-weight: 700;
+}
+
+.rsc-text-2 {
+  margin: 0;
+  color: var(--eq-ink-2);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.rsc-big {
+  color: var(--eq-ink);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the head ---------------------------------------------------------- */
+
+.rsc-head {
+  gap: 14px;
+}
+
+.rsc-brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  color: var(--eq-ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rsc-brand__date {
+  margin-left: 6px;
+  color: var(--eq-ink-muted);
+  font-weight: 600;
+}
+
+/* The logo's three squares, small: the orange M, the blue A, the grey X. */
+.rsc-logo {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: 4px;
+}
+
+.rsc-logo > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.rsc-logo__m {
+  background: var(--eq-go);
+  color: var(--eq-go-on);
+}
+
+.rsc-logo__a {
+  background: var(--eq-live);
+  color: var(--eq-live-on);
+}
+
+.rsc-logo__x {
+  background: var(--eq-ink-muted);
+  color: var(--eq-surface);
+}
+
+.rsc-head__who {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rsc-name {
+  margin: 0;
+  color: var(--eq-ink);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.rsc-sub {
+  margin: 0;
+  color: var(--eq-ink-2);
+  font-size: 14px;
+}
+
+.rsc-head__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--eq-divider);
+}
+
+.rsc-focus {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+  color: var(--eq-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rsc-focus svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--eq-live);
+}
+
+.rsc-focus__key,
+.rsc-coach__key {
+  color: var(--eq-ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rsc-coach {
+  margin: 0;
+  color: var(--eq-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ---- your sessions ----------------------------------------------------- */
+
+.rsc-thanks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+@container rsc (min-width: 560px) {
+  .rsc-thanks[data-quote] {
+    grid-template-columns: minmax(150px, 2fr) minmax(0, 5fr);
+    align-items: stretch;
+  }
+}
+
+.rsc-sessions {
+  align-content: center;
+  justify-items: start;
+}
+
+.rsc-sessions__word {
+  color: var(--eq-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rsc-sessions__sub {
+  color: var(--eq-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rsc-quote {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  margin: 0;
+  min-width: 0;
+}
+
+.rsc-quote__text {
+  margin: 0;
+  color: var(--eq-ink);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* ---- the numbers, the accolades ---------------------------------------- */
+
+.rsc-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.rsc-stat__value {
+  margin: 0;
+}
+
+.rsc-stat__unit {
+  color: var(--eq-ink-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rsc-accolades {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.rsc-accolade {
+  gap: 6px;
+}
+
+.rsc-accolade__hero {
+  margin: 0;
+  color: var(--eq-ink);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+/* ---- the tables (the machines, the body) -------------------------------- */
+
+.rsc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.rsc-table thead th {
+  padding: 0 8px 6px;
+  color: var(--eq-ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.rsc-table thead th:first-child {
+  padding-left: 0;
+  text-align: left;
+}
+
+.rsc-table tbody th,
+.rsc-table tbody td {
+  padding: 10px 8px;
+  border-top: 1px solid var(--eq-divider);
+  vertical-align: top;
+}
+
+.rsc-table tbody th {
+  padding-left: 0;
+  color: var(--eq-ink);
+  font-weight: 700;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+/* The numbers take only their own width, kept on one line ("162.4 lb"); the
+   machine's or the measure's name takes the rest and wraps. */
+.rsc-table thead th:not(:first-child),
+.rsc-table__num {
+  width: 1%;
+  padding-left: 20px;
+  white-space: nowrap;
+}
+
+.rsc-table__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rsc-table__now {
+  color: var(--eq-ink);
+  font-weight: 700;
+}
+
+.rsc-change {
+  display: block;
+  color: var(--eq-ink);
+  font-weight: 700;
+}
+
+.rsc-change__pct {
+  display: block;
+  color: var(--eq-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* A tone is words in that colour, on the card or the well. */
+.rsc-big[data-tone="gain"],
+.rsc-change[data-tone="gain"],
+.rsc-accolade__hero[data-tone="gain"] {
+  color: var(--eq-hero-text);
+}
+
+.rsc-big[data-tone="ok"],
+.rsc-change[data-tone="ok"],
+.rsc-accolade__hero[data-tone="ok"] {
+  color: var(--eq-ok);
+}
+
+.rsc-change[data-tone="warn"] {
+  color: var(--eq-warn);
+}
+
+/* ---- the 4 P's ---------------------------------------------------------- */
+
+.rsc-ps {
+  display: grid;
+}
+
+.rsc-p {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-top: 1px solid var(--eq-divider);
+}
+
+.rsc-p:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.rsc-p__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.rsc-p__name {
+  min-width: 0;
+  color: var(--eq-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* The mastery word and last time's outcome: words on their own colour's fill. */
+.rsc-p__word,
+.rsc-outcome {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--eq-surface-3);
+  color: var(--eq-ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rsc-p__word[data-tone="ok"],
+.rsc-outcome[data-tone="ok"] {
+  background: var(--eq-ok-fill);
+  color: var(--eq-ok);
+}
+
+.rsc-p__word[data-tone="live"] {
+  background: var(--eq-live-fill);
+  color: var(--eq-live-text);
+}
+
+.rsc-p__word[data-tone="warn"],
+.rsc-outcome[data-tone="warn"] {
+  background: var(--eq-warn-fill);
+  color: var(--eq-warn);
+}
+
+.rsc-p__word[data-tone="alert"] {
+  background: var(--eq-alert-fill);
+  color: var(--eq-alert);
+}
+
+.rsc-p__bar {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.rsc-p__bar > span {
+  width: 18px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--eq-border);
+}
+
+.rsc-p[data-tone="ok"] .rsc-p__bar > span[data-on] {
+  background: var(--eq-ok);
+}
+
+.rsc-p[data-tone="live"] .rsc-p__bar > span[data-on] {
+  background: var(--eq-live);
+}
+
+.rsc-p[data-tone="warn"] .rsc-p__bar > span[data-on] {
+  background: var(--eq-warn);
+}
+
+.rsc-p[data-tone="alert"] .rsc-p__bar > span[data-on] {
+  background: var(--eq-alert);
+}
+
+.rsc-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--eq-ink);
+  list-style: disc;
+}
+
+/* ---- the Pulse: its own client copy, inside the panel ------------------- */
+
+.rsc-pulse {
+  min-width: 0;
+}
+
+/* ---- the goals, the plan ------------------------------------------------ */
+
+.rsc-goals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.rsc-goal__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.rsc-goal__next-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rsc-goal__next-label svg {
+  color: var(--eq-hero);
+}
+
+.rsc-goal__next {
+  margin: 0;
+  color: var(--eq-ink);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.rsc-plan {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 22px;
+  color: var(--eq-ink);
+  list-style: decimal;
+}
+
+.rsc-plan li::marker {
+  color: var(--eq-ink-muted);
+  font-weight: 700;
+}
+
+/* ---- the foot ----------------------------------------------------------- */
+
+.rsc-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 0 4px;
+  color: var(--eq-ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---- the screen around it (ClientProgressReportView's view mode) ------- */
+
+/* The page ground, light and dark (it was the always-navy page). */
+.rsc-page {
+  min-height: 100vh;
+  background: var(--eq-bg);
+  color: var(--eq-ink);
+}
+
+.rsc-shell {
+  display: grid;
+  gap: 16px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.rsc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rsc-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rsc-bar__note {
+  margin: -8px 0 0;
+  color: var(--eq-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.rsc-coachview__toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--eq-ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rsc-coachview__toggle:focus-visible {
+  outline: 2px solid var(--eq-focus-ring);
+  outline-offset: 2px;
+}
+
+.rsc-coachview__toggle svg {
+  color: var(--eq-live);
+}
+
+.rsc-coachview__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rsc-coachview__flags {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--eq-alert-fill);
+  color: var(--eq-alert);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rsc-coachview__hint {
+  margin-left: auto;
+  color: var(--eq-live-text);
+  font-size: 12px;
+  font-weight: 700;
+}

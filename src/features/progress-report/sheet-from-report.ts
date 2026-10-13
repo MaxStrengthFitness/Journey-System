@@ -13,6 +13,7 @@ import type { ReportSessionWords } from "../../lib/history-claims";
 import { reportCards } from "./accolades";
 import { FOUR_PS, P_TITLES, masteryWord, rankFromScore, toneFromRank, type PTone } from "./four-ps";
 import { GOAL_OUTCOME_LABELS } from "./steps";
+import { snapshotLine } from "./focus-history";
 import {
   MACHINE_ROWS,
   availability,
@@ -66,6 +67,28 @@ export interface SheetPlan {
   /** What the estimate measured, for the print check to set beside the drawing. */
   content: PageContent;
   model: SheetModel;
+  /** What the screen shows beyond the page (ReportScreen): the paper's room is not the screen's. */
+  screen: ScreenExtras;
+}
+
+/**
+ * The client view on screen draws the same modules as the page, in the same
+ * order, with what the paper had no room for: every ticked machine and every
+ * step of the plan (the page shows the first six or eight, and four), the
+ * coaching focus history and the trainer's highlights saved with the report,
+ * the scans' days, and the whole Pulse (SubjectiveClientCopy).
+ */
+export interface ScreenExtras {
+  machines: { label: string; start: string; now: string; change: string; pct: string; tone: SheetTone }[];
+  plan: string[];
+  /** "Pace · achieved after 3 weeks · set by AJ", from the report's focusSnapshot. */
+  focusLines: string[];
+  /** The 4 P's notes the trainer included in the summary (performanceMatrix.includedNotes). */
+  highlights: string[];
+  /** The first and the latest InBody scan's days, when there are scans. */
+  bodyDays: { first: string | null; latest: string | null } | null;
+  /** The Pulse the page prints from, whole, or null. */
+  pulse: { assessment: SubjectiveAssessment; previous: PreviousAssessmentRef | null; date: string } | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -137,8 +160,11 @@ function planItems(report: ProgressReport): string[] {
     if (clean(rm.refinementFocusArea)) items.push(`Focus on ${clean(rm.refinementFocusArea)}.`);
     if (clean(rm.routineIntervention)) items.push(clean(rm.routineIntervention));
   }
-  return items.slice(0, 4);
+  return items;
 }
+
+/** How many of the plan's items the page has room for. */
+const PLAN_ITEMS_ON_PAGE = 4;
 
 const BODY_ROWS: { key: MeasureKey; label: string }[] = [
   { key: "percentBodyFat", label: "Body fat" },
@@ -167,6 +193,8 @@ function bodyCells(scans: InBodyScan[], reportDate: string, variation: InBodyVar
   const scansWord = `${count} scan${count === 1 ? "" : "s"}`;
   return {
     count,
+    firstDay: first ? longDay(first.testedAt) : null,
+    latestDay: longDay(latest.testedAt),
     title: first ? `Your body, ${monthYear(first.testedAt)} to ${monthYear(latest.testedAt)}` : "Your body",
     sub: `InBody · ${scansWord}`,
     short: first ? `Your body · ${scansWord} since ${monthYear(first.testedAt)}` : `Your body · ${scansWord}`,
@@ -201,7 +229,8 @@ export function planSheet(input: SheetInputs): SheetPlan {
   const why = clean(g?.originalWhy);
   const lastGoal = clean(g?.previousGoal);
   const nextGoal = clean(g?.nextGoal);
-  const plan = planItems(report);
+  const planAll = planItems(report);
+  const plan = planAll.slice(0, PLAN_ITEMS_ON_PAGE);
   const coach = clean(report.trainerNotes);
   const sessions = report.attendance.toggles?.totalSessions === false ? null : realStat(report.attendance.totalSessions);
 
@@ -219,7 +248,12 @@ export function planSheet(input: SheetInputs): SheetPlan {
   };
   const avail = availability(facts);
   const stored = (report.modules ?? []).filter(isModuleId);
-  const ticked = report.modules ? stored : defaultModules(focus.kind, avail);
+  // A Pulse-only report is its Pulse and nothing else, as it always was.
+  const ticked = report.isCheckInOnly
+    ? (["pulse"] as ModuleId[])
+    : report.modules
+      ? stored
+      : defaultModules(focus.kind, avail);
   const rows = pageRows(focus.kind, ticked, avail);
   const narrative = clean(report.attendance.narrative);
   const content: PageContent = {
@@ -240,7 +274,16 @@ export function planSheet(input: SheetInputs): SheetPlan {
 
   const shownRows = mrows.slice(0, MACHINE_ROWS[density]);
   const words = input.sessionWords;
-  const firstDay = longDay(report.attendance.customStartDate || report.attendance.firstSessionDate);
+  // What the count counts from, said as history-claims.ts allows: "your first
+  // session" only when Journey holds the whole story and the window starts
+  // there; a window the trainer chose, or Journey's first session for a client
+  // older than Journey, is only "since" its day.
+  // (The recalculation stores the first session's day as the start when none
+  // was chosen, so a start that IS the first session is not a chosen one.)
+  const start = report.attendance.customStartDate;
+  const custom = start && start !== report.attendance.firstSessionDate ? longDay(start) : null;
+  const firstDay = custom ?? longDay(report.attendance.firstSessionDate);
+  const wholeStory = !custom && words.first !== "Since";
   // One line beside the coach's name: short words, so it never wraps.
   const subParts = [
     input.joined ? `Since ${longDay(input.joined.toISOString().slice(0, 10))}` : null,
@@ -261,8 +304,8 @@ export function planSheet(input: SheetInputs): SheetPlan {
     thanks: sessions !== null
       ? {
           sessions: sessions.toLocaleString("en-US"),
-          sessionsWord: "sessions",
-          sessionsSub: [firstDay ? `${words.first === "Since" ? "since" : "since your first,"} ${firstDay}` : null, words.before].filter(Boolean).join(" · ") || null,
+          sessionsWord: wholeStory ? "sessions in all" : "sessions",
+          sessionsSub: [firstDay ? `${wholeStory ? "since your first session," : "since"} ${firstDay}` : null, words.before].filter(Boolean).join(" · ") || null,
           quote: narrative,
           signedBy: input.coachName.split(" ")[0] ?? input.coachName,
         }
@@ -321,5 +364,24 @@ export function planSheet(input: SheetInputs): SheetPlan {
     coach: coach ? { title: "From your coach", text: coach } : undefined,
   };
 
-  return { focus, avail, ticked, rows, fit, content, model };
+  const screen: ScreenExtras = {
+    machines: mrows.map((r) => {
+      const delta = r.currentWeight - r.startWeight;
+      return {
+        label: r.label,
+        start: `${r.startWeight} lb`,
+        now: `${r.currentWeight} lb`,
+        change: `${delta > 0 ? "+" : ""}${delta} lb`,
+        pct: `${r.percentageIncrease > 0 ? "+" : ""}${r.percentageIncrease}%`,
+        tone: (delta > 0 ? "gain" : "plain") as SheetTone,
+      };
+    }),
+    plan: planAll,
+    focusLines: (report.focusSnapshot ?? []).map(snapshotLine),
+    highlights: (report.performanceMatrix?.includedNotes ?? []).map(clean).filter(Boolean),
+    bodyDays: body ? { first: body.firstDay, latest: body.latestDay } : null,
+    pulse: pulse.length ? printedPulse : null,
+  };
+
+  return { focus, avail, ticked, rows, fit, content, model, screen };
 }

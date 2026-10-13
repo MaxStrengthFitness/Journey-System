@@ -268,7 +268,7 @@ const TSX_DISPLAY_SLANT: Record<string, { count: number; why: string }> = {
 // deleted with the old first-time setup (the first-session design round,
 // Oct 8 2026, §4.8).
 const TSX_QUIET_SLANT: Record<string, { count: number; why: string }> = {
-  "components/ClientProgressReportView.tsx": { count: 5, why: "the report's quoted narrative, a 4P note, the client's own why and the trainer's summary, and the window's hint" },
+  "components/ClientProgressReportView.tsx": { count: 1, why: "the window's hint in the editor (the client view's quotes went with the old view, Oct 13 2026)" },
   "components/EditRoutineDrawer.tsx": { count: 1, why: EMPTY },
   "components/WrapUpScreen.tsx": { count: 1, why: PLACEHOLDER },
   "features/admin/import/LegacyChartImporter.tsx": { count: 1, why: EMPTY },
@@ -939,7 +939,7 @@ const TSX_OLD_VOICE: Record<string, { counts: [number, number, number]; why: str
   "components/ui/avatar.tsx": { counts: [1, 1, 0], why: "a person's initials in their avatar" },
   "components/ui/dropdown-menu.tsx": { counts: [0, 1, 0], why: "a menu item's keyboard shortcut, set apart (no menu draws one today)" },
   "features/notifications/NotificationBell.tsx": { counts: [0, 0, 1], why: "the unread count in the bell's 16px dot" },
-  "components/ClientProgressReportView.tsx": { counts: [67, 60, 6], why: REPORT },
+  "components/ClientProgressReportView.tsx": { counts: [30, 27, 2], why: `${REPORT} (the editor; the client view is ReportScreen since Oct 13 2026)` },
   "features/progress-report/AccoladeViews.tsx": { counts: [16, 16, 0], why: REPORT },
   "features/progress-report/ClientReportSections.tsx": { counts: [8, 8, 7], why: REPORT },
   "features/progress-report/GoalsBlock.tsx": { counts: [5, 5, 0], why: REPORT },

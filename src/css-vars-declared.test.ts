@@ -86,6 +86,9 @@ const FILES = [
   "features/standing-week/standing-week.css",
   "features/trainer-profile/trainer-profile.css",
   "features/progress-report/progress-report.css",
+  // The report's client view on screen and its one-page sheet (Oct 13 2026).
+  "features/progress-report/report-screen.css",
+  "features/progress-report/report-sheet.css",
   "features/machine-fit/ui/machine-fit.css",
   "features/routine-builder/routine-builder.css",
   "features/calendar/calendar.css",

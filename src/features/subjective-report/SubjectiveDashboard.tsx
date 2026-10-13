@@ -437,6 +437,11 @@ export function SubjectiveClientCopy({
   const machineName = (id: string) => machines?.find((m) => m.id === id)?.name ?? id;
   const activePain = s.pain.trends.filter((t) => t.point.status !== "resolved");
   const moved = s.categories.filter((c) => c.changeLegacy !== null);
+  // Only what the client answered (Oct 13 2026): an unanswered protein or
+  // hydration question is left off the client's copy, never printed as "—".
+  const protein = copy.includeProteinHydration && assessment.protein.daysPerWeekOnTarget !== null;
+  const hydration = copy.includeProteinHydration && assessment.hydration.typicalPerDay !== null;
+  const painShown = copy.includePainMap && (activePain.length > 0 || s.pain.resolvedSinceLast.length > 0);
 
   return (
     <div className="sr sr-client">
@@ -483,8 +488,9 @@ export function SubjectiveClientCopy({
         </div>
       )}
 
-      {copy.includeProteinHydration && (
-        <div className="sr-tiles" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+      {(protein || hydration) && (
+        <div className="sr-tiles" style={{ gridTemplateColumns: protein && hydration ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)" }}>
+          {protein && (
           <div className="sr-tile">
             <span className="sr-tile__label">Protein</span>
             <span className="sr-tile__value">
@@ -495,6 +501,8 @@ export function SubjectiveClientCopy({
               {s.protein.targetG ? `Your target: about ${s.protein.targetG} g a day (${s.protein.targetLowG}–${s.protein.targetHighG} g)` : "Target to be set"}
             </span>
           </div>
+          )}
+          {hydration && (
           <div className="sr-tile">
             <span className="sr-tile__label">Hydration</span>
             <span className="sr-tile__value">
@@ -505,10 +513,11 @@ export function SubjectiveClientCopy({
               {assessment.hydration.targetPerDay ? `Target: ${assessment.hydration.targetPerDay} ${assessment.hydration.unit} a day` : "Target to be set"}
             </span>
           </div>
+          )}
         </div>
       )}
 
-      {copy.includePainMap && (activePain.length > 0 || s.pain.resolvedSinceLast.length > 0) && (
+      {painShown && (
         <div className="sr-card">
           <h3 className="sr-card__title">Where things hurt — and how it's going</h3>
           <table className="sr-table">
@@ -562,7 +571,7 @@ export function SubjectiveClientCopy({
         </div>
       )}
 
-      {!(previous && moved.length > 0) && !copy.includeProteinHydration && !copy.includePainMap && !assessment.coachSummary && (
+      {!(previous && moved.length > 0) && !protein && !hydration && !painShown && !assessment.coachSummary && (
         <div className="sr-empty">{clientFirstName}'s Pulse is on file for the coaching team.</div>
       )}
     </div>
