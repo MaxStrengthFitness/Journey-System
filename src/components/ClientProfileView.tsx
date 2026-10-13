@@ -366,10 +366,22 @@ export function ClientProfileView({
     [studioFloor, machines, studioSetupById],
   );
   // The machine window opens any machine the grid lists: the floor's own
-  // version first (its name and dials), then every other machine by id.
+  // version first (its name and dials), then every other machine by id, and
+  // every machine the client has sets on, as the grid lists them (another
+  // studio's own machine included; the studio machines round, Oct 13 2026).
+  // Keyed on the ids, so a page of sets read changes nothing until a new
+  // machine appears in it.
+  const historyMachineKey = useMemo(
+    () => [...new Set(allLogs.map((l) => l.machineId).filter(Boolean))].sort().join("\u0000"),
+    [allLogs],
+  );
   const machineWindowMachines = useMemo(
-    () => floorWithHistoryMachines(codexFloor, machines ?? [], (machines ?? []).map((m) => m.id ?? "")),
-    [codexFloor, machines],
+    () =>
+      floorWithHistoryMachines(codexFloor, machines ?? [], [
+        ...(machines ?? []).map((m) => m.id ?? ""),
+        ...(historyMachineKey ? historyMachineKey.split("\u0000") : []),
+      ]),
+    [codexFloor, machines, historyMachineKey],
   );
 
   // Discard Session (round: In-Progress dropdown) — lets a trainer scrap a
@@ -2297,6 +2309,7 @@ export function ClientProfileView({
             clientId={clientId}
             routines={routines}
             machines={machines}
+            floorMachines={codexFloor}
             activeStudioId={activeStudioId}
             studioName={studios?.find((s) => s.id === activeStudioId)?.name}
             authTrainer={authTrainer}

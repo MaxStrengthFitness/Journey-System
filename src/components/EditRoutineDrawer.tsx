@@ -35,6 +35,7 @@ import { planChangeFromEdit } from "../features/routine-plan/drawer-sync";
 import { signedChange } from "../features/routine-plan/lineup";
 import { saveRoutineEdit } from "../features/routine-plan/store";
 import { bFollowOf, bToggleOpensPlanB, plannedBFollowOf } from "../features/routine-plan/b-routine";
+import { machineNamer } from "../features/routine-plan/ui/host";
 import { learningCurveInputOf, pastLearningCurve } from "../features/routine-plan/client-kind";
 import { matchesRoutineLetter } from "../lib/routine-utils";
 import type { HistoryCoverage } from "../lib/prior-history";
@@ -78,6 +79,14 @@ interface EditRoutineDrawerProps {
   clientId: string | null;
   routines: Routine[];
   machines: Machine[];
+  /**
+   * This studio's floor, its own machines included (the profile's
+   * `codexFloor`; the studio machines round, Oct 13 2026: Strongsville's
+   * Hoist leg press couldn't be added to a routine here). The builder offers
+   * only these; `machines` (the app-wide list, which has no studio-built
+   * machine) still names a routine machine the floor no longer has.
+   */
+  floorMachines?: Machine[];
   activeStudioId: string | null;
   studioName?: string;
   authTrainer?: Trainer | null;
@@ -126,6 +135,7 @@ export function EditRoutineDrawer({
   clientId,
   routines,
   machines,
+  floorMachines,
   activeStudioId,
   studioName,
   authTrainer,
@@ -392,20 +402,21 @@ export function EditRoutineDrawer({
     () => describeDeviation(machineIds, appliedTemplate?.machineIds),
     [machineIds, appliedTemplate],
   );
+  // The floor the builder offers, and a name for every routine machine:
+  // this floor's first, then the app's list (routine-plan/ui/host.ts).
+  const floor = floorMachines ?? machines;
+  const nameOf = useMemo(() => machineNamer(floor, machines), [floor, machines]);
+
   const deviationText = useMemo(
-    () =>
-      deviationSummary(
-        deviation,
-        (id) => machines.find((m) => m.id === id)?.name ?? id,
-      ),
-    [deviation, machines],
+    () => deviationSummary(deviation, nameOf),
+    [deviation, nameOf],
   );
 
   const applyPreset = (preset: RoutinePreset) => {
     // A template may name equipment this location does not have; the studio
     // roster, not the template, decides what is actually available.
     const validIds = preset.machineIds.filter((id) =>
-      machines.some((m) => m.id === id),
+      floor.some((m) => m.id === id),
     );
     setMachineIds(validIds);
     setReason((prev) => (prev.trim() ? prev : `Applied "${preset.name}" preset.`));
@@ -856,7 +867,8 @@ export function EditRoutineDrawer({
             slot={activeSlot === "Routine A" ? "A" : "B"}
             machineIds={machineIds}
             onChange={setMachineIds}
-            machines={machines}
+            machines={floor}
+            nameOf={nameOf}
             client={client}
             history={lastPerformedByMachine}
             counterpartMachineIds={counterpartMachineIds}

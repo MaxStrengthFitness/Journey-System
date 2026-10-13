@@ -75,6 +75,7 @@ export function RoutineBuilder({
   machineIds,
   onChange,
   machines,
+  nameOf,
   slot = null,
   counterpartMachineIds = null,
   counterpartLabel,
@@ -114,8 +115,8 @@ export function RoutineBuilder({
   }, [machines]);
 
   const machineName = useCallback(
-    (id: string) => nameById[id] ?? MACHINE_ABBR[id] ?? id,
-    [nameById],
+    (id: string) => nameById[id] ?? (nameOf ? nameOf(id) : (MACHINE_ABBR[id] ?? id)),
+    [nameById, nameOf],
   );
 
   const availableIds = useMemo(

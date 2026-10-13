@@ -60,6 +60,13 @@ export interface RoutineBuilderProps {
   /** Machines on this studio's floor. Suggestions never leave this set. */
   machines: Machine[];
 
+  /**
+   * A routine machine's name when it isn't on this floor (the studio
+   * machines round, Oct 13 2026): the profile's `machineNamer`, so a machine
+   * the floor no longer has keeps its full name beside "Not at this studio".
+   */
+  nameOf?: (machineId: string) => string;
+
   /** Which half of the rotation this is, when the surface knows. */
   slot?: "A" | "B" | null;
 
