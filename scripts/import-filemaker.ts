@@ -27,7 +27,8 @@
  *     of sessions to write; anything else stops before a write.
  *   - PRODUCTION WRITES ARE SWITCHED OFF in this round (PRODUCTION_IMPORT_
  *     READY below; the round document's §6 says what must come first). Until
- *     then --commit writes to the Firestore EMULATOR only (--emulator).
+ *     then --commit writes to the Firestore EMULATOR (--emulator), or a
+ *     TRIAL of at most five clients to the real database (--trial; lock.ts).
  *   - EVERY ID IS DERIVED (plan.ts): a second run writes nothing it already
  *     wrote. Sessions are written in batches of whole visits, each batch in
  *     ONE TRANSACTION with the client's counts, machine totals and settings,
@@ -57,7 +58,8 @@
  * the day before the client's home studio's switch-over day, and a dry run
  * with neither uses yesterday), --commit, --expect N, --allow-waiting,
  * --verify (reads back what is in Journey), --emulator, --seed-emulator,
- * --key / --project / --database (as the other scripts).
+ * --trial (at most five clients on the real database while the full import
+ * is switched off), --key / --project / --database (as the other scripts).
  */
 
 import fs from "fs";
@@ -73,6 +75,7 @@ import { columnsLookSwapped, findingsOf, groupVisits } from "../src/features/fil
 import type { FloorUnit, MapRow } from "../src/features/filemaker-import/machine-map.ts";
 import { clientWriteFor, numberOffsetFor, planClient, visitInstant, type ClientPlan, type PlannedSession } from "../src/features/filemaker-import/plan.ts";
 import { clientLines, summaryLines, type ClientReport } from "../src/features/filemaker-import/report.ts";
+import { TRIAL_MAX_CLIENTS, writeRefusal } from "../src/features/filemaker-import/lock.ts";
 import { chooseClientDoc } from "../src/lib/mindbody-site.ts";
 import { mindbodyIdConflict, mindbodyIdOf } from "../src/lib/mindbody-id.ts";
 import { isPerSideMachine } from "../src/lib/floor-machines.ts";
@@ -100,7 +103,7 @@ const { draftMap, machineResolver, mapFromCsv, mapToCsv, tableProblems } = await
 const { MOVEMENTS } = await import("../src/features/catalog/names.ts");
 
 const VALUE_FLAGS = new Set(["map", "through", "expect", "key", "project", "database"]);
-const BOOLEAN_FLAGS = new Set(["commit", "emulator", "seed-emulator", "verify", "allow-waiting"]);
+const BOOLEAN_FLAGS = new Set(["commit", "emulator", "seed-emulator", "verify", "allow-waiting", "trial"]);
 const OUT_DIR = path.resolve(process.cwd(), "backups", "filemaker");
 /** Writes in one transaction: a batch of whole visits, the client, the totals and the settings. */
 const WRITES_PER_TRANSACTION = 400;
@@ -138,14 +141,12 @@ const expected = expectRaw === undefined ? null : Number(expectRaw);
 if (hasFlag("seed-emulator") && !emulator) stop("--seed-emulator only works with --emulator.");
 if (commit && expected === null) stop("--commit needs --expect N, N being the dry run's count of sessions to write.");
 if (!inputs.length) stop("give the FileMaker files (or a folder of them) to read.");
-if (commit && !emulator && !PRODUCTION_IMPORT_READY) {
-  stop(
-    "writing to the real database is switched off until:\n" +
-      "  1. the pre-launch reset has run (after an import it would zero imported clients' counts);\n" +
-      "  2. the full export is here, with the trainer per visit;\n" +
-      "  3. AJ says go (PRODUCTION_IMPORT_READY in this file).\n" +
-      "Rehearse on the emulator meanwhile (--emulator).",
-  );
+const trial = hasFlag("trial");
+if (trial && emulator) stop("--trial is for the real database; the emulator takes any number of clients.");
+// Refused before anything is read when it can be told now; a trial's size is checked once the clients are known.
+if (commit && !trial) {
+  const refusal = writeRefusal({ ready: PRODUCTION_IMPORT_READY, emulator, trial, clientsToWrite: 0 });
+  if (refusal) stop(refusal);
 }
 
 /* ------------------------------------------------------------------ *
@@ -478,12 +479,22 @@ async function main() {
   console.log(`Report: ${reportPath}`);
 
   if (hasFlag("verify")) await verify(db, runs);
+  const clientsToWrite = writable.filter((r) => r.plan.sessions.some((s) => !s.exists)).length;
+  const refusal = writeRefusal({ ready: PRODUCTION_IMPORT_READY, emulator, trial, clientsToWrite });
   if (!commit) {
-    console.log(`\nDRY RUN: nothing was written. To write: --commit --expect ${toWrite}${emulator ? "" : " (switched off for the real database in this round)"}`);
+    const lockWords = emulator || PRODUCTION_IMPORT_READY
+      ? ""
+      : trial
+        ? refusal
+          ? ` (refused as it stands: ${refusal})`
+          : ` --trial (a trial of ${clientsToWrite} client${clientsToWrite === 1 ? "" : "s"} on the real database)`
+        : ` (the real database takes only a --trial of at most ${TRIAL_MAX_CLIENTS} clients until the full import is switched on)`;
+    console.log(`\nDRY RUN: nothing was written. To write: --commit --expect ${toWrite}${lockWords}`);
     return;
   }
 
   /* Writing. */
+  if (refusal) stop(refusal);
   if (expected !== toWrite) stop(`--expect ${expected}, but this run would write ${toWrite} sessions. Run the dry run again and use its number.`);
   if (waiting.size && !hasFlag("allow-waiting")) stop(`${waiting.size} FileMaker machine names are not matched yet (${[...waiting].join(", ")}). Finish the machine table, or add --allow-waiting to write the clients that don't wait.`);
 
