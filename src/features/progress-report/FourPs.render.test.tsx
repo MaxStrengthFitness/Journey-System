@@ -9,7 +9,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { StrictMode, act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FourPsStep, type PerformanceMatrix } from "./FourPsStep";
-import { FourPsCards } from "./ClientReportSections";
 import { rankFromScore } from "./four-ps";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -122,24 +121,5 @@ describe("FourPsStep", () => {
     expect(host.querySelector(".pr-fourps__summary")).not.toBeNull();
     await act(async () => include.click());
     expect(seen[seen.length - 1].includedNotes).toEqual([]);
-  });
-});
-
-describe("FourPsCards (client copy)", () => {
-  it("prints the mastery word, never the number, and says Not rated honestly", async () => {
-    const m = fresh();
-    m.posture.score = 80;
-    m.posture.note = "Chin stayed tucked all set";
-    m.pace.score = 20;
-    const host = await mount(<FourPsCards value={m} />);
-    const words = Array.from(host.querySelectorAll(".pr-pcard__word")).map((w) => w.textContent);
-    expect(words).toEqual(["Strong", "Needs work", "Not rated", "Not rated"]);
-    expect(host.textContent ?? "").not.toMatch(/\d/);
-    expect(host.querySelector(".pr-pcard__note")?.textContent).toContain("Chin stayed tucked");
-    // Four filled segments for Strong, one for Needs work, none unrated.
-    const filled = (tone: string) => host.querySelectorAll(`.pr-pcard[data-tone="${tone}"] [data-on="true"]`).length;
-    expect(filled("ok")).toBe(4);
-    expect(filled("alert")).toBe(1);
-    expect(filled("none")).toBe(0);
   });
 });

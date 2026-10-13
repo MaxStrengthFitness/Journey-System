@@ -1,13 +1,14 @@
 /**
- * The accolade cards (client copy), the accolade slot editor, and the focus
- * history shown in the 4 P's step and on the printed report.
+ * The accolade slot editor and the focus history shown in the 4 P's step.
  *
  * Every rule lives in accolades.ts / focus-history.ts; these components only
- * draw what those functions return. In particular a slot with no real data is
- * never drawn — `reportCards` drops it — so an old report with blank slots
- * prints cleanly too.
+ * draw what those functions return. The client's copy of the accolades and of
+ * the focus history is ReportScreen on screen and ReportSheet on paper (Oct 13
+ * 2026), both through `reportCards` and the report's saved snapshot, so a slot
+ * with no real data is never drawn and an old report with blank slots prints
+ * cleanly too.
  */
-import { Award, Compass, Sparkles, TrendingUp, X } from "lucide-react";
+import { Compass, Sparkles, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "../../lib/utils";
-import type { ProgressReport } from "../../types";
 import type { ClientFocus } from "../../types/journal";
 import {
   METRIC_CHOICES,
@@ -26,14 +26,13 @@ import {
   MACHINE_METRICS,
   buildSlot,
   choiceOf,
-  reportCards,
   slotCard,
   type AccoladeCandidate,
   type HighlightSlot,
   type SlotContext,
   type SlotMetric,
 } from "./accolades";
-import { focusLine, snapshotLine, sortFocuses } from "./focus-history";
+import { focusLine, sortFocuses } from "./focus-history";
 
 const CHOOSE = "choose";
 const NO_MACHINE = "none";
@@ -44,72 +43,6 @@ const HERO_TONE = {
   quality: "text-emerald-400",
   plain: "text-white",
 } as const;
-
-const GRID_COLS: Record<number, string> = {
-  1: "md:grid-cols-1",
-  2: "md:grid-cols-2",
-  3: "md:grid-cols-3",
-};
-
-/* ------------------------------------------------------------------ *
- * Client copy
- * ------------------------------------------------------------------ */
-
-export function AccoladeCards({ slots }: { slots: ProgressReport["highlights"] | undefined }) {
-  const cards = reportCards(slots);
-  if (cards.length === 0) return null;
-  return (
-    <section className="space-y-3 break-inside-avoid" data-testid="accolade-cards">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-          <TrendingUp className="w-3.5 h-3.5 text-[#F06C22]" />
-          <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#FAF9F6] print:text-[#0A2E46]">
-            Your Accolades
-          </h3>
-        </div>
-        <div className="h-px bg-white/10 flex-1"></div>
-      </div>
-      <div className={cn("grid grid-cols-1 gap-3", GRID_COLS[Math.min(cards.length, 3)])}>
-        {cards.map((c, i) => (
-          <div
-            key={i}
-            data-testid="accolade-card"
-            className="bg-slate-800/50 p-6 rounded-[25px] shadow-xl flex flex-col justify-between min-h-40 border border-white/5 relative group overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-3 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
-              <Award className="w-24 h-24 text-white" />
-            </div>
-            <div className="relative z-10 space-y-2">
-              <div className="text-[11px] font-black tracking-[0.2em] uppercase text-[#F06C22]">
-                {c.title}
-              </div>
-              {c.label && (
-                <div className="text-xs text-slate-400 font-bold tracking-wider uppercase">
-                  {c.label}
-                </div>
-              )}
-              <p
-                className={cn(
-                  "pt-2 font-display text-3xl font-extrabold leading-tight drop-shadow-sm",
-                  HERO_TONE[c.tone],
-                )}
-              >
-                {c.hero}
-              </p>
-            </div>
-            {c.context && (
-              <div className="mt-4 pt-3 border-t border-white/10 w-full relative z-10">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                  {c.context}
-                </p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 /* ------------------------------------------------------------------ *
  * Editor: one slot
@@ -379,24 +312,6 @@ export function FocusHistoryPanel({
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-export function FocusSnapshotCard({ entries }: { entries: ProgressReport["focusSnapshot"] }) {
-  if (!entries || entries.length === 0) return null;
-  return (
-    <div className="bg-white/5 rounded-2xl p-4 border border-white/10" data-testid="focus-snapshot">
-      <h4 className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-white print:text-[#0A2E46]">
-        Coaching focus
-      </h4>
-      <ul className="space-y-1">
-        {entries.map((e, i) => (
-          <li key={i} className="text-[12px] font-bold text-white/80">
-            {snapshotLine(e)}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

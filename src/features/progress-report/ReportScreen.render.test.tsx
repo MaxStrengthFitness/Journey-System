@@ -79,6 +79,53 @@ describe("the client view on screen", () => {
     expect(ps.textContent).toContain("“Kept the lower turnaround slow all session.”");
   });
 
+  it("shows the mastery word of each rated P and its bar, never a number, and leaves an unrated P off", () => {
+    const report = baseReport({ focus: { kind: "goal" }, modules: ["fourps"] });
+    report.performanceMatrix = {
+      ...report.performanceMatrix,
+      posture: { ...report.performanceMatrix.posture, score: 80, note: "Chin stayed tucked all set" },
+      pace: { ...report.performanceMatrix.pace, score: 20, note: "" },
+      path: { ...report.performanceMatrix.path, score: 0, note: "" },
+      purpose: { ...report.performanceMatrix.purpose, score: 0, note: "" },
+    };
+    const { el } = draw(inputsFor(report));
+    const ps = el.querySelector('[data-module="fourps"]')!;
+    expect([...ps.querySelectorAll(".rsc-p__word")].map((w) => w.textContent)).toEqual(["Strong", "Needs work"]);
+    expect(ps.querySelector(".rsc-ps")?.textContent).not.toMatch(/\d/);
+    expect(ps.textContent).toContain("Chin stayed tucked all set");
+    const filled = (tone: string) => ps.querySelectorAll(`.rsc-p[data-tone="${tone}"] [data-on]`).length;
+    expect(filled("ok")).toBe(4);
+    expect(filled("alert")).toBe(1);
+  });
+
+  it("draws only the accolades with real data, and none at all for an old report's blank slots", () => {
+    const blank = baseReport({
+      focus: { kind: "goal" },
+      modules: ["accolades", "thanks"],
+      highlights: [
+        { label: "", startValue: "", currentValue: "" },
+        { label: "", metricType: "strength_gain" },
+        { label: "", metricType: "strength_gain", percentageIncrease: 0 },
+      ],
+    });
+    expect(modules(draw(inputsFor(blank)).el)).toEqual(["thanks"]);
+    act(() => root?.unmount());
+    host?.remove();
+
+    const some = baseReport({
+      focus: { kind: "goal" },
+      modules: ["accolades"],
+      highlights: [
+        { label: "", metricType: "strength_gain", percentageIncrease: 0 },
+        { label: "Leg Press", machineId: "leg", percentageIncrease: 25, startValue: "100 lbs", currentValue: "125 lbs" },
+      ],
+    });
+    const { el } = draw(inputsFor(some));
+    expect(el.querySelectorAll(".rsc-accolade")).toHaveLength(1);
+    expect(el.textContent).toContain("+25%");
+    expect(el.textContent).not.toMatch(/undefined|NaN|Movement Slot|\+0%/i);
+  });
+
   it("says nothing the trainer didn't write: no default praise, no dashes, no empty module", () => {
     const { el } = draw(NEW_CLIENT);
     expect(modules(el)).toEqual(["thanks", "goals"]);

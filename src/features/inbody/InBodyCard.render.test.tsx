@@ -53,8 +53,7 @@ vi.mock("../../contexts/ActiveStudioContext", () => ({
 }));
 
 const { InBodyCard } = await import("./InBodyCard");
-const { InBodyReportSection } = await import("./InBodyReportSection");
-const { DEFAULT_INBODY_VARIATION, normalizeInBodyVariation } = await import("./variation");
+const { DEFAULT_INBODY_VARIATION } = await import("./variation");
 const { useInBodyVariationLookup } = await import("./useInBodyVariation");
 const { scanFromDoc } = await import("./scans");
 import type { Client } from "../../types";
@@ -227,43 +226,5 @@ describe("the renewals pipeline's lookup", () => {
       "old:1",
       `none:${DEFAULT_INBODY_VARIATION.skeletalMuscleMassLb}`,
     ]);
-  });
-});
-
-describe("the progress report's Body Composition", () => {
-  it("prints the withheld call, and says what it means once", async () => {
-    const el = await mount(
-      <InBodyReportSection clientId="carol" reportDate={`${Y}-09-10`} variation={DEFAULT_INBODY_VARIATION} />,
-    );
-    expect(byText(el, "+1.2 lb · within normal variation")).toBeTruthy();
-    expect(el.textContent).toContain("Within normal variation: smaller than the difference an InBody scanner can show");
-  });
-
-  it("prints plain changes, and no note, when every change is beyond the studio's numbers", async () => {
-    const tight = normalizeInBodyVariation({ skeletalMuscleMassLb: 1, bodyFatMassLb: 3, percentBodyFat: 1 });
-    const el = await mount(<InBodyReportSection clientId="carol" reportDate={`${Y}-09-10`} variation={tight} />);
-    expect(byText(el, "+1.2 lb")).toBeTruthy();
-    expect(byText(el, "−3.1 lb")).toBeTruthy();
-    expect(el.textContent).not.toContain("within normal variation");
-    expect(el.textContent).not.toContain("Within normal variation");
-  });
-
-  it("prints no note for an unchanged weight when every other change is called", async () => {
-    // Weight 174.2 → 174.2 ("no change"); muscle +4.1, fat mass −6.0, body
-    // fat −3.0: all beyond the defaults. No cell says "within", so neither
-    // may the footnote.
-    scans = [
-      { id: "a", testedAt: `${Y}-01-15`, weightLb: 174.2, skeletalMuscleMassLb: 65.8, bodyFatMassLb: 58.9, percentBodyFat: 33.4 },
-      { id: "b", testedAt: `${Y}-09-02`, weightLb: 174.2, skeletalMuscleMassLb: 69.9, bodyFatMassLb: 52.9, percentBodyFat: 30.4 },
-    ];
-    const el = await mount(
-      <InBodyReportSection clientId="carol" reportDate={`${Y}-09-10`} variation={DEFAULT_INBODY_VARIATION} />,
-    );
-    expect(byText(el, "no change")).toBeTruthy();
-    expect(byText(el, "+4.1 lb")).toBeTruthy();
-    expect(byText(el, "−6.0 lb")).toBeTruthy();
-    expect(byText(el, "−3.0 pts")).toBeTruthy();
-    expect(el.textContent).not.toContain("within normal variation");
-    expect(el.textContent).not.toContain("Within normal variation");
   });
 });

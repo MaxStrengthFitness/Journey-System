@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { StrictMode, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { AccoladeCards, AccoladeSlotEditor, FocusHistoryPanel, FocusSnapshotCard } from "./AccoladeViews";
+import { AccoladeSlotEditor, FocusHistoryPanel } from "./AccoladeViews";
 import { buildSlot, draftSlots, type HighlightSlot, type SlotContext } from "./accolades";
 import type { ClientFocus } from "../../types/journal";
 
@@ -46,37 +46,6 @@ const machines = [
   { id: "leg", name: "Leg Press" },
   { id: "thin", name: "Chest" },
 ];
-
-describe("AccoladeCards", () => {
-  it("draws nothing at all for an old report's blank slots", async () => {
-    const blanks: HighlightSlot[] = [
-      { label: "", startValue: "", currentValue: "" },
-      { label: "", metricType: "strength_gain" },
-      { label: "", metricType: "strength_gain" },
-    ];
-    const m = await mount(<AccoladeCards slots={blanks} />);
-    expect(m.host.innerHTML).toBe("");
-    await unmount(m);
-  });
-
-  it("draws only the real slots, titled by kind, with no undefined anywhere", async () => {
-    const slots: HighlightSlot[] = [
-      { label: "", metricType: "strength_gain", percentageIncrease: 0 },
-      { label: "Leg Press", machineId: "leg", percentageIncrease: 25, startValue: "100 lbs", currentValue: "125 lbs" },
-      buildSlot({ metricType: "consistency" }, ctx).slot,
-    ];
-    const m = await mount(<AccoladeCards slots={slots} />);
-    const cards = m.host.querySelectorAll('[data-testid="accolade-card"]');
-    expect(cards).toHaveLength(2);
-    const text = m.host.textContent ?? "";
-    expect(text).toContain("Strength gain");
-    expect(text).toContain("+25%");
-    expect(text).toContain("Consistency");
-    expect(text).toContain("2.0 a week");
-    expect(text).not.toMatch(/undefined|NaN|Movement Slot|\+0%/i);
-    await unmount(m);
-  });
-});
 
 describe("AccoladeSlotEditor", () => {
   const render = (slot: HighlightSlot, loading = false) =>
@@ -149,16 +118,5 @@ describe("focus history", () => {
     const none = await mount(<FocusHistoryPanel focuses={[]} status="ready" asOf={new Date()} />);
     expect(none.host.textContent).toMatch(/no coaching focus/i);
     await unmount(none);
-  });
-
-  it("the printed card reads the saved snapshot and nothing else", async () => {
-    const m = await mount(
-      <FocusSnapshotCard entries={[{ category: "Path", status: "active", weeks: 2, trainerInitials: "KM" }]} />,
-    );
-    expect(m.host.textContent).toContain("Path — in progress for 2 weeks · set by KM");
-    await unmount(m);
-    const empty = await mount(<FocusSnapshotCard entries={undefined} />);
-    expect(empty.host.innerHTML).toBe("");
-    await unmount(empty);
   });
 });

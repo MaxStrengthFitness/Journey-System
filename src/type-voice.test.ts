@@ -242,7 +242,6 @@ const QUIET_SLANT: Record<string, string> = {
   "features/progress-report/progress-report.css .pr-p__note": QUOTED,
   "features/progress-report/progress-report.css .pr-p__tp-text": QUOTED,
   "features/progress-report/progress-report.css .pr-fourps__summary li": QUOTED,
-  "features/progress-report/progress-report.css .pr-pcard__note": QUOTED,
   "features/routine-builder/routine-builder.css .rb-warn__escalate": "what to do if the warning holds, said quietly",
   "features/routines/routines.css .rt-row__note": QUOTED,
   "features/routines/routines.css .rt-row__empty": EMPTY,
@@ -273,7 +272,6 @@ const TSX_QUIET_SLANT: Record<string, { count: number; why: string }> = {
   "components/WrapUpScreen.tsx": { count: 1, why: PLACEHOLDER },
   "features/admin/import/LegacyChartImporter.tsx": { count: 1, why: EMPTY },
   "features/client-profile/ProfileHeader.tsx": { count: 1, why: '"Not scheduled": the next session tile with nothing booked' },
-  "features/progress-report/ClientReportSections.tsx": { count: 3, why: "the client's words and the narrative, quoted" },
 };
 
 /* ------------------------------------------------------------------ */
@@ -904,7 +902,7 @@ const EYEBROWS: Record<string, string> = {
   "features/subjective-report/subjective-report.css .pcm__kicker": `${EYEBROW_STYLE} (Pulse's client mode, over the area's title)`,
   "features/wiki/wiki.css .wk__eyebrow": `${EYEBROW_STYLE} (a Learning page)`,
 };
-const REPORT_CAPITALS = [".pr-guide__label", ".pr-nav__where", ".pr-btn", ".pr-label", ".pr-p__title", ".pr-p__def", ".pr-p__include", ".pr-pcard__title", ".pr-pulse__title"];
+const REPORT_CAPITALS = [".pr-guide__label", ".pr-nav__where", ".pr-btn", ".pr-label", ".pr-p__title", ".pr-p__def", ".pr-p__include", ".pr-pulse__title"];
 const CAPITALS_ON_PURPOSE: Record<string, string> = {
   ...EYEBROWS,
   ...DISPLAY_CAPS,
@@ -940,12 +938,10 @@ const TSX_OLD_VOICE: Record<string, { counts: [number, number, number]; why: str
   "components/ui/dropdown-menu.tsx": { counts: [0, 1, 0], why: "a menu item's keyboard shortcut, set apart (no menu draws one today)" },
   "features/notifications/NotificationBell.tsx": { counts: [0, 0, 1], why: "the unread count in the bell's 16px dot" },
   "components/ClientProgressReportView.tsx": { counts: [30, 27, 2], why: `${REPORT} (the editor; the client view is ReportScreen since Oct 13 2026)` },
-  "features/progress-report/AccoladeViews.tsx": { counts: [16, 16, 0], why: REPORT },
-  "features/progress-report/ClientReportSections.tsx": { counts: [8, 8, 7], why: REPORT },
+  "features/progress-report/AccoladeViews.tsx": { counts: [11, 11, 0], why: REPORT },
   "features/progress-report/GoalsBlock.tsx": { counts: [5, 5, 0], why: REPORT },
   "features/progress-report/MachineProgressionStep.tsx": { counts: [5, 5, 1], why: REPORT },
   "features/progress-report/ReportNotOpened.tsx": { counts: [1, 1, 0], why: `${REPORT} (its own could-not-open screen)` },
-  "features/inbody/InBodyReportSection.tsx": { counts: [2, 2, 1], why: `${REPORT} (the InBody section)` },
   "components/ErrorBoundary.tsx": { counts: [3, 3, 0], why: "the error screen: always dark, its own palette (the Navy Frame's NOT_THIS_ROUND)" },
   "features/admin/import/LegacyChartImporter.tsx": { counts: [39, 19, 12], why: "the legacy chart importer: always dark, its own palette (the Navy Frame's NOT_THIS_ROUND)" },
   "features/demo-mode/SetUpDemoCard.tsx": { counts: [10, 10, 3], why: "on the front door's studio picker: always dark, the front door's own voice (Oct 3 2026)" },
