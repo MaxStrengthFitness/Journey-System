@@ -197,6 +197,8 @@ export interface CantDo {
  * `value` that says which of B's moves it was:
  * - "start" with "B" (`B_START`): `machineIds` the first swap,
  *   `[replaces, with]`, B starting as A with one machine different;
+ * - "start" with "B whole" (`B_START_WHOLE`, Oct 13 2026): B started with
+ *   every planned swap in at once, `machineIds` the pairs, `[replaces, with, …]`;
  * - "start" with "B planned" (`B_PLANNED`, the studio's "A and B
  *   together"): B planned with the starting lineup and no machines yet,
  *   `machineIds` the planned swaps' pairs, `[replaces, with, …]`;

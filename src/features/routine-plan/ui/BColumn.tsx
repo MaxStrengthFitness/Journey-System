@@ -299,6 +299,13 @@ export function useBColumn(input: BColumnInput): BColumnParts {
                 Three
               </Button>
             )}
+            {/* Every swap that can go in now (Oct 13 2026, AJ's "2. a"):
+                beside Two and Three once there are more than three. */}
+            {left > 3 && (
+              <Button variant="outline" aria-label={`Swap in all ${left}`} onClick={() => swapIn(left)}>
+                All {left}
+              </Button>
+            )}
           </div>
         )}
         <div className="rpl-actions" role="group" aria-label="B is for">

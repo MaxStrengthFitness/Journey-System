@@ -561,6 +561,8 @@ export function bPurposeOf(plan: Pick<RoutinePlan, "purposeKinds"> | null | unde
  * happened (`changes-list.ts`):
  * - "start" with `B_START`: B started, `machineIds` the first swap,
  *   `[replaces, with]`;
+ * - "start" with `B_START_WHOLE`: B started with every planned swap in at
+ *   once, `machineIds` the swaps' pairs, `[replaces, with, …]`;
  * - "swap" with `B_SWAP_MADE`: a planned swap went into B, `[replaces, with]`;
  * - "swap" with `B_SWAP_PLANNED`: B's planned swap for an A machine changed,
  *   `[replaces, with]`;
@@ -575,6 +577,13 @@ export const B_START = "B";
  * …]`, so the Changes list says what B starts with.
  */
 export const B_PLANNED = "B planned";
+/**
+ * "start" with "B whole" (the studio machines round, Oct 13 2026; AJ: "i
+ * want to additionally be able to just turn on a B routine and swap
+ * instantly to it without having to go through a transition phase", then
+ * "2. a"): Start B whole on Plan B, every planned swap in at once.
+ */
+export const B_START_WHOLE = "B whole";
 export const B_SWAP_MADE = "made";
 export const B_SWAP_PLANNED = "planned";
 export const B_SWAP_KEPT = "kept";
@@ -615,9 +624,9 @@ export function usableSwaps(input: {
 export interface StartedB {
   /** B's plan: B as it will be when built, the swaps in the order they come in. */
   plan: RoutinePlan;
-  /** Routine B today: A with the first swap made. */
+  /** Routine B today: A with the first swap made, or with every swap made (`whole`). */
   machineIds: string[];
-  /** The plan's first change, unsigned: "start", the first swap, `B_START`. */
+  /** The plan's first change, unsigned: "start", the first swap, `B_START`; whole, every swap's pair, `B_START_WHOLE`. */
   change: BChange;
 }
 
@@ -628,6 +637,10 @@ export interface StartedB {
  * "being built" switch (B grows by its swaps), who and when; Routine B
  * starts as A with the FIRST swap made. Null when no swap can be kept (A
  * has no machines, or nothing on this floor to swap in).
+ *
+ * `whole` (Start B whole, AJ's "2. a", Oct 13 2026): Routine B starts with
+ * EVERY swap made, so B is built the day it starts; the plan is the same
+ * plan, and B still follows A where a swap leaves A's machine.
  */
 export function startBPlan(input: {
   aRoutine: readonly string[];
@@ -638,6 +651,8 @@ export function startBPlan(input: {
   swaps: readonly PlanSwap[];
   who: { uid: string; name?: string };
   todayYmd: string;
+  /** Every swap in at once (Start B whole); absent, the first swap only. */
+  whole?: boolean;
 }): StartedB | null {
   const aRoutine = once(input.aRoutine);
   const swaps = usableSwaps({
@@ -662,6 +677,13 @@ export function startBPlan(input: {
     madeAt: input.todayYmd,
     ...(input.aPlan?.templateId ? { templateId: input.aPlan.templateId } : null),
   };
+  if (input.whole && swaps.length > 1) {
+    return {
+      plan,
+      machineIds: bRoutineOf(aRoutine, swaps, swaps.length),
+      change: { kind: "start", machineIds: swaps.flatMap((s) => [s.replaces, s.with]), value: B_START_WHOLE },
+    };
+  }
   return {
     plan,
     machineIds: bRoutineOf(aRoutine, swaps, 1),
