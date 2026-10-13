@@ -28,7 +28,8 @@ export interface SheetModel {
   reportRef: string;
 
   thanks?: {
-    sessions: string;
+    /** The number, or null when the session tile is off and the thank-you prints alone. */
+    sessions: string | null;
     /** "sessions" / "sessions in Journey". */
     sessionsWord: string;
     /** "since November 27, 2023", "2 a week, all year" … */
@@ -84,7 +85,7 @@ export function modelHas(model: SheetModel, m: ModuleId): boolean {
     case "goals":
       return !!model.goals && !!(model.goals.why || model.goals.last || model.goals.next);
     case "plan":
-      return (model.plan?.items.length ?? 0) > 0;
+      return (model.plan?.items.length ?? 0) > 0 || !!model.plan?.checkIn;
     case "coach":
       return !!model.coach?.text.trim();
   }

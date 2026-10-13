@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { planSheet, reportFocus } from "./sheet-from-report";
-import { BODY, EVERYDAY, FULL, NEW_CLIENT, OVERFULL } from "./sheet-fixtures";
+import { chosenFocus, planSheet, reportFocus } from "./sheet-from-report";
+import { BODY, EVERYDAY, FULL, NEW_CLIENT, OVERFULL, baseReport, choiceFor, inputsFor } from "./sheet-fixtures";
+import { emptyAssessment } from "../subjective-report/scoring";
 
 describe("a report as the one-page sheet", () => {
   it("prints everything ticked on A, condensed, with the biggest machines and how many there are", () => {
@@ -51,6 +52,64 @@ describe("a report as the one-page sheet", () => {
     const p = planSheet(OVERFULL);
     expect(p.fit.density).toBe(null);
     expect(p.fit.over).toBeGreaterThan(0);
+  });
+
+  it("never prints a focus nobody chose: the order is A goal to hit's, the line is empty", () => {
+    const p = planSheet(inputsFor(baseReport({ focus: undefined })));
+    expect(p.chosen).toBe(null);
+    expect(p.focus).toEqual({ kind: "goal" });
+    expect(p.model.focusLine).toBe(null);
+    expect(chosenFocus({}, { trainingFocus: { kind: "custom", words: "  " } })).toBe(null);
+  });
+
+  it("brings in what was written after an early save, unless the trainer took it off", () => {
+    const report = baseReport({ focus: { kind: "goal" }, pageChoice: { on: [], off: ["fourps"] } });
+    const rows = planSheet(inputsFor(report)).rows.flat();
+    expect(rows).toContain("coach");
+    expect(rows).toContain("goals");
+    expect(rows).not.toContain("fourps");
+  });
+
+  it("prints a Pulse the client answered even with no win to name, and none they didn't answer", () => {
+    const first = { ...emptyAssessment(), answers: { ...emptyAssessment().answers, strengthConfidence_1: { value: 5 } } };
+    const p = planSheet(inputsFor(baseReport({ focus: { kind: "everyday" } }), { pulse: { assessment: first, previous: null, date: "2026-10-06" } }));
+    expect(p.avail.pulse.has).toBe(true);
+    expect(p.model.pulse?.lines.length).toBeGreaterThan(0);
+    expect(p.screen.pulse).not.toBe(null);
+    const none = planSheet(inputsFor(baseReport(), { pulse: { assessment: { ...emptyAssessment(), coachSummary: "Only a summary." }, previous: null, date: "2026-10-06" } }));
+    expect(none.avail.pulse.has).toBe(false);
+  });
+
+  it("carries every Blueprint line to the plan, the check-in day even with nothing else", () => {
+    const report = baseReport({
+      roadmap: { trackType: "goals", smartGoal: "Pulldown 150 by spring", emotionalAnchor: "Carry the grandkids", targetMachineId: "pd", goalActions: [], machinePlan: "" },
+    });
+    const p = planSheet(inputsFor(report, { machineName: (id) => (id === "pd" ? "Pulldown" : null) }));
+    expect(p.screen.plan).toEqual(expect.arrayContaining(["Goal: Pulldown 150 by spring", "Why it matters: “Carry the grandkids”", "Target machine: Pulldown."]));
+    const onlyCheckIn = baseReport({
+      goals: { ...baseReport().goals!, checkpoints: [], followUpDate: "2027-01-11" },
+      roadmap: { trackType: "maintenance", selectedHabits: [] },
+    });
+    const q = planSheet(inputsFor(onlyCheckIn));
+    expect(q.avail.plan.has).toBe(true);
+    expect(q.model.plan).toMatchObject({ items: [], checkIn: "Next check-in January 11, 2027" });
+  });
+
+  it("prints the thank-you alone when the session tile is off", () => {
+    const report = baseReport({ attendance: { ...baseReport().attendance, toggles: { ...baseReport().attendance.toggles, totalSessions: false } } });
+    const p = planSheet(inputsFor(report, { }));
+    expect(p.rows.flat()).toContain("thanks");
+    expect(p.model.thanks).toMatchObject({ sessions: null });
+    expect(p.model.thanks?.quote).not.toBe("");
+  });
+
+  it("says nothing about the last report until it is known, and the studio's day for 'Since'", () => {
+    const unknown = planSheet(inputsFor(baseReport(), { previousReportDay: "unknown" }));
+    expect(unknown.model.subline).not.toContain("First report");
+    expect(unknown.model.subline).not.toContain("Last report");
+    // 7:30 PM Eastern on January 15 is already January 16 in UTC.
+    const evening = planSheet(inputsFor(baseReport(), { joined: new Date("2024-01-16T00:30:00Z") }));
+    expect(evening.model.subline).toContain("Since January 15, 2024");
   });
 
   it("prints with the report's own focus, else the client's, else a goal to hit", () => {

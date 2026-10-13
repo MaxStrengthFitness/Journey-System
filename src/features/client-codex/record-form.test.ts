@@ -317,4 +317,13 @@ describe("savePayload", () => {
     expect(out).toEqual({ goalHistory: [{ goal: "Walk", achievedAt: "2026-09-01" }] });
     expect("lastUpdatedBy" in out).toBe(false);
   });
+
+  it("saves Training for as chosen, and 'their own goal' with no words as none (Oct 13 2026)", () => {
+    const chosen = { trainingFocus: { kind: "custom", words: " Hike the Camino " } } as never;
+    expect(savePayload(["trainingFocus"], chosen, null)).toEqual({ trainingFocus: { kind: "custom", words: "Hike the Camino" } });
+    const empty = { trainingFocus: { kind: "custom", words: "  " } } as never;
+    expect(savePayload(["trainingFocus"], empty, null)).toEqual({ trainingFocus: null });
+    const cleared = { trainingFocus: null } as never;
+    expect(savePayload(["trainingFocus"], cleared, null)).toEqual({ trainingFocus: null });
+  });
 });

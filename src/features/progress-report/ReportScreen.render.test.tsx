@@ -10,7 +10,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { ReportScreen, screenRows } from "./ReportScreen";
 import { planSheet } from "./sheet-from-report";
-import { EVERYDAY, FULL, NEW_CLIENT, baseReport, inputsFor } from "./sheet-fixtures";
+import { EVERYDAY, FULL, NEW_CLIENT, baseReport, choiceFor, inputsFor } from "./sheet-fixtures";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -69,7 +69,7 @@ describe("the client view on screen", () => {
   it("adds the coaching focus history and the trainer's highlights to the 4 P's", () => {
     const report = baseReport({
       focus: { kind: "goal" },
-      modules: ["fourps"],
+      pageChoice: choiceFor("goal", ["fourps"]),
       focusSnapshot: [{ category: "Pace", status: "passed", weeks: 3, trainerInitials: "AR" }],
     });
     report.performanceMatrix = { ...report.performanceMatrix, includedNotes: ["Kept the lower turnaround slow all session."] };
@@ -80,7 +80,7 @@ describe("the client view on screen", () => {
   });
 
   it("shows the mastery word of each rated P and its bar, never a number, and leaves an unrated P off", () => {
-    const report = baseReport({ focus: { kind: "goal" }, modules: ["fourps"] });
+    const report = baseReport({ focus: { kind: "goal" }, pageChoice: choiceFor("goal", ["fourps"]) });
     report.performanceMatrix = {
       ...report.performanceMatrix,
       posture: { ...report.performanceMatrix.posture, score: 80, note: "Chin stayed tucked all set" },
@@ -101,7 +101,7 @@ describe("the client view on screen", () => {
   it("draws only the accolades with real data, and none at all for an old report's blank slots", () => {
     const blank = baseReport({
       focus: { kind: "goal" },
-      modules: ["accolades", "thanks"],
+      pageChoice: choiceFor("goal", ["accolades", "thanks"]),
       highlights: [
         { label: "", startValue: "", currentValue: "" },
         { label: "", metricType: "strength_gain" },
@@ -114,7 +114,7 @@ describe("the client view on screen", () => {
 
     const some = baseReport({
       focus: { kind: "goal" },
-      modules: ["accolades"],
+      pageChoice: choiceFor("goal", ["accolades"]),
       highlights: [
         { label: "", metricType: "strength_gain", percentageIncrease: 0 },
         { label: "Leg Press", machineId: "leg", percentageIncrease: 25, startValue: "100 lbs", currentValue: "125 lbs" },

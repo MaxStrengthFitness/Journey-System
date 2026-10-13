@@ -128,13 +128,15 @@ function ScreenModule({ id, plan, clientFirstName, machines }: { id: ModuleId; p
     case "thanks": {
       const t = model.thanks!;
       return (
-        <Panel id={id} title="Your sessions">
-          <div className="rsc-thanks" data-quote={t.quote ? "" : undefined}>
-            <div className="rsc-well rsc-sessions">
-              <span className="rsc-big">{t.sessions}</span>
-              <span className="rsc-sessions__word">{t.sessionsWord}</span>
-              {t.sessionsSub && <span className="rsc-sessions__sub">{t.sessionsSub}</span>}
-            </div>
+        <Panel id={id} title={t.sessions !== null ? "Your sessions" : "Thank you"}>
+          <div className="rsc-thanks" data-quote={t.quote && t.sessions !== null ? "" : undefined}>
+            {t.sessions !== null && (
+              <div className="rsc-well rsc-sessions">
+                <span className="rsc-big">{t.sessions}</span>
+                <span className="rsc-sessions__word">{t.sessionsWord}</span>
+                {t.sessionsSub && <span className="rsc-sessions__sub">{t.sessionsSub}</span>}
+              </div>
+            )}
             {t.quote && (
               <figure className="rsc-quote">
                 <blockquote className="rsc-quote__text">“{t.quote}”</blockquote>
@@ -357,11 +359,13 @@ function ScreenModule({ id, plan, clientFirstName, machines }: { id: ModuleId; p
       const pl = model.plan!;
       return (
         <Panel id={id} title={pl.title} aside={pl.checkIn}>
-          <ol className="rsc-plan">
-            {screen.plan.map((item, i) => (
-              <li key={i}>{item}</li>
-            ))}
-          </ol>
+          {screen.plan.length > 0 && (
+            <ol className="rsc-plan">
+              {screen.plan.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ol>
+          )}
         </Panel>
       );
     }

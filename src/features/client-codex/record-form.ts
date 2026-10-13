@@ -32,6 +32,7 @@
  * Pure: no React, no Firestore. record-form.test.ts.
  */
 import type { Client } from "../../types";
+import { focusOf } from "../progress-report/report-page";
 import { withoutUndefined } from "../studio-tasks/task-wizard";
 import {
   RECORD_ANCHORS,
@@ -341,7 +342,10 @@ export function savePayload(
   const out: Record<string, unknown> = {};
   for (const key of dirty) {
     if (!isRecordFormKey(key)) continue;
-    out[key] = (formData as Record<string, unknown>)[key];
+    const value = (formData as Record<string, unknown>)[key];
+    // Training for: "their own goal" with no words yet is no choice, so it is
+    // saved as none rather than a focus every reader ignores (Oct 13 2026).
+    out[key] = key === "trainingFocus" ? focusOf(value) : value;
   }
   if (trainerId) out.lastUpdatedBy = trainerId;
   return withoutUndefined(out);

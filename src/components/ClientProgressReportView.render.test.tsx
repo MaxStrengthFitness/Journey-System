@@ -316,10 +316,46 @@ describe("ClientProgressReportView — the session tile and a client's past", ()
     });
     const report = writeData.find((w) => w.path === "progressReports/report-of-bo")!.data;
     expect(report.focus).toEqual({ kind: "body" });
-    expect(Array.isArray(report.modules)).toBe(true);
+    // Untouched, the page keeps no list of its own: the focus's defaults follow the data.
+    expect(report.modules).toBeUndefined();
+    expect(report.pageChoice).toBeUndefined();
     const clientWrite = writeData.find((w) => w.path === "clients/client-bo")!.data;
     expect(Object.keys(clientWrite).sort()).toEqual(["trainingFocus", "updatedAt"]);
     expect(clientWrite.trainingFocus).toEqual({ kind: "body" });
+  });
+
+  it("never prints or saves a focus nobody chose, and never writes the client's focus without a pick (Oct 13 2026)", async () => {
+    nextRead = { kind: "report", data: { ...filed.data, status: "Draft" } };
+    await mountFor(bo, "complete");
+    const button = (re: RegExp) => [...host!.querySelectorAll("button")].find((b) => re.test(b.textContent ?? ""));
+    await act(async () => {
+      button(/^6\s*Page|^Page/)!.click();
+    });
+    expect(text()).toContain("No focus chosen yet");
+    expect(text()).not.toContain("Your focus:");
+    await act(async () => {
+      button(/^Save Draft/)!.click();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    const report = writeData.find((w) => w.path === "progressReports/report-of-bo")!.data;
+    expect(report.focus).toBeUndefined();
+    expect(writeData.find((w) => w.path === "clients/client-bo")).toBeUndefined();
+  });
+
+  it("keeps an old report's focus off the client's newer one when it is saved again untouched", async () => {
+    nextRead = { kind: "report", data: { ...filed.data, status: "Draft", focus: { kind: "everyday" } } };
+    await mountFor({ ...bo, trainingFocus: { kind: "body" } } as Client, "complete");
+    const button = (re: RegExp) => [...host!.querySelectorAll("button")].find((b) => re.test(b.textContent ?? ""));
+    await act(async () => {
+      button(/^Save Draft/)!.click();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(writeData.find((w) => w.path === "progressReports/report-of-bo")!.data.focus).toEqual({ kind: "everyday" });
+    expect(writeData.find((w) => w.path === "clients/client-bo")).toBeUndefined();
   });
 
   it("names the editor's count for what it is, too", async () => {

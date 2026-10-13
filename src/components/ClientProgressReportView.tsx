@@ -112,8 +112,8 @@ import { ReportSheet } from "../features/progress-report/ReportSheet";
 import { ReportScreen } from "../features/progress-report/ReportScreen";
 import { ReportPageStep } from "../features/progress-report/ReportPageStep";
 import { FocusPicker } from "../features/progress-report/FocusPicker";
-import { planSheet, reportFocus } from "../features/progress-report/sheet-from-report";
-import { focusOf } from "../features/progress-report/report-page";
+import { chosenFocus, planSheet } from "../features/progress-report/sheet-from-report";
+import { choiceAfter, focusOf, pageChoiceOf } from "../features/progress-report/report-page";
 import "../features/progress-report/report-sheet.css";
 
 /** Firestore Timestamp | Date | ISO string → "Jan 15, 2026", or null. */
@@ -376,6 +376,17 @@ export function ClientProgressReportView({
    */
   const [pulseRefs, setPulseRefs] = useState<PreviousAssessmentRef[]>([]);
   /**
+   * The client's finalized FULL reports from the same read (id and day,
+   * newest first), for the page's "Last report": the newest one on or before
+   * THIS report's day, so an old report never names a newer one. Null while
+   * the read is out or when it failed (the page then says nothing, never
+   * "First report"); `capped` when the read hit its limit, so a report older
+   * than the ten read can't be called the first.
+   */
+  const [fullReports, setFullReports] = useState<{ list: { id: string; date: string }[]; capped: boolean } | null>(null);
+  /** The trainer touched the focus picker in this sitting: only then does Save write the focus onto the client. */
+  const focusPicked = useRef(false);
+  /**
    * The Pulse snapshot: the client's most recent finalized Pulse, read
    * through the Pulse feature's own loader (reporting round). Read-only
    * here; the report never writes a Pulse again.
@@ -544,6 +555,10 @@ export function ClientProgressReportView({
         );
         const docs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as ProgressReport) }));
         if (cancelled) return;
+        setFullReports({
+          list: docs.filter((r) => r.status === "Finalized" && !r.isCheckInOnly).map((r) => ({ id: r.id!, date: r.date })),
+          capped: snap.size >= 10,
+        });
         // Every finalized Pulse, newest first — including this report's own
         // if it is a finalized check-in being promoted: that IS the newest.
         setPulseRefs(
@@ -801,7 +816,7 @@ export function ClientProgressReportView({
   /* The session tile's words (lib/history-claims.ts, Sep 24 2026): a
      twelve-year client used to be handed "3 Total Sessions · First Session
      Sep 2" - Journey's count and Journey's first day, as her whole story. */
-  const sessionWords = reportSessionWords(coverage, priorHistoryOf(client));
+  const sessionWords = useMemo(() => reportSessionWords(coverage, priorHistoryOf(client)), [coverage, client]);
 
   /* Only the window's sets are in memory (the history-ready round): a start
      moved earlier than what was read is counted once the read for it lands
@@ -892,14 +907,15 @@ export function ClientProgressReportView({
           ? focusSnapshotFrom(focuses, reportAsOf)
           : report.focusSnapshot;
 
-      // The page the report prints with is kept on it: its focus and its
-      // ticks, so a finalized report prints the same page later, whatever
-      // the client's focus or data become (report-page.ts).
-      const printedFocus = reportFocus(report, client);
+      // The report keeps the focus a trainer chose (its own, else the
+      // client's), so a finalized report prints with it later, whatever the
+      // client's focus becomes; never the fallback order nobody chose. The
+      // page's ticks stay what the trainer changed (`pageChoice`), never a
+      // frozen list (report-page.ts).
+      const printedFocus = chosenFocus(report, client) ?? undefined;
       const sanitizedReport = removeUndefined({
         ...reportWithoutPulse,
         focus: printedFocus,
-        modules: sheetPlan.ticked,
         highlights: padSlots(report.highlights),
         focusSnapshot,
         previousReportId: previousReport?.reportId ?? report.previousReportId ?? null,
@@ -927,15 +943,16 @@ export function ClientProgressReportView({
         reportId = docRef.id;
         setReportState((prev) => ({ ...prev, id: docRef.id }));
       }
-      setReportState((prev) => ({ ...prev, focusSnapshot, focus: printedFocus, modules: sheetPlan.ticked }));
+      setReportState((prev) => ({ ...prev, focusSnapshot, focus: printedFocus }));
       setSavedEditCount(editsBeingSaved);
 
       // The focus lives on the client too (AJ, Oct 13 2026: "studios need to
       // know the goals of their clients"): the profile, the briefing and the
       // next report read it. One field, never the whole client, and nothing
-      // waits on it.
+      // waits on it. Only a focus picked in this sitting: re-saving an old
+      // report never puts its focus back over the client's newer one.
       const chosen = focusOf(report.focus);
-      if (chosen && JSON.stringify(chosen) !== JSON.stringify(focusOf(client.trainingFocus))) {
+      if (focusPicked.current && chosen && JSON.stringify(chosen) !== JSON.stringify(focusOf(client.trainingFocus))) {
         updateDoc(doc(db, "clients", client.id), { trainingFocus: chosen, updatedAt: serverTimestamp() }).catch((err) =>
           console.warn("The client's training focus was not saved:", err),
         );
@@ -979,11 +996,21 @@ export function ClientProgressReportView({
     studioCtx?.studios.find((s) => s.id === homeStudioId)?.name ?? studioCtx?.activeStudio?.name ?? "Max Strength";
   const inbody = useInBodyScans(client.id ?? null);
   const sheetPlan = useMemo(() => {
+    const day = (d: string | null | undefined) => (d ?? "").slice(0, 10);
+    // A Pulse taken after this report is not this report's (an older report
+    // opened today must not print today's Pulse): the newest finalized one on
+    // or before its day, from the same bounded read, else none.
+    const onOrBefore = () => {
+      const i = pulseRefs.findIndex((r) => day(r.date) <= day(report.date));
+      return i < 0 ? null : { assessment: pulseRefs[i].assessment, previous: pulseRefs[i + 1] ?? null, date: pulseRefs[i].date };
+    };
     const pulse = report.subjective
       ? { assessment: report.subjective, previous: previousPulseForReport, date: report.subjective.completedAt || report.date }
       : pulseSnapshot.status === "ready"
         ? pulseSnapshot.pulse
-          ? { assessment: pulseSnapshot.pulse.assessment, previous: pulseSnapshot.previous, date: pulseSnapshot.pulse.date }
+          ? day(pulseSnapshot.pulse.date) <= day(report.date)
+            ? { assessment: pulseSnapshot.pulse.assessment, previous: pulseSnapshot.previous, date: pulseSnapshot.pulse.date }
+            : onOrBefore()
           : null
         : pulseSnapshot.status === "loading"
           ? ("reading" as const)
@@ -996,12 +1023,18 @@ export function ClientProgressReportView({
       coachRole: report.trainerId === trainer.id && trainer.role ? ROLE_LABELS[trainer.role] : null,
       sessionWords,
       joined: reportJoinedDate(client, report.attendance.firstSessionDate, coverage),
-      previousReportDay: previousReport?.date ?? null,
+      previousReportDay: (() => {
+        if (!fullReports) return "unknown" as const;
+        const before = fullReports.list.find((r) => r.id !== report.id && r.date <= report.date);
+        if (before) return before.date;
+        return fullReports.capped ? ("unknown" as const) : null;
+      })(),
+      machineName: (id: string) => machines.find((m) => m.id === id)?.name ?? null,
       scans: inbody.loading ? null : inbody.error ? "failed" : inbody.scans,
       variation: inbodyVariation,
       pulse,
     });
-  }, [report, client, studioName, trainer, sessionWords, coverage, previousReport, inbody, inbodyVariation, pulseSnapshot, previousPulseForReport]);
+  }, [report, client, studioName, trainer, sessionWords, coverage, fullReports, machines, inbody, inbodyVariation, pulseSnapshot, pulseRefs, previousPulseForReport]);
 
   if (existingReportId && existingStatus !== "ready") {
     const clientName = [client.firstName, client.lastName].filter(Boolean).join(" ");
@@ -1220,7 +1253,11 @@ We check in again on ${shortDate(report.goals.followUpDate)}.` : "") +
   const filledSlotKeys = editorSlots.map((s) => (reportCards([s]).length > 0 ? slotKey(s) : ""));
   const openSlotCount = editorSlots.filter((s) => isOpenSlot(s) && !s.suggested).length;
   return (
-    <div className="min-h-screen bg-(--pr-navy) p-4 sm:p-8 lg:p-12 overflow-y-auto">
+    <div data-print-root className="min-h-screen bg-(--pr-navy) p-4 sm:p-8 lg:p-12 overflow-y-auto">
+      {/* Printing from the editor prints the page as it stands (it printed a blank page). */}
+      <div className="rs-print-only" aria-hidden="true">
+        <ReportSheet model={sheetPlan.model} />
+      </div>
       <div className="max-w-4xl mx-auto space-y-8 pb-32">
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[color-mix(in_srgb,white_5%,var(--pr-navy))] p-6 rounded-3xl border border-white/10 no-print print:hidden sticky top-4 z-50">
           <div className="flex items-center gap-4">
@@ -1277,7 +1314,7 @@ We check in again on ${shortDate(report.goals.followUpDate)}.` : "") +
                   rankFromScore(report.performanceMatrix[k]?.score) !== null,
               ),
             goals: !!report.goals?.nextGoal,
-            page: !!report.modules,
+            page: sheetPlan.rows.length > 0,
           }}
         />
 
@@ -1293,7 +1330,10 @@ We check in again on ${shortDate(report.goals.followUpDate)}.` : "") +
             {/* Why they train: it leads the printed page (Oct 13 2026). */}
             <FocusPicker
               value={report.focus ?? client.trainingFocus ?? null}
-              onChange={(focus) => setReport((r) => ({ ...r, focus }))}
+              onChange={(focus) => {
+                focusPicked.current = true;
+                setReport((r) => ({ ...r, focus }));
+              }}
               firstName={client.firstName}
             />
 
@@ -2025,7 +2065,12 @@ We check in again on ${shortDate(report.goals.followUpDate)}.` : "") +
                 <Printer className="w-6 h-6" />
                 {REPORT_STEPS[STEP_INDEX.page].title}
               </h2>
-              <ReportPageStep plan={sheetPlan} onChange={(modules) => setReport((r) => ({ ...r, modules }))} />
+              <ReportPageStep
+                plan={sheetPlan}
+                onToggle={(m, tick) =>
+                  setReport((r) => ({ ...r, pageChoice: choiceAfter(pageChoiceOf(r.pageChoice), sheetPlan.focus.kind, m, tick) }))
+                }
+              />
             </section>
           )}
 

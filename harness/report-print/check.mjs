@@ -12,6 +12,10 @@
  *   node harness/report-print/check.mjs            every sample
  *   node harness/report-print/check.mjs FULL BODY  just these
  *
+ * A name ending "@app" prints that sample from inside the app's own shell
+ * (main.tsx &app=1): the header and the padding around the report must not
+ * push the sheet onto a second page.
+ *
  * Writes each PDF to %TEMP%\journey-report-print\ to look at. Exit 1 when a
  * sample prints past one page. Chrome only: Safari on an iPad is its own
  * printer, so walk one real print from an iPad too.
@@ -24,7 +28,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { connectPage, launchChrome } from "../perf-lab/cdp.mjs";
 
 const here = resolve(import.meta.dirname);
-const ALL = ["FULL", "EVERYDAY", "BODY", "NEW_CLIENT", "OVERFULL"];
+const ALL = ["FULL", "EVERYDAY", "BODY", "NEW_CLIENT", "OVERFULL", "FULL@app", "BODY@app"];
 const names = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 const out = join(tmpdir(), "journey-report-print");
 mkdirSync(out, { recursive: true });
@@ -42,7 +46,8 @@ let failed = 0;
 try {
   for (const name of names) {
     const loaded = page.once("Page.loadEventFired");
-    await page.send("Page.navigate", { url: `${base}?f=${name}${process.env.REPORT_PRINT_ROWS ? "&raw=1" : ""}` });
+    const [fixture, where] = name.split("@");
+    await page.send("Page.navigate", { url: `${base}?f=${fixture}${where === "app" ? "&app=1" : ""}${process.env.REPORT_PRINT_ROWS ? "&raw=1" : ""}` });
     await loaded;
     await evaluate("document.fonts.ready.then(() => true)");
     let state = null;
@@ -59,10 +64,10 @@ try {
       console.log(rows.split("\n").map((r) => `      ${r}`).join("\n"));
     }
     const shot = await page.send("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: 739, height: 979, scale: 1 } });
-    writeFileSync(join(out, `${name}.png`), Buffer.from(shot.data, "base64"));
+    writeFileSync(join(out, `${name.replace("@", "-")}.png`), Buffer.from(shot.data, "base64"));
     const pdf = await page.send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true });
     const bytes = Buffer.from(pdf.data, "base64");
-    writeFileSync(join(out, `${name}.pdf`), bytes);
+    writeFileSync(join(out, `${name.replace("@", "-")}.pdf`), bytes);
     const pages = (bytes.toString("latin1").match(/\/Type\s*\/Page(?![s\w])/g) ?? []).length;
     const m = state?.measured;
     const drew = m
@@ -70,7 +75,7 @@ try {
       : "not measured";
     const estimate = state?.estimate === "over" ? `over by ${state.over}px` : state?.estimate;
     // OVERFULL is the trainer who wrote too much: it must run on (and say so), never lose its end.
-    const ok = name === "OVERFULL" ? pages > 1 && !!m?.flows : pages === 1;
+    const ok = fixture === "OVERFULL" ? pages > 1 && !!m?.flows : pages === 1;
     if (!ok) failed += 1;
     console.log(`${ok ? "ok  " : "FAIL"} ${name.padEnd(11)} ${pages} page${pages === 1 ? "" : "s"} · estimate ${estimate} · drawn ${drew}`);
   }

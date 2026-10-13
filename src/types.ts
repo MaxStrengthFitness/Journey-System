@@ -1867,14 +1867,16 @@ export interface ProgressReport {
 
   /**
    * The one-page client copy (Oct 13 2026; AJ: "it kind of needs to be
-   * modular"). Why this client trains as the report was written (copied from
-   * and to `clients/{id}.trainingFocus`), and the modules the trainer ticked
-   * for the page, in no order (the focus orders them). Absent on reports from
-   * before: they print from the focus's defaults. features/progress-report/
-   * report-page.ts is the rule.
+   * modular"). Why this client trains, as a trainer chose it (copied from
+   * and to `clients/{id}.trainingFocus`; absent when nobody has chosen one),
+   * and what the trainer changed on the page: the modules ticked beyond the
+   * focus's defaults (`on`) and the defaults unticked (`off`), never the
+   * whole list, so a module that gains data later comes in by itself. Absent
+   * on reports from before: they print from the focus's defaults.
+   * features/progress-report/report-page.ts is the rule.
    */
   focus?: { kind: "everyday" | "pain-free" | "body" | "goal" | "custom"; words?: string };
-  modules?: string[];
+  pageChoice?: { on: string[]; off: string[] };
 
   createdAt: any;
 }

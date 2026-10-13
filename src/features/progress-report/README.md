@@ -252,13 +252,20 @@ get this all on 1 page". Round document:
   composition, a goal to hit, their own goal in words), the ten modules, each
   focus's order and pairs (`ROWS`) and its defaults (`DEFAULTS`). The focus is
   the report's (`focus`), else the client's (`clients/{id}.trainingFocus`, set
-  on Goals & Focus → Training for or by the report's Save), else A goal to hit
-  (`reportFocus`).
+  on Goals & Focus → Training for or by the report's Save): `chosenFocus`.
+  With neither, the page follows A goal to hit's order (`reportFocus`) and
+  prints no focus, and nothing saves one. Save writes the focus onto the
+  client only when the trainer picked it in that sitting, so re-saving an old
+  report never puts its focus over the client's newer one.
 - **The trainer ticks** what is on the page (the sixth step, The printed page,
   `ReportPageStep`), starting from the focus's defaults where the data has
   something to say; a module it can't fill says why and can't be ticked. The
-  ticks are the report's `modules`, so a finalized report prints the same page
-  later. A read that failed is "couldn't read", never "none".
+  report keeps only what the trainer changed (`pageChoice`: modules ticked on
+  beyond the defaults, defaults ticked off; `choiceAfter`, `tickedModules`),
+  never the whole list: a whole list saved with an early draft froze the page,
+  so a closing note or a goal written later, or an InBody read still out at
+  the save, never reached it. A read that failed is "couldn't read", never
+  "none".
 - **The page** (`ReportSheet.tsx`, `report-sheet.css`): US Letter less a 0.4in
   margin, the frame's navy band on white paper. `fitPage` estimates roomy,
   then condensed, then a little smaller (to 88%); the drawn sheet measures
@@ -275,5 +282,15 @@ get this all on 1 page". Round document:
   `harness/report-print/shots.mjs` photographs it.
 - **Words**: nothing the trainer didn't write; "since your first session" only
   when Journey holds the whole story and the count starts there; a body change
-  inside the scanner's variation is "about the same".
+  inside the scanner's variation is "about the same"; "Since" is the studio's
+  day, from the day a person confirmed first (`firstStudioDay`); "Last report"
+  is the newest full report on or before this one's day, and nothing at all
+  while that read is out or failed (never "First report"); a report prints
+  the newest Pulse on or before its own day, and a Pulse the client answered
+  even with no win to name.
+- **Printing from inside the app**: the app's print rules keep the header's
+  space (see `docs/KNOWN-TRAPS.md`, Layout and CSS), so `report-sheet.css`
+  takes everything but the report out of the layout; `check.mjs` prints two
+  samples inside a stand-in of the shell (`@app`). The editor prints the page
+  too (it printed a blank page).
 

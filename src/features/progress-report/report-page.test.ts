@@ -12,14 +12,18 @@ import {
   fitPage,
   focusLine,
   focusOf,
+  choiceAfter,
+  pageChoiceOf,
   pageOrder,
   pageRows,
+  tickedModules,
   type PageContent,
   type PageFacts,
 } from "./report-page";
 
 const everything: PageFacts = {
   sessions: 213,
+  narrative: true,
   statTiles: 4,
   accolades: 3,
   machines: 14,
@@ -97,6 +101,35 @@ describe("the modules", () => {
     const a = availability({ ...everything, bodyScans: 0 });
     expect(defaultModules("body", a)).toEqual(["thanks", "machines", "accolades", "goals", "plan", "coach"]);
     expect(defaultModules("everyday", availability(everything))).toEqual(["thanks", "pulse", "machines", "goals", "plan", "coach"]);
+  });
+
+  it("prints the thank-you without the session number, and nothing when neither is there", () => {
+    expect(availability({ ...everything, sessions: null }).thanks.has).toBe(true);
+    expect(availability({ ...everything, sessions: null, narrative: false }).thanks.has).toBe(false);
+  });
+
+  it("keeps the trainer's changes, never a frozen list: what gains data later comes in by itself", () => {
+    // Saved early: the closing note not written yet, the 4 P's taken off.
+    const early = availability({ ...everything, coach: false });
+    const choice = choiceAfter(null, "goal", "fourps", false);
+    expect(choice).toEqual({ on: [], off: ["fourps"] });
+    expect(tickedModules("goal", early, choice)).not.toContain("coach");
+    // Written later: on the page with no tick, and the 4 P's still off.
+    const later = availability(everything);
+    expect(tickedModules("goal", later, choice)).toContain("coach");
+    expect(tickedModules("goal", later, choice)).not.toContain("fourps");
+    // InBody, not a default for this focus, ticked on while its read is out: on the page once it answers.
+    const reading = availability({ ...everything, bodyScans: null });
+    const withBody = choiceAfter(choice, "goal", "body", true);
+    expect(tickedModules("goal", reading, withBody)).not.toContain("body");
+    expect(tickedModules("goal", later, withBody)).toContain("body");
+    // Unticking what was ticked on, and ticking a default back, leave no trace.
+    expect(choiceAfter(choiceAfter(withBody, "goal", "body", false), "goal", "fourps", true)).toEqual({ on: [], off: [] });
+  });
+
+  it("reads a stored choice safely", () => {
+    expect(pageChoiceOf(undefined)).toBe(null);
+    expect(pageChoiceOf({ on: ["body", "nope"], off: "fourps" })).toEqual({ on: ["body"], off: [] });
   });
 
   it("prints only ticked modules the data still has, pairing side by side only what both print", () => {

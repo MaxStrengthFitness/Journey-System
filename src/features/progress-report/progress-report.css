@@ -514,19 +514,3 @@
 .pr-page__module--none .pr-page__box { border-color: var(--pr-border-strong); }
 .pr-page__why { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--pr-ink-muted); }
 .pr-page__preview { overflow: hidden; border-radius: 12px; border: 1px solid var(--pr-border-strong); background: var(--pr-sheet-paper); }
-
-/* ------------------------------------------------------------------ */
-/* PRINT                                                               */
-/* ------------------------------------------------------------------ */
-
-@media print {
-  .pr-pcard {
-    background: var(--pr-print-card) !important;
-    border-color: var(--pr-print-border) !important;
-    color: var(--pr-navy) !important;
-  }
-  .pr-pcard__word[data-tone="live"],
-  .pr-pcard__word:not([data-tone]) { color: var(--pr-navy) !important; }
-  .pr-pcard__note { background: #ffffff !important; color: var(--pr-navy) !important; border-color: var(--pr-print-border) !important; }
-  .pr-pcard__bar > span { background: var(--pr-print-border); }
-}

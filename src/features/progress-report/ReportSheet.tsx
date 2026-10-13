@@ -154,11 +154,13 @@ function SheetModule({ id, model, density, alone }: { id: ModuleId; model: Sheet
       return (
         <section className="rs-mod" data-module="thanks">
           <div className="rs-thanks">
-            <div className="rs-sessions">
-              <span className="rs-sessions__n">{t.sessions}</span>
-              <span className="rs-sessions__word">{t.sessionsWord}</span>
-              {t.sessionsSub && <span className="rs-sessions__sub">{t.sessionsSub}</span>}
-            </div>
+            {t.sessions !== null && (
+              <div className="rs-sessions">
+                <span className="rs-sessions__n">{t.sessions}</span>
+                <span className="rs-sessions__word">{t.sessionsWord}</span>
+                {t.sessionsSub && <span className="rs-sessions__sub">{t.sessionsSub}</span>}
+              </div>
+            )}
             {t.quote && (
               <div className="rs-card rs-quote">
                 <p className="rs-quote__text">“{t.quote}”</p>
@@ -277,10 +279,10 @@ function SheetModule({ id, model, density, alone }: { id: ModuleId; model: Sheet
           <section className="rs-mod" data-module="body">
             <Title title={b.title} aside={b.sub} />
             <div className="rs-bodytiles">
-              {b.cells.map((c, i) => (
-                <div key={c.label} className={i === 0 ? "rs-card rs-bodytile rs-bodytile--lead" : "rs-card rs-bodytile"}>
+              {b.cells.map((c) => (
+                <div key={c.label} className="rs-card rs-bodytile">
                   <p className="rs-label">{c.label}</p>
-                  <p className="rs-big rs-bodytile__change" data-tone={i === 0 ? undefined : c.tone}>
+                  <p className="rs-big rs-bodytile__change" data-tone={c.tone}>
                     {c.change}
                   </p>
                   <p className="rs-bodytile__from">{c.from ? `${c.from} → ${c.now}` : c.now}</p>
@@ -404,11 +406,13 @@ function SheetModule({ id, model, density, alone }: { id: ModuleId; model: Sheet
               <p className="rs-label">{pl.title}</p>
               {pl.checkIn && <p className="rs-plan__checkin">{pl.checkIn}</p>}
             </div>
-            <ol>
-              {pl.items.map((it, i) => (
-                <li key={i}>{it}</li>
-              ))}
-            </ol>
+            {pl.items.length > 0 && (
+              <ol>
+                {pl.items.map((it, i) => (
+                  <li key={i}>{it}</li>
+                ))}
+              </ol>
+            )}
           </div>
         </section>
       );

@@ -62,6 +62,7 @@ export function TrainingForCard({ value, updateField, canEdit, dirty, revision, 
               maxLength={120}
               placeholder="e.g. Hike the Camino in May"
               onChange={(words) => set({ kind: "custom", words })}
+              hint={value.words?.trim() ? undefined : "Type their goal to choose it: with no words it is saved as not chosen."}
             />
           )}
           <Meta>Nothing is saved until you tap Save changes on the bar at the bottom.</Meta>

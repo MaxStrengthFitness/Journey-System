@@ -13,7 +13,12 @@ import type { SheetPlan } from "./sheet-from-report";
 const SHEET_W = 739;
 const SHEET_H = 979;
 
-export function ReportPageStep({ plan, onChange }: { plan: SheetPlan; onChange: (ticked: ModuleId[]) => void }) {
+/**
+ * `onToggle` says which module the trainer ticked or unticked: the report
+ * keeps only those changes against the focus's defaults (report-page.ts
+ * `choiceAfter`), so a module that gains data later comes in by itself.
+ */
+export function ReportPageStep({ plan, onToggle }: { plan: SheetPlan; onToggle: (m: ModuleId, tick: boolean) => void }) {
   const [measure, setMeasure] = useState<SheetMeasure | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -34,10 +39,7 @@ export function ReportPageStep({ plan, onChange }: { plan: SheetPlan; onChange: 
   }, []);
 
   const ticked = new Set(plan.ticked);
-  const toggle = (m: ModuleId) => {
-    const next = ticked.has(m) ? plan.ticked.filter((x) => x !== m) : [...plan.ticked, m];
-    onChange(pageOrder(plan.focus.kind).filter((x) => next.includes(x)));
-  };
+  const toggle = (m: ModuleId) => onToggle(m, !ticked.has(m));
   const line = measure
     ? fitLine({ density: measure.flows ? null : measure.density, scale: measure.scale, over: measure.flows ? Math.max(plan.fit.over, 18) : 0 })
     : fitLine(plan.fit);
@@ -47,7 +49,15 @@ export function ReportPageStep({ plan, onChange }: { plan: SheetPlan; onChange: 
     <div className="pr-page">
       <div className="pr-page__list">
         <p className="pr-page__focus">
-          Led by the focus: <b>{FOCUS_LABELS[plan.focus.kind]}</b>
+          {plan.chosen ? (
+            <>
+              Led by the focus: <b>{FOCUS_LABELS[plan.chosen.kind]}</b>
+            </>
+          ) : (
+            <>
+              No focus chosen yet (the first step): the page follows <b>{FOCUS_LABELS.goal}</b>'s order and prints no focus.
+            </>
+          )}
         </p>
         <p className="pr-page__fit" data-runs-on={runsOn || undefined} role="status">
           {line}

@@ -47,6 +47,9 @@ export function FocusPicker({
             placeholder="e.g. Hike the Camino in May"
             onChange={(e) => onChange({ kind: "custom", words: e.target.value })}
           />
+          {!value.words?.trim() && (
+            <span className="pr-focus__hint">Type their goal to use it: until then the page follows A goal to hit's order and prints no focus.</span>
+          )}
         </label>
       )}
     </div>

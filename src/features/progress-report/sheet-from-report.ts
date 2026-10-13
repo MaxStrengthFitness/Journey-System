@@ -17,12 +17,12 @@ import { snapshotLine } from "./focus-history";
 import {
   MACHINE_ROWS,
   availability,
-  defaultModules,
   fitPage,
   focusLine,
   focusOf,
-  isModuleId,
+  pageChoiceOf,
   pageRows,
+  tickedModules,
   type Availability,
   type Density,
   type Fit,
@@ -35,7 +35,8 @@ import type { SheetModel, SheetTone } from "./sheet-model";
 import type { InBodyScan } from "../inbody/types";
 import { changeBetween, changeTone, formatChange, formatMeasure, reportInBody, type MeasureKey } from "../inbody/scans";
 import { callChange, type InBodyVariation } from "../inbody/variation";
-import { summarize, type PreviousAssessmentRef } from "../subjective-report/scoring";
+import { answeredCount, summarize, type PreviousAssessmentRef } from "../subjective-report/scoring";
+import { studioDateKey } from "../../lib/studio-time";
 import type { SubjectiveAssessment } from "../subjective-report/types";
 
 export interface SheetInputs {
@@ -46,10 +47,12 @@ export interface SheetInputs {
   coachRole: string | null;
   /** The session tile's words (history-claims.ts reportSessionWords). */
   sessionWords: ReportSessionWords;
-  /** The day Mindbody says the client started (joined.ts), when known. */
+  /** The day the client started (joined.ts), when known. */
   joined: Date | null;
-  /** The previous finalized report's day, or null for a first report. */
-  previousReportDay: string | null;
+  /** The previous finalized report's day; null for a first report; "unknown" while it is read, when the read failed, or when it isn't among the reports read. */
+  previousReportDay: string | null | "unknown";
+  /** A machine's name by its id, for the plan's target machine. */
+  machineName?: (id: string) => string | null;
   /** The client's InBody scans; null while they are read, "failed" when the read failed. */
   scans: InBodyScan[] | null | "failed";
   variation: InBodyVariation;
@@ -58,9 +61,12 @@ export interface SheetInputs {
 }
 
 export interface SheetPlan {
+  /** The order the page follows: the focus chosen, else A goal to hit's. */
   focus: TrainingFocus;
+  /** The focus a trainer chose (the report's, else the client's); null when nobody has. Only this one is ever printed or saved. */
+  chosen: TrainingFocus | null;
   avail: Record<ModuleId, Availability>;
-  /** What is ticked (the report's own list, else the focus's defaults the data has). */
+  /** What is ticked: the focus's defaults the data has, with the trainer's changes (`pageChoice`). */
   ticked: ModuleId[];
   rows: ModuleId[][];
   fit: Fit;
@@ -115,9 +121,18 @@ const clean = (s: string | null | undefined) => (typeof s === "string" ? s.trim(
 
 const fromPTone = (t: PTone): SheetTone => (t === "ok-strong" ? "ok" : t === "none" ? "plain" : t);
 
-/** The focus the report prints with: its own, else the client's, else A goal to hit. */
+/**
+ * The focus a trainer chose for this report: its own, else the client's.
+ * Null when nobody has chosen one: the page then follows A goal to hit's
+ * order (`reportFocus`) but never prints it, and nothing saves it.
+ */
+export function chosenFocus(report: Pick<ProgressReport, "focus">, client: Pick<Client, "trainingFocus">): TrainingFocus | null {
+  return focusOf(report.focus) ?? focusOf(client.trainingFocus);
+}
+
+/** The order the page follows: the chosen focus, else A goal to hit's. */
 export function reportFocus(report: Pick<ProgressReport, "focus">, client: Pick<Client, "trainingFocus">): TrainingFocus {
-  return focusOf(report.focus) ?? focusOf(client.trainingFocus) ?? { kind: "goal" };
+  return chosenFocus(report, client) ?? { kind: "goal" };
 }
 
 /* ------------------------------------------------------------------ */
@@ -146,18 +161,32 @@ function machineRows(report: ProgressReport) {
   return mp.includedMachineIds.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
 }
 
-function planItems(report: ProgressReport): string[] {
+/**
+ * Everything the trainer wrote on the Blueprint step, in the order the client
+ * reads a plan: the checkpoints, then the track's own lines. A line the goals
+ * module already says (the SMART goal as the next goal, the anchor as the why
+ * they started) is not said twice.
+ */
+function planItems(report: ProgressReport, machineName?: (id: string) => string | null): string[] {
   const items: string[] = [];
   for (const c of report.goals?.checkpoints ?? []) if (clean(c.text)) items.push(clean(c.text));
   const rm = report.roadmap;
+  const target = rm?.targetMachineId && machineName ? clean(machineName(rm.targetMachineId)) : "";
+  const same = (a: string, b: string | null | undefined) => a.toLowerCase() === clean(b).toLowerCase();
   if (rm?.trackType === "maintenance") {
     for (const h of rm.selectedHabits ?? []) if (clean(h) && h !== "Other") items.push(clean(h));
     if (rm.routineChangeRequested && clean(rm.routineModifications)) items.push(clean(rm.routineModifications));
   } else if (rm?.trackType === "goals") {
+    const smart = clean(rm.smartGoal);
+    if (smart && !same(smart, report.goals?.nextGoal)) items.push(`Goal: ${smart}`);
+    const anchor = clean(rm.emotionalAnchor);
+    if (anchor && !same(anchor, report.goals?.originalWhy)) items.push(`Why it matters: “${anchor}”`);
+    if (target) items.push(`Target machine: ${target}.`);
     for (const g of rm.goalActions ?? []) if (clean(g)) items.push(clean(g));
     if (clean(rm.machinePlan)) items.push(clean(rm.machinePlan));
   } else if (rm?.trackType === "refinement") {
     if (clean(rm.refinementFocusArea)) items.push(`Focus on ${clean(rm.refinementFocusArea)}.`);
+    if (target) items.push(`Target machine: ${target}.`);
     if (clean(rm.routineIntervention)) items.push(clean(rm.routineIntervention));
   }
   return items;
@@ -217,45 +246,47 @@ function pulseLines(assessment: SubjectiveAssessment, previous: PreviousAssessme
 
 export function planSheet(input: SheetInputs): SheetPlan {
   const { report } = input;
-  const focus = reportFocus(report, input.client);
+  const chosen = chosenFocus(report, input.client);
+  const focus: TrainingFocus = chosen ?? { kind: "goal" };
   const tiles = statTiles(report);
   const cards = reportCards(report.highlights);
   const mrows = machineRows(report);
   const rated = FOUR_PS.filter((p) => rankFromScore(report.performanceMatrix?.[p]?.score) !== null);
   const body = Array.isArray(input.scans) ? bodyCells(input.scans, report.date, input.variation) : null;
-  const printedPulse = input.pulse && typeof input.pulse === "object" ? input.pulse : null;
-  const pulse = printedPulse ? pulseLines(printedPulse.assessment, printedPulse.previous) : [];
+  // A Pulse prints when the client answered anything (as the old client copy
+  // did); its lines are the win, the one thing to work on and the summary,
+  // and a first Pulse with none of those still says it is on file.
+  const printedPulse = input.pulse && typeof input.pulse === "object" && answeredCount(input.pulse.assessment) > 0 ? input.pulse : null;
+  const pulseFound = printedPulse ? pulseLines(printedPulse.assessment, printedPulse.previous) : [];
+  const pulse = printedPulse && pulseFound.length === 0 ? [{ label: null, text: "Your Pulse is on file with the coaching team." }] : pulseFound;
   const g = report.goals;
   const why = clean(g?.originalWhy);
   const lastGoal = clean(g?.previousGoal);
   const nextGoal = clean(g?.nextGoal);
-  const planAll = planItems(report);
+  const planAll = planItems(report, input.machineName);
+  const checkIn = g?.followUpDate ? `Next check-in ${longDay(g.followUpDate)}` : null;
   const plan = planAll.slice(0, PLAN_ITEMS_ON_PAGE);
   const coach = clean(report.trainerNotes);
   const sessions = report.attendance.toggles?.totalSessions === false ? null : realStat(report.attendance.totalSessions);
 
+  const narrative = clean(report.attendance.narrative);
   const facts: PageFacts = {
     sessions,
+    narrative: !!narrative,
     statTiles: tiles.length,
     accolades: cards.length,
     machines: mrows.length,
     ratedPs: rated.length,
     bodyScans: input.scans === null ? null : input.scans === "failed" ? "failed" : body?.count ?? 0,
-    pulse: input.pulse === "reading" ? null : input.pulse === "failed" ? "failed" : pulse.length > 0,
+    pulse: input.pulse === "reading" ? null : input.pulse === "failed" ? "failed" : !!printedPulse,
     goals: !!(why || lastGoal || nextGoal),
-    plan: plan.length > 0,
+    plan: plan.length > 0 || !!checkIn,
     coach: !!coach,
   };
   const avail = availability(facts);
-  const stored = (report.modules ?? []).filter(isModuleId);
   // A Pulse-only report is its Pulse and nothing else, as it always was.
-  const ticked = report.isCheckInOnly
-    ? (["pulse"] as ModuleId[])
-    : report.modules
-      ? stored
-      : defaultModules(focus.kind, avail);
+  const ticked = report.isCheckInOnly ? (["pulse"] as ModuleId[]) : tickedModules(focus.kind, avail, pageChoiceOf(report.pageChoice));
   const rows = pageRows(focus.kind, ticked, avail);
-  const narrative = clean(report.attendance.narrative);
   const content: PageContent = {
     narrativeChars: narrative.length,
     machineRows: mrows.length,
@@ -267,7 +298,7 @@ export function planSheet(input: SheetInputs): SheetPlan {
     goals: { why: why.length, last: lastGoal.length, lastNote: clean(g?.previousGoalNote).length, next: nextGoal.length },
     planItems: plan.map((it) => it.length),
     coachChars: coach.length,
-    hasFocusLine: true,
+    hasFocusLine: !!chosen,
   };
   const fit = fitPage(rows, content);
   const density: Density = fit.density ?? "condensed";
@@ -286,8 +317,10 @@ export function planSheet(input: SheetInputs): SheetPlan {
   const wholeStory = !custom && words.first !== "Since";
   // One line beside the coach's name: short words, so it never wraps.
   const subParts = [
-    input.joined ? `Since ${longDay(input.joined.toISOString().slice(0, 10))}` : null,
-    input.previousReportDay ? `Last report ${longDay(input.previousReportDay)}` : "First report",
+    // The studio's day, never the UTC one (a first visit at 7:30 PM is that day).
+    input.joined ? `Since ${longDay(studioDateKey(input.joined))}` : null,
+    // A read that hasn't answered says nothing, never "First report".
+    input.previousReportDay === "unknown" ? null : input.previousReportDay ? `Last report ${longDay(input.previousReportDay)}` : "First report",
   ].filter(Boolean);
 
   const model: SheetModel = {
@@ -297,13 +330,13 @@ export function planSheet(input: SheetInputs): SheetPlan {
     dateLabel: longDay(report.date) ?? report.date,
     clientName: `${input.client.firstName} ${input.client.lastName}`.trim(),
     subline: subParts.join(" · ") || null,
-    focusLine: focusLine(focus),
+    focusLine: focusLine(chosen),
     coachName: input.coachName,
     coachRole: input.coachRole,
     reportRef: `MSF-${report.id ? report.id.slice(-8).toUpperCase() : "DRAFT"}`,
-    thanks: sessions !== null
+    thanks: sessions !== null || narrative
       ? {
-          sessions: sessions.toLocaleString("en-US"),
+          sessions: sessions !== null ? sessions.toLocaleString("en-US") : null,
           sessionsWord: wholeStory ? "sessions in all" : "sessions",
           sessionsSub: [firstDay ? `${wholeStory ? "since your first session," : "since"} ${firstDay}` : null, words.before].filter(Boolean).join(" · ") || null,
           quote: narrative,
@@ -360,7 +393,7 @@ export function planSheet(input: SheetInputs): SheetPlan {
             next: nextGoal ? { goal: nextGoal, by: g?.nextGoalTargetDate ? `By ${longDay(g.nextGoalTargetDate)}` : null } : null,
           }
         : undefined,
-    plan: plan.length ? { title: "Your plan", items: plan, checkIn: g?.followUpDate ? `Next check-in ${longDay(g.followUpDate)}` : null } : undefined,
+    plan: plan.length || checkIn ? { title: "Your plan", items: plan, checkIn } : undefined,
     coach: coach ? { title: "From your coach", text: coach } : undefined,
   };
 
@@ -383,5 +416,5 @@ export function planSheet(input: SheetInputs): SheetPlan {
     pulse: pulse.length ? printedPulse : null,
   };
 
-  return { focus, avail, ticked, rows, fit, content, model, screen };
+  return { focus, chosen, avail, ticked, rows, fit, content, model, screen };
 }

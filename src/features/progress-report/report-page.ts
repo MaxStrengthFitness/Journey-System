@@ -110,6 +110,8 @@ export function isModuleId(v: unknown): v is ModuleId {
 export interface PageFacts {
   /** The session tile's number (realStat), null when there isn't one. */
   sessions: number | null;
+  /** The trainer's thank-you (the Volume step's narrative): it prints with or without the number. */
+  narrative: boolean;
   /** Stat tiles switched on that have a real number. */
   statTiles: number;
   /** Accolade cards that print (accolades.ts reportCards). */
@@ -124,7 +126,7 @@ export interface PageFacts {
   pulse: boolean | null | "failed";
   /** Why they started, last time's goal, or the next goal: any of them written. */
   goals: boolean;
-  /** A training plan with something in it. */
+  /** A training plan with something in it, or a day to check in again. */
   plan: boolean;
   /** A closing note. */
   coach: boolean;
@@ -142,7 +144,7 @@ export function availability(f: PageFacts): Record<ModuleId, Availability> {
   const yes = (): Availability => ({ has: true, why: null });
   const no = (why: string): Availability => ({ has: false, why });
   return {
-    thanks: f.sessions !== null ? yes() : no("No completed sessions in the report's window yet."),
+    thanks: f.sessions !== null || f.narrative ? yes() : no("No completed sessions in the report's window yet, and no thank-you written."),
     stats: f.statTiles > 0 ? yes() : no("No number on the Volume step has enough data yet."),
     accolades: f.accolades > 0 ? yes() : no("No accolade the data can back yet (the Accolades step)."),
     machines: f.machines > 0 ? yes() : no("No machines ticked on the Machines step."),
@@ -195,6 +197,51 @@ export const DEFAULTS: Record<FocusKind, readonly ModuleId[]> = {
 /** The focus's defaults that the data has, in page order. */
 export function defaultModules(focus: FocusKind, avail: Record<ModuleId, Availability>): ModuleId[] {
   return pageOrder(focus).filter((m) => DEFAULTS[focus].includes(m) && avail[m].has);
+}
+
+/**
+ * WHAT THE TRAINER CHANGED ON THE PAGE, kept on the report (`pageChoice`):
+ * the modules they ticked beyond the focus's defaults and the defaults they
+ * unticked, never the whole list. A whole list saved early froze the page:
+ * a closing note or a goal written after a draft save never reached it, and
+ * an InBody read still loading at the save left the body off for good. With
+ * only the changes kept, a module that gains data later comes in by itself
+ * unless the trainer took it off.
+ */
+export interface PageChoice {
+  on: ModuleId[];
+  off: ModuleId[];
+}
+
+/** A stored choice, read safely (unknown ids dropped). */
+export function pageChoiceOf(v: unknown): PageChoice | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as { on?: unknown; off?: unknown };
+  const ids = (a: unknown) => (Array.isArray(a) ? a.filter(isModuleId) : []);
+  return { on: ids(o.on), off: ids(o.off) };
+}
+
+/** What is ticked: the focus's defaults the data has, less what the trainer took off, plus what they added that the data has. */
+export function tickedModules(focus: FocusKind, avail: Record<ModuleId, Availability>, choice: PageChoice | null): ModuleId[] {
+  const off = new Set(choice?.off ?? []);
+  const on = new Set(choice?.on ?? []);
+  return pageOrder(focus).filter((m) => avail[m].has && !off.has(m) && (DEFAULTS[focus].includes(m) || on.has(m)));
+}
+
+/** The choice after the trainer ticks (or unticks) one module. */
+export function choiceAfter(choice: PageChoice | null, focus: FocusKind, m: ModuleId, tick: boolean): PageChoice {
+  const on = new Set(choice?.on ?? []);
+  const off = new Set(choice?.off ?? []);
+  const isDefault = DEFAULTS[focus].includes(m);
+  if (tick) {
+    off.delete(m);
+    if (!isDefault) on.add(m);
+  } else {
+    on.delete(m);
+    if (isDefault) off.add(m);
+  }
+  const order = (set: Set<ModuleId>) => MODULE_IDS.filter((x) => set.has(x));
+  return { on: order(on), off: order(off) };
 }
 
 /** Every module in the order the focus puts them on the page. */

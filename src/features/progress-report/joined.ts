@@ -33,12 +33,14 @@ export function reportJoinedDate(
     | "mindbodyContracts"
     | "mindbodyMemberships"
     | "priorHistory"
+    | "firstStudioDay"
   >,
   reportFirstSessionDate?: string | null,
   /** How much of her story Journey holds; the report passes its own. */
   coverage?: HistoryCoverage,
 ): Date | null {
   const since = resolveClientSince({
+    firstStudioDay: client.firstStudioDay ?? null,
     firstSessionDate: pin(client.firstSessionDate || reportFirstSessionDate || null),
     firstAppointmentDate: pin(client.firstAppointmentDate),
     mindbodyCreatedAt: pin(client.mindbodyCreatedAt),

@@ -9,9 +9,18 @@ import type { ProgressReport } from "../../types";
 import { DEFAULT_INBODY_VARIATION } from "../inbody/variation";
 import type { InBodyScan } from "../inbody/types";
 import type { SheetInputs } from "./sheet-from-report";
+import { DEFAULTS, type FocusKind, type ModuleId, type PageChoice } from "./report-page";
 import { emptyAssessment } from "../subjective-report/scoring";
 
 const P = (score: number, note = "") => ({ score, note, talkingPoints: [] });
+
+/** The page choice that ticks exactly `modules` for a focus: what a trainer would have changed. */
+export function choiceFor(kind: FocusKind, modules: readonly ModuleId[]): PageChoice {
+  return {
+    on: modules.filter((m) => !DEFAULTS[kind].includes(m)),
+    off: DEFAULTS[kind].filter((m) => !modules.includes(m)),
+  };
+}
 
 export function baseReport(over: Partial<ProgressReport> = {}): ProgressReport {
   return {
@@ -102,7 +111,12 @@ const scan = (testedAt: string, weightLb: number, skeletalMuscleMassLb: number, 
 export const SCANS_DANA: InBodyScan[] = [scan("2026-01-12", 168.6, 59.7, 52.6, 31.5), scan("2026-05-04", 165.0, 60.9, 48.8, 29.6), scan("2026-10-01", 162.4, 61.8, 45.6, 28.1)];
 
 const PULSE = {
-  assessment: { ...emptyAssessment(), coachSummary: "Sleep and energy are up since July, and the low back feels better since Lumbar went in." },
+  // Two statements answered: a Pulse prints only when the client answered something.
+  assessment: {
+    ...emptyAssessment(),
+    answers: { ...emptyAssessment().answers, strengthConfidence_1: { value: 8 }, strengthConfidence_2: { value: 7 } },
+    coachSummary: "Sleep and energy are up since July, and the low back feels better since Lumbar went in.",
+  },
   previous: null,
   date: "2026-10-06",
 };
@@ -125,7 +139,7 @@ export function inputsFor(report: ProgressReport, over: Partial<SheetInputs> = {
 }
 
 /** A: a goal to hit, every module ticked. */
-export const FULL = inputsFor(baseReport({ focus: { kind: "goal" }, modules: ["thanks", "stats", "accolades", "machines", "fourps", "body", "pulse", "goals", "plan", "coach"] }));
+export const FULL = inputsFor(baseReport({ focus: { kind: "goal" }, pageChoice: choiceFor("goal", ["thanks", "stats", "accolades", "machines", "fourps", "body", "pulse", "goals", "plan", "coach"]) }));
 
 /** C: everyday strength; no InBody, accolades or 4 P's on file. */
 export const EVERYDAY = inputsFor(
@@ -158,7 +172,7 @@ export const NEW_CLIENT = inputsFor(
 export const OVERFULL = inputsFor(
   baseReport({
     focus: { kind: "goal" },
-    modules: ["thanks", "stats", "accolades", "machines", "fourps", "body", "pulse", "goals", "plan", "coach"],
+    pageChoice: choiceFor("goal", ["thanks", "stats", "accolades", "machines", "fourps", "body", "pulse", "goals", "plan", "coach"]),
     attendance: { ...baseReport().attendance, narrative: "So much to say. ".repeat(80) },
     trainerNotes: "And a very long closing note. ".repeat(60),
   }),
