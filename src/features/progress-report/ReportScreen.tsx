@@ -349,6 +349,7 @@ function ScreenModule({ id, plan, clientFirstName, machines }: { id: ModuleId; p
                 </p>
                 <p className="rsc-goal__next">{g.next.goal}</p>
                 {g.next.by && <p className="rsc-text-2">{g.next.by}</p>}
+                {g.next.checkIn && <p className="rsc-text-2">{g.next.checkIn}</p>}
               </div>
             )}
           </div>

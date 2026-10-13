@@ -51,9 +51,18 @@ An independent review of the whole branch (Opus, read only) found these, each co
 
 Three older faults the review found, fixed too: an old report printed the client's latest Pulse, even one taken after it; "First report" was said when the read of earlier reports failed, and an old report could name a newer one as its last; printing from the editor gave a blank page.
 
+A second review (Opus, read only) confirmed fixes 1 to 11 hold, the in-app samples catching a regression of the first, and found five more, fixed in **Report page 7**:
+
+- **Printing from the editor still ran onto two pages**: its root is padded and navy, and only the root's ancestors gave up their padding. The root gives up its padding and ground too, and the print check prints `FULL@editor` (two pages without the fix, one with it).
+- **A target machine nobody picked was printed**: a new report started with the floor's first machine chosen. It starts with none, and the menu says "Select Machine to Integrate" until a trainer picks one.
+- **The next check-in took a row on every page**: every new report has one 90 days out, so a page with no plan lines carried a plan box for that line alone. With a next goal it is said under the goal ("By January 11, 2027, our next check-in", or its own line when the days differ); only with neither does the plan carry it.
+- **The picker's hint named the wrong fallback** when the client already had a focus: it names the client's focus on file now.
+- **A Pulse newer than the report, with the earlier reports still being read or unreadable, was "none"**: it is "reading" or "couldn't read" now.
+- Older, found with them: **re-saving an old report stored a newer report as its previous one** (`previousReportId`). Save keeps the report before this one, found as the page finds it, and keeps what it had when that isn't known.
+
 ## Measured
 
-On the fixes (Report page 6): **14,550** tests in 882 files (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`, the worktree on AJ's PC); typecheck **2** (the same two); the print check prints FULL, EVERYDAY, BODY and NEW_CLIENT on one page each, OVERFULL on two as it should, and FULL and BODY on one page each from inside the app's shell; production build clean, 469.2 KB gzip on the first screen (budget 480).
+On the second fixes (Report page 7): **14,553** tests in 882 files (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`, the worktree on AJ's PC); typecheck **2** (the same two); the print check prints FULL, EVERYDAY, BODY and NEW_CLIENT on one page each, OVERFULL on two as it should, FULL and BODY on one page each from inside the app's shell and FULL from the editor; production build clean, 469.2 KB gzip on the first screen (budget 480).
 
 ```bash
 node harness/report-print/check.mjs

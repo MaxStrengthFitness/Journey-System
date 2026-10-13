@@ -11,9 +11,11 @@
  * (the status band, the 56px header, main with its padding, the bottom bar)
  * with the body classes the view sets before it prints, so check.mjs proves
  * the sheet still prints on one page from inside the app, not only alone.
+ * &editor=1 does the same from the editor's root (padded, the navy ground).
  */
 import { createRoot } from "react-dom/client";
 import "../../src/index.css";
+import "../../src/features/progress-report/progress-report.css";
 import { ReportSheet, type SheetMeasure } from "../../src/features/progress-report/ReportSheet";
 import { ReportScreen } from "../../src/features/progress-report/ReportScreen";
 import { planSheet } from "../../src/features/progress-report/sheet-from-report";
@@ -44,14 +46,24 @@ createRoot(document.getElementById("root")!).render(
       <div className="status-band" style={{ height: 24 }} />
       <header className="h-14 shrink-0 flex items-center px-4">The app header</header>
       <main className="w-full max-w-full mx-auto relative flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto overscroll-contain bg-background">
-        <div data-print-root className="rsc-page">
-          <div className="rs-print-only" aria-hidden="true">
-            <ReportSheet model={plan.model} onMeasured={measured} />
+        {params.get("editor") === "1" ? (
+          // The editor's root, as ClientProgressReportView draws it.
+          <div data-print-root className="min-h-screen bg-(--pr-navy) p-4 sm:p-8 lg:p-12 overflow-y-auto">
+            <div className="rs-print-only" aria-hidden="true">
+              <ReportSheet model={plan.model} onMeasured={measured} />
+            </div>
+            <div className="max-w-4xl mx-auto space-y-8 pb-32">The editor's steps</div>
           </div>
-          <div className="rsc-shell">
-            <ReportScreen plan={plan} clientFirstName={inputs.client.firstName} />
+        ) : (
+          <div data-print-root className="rsc-page">
+            <div className="rs-print-only" aria-hidden="true">
+              <ReportSheet model={plan.model} onMeasured={measured} />
+            </div>
+            <div className="rsc-shell">
+              <ReportScreen plan={plan} clientFirstName={inputs.client.firstName} />
+            </div>
           </div>
-        </div>
+        )}
       </main>
       <nav className="h-16 shrink-0">The bottom bar</nav>
     </div>

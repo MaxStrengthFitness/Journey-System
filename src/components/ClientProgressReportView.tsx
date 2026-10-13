@@ -302,7 +302,8 @@ export function ClientProgressReportView({
       routineModifications: "",
       emotionalAnchor: client.globalNotes || "",
       smartGoal: "",
-      targetMachineId: machines[0]?.id || "",
+      // None until the trainer picks one: the page prints the target machine (Oct 13 2026).
+      targetMachineId: "",
       goalActions: [],
       machinePlan: "",
       refinementFocusArea: "",
@@ -384,6 +385,8 @@ export function ClientProgressReportView({
    * than the ten read can't be called the first.
    */
   const [fullReports, setFullReports] = useState<{ list: { id: string; date: string }[]; capped: boolean } | null>(null);
+  /** That read's state: the page's Pulse for an older report comes from it too. */
+  const [reportsRead, setReportsRead] = useState<"reading" | "ready" | "failed">("reading");
   /** The trainer touched the focus picker in this sitting: only then does Save write the focus onto the client. */
   const focusPicked = useRef(false);
   /**
@@ -559,6 +562,7 @@ export function ClientProgressReportView({
           list: docs.filter((r) => r.status === "Finalized" && !r.isCheckInOnly).map((r) => ({ id: r.id!, date: r.date })),
           capped: snap.size >= 10,
         });
+        setReportsRead("ready");
         // Every finalized Pulse, newest first — including this report's own
         // if it is a finalized check-in being promoted: that IS the newest.
         setPulseRefs(
@@ -598,6 +602,7 @@ export function ClientProgressReportView({
           setPreviousReport(null);
         }
       } catch (err) {
+        if (!cancelled) setReportsRead("failed");
         handleFirestoreError(err, OperationType.GET, "progressReports");
       }
     }
@@ -918,7 +923,7 @@ export function ClientProgressReportView({
         focus: printedFocus,
         highlights: padSlots(report.highlights),
         focusSnapshot,
-        previousReportId: previousReport?.reportId ?? report.previousReportId ?? null,
+        previousReportId: previousForReport === undefined ? (report.previousReportId ?? null) : (previousForReport?.id ?? null),
         sessionNumber: report.sessionNumber || client.sessionCount || 0,
         trainerInitials: trainer.initials,
         trainerName: trainer.fullName,
@@ -995,6 +1000,19 @@ export function ClientProgressReportView({
   const studioName =
     studioCtx?.studios.find((s) => s.id === homeStudioId)?.name ?? studioCtx?.activeStudio?.name ?? "Max Strength";
   const inbody = useInBodyScans(client.id ?? null);
+  /**
+   * The report before THIS one: the newest finalized full report on or
+   * before its day (never a newer one, for an old report opened today).
+   * `undefined` while the read is out or when it failed, or when the one
+   * before isn't among the reports read: not known.
+   */
+  const previousForReport = useMemo<{ id: string; date: string } | null | undefined>(() => {
+    if (!fullReports) return undefined;
+    const before = fullReports.list.find((r) => r.id !== report.id && r.date <= report.date);
+    if (before) return before;
+    return fullReports.capped ? undefined : null;
+  }, [fullReports, report.id, report.date]);
+
   const sheetPlan = useMemo(() => {
     const day = (d: string | null | undefined) => (d ?? "").slice(0, 10);
     // A Pulse taken after this report is not this report's (an older report
@@ -1010,7 +1028,11 @@ export function ClientProgressReportView({
         ? pulseSnapshot.pulse
           ? day(pulseSnapshot.pulse.date) <= day(report.date)
             ? { assessment: pulseSnapshot.pulse.assessment, previous: pulseSnapshot.previous, date: pulseSnapshot.pulse.date }
-            : onOrBefore()
+            : reportsRead === "ready"
+              ? onOrBefore()
+              : reportsRead === "reading"
+                ? ("reading" as const)
+                : ("failed" as const)
           : null
         : pulseSnapshot.status === "loading"
           ? ("reading" as const)
@@ -1023,18 +1045,13 @@ export function ClientProgressReportView({
       coachRole: report.trainerId === trainer.id && trainer.role ? ROLE_LABELS[trainer.role] : null,
       sessionWords,
       joined: reportJoinedDate(client, report.attendance.firstSessionDate, coverage),
-      previousReportDay: (() => {
-        if (!fullReports) return "unknown" as const;
-        const before = fullReports.list.find((r) => r.id !== report.id && r.date <= report.date);
-        if (before) return before.date;
-        return fullReports.capped ? ("unknown" as const) : null;
-      })(),
+      previousReportDay: previousForReport === undefined ? ("unknown" as const) : previousForReport?.date ?? null,
       machineName: (id: string) => machines.find((m) => m.id === id)?.name ?? null,
       scans: inbody.loading ? null : inbody.error ? "failed" : inbody.scans,
       variation: inbodyVariation,
       pulse,
     });
-  }, [report, client, studioName, trainer, sessionWords, coverage, fullReports, machines, inbody, inbodyVariation, pulseSnapshot, pulseRefs, previousPulseForReport]);
+  }, [report, client, studioName, trainer, sessionWords, coverage, previousForReport, reportsRead, machines, inbody, inbodyVariation, pulseSnapshot, pulseRefs, previousPulseForReport]);
 
   if (existingReportId && existingStatus !== "ready") {
     const clientName = [client.firstName, client.lastName].filter(Boolean).join(" ");
@@ -1330,6 +1347,7 @@ We check in again on ${shortDate(report.goals.followUpDate)}.` : "") +
             {/* Why they train: it leads the printed page (Oct 13 2026). */}
             <FocusPicker
               value={report.focus ?? client.trainingFocus ?? null}
+              fallback={focusOf(client.trainingFocus)}
               onChange={(focus) => {
                 focusPicked.current = true;
                 setReport((r) => ({ ...r, focus }));

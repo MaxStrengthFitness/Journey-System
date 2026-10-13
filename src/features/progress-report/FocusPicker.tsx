@@ -5,16 +5,19 @@
  * the report saves it onto the client too, so the next report, the profile
  * and the briefing know it. Their own goal is said in the trainer's words.
  */
-import { FOCUS_KINDS, FOCUS_LABELS, FOCUS_LEADS, type FocusKind, type TrainingFocus } from "./report-page";
+import { FOCUS_KINDS, FOCUS_LABELS, FOCUS_LEADS, focusLine, type FocusKind, type TrainingFocus } from "./report-page";
 
 export function FocusPicker({
   value,
   onChange,
   firstName,
+  fallback = null,
 }: {
   value: TrainingFocus | null;
   onChange: (next: TrainingFocus) => void;
   firstName: string;
+  /** What the page follows while "their own goal" has no words: the client's own focus, if they have one. */
+  fallback?: TrainingFocus | null;
 }) {
   const pick = (kind: FocusKind) => onChange(kind === "custom" ? { kind, words: value?.kind === "custom" ? value.words : "" } : { kind });
   return (
@@ -48,7 +51,11 @@ export function FocusPicker({
             onChange={(e) => onChange({ kind: "custom", words: e.target.value })}
           />
           {!value.words?.trim() && (
-            <span className="pr-focus__hint">Type their goal to use it: until then the page follows A goal to hit's order and prints no focus.</span>
+            <span className="pr-focus__hint">
+              {fallback
+                ? `Type their goal to use it: until then the page follows their focus on file, ${focusLine(fallback)}.`
+                : "Type their goal to use it: until then the page follows A goal to hit's order and prints no focus."}
+            </span>
           )}
         </label>
       )}

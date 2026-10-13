@@ -391,6 +391,7 @@ function SheetModule({ id, model, density, alone }: { id: ModuleId; model: Sheet
                 <p className="rs-label">The next 90 days</p>
                 <p className="rs-big rs-goal__next">{g.next.goal}</p>
                 {g.next.by && <p className="rs-goal__by">{g.next.by}</p>}
+                {g.next.checkIn && <p className="rs-goal__by">{g.next.checkIn}</p>}
               </div>
             )}
           </div>

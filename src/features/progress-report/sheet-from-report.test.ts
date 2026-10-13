@@ -86,13 +86,39 @@ describe("a report as the one-page sheet", () => {
     });
     const p = planSheet(inputsFor(report, { machineName: (id) => (id === "pd" ? "Pulldown" : null) }));
     expect(p.screen.plan).toEqual(expect.arrayContaining(["Goal: Pulldown 150 by spring", "Why it matters: “Carry the grandkids”", "Target machine: Pulldown."]));
+    // No goal and no plan lines: the plan carries the check-in alone.
     const onlyCheckIn = baseReport({
-      goals: { ...baseReport().goals!, checkpoints: [], followUpDate: "2027-01-11" },
+      goals: { ...baseReport().goals!, nextGoal: "", checkpoints: [], followUpDate: "2027-01-11" },
       roadmap: { trackType: "maintenance", selectedHabits: [] },
     });
     const q = planSheet(inputsFor(onlyCheckIn));
     expect(q.avail.plan.has).toBe(true);
     expect(q.model.plan).toMatchObject({ items: [], checkIn: "Next check-in January 11, 2027" });
+  });
+
+  it("says the next check-in under the next goal when the plan has nothing else, never a row of its own", () => {
+    const empty = { checkpoints: [] as never[] };
+    const sameDay = planSheet(inputsFor(baseReport({
+      goals: { ...baseReport().goals!, ...empty, nextGoalTargetDate: "2027-01-11", followUpDate: "2027-01-11" },
+      roadmap: { trackType: "maintenance", selectedHabits: [] },
+    })));
+    expect(sameDay.avail.plan.has).toBe(false);
+    expect(sameDay.model.goals?.next).toMatchObject({ by: "By January 11, 2027, our next check-in", checkIn: null });
+    const apart = planSheet(inputsFor(baseReport({
+      goals: { ...baseReport().goals!, ...empty, nextGoalTargetDate: "2027-03-01", followUpDate: "2027-01-11" },
+      roadmap: { trackType: "maintenance", selectedHabits: [] },
+    })));
+    expect(apart.model.goals?.next).toMatchObject({ by: "By March 1, 2027", checkIn: "Next check-in January 11, 2027" });
+    // With plan lines the check-in stays the plan's, and the goal says only its own day.
+    const withPlan = planSheet(FULL);
+    expect(withPlan.model.plan?.checkIn).toBe("Next check-in January 11, 2027");
+    expect(withPlan.model.goals?.next).toMatchObject({ by: "By January 11, 2027", checkIn: null });
+  });
+
+  it("prints no target machine nobody picked", () => {
+    const report = baseReport({ roadmap: { trackType: "goals", targetMachineId: "", goalActions: ["Two a week."], machinePlan: "" } });
+    const p = planSheet(inputsFor(report, { machineName: () => "Leg Press" }));
+    expect(p.screen.plan.join(" ")).not.toContain("Target machine");
   });
 
   it("prints the thank-you alone when the session tile is off", () => {

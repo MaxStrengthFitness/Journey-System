@@ -344,6 +344,29 @@ describe("ClientProgressReportView — the session tile and a client's past", ()
     expect(writeData.find((w) => w.path === "clients/client-bo")).toBeUndefined();
   });
 
+  it("names the report before THIS one, never a newer one, on the page and in what it saves (Oct 13 2026)", async () => {
+    // Newest first, as the read orders them: one finalized after this report, one before it.
+    store.progressReports = [
+      { id: "r-new", clientId: "client-bo", status: "Finalized", date: "2026-10-01" },
+      { id: "r-old", clientId: "client-bo", status: "Finalized", date: "2026-08-01" },
+    ];
+    nextRead = { kind: "report", data: { ...filed.data, status: "Draft" } };
+    await mountFor(bo, "complete");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(text()).toContain("Last report August 1, 2026");
+    expect(text()).not.toContain("Last report October 1, 2026");
+    const button = (re: RegExp) => [...host!.querySelectorAll("button")].find((b) => re.test(b.textContent ?? ""));
+    await act(async () => {
+      button(/^Save Draft/)!.click();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(writeData.find((w) => w.path === "progressReports/report-of-bo")!.data.previousReportId).toBe("r-old");
+  });
+
   it("keeps an old report's focus off the client's newer one when it is saved again untouched", async () => {
     nextRead = { kind: "report", data: { ...filed.data, status: "Draft", focus: { kind: "everyday" } } };
     await mountFor({ ...bo, trainingFocus: { kind: "body" } } as Client, "complete");

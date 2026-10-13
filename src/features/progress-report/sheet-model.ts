@@ -59,7 +59,8 @@ export interface SheetModel {
   goals?: {
     why: string | null;
     last: { goal: string; outcome: string | null; outcomeTone: SheetTone; note: string | null } | null;
-    next: { goal: string; by: string | null } | null;
+    /** `checkIn`: the next check-in, said here when the plan has nothing else to say (it is the plan's line otherwise). */
+    next: { goal: string; by: string | null; checkIn: string | null } | null;
   };
   plan?: { title: string; items: string[]; checkIn: string | null };
   coach?: { title: string; text: string };

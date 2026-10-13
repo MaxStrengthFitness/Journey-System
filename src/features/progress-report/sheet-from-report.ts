@@ -269,6 +269,11 @@ export function planSheet(input: SheetInputs): SheetPlan {
   const coach = clean(report.trainerNotes);
   const sessions = report.attendance.toggles?.totalSessions === false ? null : realStat(report.attendance.totalSessions);
 
+  // The next check-in is the plan's last line. With no plan to say (every new
+  // report has a check-in 90 days out) it goes under the next goal instead of
+  // taking a row of its own; only with neither does the plan carry it alone.
+  const checkInWithGoal = plan.length === 0 && !!checkIn && !!nextGoal;
+  const sameDay = !!g?.followUpDate && g.followUpDate === g?.nextGoalTargetDate;
   const narrative = clean(report.attendance.narrative);
   const facts: PageFacts = {
     sessions,
@@ -280,7 +285,7 @@ export function planSheet(input: SheetInputs): SheetPlan {
     bodyScans: input.scans === null ? null : input.scans === "failed" ? "failed" : body?.count ?? 0,
     pulse: input.pulse === "reading" ? null : input.pulse === "failed" ? "failed" : !!printedPulse,
     goals: !!(why || lastGoal || nextGoal),
-    plan: plan.length > 0 || !!checkIn,
+    plan: plan.length > 0 || (!!checkIn && !nextGoal),
     coach: !!coach,
   };
   const avail = availability(facts);
@@ -295,7 +300,13 @@ export function planSheet(input: SheetInputs): SheetPlan {
     accoladeContext: cards.map((c) => c.context.length),
     pNotes: rated.map((p) => clean(report.performanceMatrix[p]?.note).length),
     pulseLines: pulse.map((l) => (l.label ? l.label.length + 2 : 0) + l.text.length),
-    goals: { why: why.length, last: lastGoal.length, lastNote: clean(g?.previousGoalNote).length, next: nextGoal.length },
+    goals: {
+      why: why.length,
+      last: lastGoal.length,
+      lastNote: clean(g?.previousGoalNote).length,
+      next: nextGoal.length,
+      checkIn: checkInWithGoal && !sameDay ? (checkIn ?? "").length : 0,
+    },
     planItems: plan.map((it) => it.length),
     coachChars: coach.length,
     hasFocusLine: !!chosen,
@@ -390,10 +401,18 @@ export function planSheet(input: SheetInputs): SheetPlan {
                   note: clean(g?.previousGoalNote) || null,
                 }
               : null,
-            next: nextGoal ? { goal: nextGoal, by: g?.nextGoalTargetDate ? `By ${longDay(g.nextGoalTargetDate)}` : null } : null,
+            next: nextGoal
+              ? {
+                  goal: nextGoal,
+                  by: g?.nextGoalTargetDate
+                    ? `By ${longDay(g.nextGoalTargetDate)}${checkInWithGoal && sameDay ? ", our next check-in" : ""}`
+                    : null,
+                  checkIn: checkInWithGoal && !(sameDay && g?.nextGoalTargetDate) ? checkIn : null,
+                }
+              : null,
           }
         : undefined,
-    plan: plan.length || checkIn ? { title: "Your plan", items: plan, checkIn } : undefined,
+    plan: plan.length || (checkIn && !nextGoal) ? { title: "Your plan", items: plan, checkIn } : undefined,
     coach: coach ? { title: "From your coach", text: coach } : undefined,
   };
 

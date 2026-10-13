@@ -76,11 +76,6 @@
   --pr-elev-1:          var(--eq-elev-1);
   --pr-press:           var(--eq-press);
 
-  /* Print: white paper, navy ink, pale cards. */
-  --pr-print-paper:     #ffffff;
-  --pr-print-card:      #f1f5f8;
-  --pr-print-border:    #d3dadf;
-
   /* The one-page sheet (the client copy on paper, Oct 13 2026; AJ: "White
      page, navy band"). Pigments, the same in both themes, because paper is
      paper: the frame's navy for the band, the app's light-mode ink, card and

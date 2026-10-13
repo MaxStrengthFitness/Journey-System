@@ -314,7 +314,7 @@ export interface PageContent {
   pNotes: number[];
   /** Each Pulse line, label and sentence together. */
   pulseLines: number[];
-  goals: { why: number; last: number; lastNote: number; next: number };
+  goals: { why: number; last: number; lastNote: number; next: number; checkIn?: number };
   planItems: number[];
   coachChars: number;
   hasFocusLine: boolean;
@@ -390,7 +390,7 @@ export function moduleHeight(m: ModuleId, c: PageContent, d: Density, widthPx: n
       const tallest = Math.max(
         c.goals.why ? label + wraps(c.goals.why + 2, at(1), s.body + 0.5) * L(s.body + 0.5) : 0,
         c.goals.last ? label + wraps(c.goals.last, at(1), s.body + 0.5) * L(s.body + 0.5) + 4 + wraps(c.goals.lastNote, at(1), s.small) * L(s.small) : 0,
-        c.goals.next ? label + wraps(c.goals.next, at(1.35), big, SAIRA) * big * 1.08 + 4 + L(s.small) : 0,
+        c.goals.next ? label + wraps(c.goals.next, at(1.35), big, SAIRA) * big * 1.08 + 4 + L(s.small) + (c.goals.checkIn ? L(s.small) : 0) : 0,
       );
       return Math.max(s.goalsH, box(tallest));
     }

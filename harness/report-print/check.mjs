@@ -14,7 +14,8 @@
  *
  * A name ending "@app" prints that sample from inside the app's own shell
  * (main.tsx &app=1): the header and the padding around the report must not
- * push the sheet onto a second page.
+ * push the sheet onto a second page. "@editor" prints it from the editor's
+ * padded, navy root.
  *
  * Writes each PDF to %TEMP%\journey-report-print\ to look at. Exit 1 when a
  * sample prints past one page. Chrome only: Safari on an iPad is its own
@@ -28,7 +29,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { connectPage, launchChrome } from "../perf-lab/cdp.mjs";
 
 const here = resolve(import.meta.dirname);
-const ALL = ["FULL", "EVERYDAY", "BODY", "NEW_CLIENT", "OVERFULL", "FULL@app", "BODY@app"];
+const ALL = ["FULL", "EVERYDAY", "BODY", "NEW_CLIENT", "OVERFULL", "FULL@app", "BODY@app", "FULL@editor"];
 const names = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 const out = join(tmpdir(), "journey-report-print");
 mkdirSync(out, { recursive: true });
@@ -47,7 +48,7 @@ try {
   for (const name of names) {
     const loaded = page.once("Page.loadEventFired");
     const [fixture, where] = name.split("@");
-    await page.send("Page.navigate", { url: `${base}?f=${fixture}${where === "app" ? "&app=1" : ""}${process.env.REPORT_PRINT_ROWS ? "&raw=1" : ""}` });
+    await page.send("Page.navigate", { url: `${base}?f=${fixture}${where === "app" ? "&app=1" : where === "editor" ? "&app=1&editor=1" : ""}${process.env.REPORT_PRINT_ROWS ? "&raw=1" : ""}` });
     await loaded;
     await evaluate("document.fonts.ready.then(() => true)");
     let state = null;

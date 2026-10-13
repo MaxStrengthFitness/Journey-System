@@ -290,7 +290,11 @@ get this all on 1 page". Round document:
   even with no win to name.
 - **Printing from inside the app**: the app's print rules keep the header's
   space (see `docs/KNOWN-TRAPS.md`, Layout and CSS), so `report-sheet.css`
-  takes everything but the report out of the layout; `check.mjs` prints two
-  samples inside a stand-in of the shell (`@app`). The editor prints the page
-  too (it printed a blank page).
+  takes everything but the report out of the layout, and the root gives up its
+  own padding and ground; `check.mjs` prints samples inside a stand-in of the
+  shell (`@app`) and from the editor's root (`@editor`). The editor prints the
+  page too (it printed a blank page).
+- **Defaults nobody chose never print**: a new report picks no target machine;
+  its next check-in, 90 days out by default, is said under the next goal when
+  the plan has nothing else, never as a box of its own.
 
