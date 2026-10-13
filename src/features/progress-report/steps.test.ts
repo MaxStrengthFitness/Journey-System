@@ -2,15 +2,16 @@ import { describe, expect, it } from "vitest";
 import { REPORT_STEPS, RETIRED_STEP_IDS, STEP_INDEX, resolveStepId } from "./steps";
 
 describe("report steps follow the owner's four-phase report", () => {
-  it("keeps the step ids and their order — five steps, the Pulse is out", () => {
+  it("keeps the step ids and their order — six steps since the printed page (Oct 13 2026), the Pulse is out", () => {
     expect(REPORT_STEPS.map((s) => s.id)).toEqual([
       "celebrate",
       "highlights",
       "machines",
       "fourps",
       "goals",
+      "page",
     ]);
-    expect(REPORT_STEPS.map((s) => s.n)).toEqual([1, 2, 3, 4, 5]);
+    expect(REPORT_STEPS.map((s) => s.n)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(REPORT_STEPS.some((s) => (s.id as string) === "checkin")).toBe(false);
   });
 
@@ -24,7 +25,7 @@ describe("report steps follow the owner's four-phase report", () => {
   });
 
   it("gives every step a short tab label that fits an iPad in portrait", () => {
-    expect(REPORT_STEPS.map((s) => s.label)).toEqual(["Volume", "Accolades", "Machines", "4 P's", "Blueprint"]);
+    expect(REPORT_STEPS.map((s) => s.label)).toEqual(["Volume", "Accolades", "Machines", "4 P's", "Blueprint", "Page"]);
     for (const s of REPORT_STEPS) expect(s.label.length).toBeLessThanOrEqual(9);
   });
 

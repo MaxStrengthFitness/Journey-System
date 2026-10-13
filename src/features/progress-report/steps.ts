@@ -23,7 +23,8 @@ export type ReportStepId =
   | "highlights"
   | "machines"
   | "fourps"
-  | "goals";
+  | "goals"
+  | "page";
 
 /** Step ids older code may still hand us, and where they land now. */
 export const RETIRED_STEP_IDS: Record<string, ReportStepId> = {
@@ -119,6 +120,19 @@ export const REPORT_STEPS: ReportStepDef[] = [
       "Read the Pulse snapshot for context (update it from the client's record, not here). Review the previous goal and mark how it went. Write the next one as something measurable with a date. Add two or three checkpoints. Then pick the training track that gets them there (the refinement track starts on their newest active focus), and write your closing note.",
     clientSees:
       "Why they started, how the last goal went, the new goal with its date, the checkpoints, the training plan and your closing note — and their Pulse, only what its own client-copy switches allow.",
+  },
+  {
+    // Oct 13 2026 (AJ: one page, "modular", led by why the client trains).
+    id: "page",
+    n: 6,
+    title: "The printed page",
+    label: "Page",
+    subtitle: "What they take home",
+    purpose:
+      "One page the client takes home, to show them it's worth it. It leads with their focus — why they train — and carries only what has something real to say.",
+    howTo:
+      "Tick what goes on the page; the focus has ticked a start for you. Anything with nothing to say yet is listed with the reason and can't be ticked. The page beside the list is exactly what prints, and the line above it says whether it fits on one sheet.",
+    clientSees: "This page, printed: one US Letter sheet, white, with the navy band.",
   },
 ];
 

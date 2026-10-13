@@ -28,6 +28,7 @@ type NextRead =
   | { kind: "pending" };
 let nextRead: NextRead = { kind: "missing" };
 const writes: string[] = [];
+const writeData: { path: string; data: Record<string, unknown> }[] = [];
 // What getDocs answers, by collection, filtered by the query's where clauses (the history-ready round's test).
 const store: Record<string, Record<string, unknown>[]> = {};
 type Clause = { field: string; op: string; value: unknown };
@@ -67,8 +68,9 @@ vi.mock("firebase/firestore", async (importOriginal) => {
       writes.push(ref.__path);
       return { id: "new-report" };
     },
-    updateDoc: async (ref: { __path: string }) => {
+    updateDoc: async (ref: { __path: string }, data: Record<string, unknown>) => {
       writes.push(ref.__path);
+      writeData.push({ path: ref.__path, data });
     },
     serverTimestamp: () => ({ __server: true }),
   };
@@ -131,6 +133,7 @@ afterEach(() => {
   root = null;
   host = null;
   writes.length = 0;
+  writeData.length = 0;
   for (const k of Object.keys(store)) delete store[k];
 });
 
@@ -289,6 +292,35 @@ describe("ClientProgressReportView — the session tile and a client's past", ()
     // January (1,000 lb, 10 reps) and June (800 lb, 8 reps) together.
     expect(text()).toMatch(/1,?800/);
     expect(text()).toContain("18");
+  });
+
+  it("saves the focus onto the client, and the page's ticks onto the report (Oct 13 2026)", async () => {
+    nextRead = { kind: "report", data: { ...filed.data, status: "Draft" } };
+    await mountFor(bo, "complete");
+    const button = (re: RegExp) => [...host!.querySelectorAll("button")].find((b) => re.test(b.textContent ?? ""));
+    // Step 1: why they train.
+    await act(async () => {
+      button(/^Body composition/)!.click();
+    });
+    // The last step: what goes on the page, with the reason for anything that can't go on.
+    await act(async () => {
+      button(/^6\s*Page|^Page/)!.click();
+    });
+    expect(text()).toContain("Led by the focus: Body composition");
+    expect(text()).toContain("Reading their InBody scans…");
+    expect(text()).toMatch(/Fits on one page|Runs onto a second page/);
+    await act(async () => {
+      button(/^Save Draft/)!.click();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    const report = writeData.find((w) => w.path === "progressReports/report-of-bo")!.data;
+    expect(report.focus).toEqual({ kind: "body" });
+    expect(Array.isArray(report.modules)).toBe(true);
+    const clientWrite = writeData.find((w) => w.path === "clients/client-bo")!.data;
+    expect(Object.keys(clientWrite).sort()).toEqual(["trainingFocus", "updatedAt"]);
+    expect(clientWrite.trainingFocus).toEqual({ kind: "body" });
   });
 
   it("names the editor's count for what it is, too", async () => {

@@ -49,11 +49,11 @@ export interface SheetInputs {
   joined: Date | null;
   /** The previous finalized report's day, or null for a first report. */
   previousReportDay: string | null;
-  /** The client's InBody scans; null while they are read (or when the read failed). */
-  scans: InBodyScan[] | null;
+  /** The client's InBody scans; null while they are read, "failed" when the read failed. */
+  scans: InBodyScan[] | null | "failed";
   variation: InBodyVariation;
-  /** The Pulse the page prints; null when there is none, "reading" while it is read. */
-  pulse: { assessment: SubjectiveAssessment; previous: PreviousAssessmentRef | null; date: string } | null | "reading";
+  /** The Pulse the page prints; null when there is none, "reading" while it is read, "failed" when it couldn't be. */
+  pulse: { assessment: SubjectiveAssessment; previous: PreviousAssessmentRef | null; date: string } | null | "reading" | "failed";
 }
 
 export interface SheetPlan {
@@ -194,8 +194,9 @@ export function planSheet(input: SheetInputs): SheetPlan {
   const cards = reportCards(report.highlights);
   const mrows = machineRows(report);
   const rated = FOUR_PS.filter((p) => rankFromScore(report.performanceMatrix?.[p]?.score) !== null);
-  const body = input.scans ? bodyCells(input.scans, report.date, input.variation) : null;
-  const pulse = input.pulse && input.pulse !== "reading" ? pulseLines(input.pulse.assessment, input.pulse.previous) : [];
+  const body = Array.isArray(input.scans) ? bodyCells(input.scans, report.date, input.variation) : null;
+  const printedPulse = input.pulse && typeof input.pulse === "object" ? input.pulse : null;
+  const pulse = printedPulse ? pulseLines(printedPulse.assessment, printedPulse.previous) : [];
   const g = report.goals;
   const why = clean(g?.originalWhy);
   const lastGoal = clean(g?.previousGoal);
@@ -210,8 +211,8 @@ export function planSheet(input: SheetInputs): SheetPlan {
     accolades: cards.length,
     machines: mrows.length,
     ratedPs: rated.length,
-    bodyScans: input.scans === null ? null : body?.count ?? 0,
-    pulse: input.pulse === "reading" ? null : pulse.length > 0,
+    bodyScans: input.scans === null ? null : input.scans === "failed" ? "failed" : body?.count ?? 0,
+    pulse: input.pulse === "reading" ? null : input.pulse === "failed" ? "failed" : pulse.length > 0,
     goals: !!(why || lastGoal || nextGoal),
     plan: plan.length > 0,
     coach: !!coach,
@@ -298,8 +299,8 @@ export function planSheet(input: SheetInputs): SheetPlan {
     }),
     body: body ? { title: body.title, sub: body.sub, short: body.short, cells: body.cells } : undefined,
     pulse:
-      pulse.length && input.pulse && input.pulse !== "reading"
-        ? { title: focus.kind === "everyday" || focus.kind === "pain-free" ? "How you are feeling" : "Your Pulse", sub: longDay(input.pulse.date), lines: pulse }
+      pulse.length && printedPulse
+        ? { title: focus.kind === "everyday" || focus.kind === "pain-free" ? "How you are feeling" : "Your Pulse", sub: longDay(printedPulse.date), lines: pulse }
         : undefined,
     goals:
       why || lastGoal || nextGoal

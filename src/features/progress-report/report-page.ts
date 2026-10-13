@@ -118,10 +118,10 @@ export interface PageFacts {
   machines: number;
   /** P's rated on the Dial. */
   ratedPs: number;
-  /** InBody scans up to the report's date; null while they are being read or the read failed. */
-  bodyScans: number | null;
-  /** A finalized Pulse with answers; null while it is being read or the read failed. */
-  pulse: boolean | null;
+  /** InBody scans up to the report's date; null while they are being read, "failed" when the read failed. */
+  bodyScans: number | null | "failed";
+  /** A finalized Pulse with answers; null while it is being read, "failed" when the read failed. */
+  pulse: boolean | null | "failed";
   /** Why they started, last time's goal, or the next goal: any of them written. */
   goals: boolean;
   /** A training plan with something in it. */
@@ -147,18 +147,23 @@ export function availability(f: PageFacts): Record<ModuleId, Availability> {
     accolades: f.accolades > 0 ? yes() : no("No accolade the data can back yet (the Accolades step)."),
     machines: f.machines > 0 ? yes() : no("No machines ticked on the Machines step."),
     fourps: f.ratedPs > 0 ? yes() : no("No P rated on the 4 P's step."),
+    // A read that failed is unknown, never "none" (CLAUDE.md, Data).
     body:
       f.bodyScans === null
         ? { has: false, why: "Reading their InBody scans…", reading: true }
-        : f.bodyScans > 0
-          ? yes()
-          : no("No InBody scans on file."),
+        : f.bodyScans === "failed"
+          ? no("Couldn't read their InBody scans just now.")
+          : f.bodyScans > 0
+            ? yes()
+            : no("No InBody scans on file."),
     pulse:
       f.pulse === null
         ? { has: false, why: "Reading their Pulse…", reading: true }
-        : f.pulse
-          ? yes()
-          : no("No finalized Pulse with answers yet."),
+        : f.pulse === "failed"
+          ? no("Couldn't read their Pulse just now.")
+          : f.pulse
+            ? yes()
+            : no("No finalized Pulse with answers yet."),
     goals: f.goals ? yes() : no("No goal written on the Blueprint step yet."),
     plan: f.plan ? yes() : no("No training plan chosen on the Blueprint step yet."),
     coach: f.coach ? yes() : no("No closing note written on the Blueprint step yet."),

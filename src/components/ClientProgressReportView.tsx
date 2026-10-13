@@ -118,7 +118,16 @@ import { ReportNotOpened } from "../features/progress-report/ReportNotOpened";
 import { studioTodayKey } from "../lib/studio-time";
 import { InBodyReportSection } from "../features/inbody/InBodyReportSection";
 import { useInBodyVariation } from "../features/inbody/useInBodyVariation";
+import { useInBodyScans } from "../features/inbody/useInBodyScans";
 import { useUnsavedChanges } from "../features/unsaved-changes";
+import { useOptionalActiveStudio } from "../contexts/ActiveStudioContext";
+import { ROLE_LABELS } from "../types";
+import { ReportSheet } from "../features/progress-report/ReportSheet";
+import { ReportPageStep } from "../features/progress-report/ReportPageStep";
+import { FocusPicker } from "../features/progress-report/FocusPicker";
+import { planSheet, reportFocus } from "../features/progress-report/sheet-from-report";
+import { focusOf } from "../features/progress-report/report-page";
+import "../features/progress-report/report-sheet.css";
 
 /** Firestore Timestamp | Date | ISO string → "Jan 15, 2026", or null. */
 const shortDate = (v: any): string | null => {
@@ -399,8 +408,9 @@ export function ClientProgressReportView({
   // Printing from inside the app shell: flag <body> for the duration so the
   // global print rules in index.css can un-cap the shell (see there).
   useEffect(() => {
-    const on = () => document.body.classList.add("printing-report");
-    const off = () => document.body.classList.remove("printing-report");
+    // printing-sheet: only the one-page sheet prints (report-sheet.css).
+    const on = () => document.body.classList.add("printing-report", "printing-sheet");
+    const off = () => document.body.classList.remove("printing-report", "printing-sheet");
     window.addEventListener("beforeprint", on);
     window.addEventListener("afterprint", off);
     return () => {
@@ -895,8 +905,14 @@ export function ClientProgressReportView({
           ? focusSnapshotFrom(focuses, reportAsOf)
           : report.focusSnapshot;
 
+      // The page the report prints with is kept on it: its focus and its
+      // ticks, so a finalized report prints the same page later, whatever
+      // the client's focus or data become (report-page.ts).
+      const printedFocus = reportFocus(report, client);
       const sanitizedReport = removeUndefined({
         ...reportWithoutPulse,
+        focus: printedFocus,
+        modules: sheetPlan.ticked,
         highlights: padSlots(report.highlights),
         focusSnapshot,
         previousReportId: previousReport?.reportId ?? report.previousReportId ?? null,
@@ -924,8 +940,19 @@ export function ClientProgressReportView({
         reportId = docRef.id;
         setReportState((prev) => ({ ...prev, id: docRef.id }));
       }
-      setReportState((prev) => ({ ...prev, focusSnapshot }));
+      setReportState((prev) => ({ ...prev, focusSnapshot, focus: printedFocus, modules: sheetPlan.ticked }));
       setSavedEditCount(editsBeingSaved);
+
+      // The focus lives on the client too (AJ, Oct 13 2026: "studios need to
+      // know the goals of their clients"): the profile, the briefing and the
+      // next report read it. One field, never the whole client, and nothing
+      // waits on it.
+      const chosen = focusOf(report.focus);
+      if (chosen && JSON.stringify(chosen) !== JSON.stringify(focusOf(client.trainingFocus))) {
+        updateDoc(doc(db, "clients", client.id), { trainingFocus: chosen, updatedAt: serverTimestamp() }).catch((err) =>
+          console.warn("The client's training focus was not saved:", err),
+        );
+      }
 
       if (status === "Finalized") {
         setShowExportOptions(true);
@@ -951,6 +978,43 @@ export function ClientProgressReportView({
   /** Fill every open slot from the data, around the trainer's own choices. */
   const fillOpenSlots = () =>
     setReport((prev) => ({ ...prev, highlights: refreshSlots(prev.highlights, slotCtx) }));
+
+  /*
+   * THE ONE-PAGE CLIENT COPY (Oct 13 2026; AJ: one page, white with a navy
+   * band, "modular", led by why the client trains). What prints, from the
+   * report and the reads this screen already makes: the InBody scans (the
+   * same listener the screen's body composition holds) and the Pulse
+   * snapshot. features/progress-report/report-page.ts is the rule.
+   */
+  const studioCtx = useOptionalActiveStudio();
+  const homeStudioId = client.homeStudioId || null;
+  const studioName =
+    studioCtx?.studios.find((s) => s.id === homeStudioId)?.name ?? studioCtx?.activeStudio?.name ?? "Max Strength";
+  const inbody = useInBodyScans(client.id ?? null);
+  const sheetPlan = useMemo(() => {
+    const pulse = report.subjective
+      ? { assessment: report.subjective, previous: previousPulseForReport, date: report.subjective.completedAt || report.date }
+      : pulseSnapshot.status === "ready"
+        ? pulseSnapshot.pulse
+          ? { assessment: pulseSnapshot.pulse.assessment, previous: pulseSnapshot.previous, date: pulseSnapshot.pulse.date }
+          : null
+        : pulseSnapshot.status === "loading"
+          ? ("reading" as const)
+          : ("failed" as const);
+    return planSheet({
+      report,
+      client,
+      studioName,
+      coachName: report.trainerName || trainer.fullName,
+      coachRole: report.trainerId === trainer.id && trainer.role ? ROLE_LABELS[trainer.role] : null,
+      sessionWords,
+      joined: reportJoinedDate(client, report.attendance.firstSessionDate, coverage),
+      previousReportDay: previousReport?.date ?? null,
+      scans: inbody.loading ? null : inbody.error ? "failed" : inbody.scans,
+      variation: inbodyVariation,
+      pulse,
+    });
+  }, [report, client, studioName, trainer, sessionWords, coverage, previousReport, inbody, inbodyVariation, pulseSnapshot, previousPulseForReport]);
 
   if (existingReportId && existingStatus !== "ready") {
     const clientName = [client.firstName, client.lastName].filter(Boolean).join(" ");
@@ -1096,6 +1160,11 @@ export function ClientProgressReportView({
             }
           }
         `}</style>
+
+        {/* What prints: the one-page sheet, off screen until then (report-sheet.css). */}
+        <div className="rs-print-only" aria-hidden="true">
+          <ReportSheet model={sheetPlan.model} />
+        </div>
 
         <div className="max-w-4xl mx-auto px-6 py-4 space-y-4 print-area">
           {/* Controls */}
@@ -1794,6 +1863,7 @@ export function ClientProgressReportView({
                   rankFromScore(report.performanceMatrix[k]?.score) !== null,
               ),
             goals: !!report.goals?.nextGoal,
+            page: !!report.modules,
           }}
         />
 
@@ -1805,6 +1875,13 @@ export function ClientProgressReportView({
               <Calendar className="w-6 h-6" />
               {REPORT_STEPS[STEP_INDEX.celebrate].title}
             </h2>
+
+            {/* Why they train: it leads the printed page (Oct 13 2026). */}
+            <FocusPicker
+              value={report.focus ?? client.trainingFocus ?? null}
+              onChange={(focus) => setReport((r) => ({ ...r, focus }))}
+              firstName={client.firstName}
+            />
 
             <div className="flex flex-col gap-8">
               {/* Date Filter & Narrative */}
@@ -2525,6 +2602,17 @@ export function ClientProgressReportView({
               />
             </div>
           </section>
+          )}
+
+          {/* Section 6: the printed page (Oct 13 2026) */}
+          {activeStep === "page" && (
+            <section className="pr-card" data-accent="blue">
+              <h2 className="pr-card__title">
+                <Printer className="w-6 h-6" />
+                {REPORT_STEPS[STEP_INDEX.page].title}
+              </h2>
+              <ReportPageStep plan={sheetPlan} onChange={(modules) => setReport((r) => ({ ...r, modules }))} />
+            </section>
           )}
 
           <ReportStepNav
