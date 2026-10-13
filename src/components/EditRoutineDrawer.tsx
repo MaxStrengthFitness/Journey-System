@@ -35,7 +35,9 @@ import { planChangeFromEdit } from "../features/routine-plan/drawer-sync";
 import { signedChange } from "../features/routine-plan/lineup";
 import { saveRoutineEdit } from "../features/routine-plan/store";
 import { bFollowOf, bToggleOpensPlanB, plannedBFollowOf } from "../features/routine-plan/b-routine";
-import { machineNamer } from "../features/routine-plan/ui/host";
+import { floorMachinesOf, machineNamer } from "../features/routine-plan/ui/host";
+import { floorIndex } from "../features/routine-plan/starting-plan";
+import { canonicalMachineId } from "../features/catalog/machine-identity";
 import { learningCurveInputOf, pastLearningCurve } from "../features/routine-plan/client-kind";
 import { matchesRoutineLetter } from "../lib/routine-utils";
 import type { HistoryCoverage } from "../lib/prior-history";
@@ -415,9 +417,18 @@ export function EditRoutineDrawer({
   const applyPreset = (preset: RoutinePreset) => {
     // A template may name equipment this location does not have; the studio
     // roster, not the template, decides what is actually available.
-    const validIds = preset.machineIds.filter((id) =>
-      floor.some((m) => m.id === id),
-    );
+    // A preset names catalog machines; this floor may have a movement only
+    // as its own unit (a studio-built machine based on it), so each id maps
+    // to the unit that stands for it, as Start a plan does (`floorIndex`).
+    const onFloor = new Set(floor.map((m) => m.id).filter(Boolean) as string[]);
+    const unitFor = floorIndex(floorMachinesOf(floor));
+    const validIds = [
+      ...new Set(
+        preset.machineIds
+          .map((id) => (onFloor.has(id) ? id : unitFor.get(canonicalMachineId(id))))
+          .filter((id): id is string => !!id),
+      ),
+    ];
     setMachineIds(validIds);
     setReason((prev) => (prev.trim() ? prev : `Applied "${preset.name}" preset.`));
     setPendingPreset(null);

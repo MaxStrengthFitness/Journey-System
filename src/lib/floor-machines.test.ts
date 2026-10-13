@@ -275,12 +275,40 @@ describe("Studio setup on the floor", () => {
         } as never),
       ],
       { "m-leg-press": legacyLegPress },
-      { "m-leg-press": { settingOptions: ["Seat"], standardSettings: { Gap: "3", Seat: "5", "Back pad": " " } } },
+      { "m-leg-press": { settingOptions: ["Seat", "Back pad"], standardSettings: { Seat: "5", "Back pad": " " } } },
     );
     // "Seat" beside "Seat Position" is the settings audit's to settle, not the card's.
     expect(m.settingOptions).toEqual(["Gap", "Seat Position"]);
-    // The studio's Gap is the hint now; an empty value never counts.
-    expect(m.standardSettings).toEqual({ Gap: "3", Seat: "5" });
+    // The studio's Seat is a hint now; an empty value never counts.
+    expect(m.standardSettings).toEqual({ Gap: "2", Seat: "5" });
+  });
+
+  /* The review (Oct 13 2026): a fixed dial (the gap) opens already filled
+     with its standard and any Save writes it, so Studio setup's gap would
+     reach a client's record nobody chose; and the card saves with a merge,
+     so a setting a leader took off leaves its value behind. */
+  it("never lets Studio setup's gap stand in for the machine's own, and counts only the settings it still lists", () => {
+    const legPress = resolved({
+      machineId: "m-leg-press",
+      name: "LEG PRESS",
+      settingFields: [
+        { key: "gap", label: "Gap", type: "text" },
+        { key: "seat", label: "Seat", type: "text" },
+      ],
+    } as never);
+    // The Academy's leg-press gap is per client: no default of its own.
+    const [m] = toFloorMachines([legPress], {}, {
+      "m-leg-press": { settingOptions: ["Gap", "Seat"], standardSettings: { Gap: "2", Seat: "5", "Back pad": "3" } },
+    });
+    expect(m.standardSettings).toEqual({ Seat: "5" });
+    const gap = fieldsForMachine(m, {}, undefined).find((f) => f.key === "Gap")!;
+    expect(gap.absolute).toBe(false);
+    expect(gap.ghost).toBeNull();
+    // A machine with a gap of its own keeps it.
+    const [own] = toFloorMachines([{ ...legPress, defaultSettings: { Gap: "4" } } as never], {}, {
+      "m-leg-press": { settingOptions: ["Gap"], standardSettings: { Gap: "2" } },
+    });
+    expect(own.standardSettings).toEqual({ Gap: "4" });
   });
 
   it("says exactly what it said before when Studio setup isn't read (or failed)", () => {
@@ -290,9 +318,11 @@ describe("Studio setup on the floor", () => {
   });
 
   it("a studio with no roster yet keeps the app-wide list, with the studio's standards", () => {
-    const out = studioFloorOf([], [legacyLegPress], { "m-leg-press": { settingOptions: ["Seat"], standardSettings: { Gap: "6" } } });
+    const out = studioFloorOf([], [legacyLegPress], {
+      "m-leg-press": { settingOptions: ["Seat Distance"], standardSettings: { "Seat Distance": "6", Gap: "9" } },
+    });
     expect(out[0].settingOptions).toEqual(legacyLegPress.settingOptions);
-    expect(out[0].standardSettings).toEqual({ Gap: "6" });
+    expect(out[0].standardSettings).toEqual({ Gap: "2", "Seat Distance": "6" });
     expect(studioFloorOf([], [legacyLegPress], {})[0]).toBe(legacyLegPress);
   });
 });
@@ -306,5 +336,8 @@ describe("studioBuiltDialNames and withSetupStandards", () => {
   it("leaves the defaults alone with no studio standard", () => {
     expect(withSetupStandards({ a: "1" }, undefined)).toEqual({ a: "1" });
     expect(withSetupStandards(undefined, { standardSettings: {} })).toBeUndefined();
+    // A standard for a setting Studio setup no longer lists is no standard.
+    expect(withSetupStandards({ a: "1" }, { settingOptions: [], standardSettings: { Seat: "4" } })).toEqual({ a: "1" });
+    expect(withSetupStandards(undefined, { settingOptions: ["seat"], standardSettings: { Seat: "4" } })).toEqual({ Seat: "4" });
   });
 });

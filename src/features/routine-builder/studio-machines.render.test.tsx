@@ -177,6 +177,37 @@ describe("the Edit routine drawer offers this floor, the studio's own machines i
     expect(pickerNames()).not.toContain("Pulldown");
   });
 
+  /* The review (Oct 13 2026): a preset names catalog machines, and a floor
+     may have a movement only as its own unit. */
+  it("a preset's leg press lands on the studio's own unit when the floor has no other, and what the floor lacks stays out", async () => {
+    const HOIST_ONLY: Machine[] = [
+      { id: "m-chest-press", name: "Chest Press", order: 1 },
+      { id: HOIST, name: "Hoist leg press", order: 2, comparisonKey: "m-leg-press" },
+    ] as Machine[];
+    const EMPTY_A = { ...ROUTINE_A, machineIds: [] } as Routine;
+    await mount(
+      <EditRoutineDrawer
+        client={CLIENT}
+        clientId="c1"
+        routines={[EMPTY_A]}
+        machines={APP_WIDE}
+        floorMachines={HOIST_ONLY}
+        activeStudioId="strongsville"
+        sessions={[]}
+        allLogs={[]}
+        coverage="complete"
+        target="Routine A"
+        onClose={() => {}}
+        onSaved={() => {}}
+      />,
+    );
+    // Full Body Foundations: chest press, compound row, leg press, abs.
+    await click(button(/^Full Body Foundations/));
+    await click(button("Apply Routine A"));
+    const saved = fake.writes.find((w) => w.op === "update" && w.path === "routines/rA");
+    expect(saved?.data.machineIds).toEqual(["m-chest-press", HOIST]);
+  });
+
   it("before this round (the app-wide list alone) the Hoist was never offered", async () => {
     await mount(drawer(undefined));
     await click(button("Add"));

@@ -45,6 +45,7 @@
 
 import type { Machine, StudioMachineSetting } from "../types";
 import type { ResolvedMachine } from "../types/machines";
+import { isAbsoluteDial } from "../features/equipment/absolute-dials";
 
 /** Dial labels for a resolved machine, in the order the catalog declares them. */
 export function dialLabelsOf(resolved: ResolvedMachine): string[] {
@@ -75,9 +76,11 @@ export function dialLabelsOf(resolved: ResolvedMachine): string[] {
  *     put "Seat" beside "Seat Position" on one card, which is the audit's
  *     to settle.
  *   - Standards: Studio setup's standard values, on every machine, over the
- *     machine's own defaults. They are only ever the hint on an empty dial
- *     (and what "Use studio standard for all" fills in), and they used to
- *     reach the card from a studio-document field nothing writes.
+ *     machine's own defaults, for the settings Studio setup still lists,
+ *     never a fixed dial's (`withSetupStandards`). They are only ever the
+ *     hint on an empty dial (and what "Use studio standard for all" fills
+ *     in), and they used to reach the card from a studio-document field
+ *     nothing writes.
  * A setup not read yet (or a failed read) is no setup: the floor says what
  * it said before this round, never less.
  */
@@ -111,13 +114,29 @@ export function studioBuiltDialNames(own: readonly string[], setup: readonly str
   return out;
 }
 
-/** Studio setup's standard values over the machine's own defaults; empty values never count. */
+/**
+ * Studio setup's standard values over the machine's own defaults. Only a
+ * standard Studio setup still lists a setting for counts (the card saves with
+ * a merge, so a setting a leader took off leaves its value behind), an empty
+ * value never counts, and a FIXED dial (the gap, `isAbsoluteDial`) keeps the
+ * machine's own: a fixed dial opens already filled with its standard and any
+ * Save writes it, so a Studio setup value there would reach a client's record
+ * that no trainer chose (the review, Oct 13 2026; the open session round's
+ * finding 5 is the same bug).
+ */
 export function withSetupStandards(
   defaults: Readonly<Record<string, string>> | undefined,
   setup: StudioSetupLike | undefined,
 ): Record<string, string> | undefined {
+  const listed = new Set((setup?.settingOptions ?? []).map((o) => (typeof o === "string" ? nameKey(o) : "")).filter(Boolean));
   const studio = Object.entries(setup?.standardSettings ?? {}).filter(
-    ([k, v]) => k.trim() !== "" && v !== undefined && v !== null && String(v).trim() !== "",
+    ([k, v]) =>
+      k.trim() !== "" &&
+      listed.has(nameKey(k)) &&
+      !isAbsoluteDial(k, k) &&
+      v !== undefined &&
+      v !== null &&
+      String(v).trim() !== "",
   );
   if (studio.length === 0) return defaults ? { ...defaults } : undefined;
   const out: Record<string, string> = { ...(defaults ?? {}) };
