@@ -230,6 +230,7 @@ import {
 
 import { useActiveStudio } from "../contexts/ActiveStudioContext";
 import { useStudioMachines } from "../hooks/useStudioMachines";
+import { useStudioMachineSettings } from "../hooks/useStudioMachineSettings";
 import { isBounceAdd, type LastAdd } from "../features/journey-grid/add-bounce";
 import { resolveMachineOrder } from "../data/machine-display-order";
 import {
@@ -523,9 +524,15 @@ export function WorkoutTrackerView({
     return map;
   }, [machines]);
 
+  // The studio's Studio setup cards: a studio-built machine's setting names
+  // and every machine's studio standards (lib/floor-machines.ts, the studio
+  // machines round, Oct 13 2026). One listener for the studio, its index
+  // already in place; not read yet, the floor is what it was before.
+  const { settingsByMachineId: studioSetupById } = useStudioMachineSettings(contextActiveStudioId);
+
   const floorMachines = useMemo(
-    () => toFloorMachines(studioFloor, legacyMachinesById),
-    [studioFloor, legacyMachinesById],
+    () => toFloorMachines(studioFloor, legacyMachinesById, studioSetupById),
+    [studioFloor, legacyMachinesById, studioSetupById],
   );
 
   const { error: toastError, info: toastInfo } = useToast();

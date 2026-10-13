@@ -202,6 +202,8 @@ const netCtl = {
   noBaseSettings: false,
   /** More machines on the studio's floor. */
   moreRoster: [] as { id: string; data: () => any }[],
+  /** The studio's Studio setup cards (studioMachineSettings). */
+  studioSetup: [] as { id: string; data: () => any }[],
   deletes: [] as string[],
   autoId: 0,
   /** Collections whose listeners answer from the iPad's cache (`fromCache: true`). */
@@ -233,6 +235,7 @@ vi.mock("firebase/firestore", async (importOriginal) => {
   const docsFor = (p: string) => {
     if (p === "machines") return CATALOG_DOCS;
     if (p === `studios/${STUDIO_ID}/roster`) return [...ROSTER_DOCS, ...netCtl.moreRoster];
+    if (p === "studioMachineSettings") return netCtl.studioSetup;
     if (p === "sessions") return sessionDocs;
     if (p === "clientMachineSettings") return [...(netCtl.noBaseSettings ? [] : SETTINGS_DOCS), ...netCtl.moreSettings];
     if (p === "journalEntries") return journalDocs;
@@ -504,6 +507,7 @@ beforeEach(() => {
   netCtl.moreSettings = [];
   netCtl.noBaseSettings = false;
   netCtl.moreRoster = [];
+  netCtl.studioSetup = [];
   netCtl.deletes = [];
   netCtl.fromCache = new Set();
   netCtl.fail = new Set();
@@ -1626,6 +1630,40 @@ describe("the FileMaker floor (the open session round, Oct 9 2026)", () => {
     await settle();
     expect(document.querySelector(".mm-dialog .mm-card")).not.toBeNull();
     expect(document.querySelector(".mm-dialog [data-editor]")).toBeNull();
+  });
+
+  /* The studio machines round (Oct 13 2026; AJ: "i wasnt able to add
+     settings for a client onto our hoist leg press at strongsville, in the
+     machine catalog it has a seat setting to it"). A studio-built machine
+     whose Seat was added on the Studio setup card, not in its own dials:
+     the floor reads Studio setup now, so the card has a Seat to save. */
+  it("a studio-built machine whose Seat is on Studio setup alone gets Set up, and the Seat is saved to the client", async () => {
+    const HOIST = "sm-solon-hoist-leg-press";
+    netCtl.moreRoster = [
+      { id: HOIST, data: () => ({ source: "custom", basedOn: "m-leg-press", status: "active", order: 30, definition: { name: "Hoist leg press" } }) },
+    ];
+    netCtl.studioSetup = [
+      { id: `${STUDIO_ID}_${HOIST}`, data: () => ({ studioId: STUDIO_ID, machineId: HOIST, settingOptions: ["Seat"], standardSettings: { Seat: "4" } }) },
+    ];
+    sessionDocs = routineLess();
+    netCtl.routines = [];
+    const host = await mount(<Tracker />);
+    await act(async () => plus(host, "Hoist leg press")!.click());
+    const setup = setupBtn(host)!;
+    expect(setup.textContent).toBe("Set up· 1 not set");
+    await act(async () => setup.click());
+    await settle();
+    expect(document.querySelector(".mm-dialog [data-editing] .mm-tile__label")?.textContent).toBe("Seat");
+    const input = document.querySelector<HTMLInputElement>('.mm-dialog [data-block="settings"] [data-editor="field"] input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "6");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const save = [...document.querySelectorAll<HTMLButtonElement>(".mm-dialog button")].find((b) => b.textContent === "Save set-up");
+    await act(async () => save!.click());
+    await settle();
+    const saved = writes.filter((w) => w.path.startsWith("clientMachineSettings/"));
+    expect(saved.map((w) => [w.path, w.data.settings])).toEqual([[`clientMachineSettings/${CLIENT_ID}_${HOIST}`, { Seat: "6" }]]);
   });
 
   /* Changed on purpose (the open session round, Oct 9 2026; AJ's "3a":

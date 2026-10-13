@@ -43,7 +43,7 @@
  * legacy one; nothing here blocks that, and nothing here depends on it.
  */
 
-import type { Machine } from "../types";
+import type { Machine, StudioMachineSetting } from "../types";
 import type { ResolvedMachine } from "../types/machines";
 
 /** Dial labels for a resolved machine, in the order the catalog declares them. */
@@ -54,30 +54,110 @@ export function dialLabelsOf(resolved: ResolvedMachine): string[] {
 }
 
 /**
+ * STUDIO SETUP ON THE FLOOR (the studio machines round, Oct 13 2026).
+ *
+ * A machine's setting names are kept in two places: the machine's own dials
+ * (`definition.settingFields`, the machine editor's The dials) and the
+ * Studio setup card (`studioMachineSettings/{studio}_{machine}`, Learning →
+ * Catalog and My Studio → Machines, which the Catalog's Preset line shows
+ * first). Until this round the floor read only the first, so a studio-built
+ * machine whose Seat was added on Studio setup (Strongsville's Hoist leg
+ * press, AJ, Oct 13 2026) reached the client's machine card with no dials
+ * at all: no catalog entry stood behind it, so nothing could be saved.
+ *
+ * The rule, kept small until the settings audit before the FileMaker import
+ * (AJ: "ill have to audit all the machine settings before mass import ...
+ * we will need to make a plan for that later"):
+ *   - Names: a STUDIO-BUILT machine takes Studio setup's names first, in
+ *     their order, then any of its own dials Studio setup didn't name (so a
+ *     value already saved under one is never hidden). A standard machine
+ *     keeps its own (the catalog's) names: mixing the two lists there would
+ *     put "Seat" beside "Seat Position" on one card, which is the audit's
+ *     to settle.
+ *   - Standards: Studio setup's standard values, on every machine, over the
+ *     machine's own defaults. They are only ever the hint on an empty dial
+ *     (and what "Use studio standard for all" fills in), and they used to
+ *     reach the card from a studio-document field nothing writes.
+ * A setup not read yet (or a failed read) is no setup: the floor says what
+ * it said before this round, never less.
+ */
+export type StudioSetupLike = Pick<StudioMachineSetting, "settingOptions" | "standardSettings">;
+export type StudioSetupById = Readonly<Record<string, StudioSetupLike | undefined>>;
+
+const nameKey = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/**
+ * A studio-built machine's dial names: Studio setup's first, then its own not
+ * named there. A name both hold keeps the machine's own spelling: a dial's
+ * name is the key a client's value is saved under, and only the machine's
+ * own names have ever been saved under.
+ */
+export function studioBuiltDialNames(own: readonly string[], setup: readonly string[] | undefined): string[] {
+  const ownByKey = new Map<string, string>();
+  for (const raw of own) {
+    const name = typeof raw === "string" ? raw.trim() : "";
+    const key = nameKey(name);
+    if (key && !ownByKey.has(key)) ownByKey.set(key, name);
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of [...(setup ?? []), ...own]) {
+    const name = typeof raw === "string" ? raw.trim() : "";
+    const key = nameKey(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(ownByKey.get(key) ?? name);
+  }
+  return out;
+}
+
+/** Studio setup's standard values over the machine's own defaults; empty values never count. */
+export function withSetupStandards(
+  defaults: Readonly<Record<string, string>> | undefined,
+  setup: StudioSetupLike | undefined,
+): Record<string, string> | undefined {
+  const studio = Object.entries(setup?.standardSettings ?? {}).filter(
+    ([k, v]) => k.trim() !== "" && v !== undefined && v !== null && String(v).trim() !== "",
+  );
+  if (studio.length === 0) return defaults ? { ...defaults } : undefined;
+  const out: Record<string, string> = { ...(defaults ?? {}) };
+  for (const [k, v] of studio) out[k] = String(v).trim();
+  return out;
+}
+
+/**
  * The studio's floor in the legacy `Machine` shape.
  *
  * @param resolved   `useStudioMachines(studioId).machines` — already ordered.
  * @param legacyById the app-wide `machines` prop, keyed by id.
+ * @param setupById  the studio's Studio setup cards (`useStudioMachineSettings`), keyed by machine.
  */
 export function toFloorMachines(
   resolved: readonly ResolvedMachine[],
   legacyById: Readonly<Record<string, Machine>>,
+  setupById?: StudioSetupById | null,
 ): Machine[] {
   return resolved.map((r) => {
     const legacy = legacyById[r.machineId];
+    const setup = setupById?.[r.machineId];
 
     // The studio's dial labels win. A studio that has never touched its
     // roster inherits the catalog's, which is the same list the editor
-    // shows — so this is "the catalog, finally", not a new source.
+    // shows — so this is "the catalog, finally", not a new source. A
+    // studio-built machine also takes Studio setup's names (above).
     const dials = dialLabelsOf(r);
-    const settingOptions = dials.length ? dials : legacy?.settingOptions;
+    const named = r.source === "custom" ? studioBuiltDialNames(dials, setup?.settingOptions) : dials;
+    const settingOptions = named.length ? named : legacy?.settingOptions;
 
     // Same precedence for the dial defaults: the resolved machine already
-    // carries the studio's override merged over the catalog's.
-    const defaults =
+    // carries the studio's override merged over the catalog's; Studio
+    // setup's standards go over both.
+    const defaults = withSetupStandards(
       r.defaultSettings && Object.keys(r.defaultSettings).length
-        ? { ...r.defaultSettings }
-        : legacy?.standardSettings;
+        ? r.defaultSettings
+        : legacy?.standardSettings,
+      setup,
+    );
 
     return {
       // Everything the legacy document knows, so no consumer loses a field.
@@ -114,11 +194,21 @@ export function toFloorMachines(
 export function studioFloorOf(
   resolved: readonly ResolvedMachine[],
   machines: readonly Machine[],
+  setupById?: StudioSetupById | null,
 ): Machine[] {
-  if (resolved.length === 0) return [...machines];
+  if (resolved.length === 0) {
+    // No roster: the app-wide list, with the studio's standards (a standard
+    // machine's names stay its own, as on a rostered floor).
+    if (!setupById) return [...machines];
+    return machines.map((m) => {
+      const setup = m.id ? setupById[m.id] : undefined;
+      const standards = setup ? withSetupStandards(m.standardSettings, setup) : undefined;
+      return standards ? { ...m, standardSettings: standards } : m;
+    });
+  }
   const legacyById: Record<string, Machine> = {};
   for (const m of machines) if (m.id) legacyById[m.id] = m;
-  return toFloorMachines(resolved, legacyById);
+  return toFloorMachines(resolved, legacyById, setupById);
 }
 
 /**

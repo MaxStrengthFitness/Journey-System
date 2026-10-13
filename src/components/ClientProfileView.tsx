@@ -136,6 +136,7 @@ import {
 } from "../lib/utils";
 import { useActiveSessionCheck } from "../hooks/useActiveSessionCheck";
 import { useStudioMachines } from "../hooks/useStudioMachines";
+import { useStudioMachineSettings } from "../hooks/useStudioMachineSettings";
 import { floorWithHistoryMachines, studioFloorOf } from "../lib/floor-machines";
 import { findRoutineByLetter, matchesRoutineLetter } from "../lib/routine-utils";
 import { resolveMachineOrder } from "../data/machine-display-order";
@@ -358,7 +359,12 @@ export function ClientProfileView({
   const { machines: studioFloor, byId: studioFloorById } = useStudioMachines(activeStudioId);
   // The studio's floor for the codex's Watch-outs: its own machines and their
   // lineage, which the app-wide `machines` list has neither of.
-  const codexFloor = useMemo(() => studioFloorOf(studioFloor, machines ?? []), [studioFloor, machines]);
+  // Studio setup's names and standards ride on the floor (lib/floor-machines.ts, Oct 13 2026).
+  const { settingsByMachineId: studioSetupById } = useStudioMachineSettings(activeStudioId ?? null);
+  const codexFloor = useMemo(
+    () => studioFloorOf(studioFloor, machines ?? [], studioSetupById),
+    [studioFloor, machines, studioSetupById],
+  );
   // The machine window opens any machine the grid lists: the floor's own
   // version first (its name and dials), then every other machine by id.
   const machineWindowMachines = useMemo(

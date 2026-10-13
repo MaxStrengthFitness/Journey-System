@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { toFloorMachines, dialLabelsOf, isPerSideMachine, studioFloorOf, floorWithHistoryMachines } from "./floor-machines";
+import { toFloorMachines, dialLabelsOf, isPerSideMachine, studioFloorOf, floorWithHistoryMachines, studioBuiltDialNames, withSetupStandards } from "./floor-machines";
+import { fieldsForMachine } from "../features/equipment/adapters";
 import type { Machine } from "../types";
 import type { ResolvedMachine } from "../types/machines";
 
@@ -211,5 +212,99 @@ describe("floorWithHistoryMachines (the profile's Journey grid rows, Oct 2 2026)
 
   it("never drops history on a machine no list knows", () => {
     expect(floorWithHistoryMachines(floor, appWide, ["gone"]).map((x) => x.name)).toEqual(["Leg Press", "Our Row", "gone"]);
+  });
+});
+
+/*
+ * STUDIO SETUP ON THE FLOOR (the studio machines round, Oct 13 2026). AJ:
+ * "i wasnt able to add settings for a client onto our hoist leg press at
+ * strongsville, in the machine catalog it has a seat setting to it". The
+ * Catalog's Preset reads the Studio setup card first; the floor read only
+ * the machine's own dials, and a studio-built machine has no catalog entry
+ * behind it, so the client's card had no dial to save.
+ */
+describe("Studio setup on the floor", () => {
+  const HOIST = "sm-BVDDRe5AqQZFihRLW0vK-hoist-leg-press";
+  const hoist = (over: Partial<ResolvedMachine> = {}) =>
+    resolved({ machineId: HOIST, name: "Hoist leg press", source: "custom", comparisonKey: "m-leg-press", ...over } as never);
+
+  it("gives a studio-built machine with no dials of its own the names and standards from Studio setup", () => {
+    const [m] = toFloorMachines([hoist()], {}, { [HOIST]: { settingOptions: ["Seat"], standardSettings: { Seat: "4" } } });
+    expect(m.settingOptions).toEqual(["Seat"]);
+    expect(m.standardSettings).toEqual({ Seat: "4" });
+  });
+
+  it("the client's card then has a Seat dial to type into, with the studio standard as its hint", () => {
+    const [m] = toFloorMachines([hoist()], {}, { [HOIST]: { settingOptions: ["Seat"], standardSettings: { Seat: "4" } } });
+    // No catalog entry stands behind a studio-built machine.
+    const fields = fieldsForMachine(m, {}, undefined);
+    expect(fields.map((f) => [f.key, f.label, f.type, f.ghost])).toEqual([["Seat", "Seat", "text", "4"]]);
+    // Before this round: no dial at all.
+    expect(fieldsForMachine(toFloorMachines([hoist()], {})[0], {}, undefined)).toEqual([]);
+  });
+
+  it("puts Studio setup's names first on a studio-built machine, then its own it didn't name, never twice", () => {
+    const [m] = toFloorMachines(
+      [
+        hoist({
+          settingFields: [
+            { key: "seat", label: "Seat", type: "text" },
+            { key: "foot-plate", label: "Foot plate", type: "text" },
+          ],
+        } as never),
+      ],
+      {},
+      { [HOIST]: { settingOptions: ["Back pad", " seat ", "", "Back Pad"] } },
+    );
+    // A value saved under its own "Seat" or "Foot plate" is never hidden:
+    // a name both hold keeps the machine's own spelling.
+    expect(m.settingOptions).toEqual(["Back pad", "Seat", "Foot plate"]);
+  });
+
+  it("keeps a standard machine's own names, and gives it the studio's standards", () => {
+    const [m] = toFloorMachines(
+      [
+        resolved({
+          machineId: "m-leg-press",
+          name: "LEG PRESS",
+          settingFields: [
+            { key: "gap", label: "Gap", type: "text" },
+            { key: "seat-position", label: "Seat Position", type: "text" },
+          ],
+          defaultSettings: { Gap: "2" },
+        } as never),
+      ],
+      { "m-leg-press": legacyLegPress },
+      { "m-leg-press": { settingOptions: ["Seat"], standardSettings: { Gap: "3", Seat: "5", "Back pad": " " } } },
+    );
+    // "Seat" beside "Seat Position" is the settings audit's to settle, not the card's.
+    expect(m.settingOptions).toEqual(["Gap", "Seat Position"]);
+    // The studio's Gap is the hint now; an empty value never counts.
+    expect(m.standardSettings).toEqual({ Gap: "3", Seat: "5" });
+  });
+
+  it("says exactly what it said before when Studio setup isn't read (or failed)", () => {
+    const before = toFloorMachines([hoist(), resolved({ machineId: "m-leg-press", name: "LEG PRESS" })], { "m-leg-press": legacyLegPress });
+    expect(toFloorMachines([hoist(), resolved({ machineId: "m-leg-press", name: "LEG PRESS" })], { "m-leg-press": legacyLegPress }, {})).toEqual(before);
+    expect(toFloorMachines([hoist(), resolved({ machineId: "m-leg-press", name: "LEG PRESS" })], { "m-leg-press": legacyLegPress }, null)).toEqual(before);
+  });
+
+  it("a studio with no roster yet keeps the app-wide list, with the studio's standards", () => {
+    const out = studioFloorOf([], [legacyLegPress], { "m-leg-press": { settingOptions: ["Seat"], standardSettings: { Gap: "6" } } });
+    expect(out[0].settingOptions).toEqual(legacyLegPress.settingOptions);
+    expect(out[0].standardSettings).toEqual({ Gap: "6" });
+    expect(studioFloorOf([], [legacyLegPress], {})[0]).toBe(legacyLegPress);
+  });
+});
+
+describe("studioBuiltDialNames and withSetupStandards", () => {
+  it("names nothing twice, ignoring case and spacing", () => {
+    expect(studioBuiltDialNames(["Seat", "Gap"], ["SEAT", "Back-pad", "back pad"])).toEqual(["Seat", "Back-pad", "Gap"]);
+    expect(studioBuiltDialNames([], undefined)).toEqual([]);
+  });
+
+  it("leaves the defaults alone with no studio standard", () => {
+    expect(withSetupStandards({ a: "1" }, undefined)).toEqual({ a: "1" });
+    expect(withSetupStandards(undefined, { standardSettings: {} })).toBeUndefined();
   });
 });
