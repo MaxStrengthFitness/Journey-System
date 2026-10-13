@@ -169,4 +169,8 @@ AJ sent the files of the client with the most visits of any MSF client ("this is
 
 **A question the review raised for AJ**: a single whole count on a machine done one side at a time (Torso Rotation "8", where Solon writes "8.7") imports as 8 each side. Is that what a trainer meant, or was it one side's count?
 
+**AJ's answer (Oct 13 2026)**: "strongsville does not have a torso rotation but to answer your question some trainers might put it 8/8 8.8 8 8 8-8. i know file maker practices were not ideal". So, still to build before the full import: read "8/8", "8 8" and "8-8" as left and right the way "8.8" already is, and mark a single count on a machine done one side at a time for a person to look at in the dry run rather than importing it as each side.
+
+**Also before the trial clients are taken out again**: the pre-launch reset deletes sessions but leaves `priorHistory.importedCount` and `legacy_filemaker_id` as the import set them, so a client reset after an import would come up short by the sessions deleted (the total is Journey's count plus `sessions - importedCount`, and only the first part drops). The reset must lower `importedCount` by the imported sessions it deletes (and clear the id) in the same write.
+
 **Still open from §6** (each small, none needed before an import): the briefing's InBody due, for a client with no scan on file, still counts every session since the first (bring FileMaker's `InBodyLastScanDate` in with the full export); Insights and the month tally count an imported #1 as a first session; the Journey grid orders past sessions by number before date. The pre-launch reset, the full export with trainers and AJ's go are the lock's three conditions now (§6, 3 and 4).

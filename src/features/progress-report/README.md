@@ -54,8 +54,8 @@ no data, padded with one shared blank object (so typing in one slot edited
 all the blanks) and printed every slot. Now, in `accolades.ts`:
 
 - **Nothing empty prints.** `slotCard()` returns null for a slot without real
-  data; `AccoladeCards` draws only the rest, and nothing at all when none are
-  left. Reports saved before this round go through the same rule: a legacy
+  data; `reportCards` keeps only the rest, and the page and the client view
+  draw nothing at all when none are left. Reports saved before this round go through the same rule: a legacy
   slot prints only with a machine, a label and a positive number.
 - **Every accolade has a named minimum**, and the editor says "not enough
   data yet" below it:
@@ -125,6 +125,9 @@ ships a useful table.
 
 ## Printing
 
+*(Since Oct 13 2026 the print is the one-page sheet, and the second point
+below no longer applies: see the last section. The first still does.)*
+
 Two things were wrong before this round:
 
 1. The app shell is a `100dvh` scroll pane, and a scroll pane prints as
@@ -184,9 +187,9 @@ client progress report." Round document: `docs/rounds/2026-09-16-reporting-round
 - **Untouched = not rated.** A new report starts each P at `UNRATED_SCORE`
   (0 — a value no old report ever wrote) and the card says "Not rated"; the
   old default of 80 is gone. An old report's 80 still reads as Strong.
-- The printed card (`FourPsCards` in `ClientReportSections.tsx`) shows the
-  mastery WORD, a five-segment picture of the Dial and the note — never the
-  number. The personalised note, the "include in summary" toggle and the
+- The client's copy (the page and the screen since Oct 13 2026; it was
+  `FourPsCards`) shows each RATED P's mastery WORD, a five-segment picture of
+  the Dial and the note — never the number, and an unrated P not at all. The personalised note, the "include in summary" toggle and the
   coaching-focus history all stay.
 - `src/types.ts` was not touched: `score` remains the store. If a `rank`
   field is ever wanted on the document, add it there and in `withDial`.
@@ -236,3 +239,41 @@ CURRENT client's name, and saving wrote to the old document. Now:
 wires it (bottom bar, bell, Relay, switching client);
 `components/ClientProgressReportView.render.test.tsx` mounts the editor's
 refusal.
+
+## One printed page, and a client view you can read (Oct 13 2026)
+
+AJ: "currently you cant read all the text, we could enhance the look to feel
+more like our app", and the printed report was "a giant 3 page, im looking to
+get this all on 1 page". Round document:
+`docs/rounds/2026-10-13-progress-report-page.md`.
+
+- **Why the client trains** decides the page: `report-page.ts` has the five
+  focuses (everyday strength and independence, pain-free movement, body
+  composition, a goal to hit, their own goal in words), the ten modules, each
+  focus's order and pairs (`ROWS`) and its defaults (`DEFAULTS`). The focus is
+  the report's (`focus`), else the client's (`clients/{id}.trainingFocus`, set
+  on Goals & Focus → Training for or by the report's Save), else A goal to hit
+  (`reportFocus`).
+- **The trainer ticks** what is on the page (the sixth step, The printed page,
+  `ReportPageStep`), starting from the focus's defaults where the data has
+  something to say; a module it can't fill says why and can't be ticked. The
+  ticks are the report's `modules`, so a finalized report prints the same page
+  later. A read that failed is "couldn't read", never "none".
+- **The page** (`ReportSheet.tsx`, `report-sheet.css`): US Letter less a 0.4in
+  margin, the frame's navy band on white paper. `fitPage` estimates roomy,
+  then condensed, then a little smaller (to 88%); the drawn sheet measures
+  itself and steps down the same way, and runs onto a second page rather than
+  ever losing its end. Print prints only the sheet (`body.printing-sheet`).
+  `harness/report-print/check.mjs` prints the samples (`sheet-fixtures.ts`)
+  through headless Chrome and counts the pages.
+- **The screen** (`ReportScreen.tsx`, `report-screen.css`): the same modules in
+  the same order from the same plan (`planSheet`), in the app's panels, light
+  and dark, with what the paper had no room for (`SheetPlan.screen`: every
+  machine, every step of the plan, the focus history, the highlights, the
+  whole Pulse). One column under 900px of its width; a machines table longer
+  than six rows takes a row of its own (`screenRows`).
+  `harness/report-print/shots.mjs` photographs it.
+- **Words**: nothing the trainer didn't write; "since your first session" only
+  when Journey holds the whole story and the count starts there; a body change
+  inside the scanner's variation is "about the same".
+

@@ -47,7 +47,7 @@ An InBody scan of the same body reads a little differently every time. Before th
 | Screen | What obeys it |
 | --- | --- |
 | The InBody card | the tiles' change line and colour (`formatCalledChange`, `changeTone`), the summary sentence (`summarySentence`) |
-| The progress report (print and view) | the Change column, plus one line explaining "within normal variation" when any row is |
+| The progress report (print and view) | the body table's Change column: a change inside the variation reads "about the same", with no number (Oct 13 2026, `progress-report/sheet-from-report.ts` `bodyCells`; it was "+1.2 lb · within normal variation" and a footnote) |
 | The Renewal Brief | the InBody health line (`healthLines`) and the upgrade reasons (`upgradeVerdict`) |
 | The renewal card on the profile | the proof line (`proofSentence`) |
 | Body & Pulse → Measured, and what she told us | the Strength row: first scan against the latest, "inside the scanner's normal variation (±3.5 lb, Max Strength's default)" or "Up 4.0 lb, beyond … (set by Solon)" (`client-codex/body/pairs.ts`) |
@@ -60,7 +60,8 @@ An InBody scan of the same body reads a little differently every time. Before th
 | Where | Before | After |
 | --- | --- | --- |
 | InBody card sentence | Since Jan 15: muscle up 2.3 lb, body fat down 1.8 points. | Since Jan 15: no change bigger than the scanner's normal variation. |
-| InBody card / progress report change | +2.3 lb (green) | +2.3 lb · within normal variation (uncoloured) |
+| InBody card change | +2.3 lb (green) | +2.3 lb · within normal variation (uncoloured) |
+| Progress report change (since Oct 13 2026) | +2.3 lb (green) | about the same (uncoloured) |
 | Renewal Brief | InBody since Jan 15: muscle up 2.3 lb, body fat down 1.8 points | InBody since Jan 15: no change bigger than the scanner's normal variation |
 | Pipeline / renewal card proof | In 11 of the last 12 weeks · +2.3 lb muscle | In 11 of the last 12 weeks |
 | Upgrade candidates | a +1.2 lb muscle change counted as visible progress | only muscle up, or body fat down, beyond the variation counts |
