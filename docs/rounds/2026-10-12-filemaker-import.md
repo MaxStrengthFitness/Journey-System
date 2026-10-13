@@ -1,6 +1,6 @@
 # The FileMaker import round (Oct 12 2026)
 
-**Branch:** `oct12/filemaker-import` over master `a39bca59`. **Not pushed. Nothing written to the real database: production writes are switched off in this round (§6).**
+**Branch:** `oct12/filemaker-import` over master `a39bca59`. **Not pushed. Nothing written to the real database: production writes are switched off (§6). The app side of §6 (items 1 and 2) was done the same day by the history-ready round (§10); the biggest client in MSF is §11.**
 
 ## 1. What AJ asked
 
@@ -78,8 +78,8 @@ The rehearsal on a throwaway Firestore emulator (project `demo-fm-import`; nothi
 
 `PRODUCTION_IMPORT_READY` is false. These come first, each its own piece of work for AJ's yes:
 
-1. **The session screen reads a client's entire history at Start** (`WorkoutTrackerView`'s sessions listener has no limit). Fine at 60 sessions; with years imported it is slow on the floor and costs reads at every Start. It needs a limit, measured in the perf lab with FileMaker-sized clients first.
-2. **"Done, reps not recorded" must be read everywhere reps are counted.** It reverses the Sep 12 2026 rule (a FileMaker blank imported as skipped) for a weight with no reps, on AJ's answer. Nothing crashes on it; these would say wrong things (the review's list):
+1. **Done (§10).** **The session screen reads a client's entire history at Start** (`WorkoutTrackerView`'s sessions listener has no limit). Fine at 60 sessions; with years imported it is slow on the floor and costs reads at every Start. It needs a limit, measured in the perf lab with FileMaker-sized clients first.
+2. **Done (§10).** **"Done, reps not recorded" must be read everywhere reps are counted.** It reverses the Sep 12 2026 rule (a FileMaker blank imported as skipped) for a weight with no reps, on AJ's answer. Nothing crashes on it; these would say wrong things (the review's list):
    - the Journey grid: `journey-grid/stats.ts` `trendVsPrevious` (a false reps-down then reps-up arrow), `JourneyCell.tsx` (the aria label says 0 reps; the corner needs a "not recorded" mark), `StatCell.tsx` (a visible "0 reps"), `adapters.ts` `toJourneySet` (drops the flag; quality reads "Completed");
    - the Wrap-up: `lib/post-session.ts` (a missing prior count read as 0: "▲ +10 reps") and its `todayHeadline`;
    - the progress report: `lib/progress-utils.ts` (`|| 1` counts each as one rep);
@@ -119,3 +119,54 @@ Excel or Merge format (column names on the first row), one file per studio if a 
 - **Who at Solon can explain** the Leg Curl that alternates between two weights visit to visit (68 / 52, then 70 / 50): two set-ups under one name?
 - **Numbering a client with a longer history than FileMaker's** without a stated total starts at 1 (README, "Numbering").
 - **A session a trainer deletes from History** would come back on a later run of the import (no record of the deletion), and the import can't follow a client re-keyed to another record. Both matter only for a run after go-live, which the "Journey already holds sessions" stop prevents.
+
+## 10. The history-ready round (Oct 12 2026, the same day)
+
+AJ, on §6's first two items: "I don't want our app to just be de- destroyed once we get all this data in." The plan was items 1 and 2 of §6, plus the two smaller reads behind them, measured in the perf lab before and after. AJ answered its three questions **"1a 2a 3a"**:
+
+- **1a** On the Journey grid a set with no count shows its weight with a dash where the reps go ("70 –"), and says "reps not recorded" to a screen reader.
+- **2a** The progress report's Total Reps and Total Volume count the recorded sets, and their tiles say so ("Total Reps (recorded)").
+- **3a** Part 3 is in: the progress report and the Deep Dive read only their own window, and the import marks a client's machine totals as built.
+
+One commit a phase, each typechecked on its own:
+
+0. **The lab can give its focus clients years of imported history** (`harness/perf-lab/seed.ts`, `PERF_LAB_FOCUS_DAYS_BACK`, default a year as before). The two clients the client and session scenarios open get one a day for that many days, the part older than a year written the way the import writes it (no trainer, noon of the day, `legacy_filemaker_id`). At 2,920 days (eight years) each has about 810 Journey sessions, 600 before Journey and some 6,500 sets.
+1. **The session screen reads a window of the client's sessions** (`WorkoutTrackerView`): the newest 40, the journal's own query (one listener serves both), and every session still open whatever its age, so a session left open long ago is still asked about. What used to claim "every session" now says so only while the window isn't full: the machine card's Load older pages older sessions in from the server, 30 at a time (the menu's own page), and the briefing's InBody count asks the server for its number (`inbody/useInBodyCount.ts`, a count, not the sessions). `tracker-history-window.test.ts` fails if a sessions-by-client query in the tracker has no limit.
+2. **"Reps not recorded", read the same way everywhere.** One rule in `lib/set-outcome.ts`: `isRepsNotRecorded` (performed, no count) and `repsOf` (the count, or null). Every reader in §6's list asks it: the grid (1a; no reps arrow off a missing count), the Wrap-up (no "+10 reps" against a last time with no count), volume (a set with no count adds nothing, where it used to add weight × 1), History (a session's volume is called partial and has no change against it), the progress report (2a, with how many sets had no count), the Deep Dive (a session with uncounted sets has no reps or tonnage index and stays out of the baseline; a stall says "reps not recorded", never "no gain"), the briefing, routines, and the session editor (typing a count in clears the mark). `lib/reps-not-recorded.test.ts` walks every reader; the grid has a render test.
+3. **The progress report and the Deep Dive read their window** (`lib/progress-utils.ts`, `clinical-review/useClinicalReport.ts`): the sets of the window's sessions only, 30 sessions to a query, side by side, read again only when the report's window is moved earlier. The Deep Dive used to read every set a client ever had once a range held more than 60 sessions. The import now writes `machineStatsBackfilledAt`, so the profile's one-time machine-stats rebuild (which reads every session and set) has nothing to do for an imported client.
+4. **The open-session check draws the screen only for news.** Start, every save to a session and Finish answer on both listeners; the open check's copy of a session the window holds changes nothing on screen, so it no longer draws the screen again. It was meant to take away the lab's +45 ms on the briefing's Start → the Now Bar, and did not (the lab, below).
+5. **The review's fixes.** Two reviewers read phases 1 to 4 (nothing was a blocker). The window counts as every session only on the server's word, never a cache answer, a write of ours pending or a failed read (`windowWholeFor`); the briefing, handed the window alone, asks about the window alone; Load older's pages start again when the window's end moves, so no session falls between the two; the InBody count is ordered as its index is; the briefing says "No recent run" where it read only the newest sessions. The progress report counts a start moved earlier than what was read once its sets are read, and says "Reading their sessions…" until then rather than the narrower window's totals, which it used to save (a mounted test holds it); an all-time report or Deep Dive reads the sets in one query by client. The Wrap-up's Lifetime volume and reps say "(recorded)" for a client with FileMaker history, and History's pop-up says "Volume: reps not recorded" rather than "0 lb".
+
+Left as they are, and why: a running session older than the newest 40 that is finished on another iPad toasts "discarded" on a watching iPad (it needs 40 newer sessions than the open one); a paper-chart import's unreadable date string sorts above every real date and takes a window place (none known); the Wrap-up compares against the last 29 sessions, as it always has (the coverage rules keep "First time" from being said for a migration client); a run of the import while the client's profile is open could have the profile's one-time machine-stats rebuild drop that batch's counts (run imports with the studios closed).
+
+**The lab** (`harness/perf-lab`, iPad 10th generation in portrait, three timed runs of each build, interleaved; the seed's two focus clients with eight years of history, ~810 sessions and ~6,500 sets each; "before" is this branch before phase 1, "after" is everything through phase 5):
+
+| iPad 10 in portrait, the median of three | Before | After |
+| --- | ---: | ---: |
+| Opening the session (the briefing drawn) | 2.85 s | 1.14 s |
+| The briefing's Start → the Now Bar | 0.17 s | 0.23 s |
+| From the first tap to the Now Bar | 3.02 s | 1.36 s |
+| A set | 40 ms | 32 ms (within the noise) |
+| The machine card opening | 122 ms | 120 ms (within the noise) |
+| The screen frozen (long tasks), the whole path | 2,259 ms in 18 | 655 ms in 8 |
+| The Wrap-up's long tasks | 969 ms | 355 ms |
+| Data downloaded, the whole path | 4.6 MB | 1.4 to 1.9 MB |
+
+The run after phase 3 measured the same (the briefing 2.90 s → 1.16 s; the briefing's Start → the Now Bar 175 → 220 ms), and so did this one after phases 4 and 5. Phase 4 was meant to take that second step's extra 50 ms away and did not, though it still spares the screen a needless redraw. The likely reason, not proven: the briefing now appears before the screen's other reads have all answered, so some of their waiting falls after the tap rather than before it; that step's long tasks moved only from 141 to 156 ms. From the first tap to the Now Bar it is 1.66 s faster. The client profile's path (a card → the Journey tab) did not move, as expected: it already read the newest 40 (1.65 s, against a noisy 1.5 to 3.4 s before, one before-run of which failed while the PC was busy). The lab's two focus clients have some 810 Journey sessions and 6,500 sets each, about two and a half times the biggest real client (§11), so this is the far end of what an import brings.
+
+**Numbers**: suite **14,505 passing in 877 files** (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000` in the worktree), typecheck **2** (the baseline). No rules, index, Cloud Function or Mindbody change: the window and Load older use the sessions' (clientId, date) index, the open check and the InBody count the (clientId, status, date) one, and the reads by session the (sessionId, createdAt) one, all already in `firestore.indexes.json` (no new entry). Nothing for Render until this branch is merged and shipped.
+
+## 11. The biggest client in MSF (Oct 12 2026)
+
+AJ sent the files of the client with the most visits of any MSF client ("this is the biggest file we would deal with for a client where smaller clients may only have 10 visits"), at Willoughby, a client since December 2012. Read through the tool's own core, nothing written:
+
+- **312 visits in FileMaker, March 2024 to the day it was exported**: FileMaker holds the last two and a half years, as it held the long Strongsville client's last three. 2,254 entries on 25 machine names, a median of 7 machines a visit.
+- **The import would write 309 sessions and 2,262 sets**: about 2,600 documents and some 1.1 MB, in 7 transactions. The perf lab's two focus clients (about 810 sessions and 6,500 sets each) are some two and a half times this.
+- **Willoughby records its own way**: reps blank on 41% of entries (Strongsville 67%, Solon 2%); two units of several movements (Imagine and Hoist: chest press, pulldown, compound row, overhead, abs), which the machine table maps one name to one unit; three names with no suggestion (Chest Flys, Ab Hoist, Shoulder Extensions).
+- **Negative counts**: 25 entries (1%), almost all -10 or -12, at the same weight as the visits either side, four machines on one day at -12. AJ: "this was an attempt at rep quality i believe but we dont have to mind that". A minus before a count reads as the count (FileMaker import 6).
+- **Fixed from it** (FileMaker import 5 and 6): the same machine twice on a day, blank first and then with its weight, kept the blank and held the weight; a blank entry (or one with only next time's weight) now never pushes out a real one, and the real one keeps its own place in the order. A machine with nothing written (80 of them) is "handled" in the dry run, not "not imported until fixed". After both, every entry imports but three (a day whose routine was entered twice): 309 sessions and 2,262 sets.
+- **The profile export is now FileMaker's whole intake form**: health history, medications, physician, address, phone, birth date, the emergency contact, and Mindbody's `JSON` again. The tool reads its dozen columns and nothing else; the files are kept out of the project. It carries `InBodyLastScanDate`, which the InBody item below needs. The workout lines still carry no client id or trainer (fine one client a file; the full export needs both, §7).
+
+**A question the review raised for AJ**: a single whole count on a machine done one side at a time (Torso Rotation "8", where Solon writes "8.7") imports as 8 each side. Is that what a trainer meant, or was it one side's count?
+
+**Still open from §6** (each small, none needed before an import): the briefing's InBody due, for a client with no scan on file, still counts every session since the first (bring FileMaker's `InBodyLastScanDate` in with the full export); Insights and the month tally count an imported #1 as a first session; the Journey grid orders past sessions by number before date. The pre-launch reset, the full export with trainers and AJ's go are the lock's three conditions now (§6, 3 and 4).

@@ -81,9 +81,11 @@ import { DEFAULT_TIME_ZONE, studioDayKeyOf, studioTodayKey } from "../src/lib/st
 import { priorHistoryOf } from "../src/lib/prior-history.ts";
 
 /**
- * Switched on by the round that (1) limits the session screen's read of a
- * client's sessions, (2) teaches every reader of reps `repsNotRecorded`, and
- * after (3) the pre-launch reset has run. Not before. (The round document's §6.)
+ * The app is ready since the history-ready round (Oct 12 2026: the session
+ * screen reads a window of a client's sessions; every reader of reps asks
+ * set-outcome.ts). Switched on only once the pre-launch reset has run, the
+ * full export with the trainer per visit is here, and AJ says go. (The round
+ * document's §6.)
  */
 const PRODUCTION_IMPORT_READY = false;
 
@@ -138,10 +140,10 @@ if (commit && expected === null) stop("--commit needs --expect N, N being the dr
 if (!inputs.length) stop("give the FileMaker files (or a folder of them) to read.");
 if (commit && !emulator && !PRODUCTION_IMPORT_READY) {
   stop(
-    "writing to the real database is switched off until the app is ready for imported history:\n" +
-      "  1. the session screen must stop reading a client's whole history at Start;\n" +
-      "  2. every reader of reps must understand \"done, reps not recorded\";\n" +
-      "  3. the pre-launch reset must run first (after an import it would zero imported clients' counts).\n" +
+    "writing to the real database is switched off until:\n" +
+      "  1. the pre-launch reset has run (after an import it would zero imported clients' counts);\n" +
+      "  2. the full export is here, with the trainer per visit;\n" +
+      "  3. AJ says go (PRODUCTION_IMPORT_READY in this file).\n" +
       "Rehearse on the emulator meanwhile (--emulator).",
   );
 }

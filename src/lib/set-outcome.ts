@@ -30,6 +30,14 @@
  *   zero), so this changes no number; it only names what the blank was.
  *   FileMaker's 0 / X / "no" / emoji cells import the same way — skipped,
  *   reason unknown — which keeps them out of the averages (decided Sep 12).
+ *
+ * ONE EXCEPTION, on AJ's answer (the FileMaker import, Oct 12 2026): a
+ * FileMaker WEIGHT with a blank reps column was done ("no trainer puts it
+ * in"), so the import (features/filemaker-import) writes it as performed
+ * with no count and `repsNotRecorded: true`. That set counts for its weight
+ * and never for reps: `isRepsNotRecorded` and `repsOf` below are the one
+ * answer for every reader of reps (the history-ready round). The legacy
+ * rule above, for a log with no `outcome`, is unchanged.
  */
 
 export type SetOutcome = "performed" | "practice" | "skipped" | "not_reached";
