@@ -1,0 +1,32 @@
+/**
+ * One sample report as the printed sheet (?f=FULL, EVERYDAY, BODY, NEW_CLIENT
+ * or OVERFULL), the app's own fonts and tokens, nothing else on the page.
+ * After the sheet has measured itself it says so on window.__sheet, which
+ * check.mjs reads before it prints the page to PDF.
+ */
+import { createRoot } from "react-dom/client";
+import "../../src/index.css";
+import { ReportSheet, type SheetMeasure } from "../../src/features/progress-report/ReportSheet";
+import { planSheet } from "../../src/features/progress-report/sheet-from-report";
+import * as fixtures from "../../src/features/progress-report/sheet-fixtures";
+
+declare global {
+  interface Window {
+    __sheet?: { estimate: string; over: number; measured: SheetMeasure | null; ready: boolean };
+  }
+}
+
+const name = new URLSearchParams(location.search).get("f") ?? "FULL";
+const inputs = (fixtures as unknown as Record<string, Parameters<typeof planSheet>[0]>)[name];
+const plan = planSheet(inputs);
+window.__sheet = { estimate: plan.fit.density ?? "over", over: plan.fit.over, measured: null, ready: false };
+
+createRoot(document.getElementById("root")!).render(
+  <ReportSheet
+    model={plan.model}
+    selfFit={new URLSearchParams(location.search).get("raw") !== "1"}
+    onMeasured={(m) => {
+      window.__sheet = { ...window.__sheet!, measured: m, ready: true };
+    }}
+  />,
+);

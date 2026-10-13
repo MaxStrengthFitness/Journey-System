@@ -81,6 +81,33 @@
   --pr-print-card:      #f1f5f8;
   --pr-print-border:    #d3dadf;
 
+  /* The one-page sheet (the client copy on paper, Oct 13 2026; AJ: "White
+     page, navy band"). Pigments, the same in both themes, because paper is
+     paper: the frame's navy for the band, the app's light-mode ink, card and
+     hairlines, and the logo's orange and blue, each at the contrast the
+     light theme holds them to on white. */
+  --pr-sheet-paper:     #ffffff;
+  --pr-sheet-band:      #002341;   /* the frame's navy, --chrome              */
+  --pr-sheet-band-ink:  #f2f5f8;   /* the studio name on it, 14.6:1          */
+  --pr-sheet-band-ink-2:#c9d5e1;   /* the date on it, 10.9:1                 */
+  --pr-sheet-ink:       #192d41;   /* names and values, 14.0:1 on white      */
+  --pr-sheet-ink-2:     #3f4f60;   /* secondary, 8.6:1                       */
+  --pr-sheet-muted:     #546271;   /* labels, 6.3:1                          */
+  --pr-sheet-card:      #f3f6f9;   /* the app's card                         */
+  --pr-sheet-line:      #d1dae4;   /* hairlines (decorative)                 */
+  --pr-sheet-edge:      #7a8694;   /* an outlined box, a table's head, 3.6:1 */
+  --pr-sheet-orange:    #f36d21;   /* the logo orange: fills and rules       */
+  --pr-sheet-orange-ink:#b04000;   /* orange words on white, 5.9:1           */
+  --pr-sheet-on-orange: #071727;   /* navy words on the orange, 6.1:1        */
+  --pr-sheet-blue:      #0a548b;   /* the logo blue                          */
+  --pr-sheet-blue-ink:  #064f89;
+  --pr-sheet-blue-fill: #dbeefe;
+  --pr-sheet-ok:        #17714b;
+  --pr-sheet-ok-fill:   #e3f1ea;
+  --pr-sheet-warn:      #a2457e;
+  --pr-sheet-alert:     #c0203f;
+  --pr-sheet-logo-x:    #5b6672;   /* the logo's third square                */
+
   --pr-radius:          24px;
   --pr-radius-lg:       40px;
   --pr-radius-sm:       16px;

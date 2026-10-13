@@ -1,0 +1,351 @@
+/* ==========================================================================
+   The one-page sheet: the client copy on paper (Oct 13 2026)
+   --------------------------------------------------------------------------
+   AJ: "White page, navy band"; one US Letter page, whatever the client's
+   focus. The sizes here are report-page.ts SHEET and SIZES, written out as
+   CSS so the estimate that decides roomy or condensed and the drawing are
+   the same numbers (report-page.test.ts holds the estimate; the headless
+   print check holds the drawing). Colour from progress-report.tokens.css
+   --pr-sheet-*, pigments that are the same in both themes: paper is paper.
+
+   Print only: nothing here is a control, so the app's screen rules for
+   controls and panels (40px, raised, lifts) don't apply to it; ReportSheet
+   is drawn on screen only as a preview of the paper.
+   ========================================================================== */
+
+@import "./progress-report.tokens.css";
+
+.rs-sheet {
+  --rs-name: 34px;
+  --rs-body: 14px;
+  --rs-small: 12.5px;
+  --rs-line: 1.45;
+  --rs-quote: 15px;
+  --rs-title: 18px;
+  --rs-title-h: 22px;
+  --rs-title-gap: 10px;
+  --rs-pad: 12px;
+  --rs-header-h: 64px;
+  --rs-focus-h: 26px;
+  --rs-row-h: 27px;
+  --rs-head-h: 24px;
+  --rs-stats-h: 70px;
+  --rs-accolade-h: 100px;
+  --rs-p-h: 48px;
+  --rs-body-h: 130px;
+  --rs-goals-h: 108px;
+  --rs-min-box: 100px;
+  --rs-thanks-min: 112px;
+  --rs-band: 56px;
+  --rs-pad-top: 18px;
+  --rs-pad-bottom: 4px;
+  --rs-gap: 14px;
+
+  box-sizing: border-box;
+  width: 739px;
+  height: 979px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--pr-sheet-paper);
+  color: var(--pr-sheet-ink);
+  font-family: var(--font-sans);
+  font-size: var(--rs-body);
+  line-height: var(--rs-line);
+  text-align: left;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.rs-sheet[data-density="condensed"] {
+  --rs-name: 28px;
+  --rs-body: 12.5px;
+  --rs-small: 12px;
+  --rs-line: 1.4;
+  --rs-quote: 13.5px;
+  --rs-title: 16px;
+  --rs-title-h: 20px;
+  --rs-title-gap: 8px;
+  --rs-pad: 8px;
+  --rs-header-h: 54px;
+  --rs-focus-h: 22px;
+  --rs-row-h: 19px;
+  --rs-head-h: 20px;
+  --rs-stats-h: 58px;
+  --rs-accolade-h: 74px;
+  --rs-p-h: 42px;
+  --rs-body-h: 72px;
+  --rs-goals-h: 92px;
+  --rs-min-box: 92px;
+  --rs-thanks-min: 92px;
+  --rs-band: 46px;
+  --rs-pad-top: 12px;
+  --rs-pad-bottom: 2px;
+  --rs-gap: 8px;
+}
+/* More than one page holds, even printed smaller: it runs on, never cut. */
+.rs-sheet--flow { height: auto; min-height: 979px; overflow: visible; }
+.rs-sheet--flow .rs-body { flex: none; }
+.rs-sheet * { box-sizing: border-box; }
+.rs-sheet p, .rs-sheet h1, .rs-sheet h2, .rs-sheet ol, .rs-sheet table { margin: 0; }
+
+/* The band: the logo, the studio's name in the brand's slant, the date. */
+.rs-band {
+  flex: none;
+  height: var(--rs-band);
+  border-radius: 10px;
+  background: var(--pr-sheet-band);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 18px;
+}
+.rs-band__left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rs-logo { display: flex; gap: 3px; flex: none; }
+.rs-logo > span {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--pr-sheet-band-ink);
+}
+.rs-logo__m { background: var(--pr-sheet-blue); }
+.rs-logo__a { background: var(--pr-sheet-orange); }
+.rs-logo__x { background: var(--pr-sheet-logo-x); }
+.rs-studio {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 19px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--pr-sheet-band-ink);
+}
+.rs-band__right { display: flex; align-items: baseline; gap: 12px; flex: none; }
+.rs-band__title { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--pr-sheet-band-ink); }
+.rs-band__date { font-size: 13px; color: var(--pr-sheet-band-ink-2); }
+
+.rs-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--rs-gap);
+  padding: var(--rs-pad-top) 8px var(--rs-pad-bottom);
+}
+
+/* Who it is for, and who wrote it. */
+.rs-head {
+  flex: none;
+  min-height: var(--rs-header-h);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+.rs-head__who { min-width: 0; }
+.rs-name { font-family: var(--font-display); font-weight: 700; font-size: var(--rs-name); line-height: 1.05; color: var(--pr-sheet-ink); }
+.rs-sub { margin-top: 4px; font-size: 13px; color: var(--pr-sheet-ink-2); }
+/* The focus sits under the coach, on the right, so it costs the page no line. */
+.rs-focus {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 10px;
+  border-radius: 7px;
+  background: var(--pr-sheet-blue-fill);
+  color: var(--pr-sheet-blue-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.rs-coach { text-align: right; flex: none; max-width: 52%; }
+.rs-label { font-size: var(--rs-small); font-weight: 600; color: var(--pr-sheet-muted); }
+.rs-coach__name { font-size: 14px; font-weight: 600; color: var(--pr-sheet-ink); }
+
+/* A row: one module, or two side by side. */
+.rs-row { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.rs-row--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rs-mod { min-width: 0; display: flex; flex-direction: column; }
+
+/* A module's title: the display face, an orange rule, then a hairline. */
+.rs-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--rs-title-h);
+  margin-bottom: var(--rs-title-gap);
+}
+.rs-title h2 { font-family: var(--font-display); font-weight: 700; font-size: var(--rs-title); line-height: 1; color: var(--pr-sheet-ink); white-space: nowrap; }
+.rs-title__rule { flex: none; width: 32px; height: 2px; background: var(--pr-sheet-orange); }
+.rs-title__line { flex: 1; height: 1px; background: var(--pr-sheet-line); }
+.rs-title__aside { flex: none; font-size: var(--rs-small); color: var(--pr-sheet-muted); }
+
+/* The pale card and the outlined box. */
+.rs-card { border-radius: 10px; background: var(--pr-sheet-card); border: 1px solid var(--pr-sheet-line); padding: var(--rs-pad) 14px; }
+.rs-box { border-radius: 10px; border: 1px solid var(--pr-sheet-edge); padding: var(--rs-pad) 14px; }
+.rs-big { font-family: var(--font-display); font-weight: 800; line-height: 1; }
+
+/* Tones: words on white at the light theme's contrast. */
+[data-tone="gain"] { color: var(--pr-sheet-orange-ink); }
+[data-tone="ok"] { color: var(--pr-sheet-ok); }
+[data-tone="alert"] { color: var(--pr-sheet-alert); }
+[data-tone="warn"] { color: var(--pr-sheet-warn); }
+[data-tone="live"] { color: var(--pr-sheet-blue); }
+[data-tone="plain"] { color: var(--pr-sheet-ink); }
+
+/* Sessions and the thank-you. */
+.rs-thanks { display: flex; gap: 12px; min-height: var(--rs-thanks-min); }
+.rs-sessions {
+  flex: none;
+  width: 200px;
+  border-radius: 12px;
+  background: var(--pr-sheet-orange);
+  color: var(--pr-sheet-on-orange);
+  padding: 0 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.rs-sessions__n { font-family: var(--font-display); font-weight: 800; font-size: calc(var(--rs-name) * 1.55); line-height: 0.92; }
+.rs-sessions__word { margin-top: 4px; font-size: 14px; font-weight: 700; }
+.rs-sessions__sub { font-size: var(--rs-small); font-weight: 600; }
+.rs-quote { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding-left: 18px; padding-right: 18px; }
+.rs-quote__text { font-size: var(--rs-quote); line-height: var(--rs-line); color: var(--pr-sheet-ink); }
+
+/* The numbers. */
+.rs-stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; height: var(--rs-stats-h); }
+.rs-stat { padding-top: 8px; padding-bottom: 8px; }
+.rs-stat__value { margin-top: 3px; }
+.rs-stat__value .rs-big { font-size: calc(var(--rs-name) * 0.72); }
+.rs-stat__unit { font-size: var(--rs-small); color: var(--pr-sheet-ink-2); }
+
+/* Accolades. */
+.rs-accolades { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; min-height: var(--rs-accolade-h); }
+.rs-accolade { display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
+.rs-accolade__hero { font-size: calc(var(--rs-name) * 0.95); }
+.rs-accolade__context { font-size: var(--rs-small); color: var(--pr-sheet-ink-2); }
+
+/* Machines, start to now. */
+.rs-machines { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.rs-machines--story { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+.rs-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: var(--rs-body); }
+.rs-table th {
+  height: var(--rs-head-h);
+  font-size: var(--rs-small);
+  font-weight: 600;
+  color: var(--pr-sheet-muted);
+  text-align: right;
+  border-bottom: 1px solid var(--pr-sheet-edge);
+}
+.rs-table th:first-child, .rs-table td:first-child { text-align: left; }
+.rs-table td { height: var(--rs-row-h); text-align: right; border-bottom: 1px solid var(--pr-sheet-line); }
+.rs-table td:first-child { font-weight: 600; }
+.rs-table__start { color: var(--pr-sheet-ink-2); }
+.rs-table__now { font-weight: 700; }
+.rs-table__change { font-weight: 700; }
+.rs-note { margin-top: 6px; font-size: var(--rs-small); color: var(--pr-sheet-muted); }
+.rs-story { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+
+/* The 4 P's: one card, a row each: the word, a picture of the Dial, the note. */
+.rs-ps { display: flex; flex-direction: column; padding-top: 4px; padding-bottom: 4px; }
+.rs-p { padding: 5px 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.rs-p + .rs-p { border-top: 1px solid var(--pr-sheet-line); }
+.rs-p__top { display: flex; align-items: center; gap: 8px; line-height: 1.25; }
+.rs-p__name { width: 66px; font-family: var(--font-display); font-weight: 700; font-size: calc(var(--rs-body) + 2px); color: var(--pr-sheet-ink); }
+.rs-p__word { width: 84px; font-weight: 700; }
+.rs-p__bar { display: flex; gap: 2px; }
+.rs-p__bar > span { width: 14px; height: 6px; border-radius: 2px; background: var(--pr-sheet-line); }
+.rs-p[data-tone="ok"] .rs-p__bar > span[data-on="true"] { background: var(--pr-sheet-ok); }
+.rs-p[data-tone="live"] .rs-p__bar > span[data-on="true"] { background: var(--pr-sheet-blue); }
+.rs-p[data-tone="warn"] .rs-p__bar > span[data-on="true"] { background: var(--pr-sheet-warn); }
+.rs-p[data-tone="alert"] .rs-p__bar > span[data-on="true"] { background: var(--pr-sheet-alert); }
+.rs-p[data-tone] { color: inherit; }
+.rs-p__note { font-size: var(--rs-small); color: var(--pr-sheet-ink-2); }
+
+/* Body composition: four big tiles when roomy, one line when condensed. */
+.rs-bodytiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; height: var(--rs-body-h); }
+.rs-bodytile { display: flex; flex-direction: column; justify-content: space-between; }
+.rs-bodytile--lead { background: var(--pr-sheet-orange); border-color: var(--pr-sheet-orange); color: var(--pr-sheet-on-orange); }
+.rs-bodytile--lead .rs-label, .rs-bodytile--lead [data-tone] { color: var(--pr-sheet-on-orange); }
+.rs-bodytile__change { font-size: calc(var(--rs-name) * 1.15); }
+.rs-bodytile__from { font-size: var(--rs-small); color: var(--pr-sheet-ink-2); }
+.rs-bodytile--lead .rs-bodytile__from { color: var(--pr-sheet-on-orange); }
+.rs-bodyline { min-height: var(--rs-body-h); display: flex; flex-direction: column; gap: 4px; }
+.rs-bodyline__cells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; font-variant-numeric: tabular-nums; }
+.rs-bodyline__label { font-size: var(--rs-small); color: var(--pr-sheet-ink-2); }
+.rs-bodyline__value { font-size: calc(var(--rs-body) + 1px); font-weight: 700; white-space: nowrap; }
+.rs-bodyline__change { font-size: var(--rs-small); font-weight: 600; white-space: nowrap; }
+/* Beside another module, half the page wide: a small table instead of a line. */
+.rs-bodytable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.rs-bodytable td { height: var(--rs-row-h); font-size: var(--rs-body); text-align: right; white-space: nowrap; }
+.rs-bodytable td:first-child { text-align: left; color: var(--pr-sheet-ink-2); }
+.rs-bodytable__now { font-weight: 700; }
+.rs-bodytable__change { font-size: var(--rs-small); font-weight: 600; padding-left: 8px; }
+
+/* How they feel: the Pulse in sentences. */
+.rs-pulse { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.rs-pulse__text { margin-top: 4px; font-size: var(--rs-body); color: var(--pr-sheet-ink); }
+.rs-pulseline { min-height: var(--rs-body-h); display: flex; flex-direction: column; gap: 4px; }
+.rs-pulseline__text { font-size: var(--rs-body); color: var(--pr-sheet-ink); }
+
+/* Why they started, last time, the next 90 days. */
+.rs-goals { display: flex; gap: 8px; min-height: var(--rs-goals-h); }
+.rs-goal { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rs-goal--next { flex-grow: 1.35; }
+.rs-goal__why { font-size: calc(var(--rs-body) + 0.5px); font-weight: 600; color: var(--pr-sheet-ink); }
+.rs-goal__head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.rs-goal__outcome { font-size: 12px; font-weight: 700; border-radius: 6px; padding: 1px 7px; background: var(--pr-sheet-card); border: 1px solid var(--pr-sheet-line); }
+.rs-goal__outcome[data-tone="ok"] { background: var(--pr-sheet-ok-fill); border-color: var(--pr-sheet-ok-fill); }
+.rs-goal__last { font-size: calc(var(--rs-body) + 0.5px); font-weight: 700; color: var(--pr-sheet-ink); }
+.rs-goal__note { font-size: var(--rs-small); color: var(--pr-sheet-ink-2); }
+.rs-goal--next { background: var(--pr-sheet-orange); border-color: var(--pr-sheet-orange); color: var(--pr-sheet-on-orange); }
+.rs-goal--next .rs-label { color: var(--pr-sheet-on-orange); font-weight: 700; }
+.rs-goal__next { font-size: calc(var(--rs-name) * 0.64); line-height: 1.08; }
+.rs-goal__by { font-size: var(--rs-small); font-weight: 600; }
+
+/* The plan and the closing note. */
+.rs-plan, .rs-coachnote { min-height: var(--rs-min-box); display: flex; flex-direction: column; gap: 4px; }
+.rs-plan__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rs-plan__checkin { font-size: var(--rs-small); font-weight: 600; color: var(--pr-sheet-ink); }
+.rs-plan ol { list-style: decimal; padding-left: 18px; font-size: var(--rs-body); color: var(--pr-sheet-ink); }
+.rs-coachnote__text { font-size: var(--rs-body); color: var(--pr-sheet-ink); }
+
+.rs-foot {
+  flex: none;
+  margin-top: auto;
+  height: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--pr-sheet-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* PRINTING THE SHEET                                                  */
+/* ------------------------------------------------------------------ */
+
+/* On screen the printed copy waits off the page (measured, never seen);
+   the view mode's own screen copy is what a trainer reads. */
+.rs-print-only {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  pointer-events: none;
+}
+
+@media print {
+  @page { size: letter; margin: 0.4in; }
+  body.printing-sheet [data-print-root] > :not(.rs-print-only) { display: none !important; }
+  body.printing-sheet .rs-print-only {
+    position: static;
+    left: auto;
+  }
+  .rs-sheet { break-inside: avoid; page-break-inside: avoid; }
+}

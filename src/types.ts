@@ -1032,6 +1032,16 @@ export interface Client {
    * features/inbody/due.ts.
    */
   inbodyEvery?: number | "never" | null;
+  /**
+   * Why this client trains (Oct 13 2026; AJ: "studios need to know the goals
+   * of their clients"): everyday strength and independence, pain-free
+   * movement, body composition, a goal to hit, or their own goal in words.
+   * Set on Notes & Profile → Goals & Focus and from the progress report (the
+   * report copies it onto itself), read by the briefing and the report's one
+   * page. Coaching data: no Mindbody sync writes it. Read through
+   * features/progress-report/report-page.ts `focusOf`.
+   */
+  trainingFocus?: { kind: "everyday" | "pain-free" | "body" | "goal" | "custom"; words?: string } | null;
 }
 
 export interface Machine {
@@ -1854,6 +1864,17 @@ export interface ProgressReport {
   }[];
 
   trainerNotes?: string;
+
+  /**
+   * The one-page client copy (Oct 13 2026; AJ: "it kind of needs to be
+   * modular"). Why this client trains as the report was written (copied from
+   * and to `clients/{id}.trainingFocus`), and the modules the trainer ticked
+   * for the page, in no order (the focus orders them). Absent on reports from
+   * before: they print from the focus's defaults. features/progress-report/
+   * report-page.ts is the rule.
+   */
+  focus?: { kind: "everyday" | "pain-free" | "body" | "goal" | "custom"; words?: string };
+  modules?: string[];
 
   createdAt: any;
 }

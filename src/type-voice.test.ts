@@ -203,6 +203,7 @@ const DISPLAY_SLANT: Record<string, string> = {
   'features/hub-opportunities/run-sheet.css .ho-action[data-primary="true"]': `${GO} (the run sheet's primary)`,
   'features/hub-schedule/peek.css .hp-btn[data-go="true"]': `${GO} (the peek's primary when it says Start session; its other labels keep the button voice)`,
   "features/front-door/front-door.css .fd-display": `${BRAND}: the front door's display line (Oct 3 2026)`,
+  "features/progress-report/report-sheet.css .rs-studio": `${BRAND}: the studio's name on the printed report's navy band, as the header slants it (Oct 13 2026)`,
 };
 
 /**
@@ -352,6 +353,7 @@ describe("AJ's 2A: slanted capitals are the studio's name, Start session, In pro
     'features/hub-opportunities/run-sheet.css .ho-action[data-primary="true"]': "Start session",
     'features/hub-schedule/peek.css .hp-btn[data-go="true"]': "Start session",
     "features/front-door/front-door.css .fd-display": "the front door's display lines",
+    "features/progress-report/report-sheet.css .rs-studio": "the studio's name",
   };
   const TSX_SAYS: Record<string, string[]> = {
     "components/AppHeader.tsx": ["the studio's name"],
