@@ -132,9 +132,7 @@ export function summarize(facts: SessionFact[]): Summary {
   const sessions = facts.length;
   let tonnage = 0;
   let reps = 0;
-  let tut = 0;
   let sets = 0;
-  let setsWithTut = 0;
   let setsRated = 0;
   let setsMax = 0;
   let setsDone = 0;
@@ -144,19 +142,23 @@ export function summarize(facts: SessionFact[]): Summary {
   // over the sessions Journey recorded: an imported visit never could.
   let journeySessions = 0;
   let journeySets = 0;
+  let journeySetsWithTut = 0;
+  let journeyTut = 0;
   let journeyFrom: string | null = null;
   const rests: number[] = [];
   for (const f of facts) {
     if (!f.beforeJourney) {
       journeySessions += 1;
       journeySets += f.sets;
+      // Over the same sets on both sides of the share: an import's timed
+      // hold (FileMaker's seconds) is not counted on top of Journey's sets.
+      journeySetsWithTut += f.setsWithTut;
+      journeyTut += f.tutSeconds;
       if (journeyFrom === null || f.date < journeyFrom) journeyFrom = f.date;
     }
     tonnage += f.tonnage;
     reps += f.reps;
-    tut += f.tutSeconds;
     sets += f.sets;
-    setsWithTut += f.setsWithTut;
     setsRated += f.setsRated;
     setsMax += f.setsMax;
     setsDone += f.setsDone;
@@ -171,14 +173,15 @@ export function summarize(facts: SessionFact[]): Summary {
     sessions,
     tonnage,
     reps,
-    tutSeconds: tut,
+    // What Journey recorded, as the chart draws it (tutWeeks) and the share counts it.
+    tutSeconds: journeyTut,
     setsRated,
     setsMax,
     setsDone,
     setsPoor,
     maxRate: setsRated ? setsMax / setsRated : null,
     poorRate: setsRated ? setsPoor / setsRated : null,
-    tutCoverage: journeySets ? setsWithTut / journeySets : 0,
+    tutCoverage: journeySets ? journeySetsWithTut / journeySets : 0,
     checkInCoverage: journeySessions ? withCheckIn / journeySessions : 0,
     journeySessions,
     beforeJourneySessions: sessions - journeySessions,

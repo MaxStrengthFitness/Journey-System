@@ -584,6 +584,19 @@ describe("insights", () => {
     expect(pain).toMatchObject({ sessions: 3, quietSessions: 3, beforeJourney: 4 });
   });
 
+  it("never counts an import's timed holds on top of Journey's sets (the review, Oct 14 2026)", () => {
+    const base = { sets: 4, setsRated: 0, setsMax: 0, setsDone: 4, setsPoor: 0, tonnage: 100, reps: 10 };
+    // Twenty FileMaker visits with a timed hold each, five Journey visits with no timed set.
+    const facts = [
+      ...Array.from({ length: 20 }, (_, i) => fact({ ...base, beforeJourney: true, setsWithTut: 1, tutSeconds: 60, date: `2025-02-${String(i + 1).padStart(2, "0")}` })),
+      ...Array.from({ length: 5 }, (_, i) => fact({ ...base, setsWithTut: 0, tutSeconds: 0, date: `2026-08-0${i + 1}` })),
+    ];
+    const summary = summarize(facts);
+    expect(summary.tutCoverage).toBe(0);
+    expect(summary.tutSeconds).toBe(0);
+    expect(coverageInsights(summary).some((i) => i.id === "coverage:tut")).toBe(true);
+  });
+
   it("says a coverage gap of Journey's own sessions as Journey's", () => {
     const base = { sets: 10, setsRated: 0, setsMax: 0, setsDone: 10, setsPoor: 0, tonnage: 100, reps: 10, setsWithTut: 0 };
     const summary = summarize([

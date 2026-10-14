@@ -237,7 +237,7 @@ describe("ClinicalDashboard's widest range and a client's past", () => {
     );
     const text = host.textContent ?? "";
     const line = host.querySelector('[data-testid="before-journey"]')!;
-    expect(line.textContent).toMatch(/^6 of these 12 sessions are from before Journey: weight and reps only\. Rep quality, time under tension, the Dial and pain count from \w{3} \d+, over the 6 sessions Journey recorded\.$/);
+    expect(line.textContent).toMatch(/^6 of these 12 sessions are from before Journey: weights, reps and hold times only\. Rep quality, time under tension, the Dial and pain count from \w{3} \d+, over the 6 sessions Journey recorded\.$/);
     // Pain: nothing is said about the imported visits but that they carry no record.
     expect(text).toContain("6 of 6 sessions Journey recorded raised nothing. The 6 from before Journey carry no pain record.");
     expect(text).toContain("Nothing hurt, nothing was flagged and no incident was filed in the sessions Journey recorded.");
@@ -256,6 +256,9 @@ describe("ClinicalDashboard's widest range and a client's past", () => {
     target.scrollIntoView = scrolled;
     await act(async () => go.click());
     expect(scrolled).toHaveBeenCalled();
+    // It lands below the report's sticky bar, and the section takes the focus.
+    expect(target.style.scrollMarginTop).toMatch(/^\d+px$/);
+    expect(document.activeElement).toBe(target);
   });
 
   it("says nothing about before Journey when every session is Journey's", async () => {

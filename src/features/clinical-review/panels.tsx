@@ -54,8 +54,8 @@ export function BeforeJourneyLine({ summary }: { summary: Summary }) {
       <History size={14} aria-hidden="true" />
       <span>
         {all
-          ? `All ${before} sessions in this range are from before Journey: weight and reps only. Rep quality, time under tension, the Dial and pain start with the first session Journey records.`
-          : `${before} of these ${summary.sessions} sessions are from before Journey: weight and reps only. Rep quality, time under tension, the Dial and pain count from ${shortDate(summary.journeyFrom!)}, over the ${summary.journeySessions} sessions Journey recorded.`}
+          ? `All ${before} sessions in this range are from before Journey: weights, reps and hold times only. Rep quality, time under tension, the Dial and pain come only from sessions Journey recorded, and none are in this range.`
+          : `${before} of these ${summary.sessions} sessions are from before Journey: weights, reps and hold times only. Rep quality, time under tension, the Dial and pain count from ${shortDate(summary.journeyFrom!)}, over the ${summary.journeySessions} sessions Journey recorded.`}
       </span>
     </p>
   );
@@ -172,6 +172,21 @@ const KIND_LABEL: Record<Insight["kind"], string> = {
   form: "Form",
 };
 
+/**
+ * Down to a section of the page: below the report's sticky bar (it wraps to
+ * two or three rows on an iPad held upright) and the profile's own sticky
+ * head, then the section takes the focus so VoiceOver reads from it.
+ */
+function goTo(id: string) {
+  const target = document.getElementById(id);
+  if (!target) return;
+  const bar = target.closest(".cr")?.querySelector<HTMLElement>(".cr-bar");
+  const stuck = bar ? (parseFloat(getComputedStyle(bar).top) || 0) + bar.getBoundingClientRect().height : 0;
+  target.style.scrollMarginTop = `${Math.round(stuck + 12)}px`;
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  target.focus({ preventScroll: true });
+}
+
 export function InsightCards({ insights, emptyHint }: { insights: Insight[]; emptyHint: string }) {
   if (!insights.length) return <div className="cr-empty">{emptyHint}</div>;
   return (
@@ -183,11 +198,7 @@ export function InsightCards({ insights, emptyHint }: { insights: Insight[]; emp
           <p className="cr-insight__body">{i.body}</p>
           <span className="cr-insight__evidence">{i.evidence}</span>
           {i.goTo && (
-            <button
-              type="button"
-              className="cr-iconbtn cr-insight__go"
-              onClick={() => document.getElementById(i.goTo!.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            >
+            <button type="button" className="cr-iconbtn cr-insight__go" onClick={() => goTo(i.goTo!.id)}>
               <ArrowDown size={13} aria-hidden="true" /> {i.goTo.label}
             </button>
           )}

@@ -344,7 +344,7 @@ export interface Summary {
   setsPoor: number;
   maxRate: number | null;
   poorRate: number | null;
-  /** Share of the sets JOURNEY recorded that carry time under tension: gates the TUT panels. An import never could. */
+  /** Share of the sets JOURNEY recorded that carry time under tension: gates the TUT panels. Over Journey's sets on both sides. */
   tutCoverage: number;
   /** Share of the sessions JOURNEY recorded with any pre-session check-in field. */
   checkInCoverage: number;

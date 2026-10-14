@@ -45,7 +45,7 @@ export interface ClinicalDashboardProps {
 
 function Section({ id, title, sub, children, right }: { id?: string; title: string; sub?: string; children: ReactNode; right?: ReactNode }) {
   return (
-    <section className="cr-section" id={id}>
+    <section className="cr-section" id={id} tabIndex={id ? -1 : undefined}>
       <div className="cr-section__head">
         <h3 className="cr-section__title">{title}</h3>
         {sub && <span className="cr-section__sub">{sub}</span>}

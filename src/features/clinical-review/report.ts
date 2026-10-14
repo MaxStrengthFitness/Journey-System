@@ -195,7 +195,9 @@ export function buildReport(input: ReportInput): Report {
   const tutPeriod: "week" | "month" = imported ? (tutWeekly.length > 26 ? "month" : "week") : trendPeriod;
   const tutWeeks = !imported ? weeks : tutPeriod === "week" ? tutWeekly : monthlyTrend(timedFacts);
   const correlations = correlationMatrix(facts);
-  const heatmapPeriod: "week" | "month" = summary.spanDays <= 98 ? "week" : "month";
+  // Only Journey's sets carry a quality rating, so the columns follow Journey's span, not the import's years.
+  const ratedSpan = facts.some((f) => f.beforeJourney) ? summarize(facts.filter((f) => !f.beforeJourney)).spanDays : summary.spanDays;
+  const heatmapPeriod: "week" | "month" = ratedSpan <= 98 ? "week" : "month";
   const heatmap = formHeatmap(sets, { period: heatmapPeriod, machineName, machineGroup });
   const plateaus = detectPlateaus(sets, { machineName, machineGroup });
   const rhythm = attendanceRhythm(facts, range);

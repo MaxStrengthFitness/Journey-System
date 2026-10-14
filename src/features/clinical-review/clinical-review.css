@@ -363,14 +363,16 @@
 .cr-before {
   margin: 0; display: flex; gap: 10px; align-items: flex-start;
   padding: 10px 14px; border-radius: var(--cr-radius-sm);
-  background: var(--cr-surface-2);
+  background: var(--cr-tray);
   color: var(--cr-ink-2);
   font-size: 12.5px; line-height: 1.45;
 }
 .cr-before svg { flex: none; margin-top: 2px; color: var(--cr-ink-muted); }
 
-/* The stalls' one line links down to them. */
+/* The stalls' one line links down to them; the section it lands on takes the
+   focus but draws no ring for it (it is a place, not a control). */
 .cr-insight__go { align-self: flex-start; margin-top: 4px; }
+.cr-section[tabindex="-1"]:focus { outline: none; }
 
 /* ---- progression stalls (sentences) ---------------------------------------- */
 .cr-stalls { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
