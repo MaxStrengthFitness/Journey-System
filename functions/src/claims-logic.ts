@@ -12,8 +12,10 @@
  * (primaryHomeStudioId, accessibleStudioIds, …) still read the document,
  * because the rules need the lists themselves.
  *
- * ONLY `role` IS MIRRORED. The rules also honour a `studioId` claim, and it
- * grants studio-leader access with no role check at all — so it is never set.
+ * ONLY `role` IS MIRRORED. Until privacy Round 0 (Oct 14 2026) the rules
+ * also honoured a `studioId` claim, as studio-leader access with no role
+ * check; they no longer do, and it is still never set (claimsMatch below
+ * removes a stray one).
  */
 
 /** The role vocabulary — mirrors UserRole in src/types.ts. */

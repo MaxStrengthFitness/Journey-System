@@ -10213,3 +10213,208 @@ describe("a finish is counted once (Oct 12 2026)", () => {
     });
   });
 });
+
+// ── PRIVACY ROUND 0: STRANGERS OUT (Oct 14 2026) ────────────────────────
+// docs/rounds/2026-10-14-strangers-out.md. AJ: "Let's make sure that
+// everything's strict and safe right now." A signed-in account with no
+// trainer record (anyone can sign in with Google) reads nothing about a
+// client or a studio's own work; everyone let in reads exactly as before.
+// Each read below is the app's own shape, as a trainer (allowed) and as the
+// stranger (refused). Kept in its own block so other branches merge cleanly.
+describe("privacy Round 0: strangers out", () => {
+  const as = (uid: string, token: Record<string, unknown> = {}) => testEnv.authenticatedContext(uid, token).firestore();
+  const stranger = () => as("strangerP0", { email: "stranger@example.com" });
+  const DAY = "2026-10-14";
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "trainers", "adminP0"), { fullName: "Ada Admin", initials: "AA", role: "Admin", primaryHomeStudioId: "studioA" });
+      await setDoc(doc(db, "clients", "clientA"), { firstName: "Cara", lastName: "A", isActive: true, remainingSessions: 0, homeStudioId: "studioA" });
+      await setDoc(doc(db, "trainers", "trainerA", "stats", "rollups"), { sessionsCoached: 12 });
+      await setDoc(doc(db, "clientMachineSettings", "clientA_m1"), { clientId: "clientA", machineId: "m1", settings: { Seat: "4" } });
+      await setDoc(doc(db, "machines", "m1"), { name: "Leg Press", order: 1 });
+      await setDoc(doc(db, "machines", "m1", "settingHistory", "h1"), { clientId: "clientA", trainerId: "trainerA" });
+      await setDoc(doc(db, "machineSettingChanges", "c1"), { clientId: "clientA" });
+      await setDoc(doc(db, "routines", "r1"), { clientId: "clientA", name: "Routine A" });
+      await setDoc(doc(db, "routines", "r1", "planChanges", "p1"), { kind: "start", machineIds: [], byUid: "trainerA" });
+      await setDoc(doc(db, "routineAdjustments", "a1"), { clientId: "clientA" });
+      await setDoc(doc(db, "exerciseLogs", "l1"), { sessionId: "sessionA", machineId: "m1", clientId: "clientA", weight: "100" });
+      await setDoc(doc(db, "schedules", "b1"), { studioId: "studioA", clientId: "clientA", startTime: `${DAY}T14:00:00.000Z` });
+      await setDoc(doc(db, "sessionNotes", "n1"), { clientId: "clientA", body: "old" });
+      await setDoc(doc(db, "trainerFocuses", "tf1"), { clientId: "clientA" });
+      await setDoc(doc(db, "progressReports", "pr1"), { clientId: "clientA", createdAt: new Date() });
+      await setDoc(doc(db, "focusRecords", "fr1"), { clientId: "clientA" });
+      await setDoc(doc(db, "journalEntries", "j1"), { clientId: "clientA", body: "Knee pain", occurredAt: new Date(), studioId: "studioA", importance: "critical" });
+      await setDoc(doc(db, "clientFocuses", "cf1"), { clientId: "clientA", trainerId: "trainerA" });
+      await setDoc(doc(db, "studios", "studioA", "sync", "lease"), { lastScheduleSyncAt: 1 });
+      await setDoc(doc(db, "studios", "studioA", "sync", `near-${DAY}`), { checks: 1, finds: 0, rows: 3 });
+      await setDoc(doc(db, "studios", "studioA", "machineCare", "m1"), { machineId: "m1" });
+      await setDoc(doc(db, "studios", "studioA", "upkeepLog", "u1"), { machineId: "m1" });
+      await setDoc(doc(db, "studios", "studioA", "taskTemplates", "tt1"), { title: "Open" });
+      await setDoc(doc(db, "studios", "studioA", "taskInstances", "ti1"), { localDate: DAY, kind: "machine" });
+      await setDoc(doc(db, "studios", "studioA", "taskRequests", "q1"), { status: "open", title: "Cover?", createdBy: { id: "trainerA" } });
+      await setDoc(doc(db, "studios", "studioA", "taskRequests", "q1", "replies", "rp1"), { body: "Yes", author: { id: "trainerA" } });
+      await setDoc(doc(db, "studios", "studioA", "taskCategories", "tc1"), { name: "Floor" });
+      await setDoc(doc(db, "clinicalIncidents", "ci1"), { clientId: "clientA", studioId: "studioA" });
+      await setDoc(doc(db, "machineTrends", "m1"), { machineId: "m1" });
+    });
+  });
+
+  /** The twenty-four reads, each in the shape the app asks it. */
+  const READS: Array<[string, (db: ReturnType<typeof as>) => Promise<unknown>]> = [
+    ["trainers/{id}/stats (useTrainerRollups)", (db) => getDoc(doc(db, "trainers", "trainerA", "stats", "rollups"))],
+    ["clientMachineSettings by client", (db) => getDocs(query(collection(db, "clientMachineSettings"), where("clientId", "==", "clientA")))],
+    ["machines/{m}/settingHistory by client", (db) => getDocs(query(collection(db, "machines", "m1", "settingHistory"), where("clientId", "==", "clientA")))],
+    ["machineSettingChanges by client", (db) => getDocs(query(collection(db, "machineSettingChanges"), where("clientId", "==", "clientA")))],
+    ["routines by client", (db) => getDocs(query(collection(db, "routines"), where("clientId", "==", "clientA")))],
+    ["routines/{id}/planChanges", (db) => getDocs(collection(db, "routines", "r1", "planChanges"))],
+    ["routineAdjustments by client", (db) => getDocs(query(collection(db, "routineAdjustments"), where("clientId", "==", "clientA")))],
+    ["exerciseLogs, the sets window", (db) => getDocs(query(collection(db, "exerciseLogs"), where("sessionId", "in", ["sessionA"])))],
+    ["schedules, a studio's day", (db) => getDocs(query(collection(db, "schedules"), where("studioId", "==", "studioA"), where("startTime", ">=", `${DAY}T00:00:00.000Z`)))],
+    ["sessionNotes by client", (db) => getDocs(query(collection(db, "sessionNotes"), where("clientId", "==", "clientA"), limit(50)))],
+    ["trainerFocuses by client", (db) => getDocs(query(collection(db, "trainerFocuses"), where("clientId", "==", "clientA"), limit(200)))],
+    ["progressReports by client", (db) => getDocs(query(collection(db, "progressReports"), where("clientId", "==", "clientA"), orderBy("createdAt", "desc"), limit(20)))],
+    ["focusRecords by client", (db) => getDocs(query(collection(db, "focusRecords"), where("clientId", "==", "clientA"), limit(200)))],
+    ["journalEntries by client", (db) => getDocs(query(collection(db, "journalEntries"), where("clientId", "==", "clientA"), orderBy("occurredAt", "desc"), limit(100)))],
+    ["clientFocuses by client", (db) => getDocs(query(collection(db, "clientFocuses"), where("clientId", "==", "clientA"), limit(200)))],
+    ["studios/{s}/sync/lease", (db) => getDoc(doc(db, "studios", "studioA", "sync", "lease"))],
+    ["studios/{s}/sync/near-{day}", (db) => getDoc(doc(db, "studios", "studioA", "sync", `near-${DAY}`))],
+    ["studios/{s}/machineCare", (db) => getDocs(collection(db, "studios", "studioA", "machineCare"))],
+    ["studios/{s}/upkeepLog", (db) => getDocs(collection(db, "studios", "studioA", "upkeepLog"))],
+    ["studios/{s}/taskTemplates", (db) => getDocs(collection(db, "studios", "studioA", "taskTemplates"))],
+    ["studios/{s}/taskInstances, a day", (db) => getDocs(query(collection(db, "studios", "studioA", "taskInstances"), where("localDate", "==", DAY)))],
+    ["studios/{s}/taskRequests", (db) => getDocs(collection(db, "studios", "studioA", "taskRequests"))],
+    ["studios/{s}/taskRequests/{id}/replies", (db) => getDocs(collection(db, "studios", "studioA", "taskRequests", "q1", "replies"))],
+    ["studios/{s}/taskCategories", (db) => getDocs(collection(db, "studios", "studioA", "taskCategories"))],
+    ["clinicalIncidents by client", (db) => getDocs(query(collection(db, "clinicalIncidents"), where("clientId", "==", "clientA")))],
+  ];
+
+  it.each(READS)("%s: a trainer reads it, as before", async (_name, read) => {
+    await assertSucceeds(read(as("trainerA")));
+  });
+
+  it.each(READS)("%s: a signed-in account with no trainer record is refused", async (_name, read) => {
+    await assertFails(read(stranger()));
+  });
+
+  it("a trainer at another studio reads them as before (nothing changes between studios in Round 0)", async () => {
+    for (const [, read] of READS) await assertSucceeds(read(as("trainerB")));
+  });
+
+  it("an administrator's role claim with no record still reads (the claim is someone let in)", async () => {
+    await assertSucceeds(READS[13][1](as("adminClaimOnly", { role: "Admin" })));
+    await assertSucceeds(READS[7][1](as("adminClaimOnly", { role: "Admin" })));
+  });
+
+  it("someone signed out is refused, as before", async () => {
+    await assertFails(READS[13][1](testEnv.unauthenticatedContext().firestore()));
+  });
+
+  /* What the access screens read for a stranger (the round document lists
+     them): their own trainer document and the email lookup (the claim), the
+     studios (the request names one), and their own request. All still open. */
+  it("leaves the stranger every read the access screens make", async () => {
+    const db = stranger();
+    await assertSucceeds(getDoc(doc(db, "trainers", "strangerP0")));
+    await assertSucceeds(getDocs(query(collection(db, "trainers"), where("email", "==", "stranger@example.com"))));
+    await assertSucceeds(getDocs(collection(db, "studios")));
+    await assertSucceeds(getDoc(doc(db, "access_requests", "strangerP0")));
+  });
+
+  describe("machineTrends: one machine's document for anyone let in, the list for administrators", () => {
+    it("lets a trainer read one machine's document and refuses the stranger", async () => {
+      await assertSucceeds(getDoc(doc(as("trainerA"), "machineTrends", "m1")));
+      await assertFails(getDoc(doc(stranger(), "machineTrends", "m1")));
+    });
+
+    it("lets only an administrator list them", async () => {
+      await assertFails(getDocs(collection(as("trainerA"), "machineTrends")));
+      await assertSucceeds(getDocs(collection(as("adminP0"), "machineTrends")));
+    });
+  });
+
+  describe("the dead and write-open collections", () => {
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        await setDoc(doc(db, "clients", "clientA", "crossTrainAccess", "studioB"), { granted: true, grantedBy: "ownerA", grantedAt: new Date() });
+        await setDoc(doc(db, "crossTrainRequests", "x1"), { requestingTrainerId: "trainerB", targetStudioId: "studioA", status: "pending" });
+        await setDoc(doc(db, "aggregations", "g1"), { n: 1 });
+        await setDoc(doc(db, "leaderboards", "lb1"), { clientA: 3 });
+        await setDoc(doc(db, "auditLogs", "al1"), { what: "x" });
+        await setDoc(doc(db, "notificationQueue", "nq1"), { to: "x" });
+      });
+    });
+
+    const DEAD: Array<[string, string[]]> = [
+      ["clients/{id}/crossTrainAccess", ["clients", "clientA", "crossTrainAccess", "studioB"]],
+      ["crossTrainRequests", ["crossTrainRequests", "x1"]],
+      ["aggregations", ["aggregations", "g1"]],
+      ["leaderboards", ["leaderboards", "lb1"]],
+    ];
+
+    it.each(DEAD)("%s: administrators only, to read and to write", async (_name, path) => {
+      const [c, ...rest] = path;
+      for (const db of [as("trainerA"), as("ownerA"), stranger()]) {
+        await assertFails(getDoc(doc(db, c, ...rest)));
+        await assertFails(setDoc(doc(db, c, ...rest), { n: 2 }, { merge: true }));
+      }
+      const admin = as("adminP0");
+      await assertSucceeds(getDoc(doc(admin, c, ...rest)));
+      await assertSucceeds(setDoc(doc(admin, c, ...rest), { n: 2 }, { merge: true }));
+    });
+
+    it("a leader no longer writes crossTrainAccess, and a trainer no longer files a crossTrainRequest (nothing in the app does)", async () => {
+      await assertFails(
+        setDoc(doc(as("ownerA"), "clients", "clientA", "crossTrainAccess", "studioA"), {
+          granted: true, grantedAt: new Date(), grantedBy: "ownerA",
+        }),
+      );
+      await assertFails(
+        setDoc(doc(as("trainerB"), "crossTrainRequests", "x2"), { requestingTrainerId: "trainerB", status: "pending", targetStudioId: "studioA" }),
+      );
+    });
+
+    it("auditLogs and notificationQueue take no write from the app, an administrator's included; administrators still read them", async () => {
+      for (const db of [as("trainerA"), stranger(), as("adminP0")]) {
+        await assertFails(addDoc(collection(db, "auditLogs"), { what: "x" }));
+        await assertFails(addDoc(collection(db, "notificationQueue"), { to: "x" }));
+      }
+      await assertSucceeds(getDoc(doc(as("adminP0"), "auditLogs", "al1")));
+      await assertSucceeds(getDoc(doc(as("adminP0"), "notificationQueue", "nq1")));
+    });
+
+    it("clinicalIncidents: read by anyone let in, written by administrators only", async () => {
+      await assertSucceeds(getDoc(doc(as("trainerA"), "clinicalIncidents", "ci1")));
+      await assertFails(setDoc(doc(as("trainerA"), "clinicalIncidents", "ci2"), { clientId: "clientA", studioId: "studioA" }));
+      await assertFails(updateDoc(doc(as("trainerA"), "clinicalIncidents", "ci1"), { clientId: "clientB" }));
+      await assertFails(deleteDoc(doc(as("trainerA"), "clinicalIncidents", "ci1")));
+      await assertSucceeds(setDoc(doc(as("adminP0"), "clinicalIncidents", "ci2"), { clientId: "clientA", studioId: "studioA" }));
+    });
+  });
+
+  /* THE CLAIM DOOR. Nothing ever set a `studioId` token claim (claims-logic.ts
+     mirrors `role` only and strips a stray one), but the rules honoured it as
+     studio-leader access with no role check and no trainer record. Gone. */
+  describe("a studioId token claim grants nothing", () => {
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "studios", "studioA", "vault", "v1"), { title: "Alarm code" });
+      });
+    });
+
+    it("not to a trainer at another studio, nor to an account with no record", async () => {
+      await assertFails(getDoc(doc(as("trainerB", { studioId: "studioA" }), "studios", "studioA", "vault", "v1")));
+      await assertFails(getDoc(doc(as("claimOnlyP0", { studioId: "studioA" }), "studios", "studioA", "vault", "v1")));
+      await assertFails(getDocs(collection(as("claimOnlyP0", { studioId: "studioA" }), "studios", "studioA", "machineCare")));
+      await assertFails(
+        setDoc(doc(as("claimOnlyP0", { studioId: "studioA" }), "studioMachineSettings", "studioA_m1"), { studioId: "studioA", machineId: "m1" }),
+      );
+    });
+
+    it("while the studio's own leader reads its vault as before", async () => {
+      await assertSucceeds(getDoc(doc(as("ownerA"), "studios", "studioA", "vault", "v1")));
+    });
+  });
+});

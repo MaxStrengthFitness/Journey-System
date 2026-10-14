@@ -50,6 +50,11 @@ service cloud.firestore {
       return isAuthenticated() && trainerDocExistsByUID();
     }
 
+    // Why: docs/ops/RULES-NOTES.md#isletin
+    function isLetIn() {
+      return hasAnyTrainerProfile() || isSuperAdmin();
+    }
+
     // Cost round (Sep 2026): both go through getRole(), which reads the token's
     // role claim and only falls back to trainers/{uid} when there is none. The
     // old bodies checked the claim, then ALWAYS did an exists()/get() for any
@@ -80,9 +85,8 @@ service cloud.firestore {
       return isAuthenticated() && (
         // Demo Mode: everyone leads there. See the demo helpers above.
         hasRunOfDemo(studioId) ||
-        // Secure Custom Token Claim check
-        ('studioId' in request.auth.token && request.auth.token.studioId != null && request.auth.token.studioId == studioId) ||
-        // Database Backed verification fallback
+        // No `studioId` token claim (privacy Round 0, Oct 14 2026): nothing set
+        // one, and it led a studio with no record. The record decides.
         (
           trainerDocExistsByUID() &&
           // The franchise partition (Oct 2026): a franchise owner leads their
@@ -274,14 +278,7 @@ service cloud.firestore {
     function trainerLeads(r, t, studioId) {
       return studioId != null && studioId != '' && (
         (t != null && isDemoStudioId(studioId)) ||
-        // The custom-claim fast path, carried over verbatim from
-        // isStudioOwnerOrHeadTrainerOnly. It never fires: the only claim
-        // ever set is `role` (syncTrainerClaims, cost round Sep 2026), and
-        // `studioId` is deliberately never set -- as written it would grant
-        // studio-leader access with no role check at all.
-        ('studioId' in request.auth.token &&
-          request.auth.token.studioId != null &&
-          request.auth.token.studioId == studioId) ||
+        // The `studioId` token-claim branch went in privacy Round 0 (Oct 14 2026).
         (t != null && roleRunsOwnStudios(r) && (
           t.get('primaryHomeStudioId', '') == studioId ||
           t.get('ownedStudioIds', []).hasAny([studioId])
@@ -1562,10 +1559,10 @@ service cloud.firestore {
       // A TRAINER'S COUNTERS (the cost plan, Sep 26 2026, D3c): sessions
       // coached, the rolling windows. Beside the trainer document rather than
       // on it, so a completed session is not sent to every iPad in the
-      // company. Read as the trainer is; written only by the Cloud Functions
+      // company. Read by anyone let in (privacy Round 0); written only by the Cloud Functions
       // (functions/src/trainerRollups.ts), which these rules do not govern.
       match /stats/{docId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
         allow write: if false;
       }
       allow create: if isAuthenticated() && 
@@ -1883,7 +1880,7 @@ service cloud.firestore {
 
     // Why: docs/ops/RULES-NOTES.md#clientmachinesettings-settingid
     match /clientMachineSettings/{settingId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create: if isAuthenticated()
                     && (isSuperAdmin()
                         || (isAnyAuthenticatedTrainer()
@@ -1909,7 +1906,7 @@ service cloud.firestore {
 
       // Why: docs/ops/RULES-NOTES.md#machines-machineid-settinghistory-historyid
       match /settingHistory/{historyId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
         allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
         allow update, delete: if false;
       }
@@ -1981,13 +1978,13 @@ service cloud.firestore {
     }
 
     match /machineSettingChanges/{changeId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
     }
 
     // ROUTINES & ADJUSTMENTS
     match /routines/{routineId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
       // Administrators only (the franchise partition, second review): any
@@ -2011,14 +2008,14 @@ service cloud.firestore {
       }
 
       match /planChanges/{changeId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
         allow create: if isAnyAuthenticatedTrainer() && planChangeOk(request.resource.data);
         allow update, delete: if false;
       }
     }
 
     match /routineAdjustments/{adjustmentId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
     }
 
@@ -2124,7 +2121,7 @@ service cloud.firestore {
     // EXERCISE LOGS: written by whoever can reach the set's session (Oct 12 2026).
     // Why: docs/ops/RULES-NOTES.md#exerciselogs-logid
     match /exerciseLogs/{logId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer() && isValidLog(request.resource.data)
                     && logSessionReach(request.resource.data);
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer() && isValidLog(request.resource.data) && (
@@ -2142,7 +2139,7 @@ service cloud.firestore {
 
     // CALENDAR SCHEDULES
     match /schedules/{scheduleId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create, update: if isAuthenticated() && (
         isSuperAdmin() ||
         isAnyAuthenticatedTrainer()
@@ -2152,7 +2149,7 @@ service cloud.firestore {
     
     // CLINICAL NOTES
     match /sessionNotes/{noteId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
       // Administrators only, as routines (the franchise partition): any
@@ -2168,17 +2165,19 @@ service cloud.firestore {
     // AUDIT LOGS
     match /auditLogs/{logId} {
       allow read: if isSuperAdmin();
-      allow create: if isAuthenticated();
+      // Nothing writes one (privacy Round 0, Oct 14 2026): it was open to any account.
+      allow create: if false;
       allow update, delete: if isSuperAdmin();
     }
 
     // Written by the weekly machine-trends job (server/machine-trends-job.ts,
-    // service account, bypasses these rules). Aggregates only - never a
-    // client row - so it is readable like exerciseLogs, by any signed-in user.
-    // The old leaderboards/* documents are no longer written; the block
-    // stays so the stale documents can still be deleted from the console.
+    // service account, bypasses these rules). Aggregates only, never a client
+    // row. Since privacy Round 0 (Oct 14 2026): one machine's document at a
+    // time for anyone let in (every reader is a getDoc, useMachineTrend.ts);
+    // the whole list for administrators.
     match /machineTrends/{machineId} {
-      allow read: if isAuthenticated();
+      allow get: if isLetIn();
+      allow list: if isSuperAdmin();
       allow write: if isSuperAdmin();
     }
 
@@ -2193,9 +2192,9 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // No longer written or read by the app; may key by client id (privacy Round 0).
     match /leaderboards/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isSuperAdmin();
+      allow read, write: if isSuperAdmin();
     }
 
     // SPECIAL ATHLETE FOCUS PATTERNS
@@ -2204,21 +2203,21 @@ service cloud.firestore {
     // stored client can't decide a delete. The privacy round pins clientId
     // and brings a franchise owner's back.
     match /trainerFocuses/{focusId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow delete: if isSuperAdmin();
     }
 
     match /progressReports/{reportId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow delete: if isSuperAdmin();
     }
 
     match /focusRecords/{focusId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
       allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
       allow delete: if isSuperAdmin();
@@ -2229,7 +2228,7 @@ service cloud.firestore {
     // ===============================================================
     // Why: docs/ops/RULES-NOTES.md#journalentries-entryid
     match /journalEntries/{entryId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
 
       allow create: if isAuthenticated()
                     && isAnyAuthenticatedTrainer()
@@ -2313,7 +2312,7 @@ service cloud.firestore {
     // focus; anyone can read them, because every coach in the room needs to
     // know what their colleagues are working on with this client.
     match /clientFocuses/{focusId} {
-      allow read: if isAuthenticated();
+      allow read: if isLetIn();
 
       allow create: if isAuthenticated()
                     && isAnyAuthenticatedTrainer()
@@ -2365,7 +2364,7 @@ service cloud.firestore {
 
       // Why: docs/ops/RULES-NOTES.md#studios-studioid-sync-docid
       match /sync/{docId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
         allow create, update: if isAnyAuthenticatedTrainer()
                     && writesForStudio(studioId)
                     && ((docId == 'lease'
@@ -2784,7 +2783,7 @@ service cloud.firestore {
        * is a note to the floor, never a roster status change.
        */
       match /machineCare/{machineId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
 
         allow create, update: if isAuthenticated()
                               && isAnyAuthenticatedTrainer()
@@ -2795,7 +2794,7 @@ service cloud.firestore {
       }
 
       match /upkeepLog/{entryId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
         allow create: if isAuthenticated() && isAnyAuthenticatedTrainer()
                       && writesForStudio(studioId);
         allow update: if false;
@@ -2804,7 +2803,7 @@ service cloud.firestore {
 
       // Why: docs/ops/RULES-NOTES.md#studios-studioid-tasktemplates-templateid
       match /taskTemplates/{templateId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
         // Oct 2 2026 (the Atlas answers): franchise owners add studio tasks
         // on any of their studios' shifts, as they post team jobs. The team
         // jobs' resolve-once answer (teamJobLeaderAllowed: administrators,
@@ -2815,7 +2814,7 @@ service cloud.firestore {
 
       // Why: docs/ops/RULES-NOTES.md#studios-studioid-taskinstances-instanceid
       match /taskInstances/{instanceId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
 
         allow create: if isAuthenticated()
                       && isAnyAuthenticatedTrainer()
@@ -2919,7 +2918,7 @@ service cloud.firestore {
       }
 
       match /taskRequests/{requestId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
 
         allow create: if isAuthenticated()
                       && isAnyAuthenticatedTrainer()
@@ -2940,7 +2939,7 @@ service cloud.firestore {
         // Replies are append-mostly: anyone may add one, only the author may
         // edit or remove their own, and management can clear anything.
         match /replies/{replyId} {
-          allow read: if isAuthenticated();
+          allow read: if isLetIn();
           allow create: if isAuthenticated()
                         && isAnyAuthenticatedTrainer()
                         && request.resource.data.author.id == request.auth.uid
@@ -2968,7 +2967,7 @@ service cloud.firestore {
       // upkeep row a completed task feeds (see upkeepRoleOf in
       // features/studio-tasks/types.ts), so it is a management write.
       match /taskCategories/{categoryId} {
-        allow read: if isAuthenticated();
+        allow read: if isLetIn();
         allow create, update, delete:
           if isSuperAdmin() || isStudioOwnerOrHeadTrainer(studioId);
       }
@@ -3108,14 +3107,15 @@ service cloud.firestore {
       allow delete: if superOnRecord();
     }
 
+    // Nothing in the app reads or writes these two (privacy Round 0, Oct 14 2026).
     match /aggregations/{aggId} {
-      allow read: if isAuthenticated();
-      allow write: if isSuperAdmin();
+      allow read, write: if isSuperAdmin();
     }
 
+    // Legacy notes, still read by the journal and Operations; nothing writes one.
     match /clinicalIncidents/{incidentId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isAnyAuthenticatedTrainer();
+      allow read: if isLetIn();
+      allow write: if isSuperAdmin();
     }
 
     // Why: docs/ops/RULES-NOTES.md#access-requests-requestid
@@ -3358,7 +3358,8 @@ service cloud.firestore {
     // NOTIFICATION QUEUE (for email/SMS triggers)
     match /notificationQueue/{notifId} {
       allow read: if isSuperAdmin();
-      allow create: if isAuthenticated();
+      // Only the server's jobs write it, through the Admin SDK (privacy Round 0).
+      allow create: if false;
       allow update, delete: if isSuperAdmin();
     }
 
@@ -3370,26 +3371,16 @@ service cloud.firestore {
     // reader may ever treat this as access (the franchise partition, second
     // review; reconcile.ts calls it "unwritten by the app"). The one thing
     // that grants a cross-train read is clients/{id}.approvedCrossTrainStudioIds.
+    // Administrators only since privacy Round 0 (Oct 14 2026): nothing in the app reads or writes it.
     match /clients/{clientId}/crossTrainAccess/{studioId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isSuperAdmin() || (
-        isStudioOwnerOrHeadTrainer(studioId) &&
-        request.resource.data.grantedBy == request.auth.uid &&
-        request.resource.data.keys().hasAll(['granted', 'grantedAt', 'grantedBy']) &&
-        request.resource.data.granted == true
-      );
-      allow delete: if isAdmin() || isFounder();
+      allow read, write: if isSuperAdmin();
     }
 
     // Cross-train request submissions. Grants nothing: no rule or reader
     // may ever treat this as access (the franchise partition, second review).
+    // Administrators only since privacy Round 0: nothing in the app writes one.
     match /crossTrainRequests/{requestId} {
-      allow create: if isAuthenticated() &&
-        request.resource.data.requestingTrainerId == request.auth.uid &&
-        request.resource.data.status == 'pending';
-      allow read: if isAuthenticated();
-      allow update: if isSuperAdmin() || isStudioOwnerOrHeadTrainer(resource.data.targetStudioId);
-      allow delete: if isSuperAdmin();
+      allow read, write: if isSuperAdmin();
     }
 
     // Webhook idempotency log (server-only writes; admins can read)

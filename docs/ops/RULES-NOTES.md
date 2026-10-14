@@ -6,6 +6,34 @@ Each note is headed by the function or match path it sat above, written as in th
 
 **Adding a rule:** keep a comment in the rules file under 8 lines. A longer one goes here, under a heading named after the function or match path it explains, with an `<a id="…">` anchor, and the rules file keeps `// Why: docs/ops/RULES-NOTES.md#<anchor>` in its place. `tests/firestore.rules.lint.test.ts` fails when the rules file passes 240 KiB, when its code passes 150,000 bytes, or when a pointer names a note that isn't here.
 
+<a id="isletin"></a>
+### `function isLetIn`
+
+```text
+SOMEONE LET IN (privacy Round 0, "strangers out", Oct 14 2026;
+docs/rounds/2026-10-14-strangers-out.md). Anyone can sign in with a Google
+account, and until this round any signed-in account could read every
+client's notes, Pulse, sets, routines and bookings, and every studio's
+tasks, asks and machine care. AJ: "Let's make sure that everything's
+strict and safe right now", and "I don't want it to affect our app".
+
+Let in means a trainer record at trainers/{the caller's sign-in uid} (the
+document every write rule already needs, isAnyAuthenticatedTrainer), or an
+administrator's role claim (claims are set only by the Cloud Functions,
+from a trainer record or by an administrator, so a stranger never holds
+one). One exists() a request,
+the same document the rest of the request reads; no query changes, so
+nothing changes for anyone let in, and nothing changes between studios.
+
+What a stranger still reads, because the access screens read it before
+anyone is let in: trainers (their own record and the email lookup a claim
+needs), studios (the request names one), their own access request, and,
+until Round 4a, machines, machines/*/changes, machineModels,
+routinePresets, system/*, hub_announcements, networks and the shared
+roster, playbook, wiki and floor notes (the catalog family, shared with
+every MSF studio, never a client's).
+```
+
 <a id="isdemostudioid"></a>
 ### Demo Mode (the section that opens with `function isDemoStudioId`)
 

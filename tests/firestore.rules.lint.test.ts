@@ -249,15 +249,21 @@ describe("the studio map's layout", () => {
  * risk, accepted and said in the round document); tightening it is AJ's OK,
  * not this round's. This pins it, `careActorValid` and the match block,
  * byte for byte as they are on master (sha256 of the three as written).
+ * Privacy Round 0 (Oct 14 2026) changed one line of it, the read, from any
+ * signed-in account to anyone let in (`isLetIn()`); the writes are as they
+ * were, and the second hash proves that is the only change.
  */
 describe("the machine care rule the cleaning checklist writes under", () => {
-  it("is unchanged from master", async () => {
+  it("is unchanged from master but for privacy Round 0's read", async () => {
     const { createHash } = await import("node:crypto");
     const s = SOURCE.replace(/\r\n/g, "\n");
     const fn = /    function careActorValid\(a\) \{[\s\S]*?\n    \}\n    function machineCareValid\(d, machineId\) \{[\s\S]*?\n    \}\n/.exec(s);
     const match = /      match \/machineCare\/\{machineId\} \{[\s\S]*?\n      \}\n/.exec(s);
     expect(fn, "careActorValid then machineCareValid").toBeTruthy();
     expect(match, "match /machineCare/{machineId}").toBeTruthy();
-    expect(createHash("sha256").update(fn![0] + match![0]).digest("hex")).toBe("0b59c28a1201bf880b342200a52bf42229df7b606ca8cb2800a7d7df9f9977c7");
+    const block = fn![0] + match![0];
+    expect(createHash("sha256").update(block).digest("hex")).toBe("ddc9b0efabe3e60d9ee515e31c88e72b9fb01ee56b48f30c89d39f69f8050870");
+    const asOnMaster = block.replace("allow read: if isLetIn();", "allow read: if isAuthenticated();");
+    expect(createHash("sha256").update(asOnMaster).digest("hex")).toBe("0b59c28a1201bf880b342200a52bf42229df7b606ca8cb2800a7d7df9f9977c7");
   });
 });

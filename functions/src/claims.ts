@@ -11,8 +11,8 @@
  * WHAT IT DOES NOT DO
  *   · Write to Firestore. A trigger on `trainers` that wrote to `trainers`
  *     would fire itself; the token is the only thing touched.
- *   · Set `studioId`. The rules treat that claim as studio-leader access
- *     with no role check. Only `role` is ever mirrored.
+ *   · Set `studioId`. Only `role` is ever mirrored (the rules stopped
+ *     honouring a `studioId` claim in privacy Round 0, Oct 14 2026).
  *   · Invent a user. A document whose id (or authUid) is not an auth user —
  *     the addDoc-created ones — is skipped and logged, never an error.
  *
