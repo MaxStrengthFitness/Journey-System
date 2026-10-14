@@ -75,6 +75,13 @@ export interface Report {
   /** Chart buckets — weekly up to ~26 weeks, monthly beyond. */
   weeks: WeekBucket[];
   trendPeriod: "week" | "month";
+  /**
+   * Time under tension's own buckets: from the first session Journey recorded
+   * when the range reaches back before it (an import never timed a set), so
+   * the chart is not two years of empty axis. Weekly up to ~26 weeks.
+   */
+  tutWeeks: WeekBucket[];
+  tutPeriod: "week" | "month";
   correlations: Correlation[];
   heatmap: Heatmap;
   heatmapPeriod: "week" | "month";
@@ -181,6 +188,12 @@ export function buildReport(input: ReportInput): Report {
   const weeklyBuckets = weeklyTrend(facts);
   const trendPeriod: "week" | "month" = weeklyBuckets.length > 26 ? "month" : "week";
   const weeks = trendPeriod === "week" ? weeklyBuckets : monthlyTrend(facts);
+  // Time under tension from the first session Journey recorded: an import never timed a set.
+  const timedFacts = facts.filter((f) => !f.beforeJourney);
+  const imported = timedFacts.length < facts.length;
+  const tutWeekly = imported ? weeklyTrend(timedFacts) : weeklyBuckets;
+  const tutPeriod: "week" | "month" = imported ? (tutWeekly.length > 26 ? "month" : "week") : trendPeriod;
+  const tutWeeks = !imported ? weeks : tutPeriod === "week" ? tutWeekly : monthlyTrend(timedFacts);
   const correlations = correlationMatrix(facts);
   const heatmapPeriod: "week" | "month" = summary.spanDays <= 98 ? "week" : "month";
   const heatmap = formHeatmap(sets, { period: heatmapPeriod, machineName, machineGroup });
@@ -208,6 +221,8 @@ export function buildReport(input: ReportInput): Report {
     prior,
     weeks,
     trendPeriod,
+    tutWeeks,
+    tutPeriod,
     correlations,
     heatmap,
     heatmapPeriod,

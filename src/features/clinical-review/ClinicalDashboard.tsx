@@ -23,7 +23,8 @@ import { rangeLabel } from "./report";
 import type { RangePreset } from "./types";
 import { RULE_OF_THREE } from "./types";
 import { BrandTiles } from "../client-profile/BrandTiles";
-import { AttendancePanel, CaveatLine, CorrelationMatrix, FormHeatmapPanel, InsightCards, KpiStrip, MethodNote, PainPulsePanel, StallPanel } from "./panels";
+import { AttendancePanel, BeforeJourneyLine, CaveatLine, CorrelationMatrix, FormHeatmapPanel, InsightCards, KpiStrip, MethodNote, PainPulsePanel, StallPanel } from "./panels";
+import { STALLS_SECTION_ID } from "./insights";
 import { TutChart } from "./charts";
 import { shortDateYear } from "./analytics";
 import { allTimeLabel } from "../../lib/history-claims";
@@ -42,9 +43,9 @@ export interface ClinicalDashboardProps {
   coverage?: HistoryCoverage;
 }
 
-function Section({ title, sub, children, right }: { title: string; sub?: string; children: ReactNode; right?: ReactNode }) {
+function Section({ id, title, sub, children, right }: { id?: string; title: string; sub?: string; children: ReactNode; right?: ReactNode }) {
   return (
-    <section className="cr-section">
+    <section className="cr-section" id={id}>
       <div className="cr-section__head">
         <h3 className="cr-section__title">{title}</h3>
         {sub && <span className="cr-section__sub">{sub}</span>}
@@ -113,6 +114,7 @@ export function ClinicalDashboard({
 
       {/* ---- 0. the fixed caveat, always, even on an empty range ---- */}
       <CaveatLine />
+      <BeforeJourneyLine summary={summary} />
 
       {summary.sessions === 0 ? (
         <div className="cr-empty">
@@ -142,7 +144,7 @@ export function ClinicalDashboard({
           </Section>
 
           {/* ---- 3. progression stalls ---- */}
-          <Section title="Progression stalls" sub="machines at the same load with no gain — stalls and slips first, progress last">
+          <Section id={STALLS_SECTION_ID} title="Progression stalls" sub="machines at the same load with no gain — stalls and slips first, progress last">
             <StallPanel plateaus={report.plateaus} />
           </Section>
 
@@ -171,11 +173,15 @@ export function ClinicalDashboard({
           </Section>
 
           {/* ---- 7. time under tension ---- */}
-          <Section title="Time under tension" sub={`per ${report.trendPeriod} — only sets that recorded it`}>
+          <Section title="Time under tension" sub={`per ${report.tutPeriod} — only sets that recorded it`}>
             <div className="cr-card">
-              <p className="cr-card__sub">{tutWorthShowing ? `minutes · recorded on ${Math.round(summary.tutCoverage * 100)}% of sets` : "not recorded on enough sets yet"}</p>
+              <p className="cr-card__sub">
+                {tutWorthShowing
+                  ? `minutes · recorded on ${Math.round(summary.tutCoverage * 100)}% of sets${summary.beforeJourneySessions > 0 ? " in Journey" : ""}`
+                  : "not recorded on enough sets yet"}
+              </p>
               {tutWorthShowing ? (
-                <TutChart weeks={report.weeks} period={report.trendPeriod} />
+                <TutChart weeks={report.tutWeeks} period={report.tutPeriod} />
               ) : (
                 <div className="cr-empty" style={{ height: 190, display: "grid", placeItems: "center" }}>Fills in as timed sets are logged.</div>
               )}

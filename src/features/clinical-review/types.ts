@@ -61,6 +61,13 @@ export const POST_FEEL_ORDER: PostFeel[] = ["Wiped Out", "Good", "Energized"];
 
 export interface SessionFact {
   id: string;
+  /**
+   * Recorded before Journey (an import: FileMaker, a chart; client-history's
+   * `isLegacySession`). Such a session carries weight and reps and nothing
+   * the floor records now: no rep quality, time under tension, check-in or
+   * pain, so those are counted only over the sessions Journey recorded.
+   */
+  beforeJourney: boolean;
   /** ISO day, YYYY-MM-DD, as the session was logged (never timezone-shifted). */
   date: string;
   /** Local midnight of `date`, ms. Used for ordering and day arithmetic. */
@@ -337,10 +344,16 @@ export interface Summary {
   setsPoor: number;
   maxRate: number | null;
   poorRate: number | null;
-  /** Share of sets that recorded time under tension — gates the TUT panels. */
+  /** Share of the sets JOURNEY recorded that carry time under tension: gates the TUT panels. An import never could. */
   tutCoverage: number;
-  /** Share of sessions with any pre-session check-in field. */
+  /** Share of the sessions JOURNEY recorded with any pre-session check-in field. */
   checkInCoverage: number;
+  /** Sessions in the range Journey recorded itself. */
+  journeySessions: number;
+  /** Sessions in the range recorded before Journey (imports): weight and reps only. */
+  beforeJourneySessions: number;
+  /** The first day in the range Journey recorded itself; null when it recorded none. */
+  journeyFrom: string | null;
   sessionsPerWeek: number | null;
   medianRestDays: number | null;
   longestGapDays: number | null;
@@ -366,6 +379,8 @@ export interface Insight {
   machineId?: string;
   dimension?: DimensionKey;
   outcome?: OutcomeKey;
+  /** A section further down the page this card is about, by its element id, and the words of the link to it. */
+  goTo?: { id: string; label: string };
 }
 
 /* ------------------------------------------------------------------ *
@@ -413,9 +428,12 @@ export interface PainEvent {
 export interface PainTimeline {
   /** Oldest → newest. */
   events: PainEvent[];
-  /** Sessions in the range that raised nothing at all. */
+  /** Sessions Journey recorded in the range that raised nothing at all. */
   quietSessions: number;
+  /** Sessions Journey recorded in the range: the only ones that could raise anything. */
   sessions: number;
+  /** Sessions in the range from before Journey, which carry no pain record at all. */
+  beforeJourney: number;
 }
 
 export type PulseRag = "green" | "yellow" | "red";

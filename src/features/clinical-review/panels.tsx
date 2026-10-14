@@ -14,7 +14,7 @@
  * says so and shows no number that could be mistaken for a finding.
  */
 import { memo, useMemo, useState, type ReactNode } from "react";
-import { ArrowDownRight, ArrowUpRight, Minus, Table2, LayoutGrid, AlertTriangle } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Minus, Table2, LayoutGrid, AlertTriangle, ArrowDown, History } from "lucide-react";
 import type { AttendanceRhythm, Correlation, Heatmap, Insight, LevelStat, MachinePlateau, OutcomeKey, PainTimeline, PulseTrend, Summary } from "./types";
 import { RULE_OF_THREE } from "./types";
 import { DIMENSION_BY_KEY, NOT_ENOUGH_SESSIONS, OUTCOMES, OUTCOME_BY_KEY, dialLevelKey, formatMinutes, pct, shortDate, signed } from "./analytics";
@@ -34,6 +34,29 @@ export function CaveatLine() {
     <p className="cr-caveat" role="note">
       <AlertTriangle size={14} aria-hidden="true" />
       <span>{DEEP_DIVE_CAVEAT}</span>
+    </p>
+  );
+}
+
+/**
+ * When the range reaches back before Journey (an import: FileMaker, a chart),
+ * one line says what those sessions can and can't show, and the day Journey
+ * began recording (Oct 14 2026; AJ: "Fix what it says"). A client's history
+ * did not begin when Journey first saw them, and an empty record from before
+ * is "no detail here", never "this never happened".
+ */
+export function BeforeJourneyLine({ summary }: { summary: Summary }) {
+  const before = summary.beforeJourneySessions;
+  if (before === 0) return null;
+  const all = summary.journeySessions === 0;
+  return (
+    <p className="cr-before" role="note" data-testid="before-journey">
+      <History size={14} aria-hidden="true" />
+      <span>
+        {all
+          ? `All ${before} sessions in this range are from before Journey: weight and reps only. Rep quality, time under tension, the Dial and pain start with the first session Journey records.`
+          : `${before} of these ${summary.sessions} sessions are from before Journey: weight and reps only. Rep quality, time under tension, the Dial and pain count from ${shortDate(summary.journeyFrom!)}, over the ${summary.journeySessions} sessions Journey recorded.`}
+      </span>
     </p>
   );
 }
@@ -88,7 +111,9 @@ export function KpiStrip({ summary, prior }: { summary: Summary; prior: Summary 
         hero
         sub={
           s.tutCoverage < 0.999 ? (
-            <span>recorded on {Math.round(s.tutCoverage * 100)}% of sets</span>
+            <span>
+              recorded on {Math.round(s.tutCoverage * 100)}% of sets{s.beforeJourneySessions > 0 ? " in Journey" : ""}
+            </span>
           ) : (
             prior && <Delta value={deltaPct(s.tutSeconds, prior.tutSeconds)} />
           )
@@ -120,7 +145,11 @@ export function KpiStrip({ summary, prior }: { summary: Summary; prior: Summary 
         unit={s.medianRestDays === null ? undefined : "days"}
         sub={s.longestGapDays !== null ? <span>longest gap {s.longestGapDays} d</span> : undefined}
       />
-      <Kpi label="Dials tapped" value={`${Math.round(s.checkInCoverage * 100)}%`} sub={<span>of sessions asked sleep, energy, recovery, stress or a region</span>} />
+      <Kpi
+        label="Dials tapped"
+        value={s.journeySessions === 0 ? "—" : `${Math.round(s.checkInCoverage * 100)}%`}
+        sub={<span>of sessions{s.beforeJourneySessions > 0 ? " in Journey" : ""} asked sleep, energy, recovery, stress or a region</span>}
+      />
       <Kpi
         label="Span"
         value={s.spanDays}
@@ -153,6 +182,15 @@ export function InsightCards({ insights, emptyHint }: { insights: Insight[]; emp
           <h4 className="cr-insight__title">{i.title}</h4>
           <p className="cr-insight__body">{i.body}</p>
           <span className="cr-insight__evidence">{i.evidence}</span>
+          {i.goTo && (
+            <button
+              type="button"
+              className="cr-iconbtn cr-insight__go"
+              onClick={() => document.getElementById(i.goTo!.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              <ArrowDown size={13} aria-hidden="true" /> {i.goTo.label}
+            </button>
+          )}
         </article>
       ))}
     </div>
@@ -371,10 +409,19 @@ export function PainPulsePanel({ pain, pulse }: { pain: PainTimeline; pulse: Pul
         <p className="cr-card__title">Pain &amp; incidents</p>
         <p className="cr-card__sub">
           Every region below the centre of its Dial, every symptom flagged during a set, every incident. Oldest first.
-          {pain.sessions > 0 && ` ${pain.quietSessions} of ${pain.sessions} sessions raised nothing.`}
+          {pain.sessions > 0 && ` ${pain.quietSessions} of ${pain.sessions} sessions${pain.beforeJourney > 0 ? " Journey recorded" : ""} raised nothing.`}
+          {pain.beforeJourney > 0 && ` The ${pain.beforeJourney} from before Journey carry no pain record.`}
         </p>
         {pain.events.length === 0 ? (
-          <div className="cr-empty">{pain.sessions === 0 ? "No sessions in this range." : "Nothing hurt, nothing was flagged and no incident was filed in this range."}</div>
+          <div className="cr-empty">
+            {pain.sessions === 0
+              ? pain.beforeJourney > 0
+                ? "No session in this range was recorded in Journey, so there is no pain record to show."
+                : "No sessions in this range."
+              : pain.beforeJourney > 0
+                ? "Nothing hurt, nothing was flagged and no incident was filed in the sessions Journey recorded."
+                : "Nothing hurt, nothing was flagged and no incident was filed in this range."}
+          </div>
         ) : (
           <ol className="cr-timeline" aria-label="Pain and incident timeline">
             {pain.events.map((e, i) => (

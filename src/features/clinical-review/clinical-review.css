@@ -287,7 +287,8 @@
 .cr-levels { display: grid; gap: 6px; }
 .cr-level { display: grid; grid-template-columns: minmax(84px, 34%) minmax(0, 1fr) 52px; align-items: center; gap: 8px; font-size: 12px; }
 .cr-level__label { color: var(--cr-ink-2); font-weight: 600; display: flex; align-items: center; gap: 6px; min-width: 0; }
-.cr-level__label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A level's words wrap, never cut short ("Morning (before noon)"). */
+.cr-level__label span { min-width: 0; overflow-wrap: anywhere; }
 .cr-level__n { font-size: 11px; color: var(--cr-ink-muted); font-weight: 700; flex: none; }
 .cr-level__track { position: relative; height: 16px; background: var(--cr-surface-2); border-radius: 4px; overflow: hidden; }
 .cr-level__bar { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 0 4px 4px 0; background: var(--cr-live); opacity: 0.85; }
@@ -356,6 +357,21 @@
 }
 .cr-caveat svg { flex: none; margin-top: 2px; color: var(--cr-amber); }
 
+/* ---- before Journey (Oct 14 2026) ---------------------------------------- */
+/* A range that reaches back before Journey says, once, what those sessions
+   can show. Neutral: a fact about the record, not a warning. */
+.cr-before {
+  margin: 0; display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 14px; border-radius: var(--cr-radius-sm);
+  background: var(--cr-surface-2);
+  color: var(--cr-ink-2);
+  font-size: 12.5px; line-height: 1.45;
+}
+.cr-before svg { flex: none; margin-top: 2px; color: var(--cr-ink-muted); }
+
+/* The stalls' one line links down to them. */
+.cr-insight__go { align-self: flex-start; margin-top: 4px; }
+
 /* ---- progression stalls (sentences) ---------------------------------------- */
 .cr-stalls { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 900px) { .cr-stalls { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -413,7 +429,7 @@
 @media print {
   .cr { gap: 12px; }
   .cr-bar { position: static; }
-  .cr-bar .cr-seg, .cr-bar .cr-iconbtn { display: none; }
+  .cr-bar .cr-seg, .cr-bar .cr-iconbtn, .cr-insight__go { display: none; }
   .cr-card, .cr-insight, .cr-kpis { break-inside: avoid; }
   .cr-heat { overflow: visible; }
   .cr-timeline { max-height: none; overflow: visible; }

@@ -11,6 +11,7 @@
 
 import type { ClinicalIncident, DialValue, ExerciseLog, WorkoutSession } from "../../types";
 import { isPerformedLog } from "../../lib/set-outcome";
+import { isBackfilledSession, isLegacySession } from "../client-history/model";
 import { effortOf } from "../rating/session-reads";
 import {
   dialFromClientFeel,
@@ -370,10 +371,12 @@ export function buildFacts(
 
     facts.push({
       id,
+      beforeJourney: isLegacySession(s as never),
       date,
       dayMs: dMs,
       startMs,
-      hour: startMs !== null ? hourInZone(startMs, tz) : null,
+      // "Log past session" files its day at 12:00 UTC: a placeholder, not a time anyone trained.
+      hour: startMs !== null && !isBackfilledSession(s as never) ? hourInZone(startMs, tz) : null,
       dayOfWeek: new Date(dMs).getDay(),
       restDays: previousDate ? daysBetween(previousDate, date) : null,
       durationMin,

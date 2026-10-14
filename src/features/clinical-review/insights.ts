@@ -182,8 +182,37 @@ export function stallSentence(p: MachinePlateau): string {
   return `${p.machineName} — ${p.firstWeight} → ${p.lastWeight} lb over ${p.sessions} sessions, progressing`;
 }
 
+/** The id of the Progression stalls section, which the stalls' one line links down to. */
+export const STALLS_SECTION_ID = "cr-stalls";
+
+/**
+ * The stalls, as ONE finding (AJ, Oct 14 2026: "One line for all stalls";
+ * the stalls are listed one by one under Progression stalls, just below).
+ * A plateau is a question to ask, never a suggestion of what to change (AJ:
+ * "Worth asking why"; the floor: the app lets a leader "find a plateau and
+ * ask why ... Never a suggestion to move the weight").
+ */
+function stallsInsight(stalls: Insight[], plateaus: MachinePlateau[]): Insight | null {
+  if (stalls.length === 0) return null;
+  if (stalls.length === 1) return stalls[0];
+  const ids = new Set(stalls.map((s) => s.machineId));
+  const stalled = plateaus.filter((p) => ids.has(p.machineId)).sort((a, b) => b.sessionsAtCurrentWeight - a.sessionsAtCurrentWeight);
+  const least = Math.min(...stalled.map((p) => p.sessionsAtCurrentWeight));
+  return {
+    id: "plateau:stalls",
+    kind: "plateau",
+    tone: "notable",
+    title: `${stalled.length} machines at the same weight for ${least} sessions or more`,
+    body: `${stalled.map((p, i) => `${p.machineName} ${p.sessionsAtCurrentWeight}${i === 0 ? " sessions" : ""}`).join(", ")}. Worth asking why.`,
+    evidence: `each one under Progression stalls`,
+    score: Math.max(...stalls.map((s) => s.score)),
+    goTo: { id: STALLS_SECTION_ID, label: "See Progression stalls" },
+  };
+}
+
 export function plateauInsights(plateaus: MachinePlateau[]): Insight[] {
   const out: Insight[] = [];
+  const stalls: Insight[] = [];
   for (const p of plateaus) {
     if (p.stalled && (p.status === "plateau" || p.status === "progressing") && p.lastWeight !== null) {
       const unit = p.isTSC ? "hold" : "reps";
@@ -194,12 +223,12 @@ export function plateauInsights(plateaus: MachinePlateau[]): Insight[] {
             ? `${unit} flat at ${p.repsAtCurrentLast}${p.isTSC ? "s" : ""}`
             : `${unit} ${p.repsAtCurrentFirst} → ${p.repsAtCurrentLast}${p.isTSC ? "s" : ""}`
           : `no ${p.isTSC ? "time" : "rep"} gain`;
-      out.push({
+      stalls.push({
         id: `plateau:${p.machineId}`,
         kind: "plateau",
         tone: "notable",
         title: `${p.machineName} has sat at ${p.lastWeight} lb for ${p.sessionsAtCurrentWeight} sessions`,
-        body: `Same load since ${shortDate(runStart(p))}, ${repsNote}. Worth a deliberate progression, a cadence change or a different machine for the same target.`,
+        body: `Same load since ${shortDate(runStart(p))}, ${repsNote}. Worth asking why.`,
         evidence: `${p.sessions} sessions in range · ${p.status === "plateau" ? "0% load change" : `progressed earlier, flat for ${p.sessionsAtCurrentWeight}`}${p.poorRate !== null && p.poorRate > 0.2 ? ` · ${Math.round(p.poorRate * 100)}% poor quality` : ""}`,
         score: 0.9 + Math.min(0.6, p.sessionsAtCurrentWeight * 0.05),
         machineId: p.machineId,
@@ -212,13 +241,15 @@ export function plateauInsights(plateaus: MachinePlateau[]): Insight[] {
         kind: "plateau",
         tone: "notable",
         title: `${p.machineName} is down from ${p.firstWeight} to ${p.lastWeight} lb`,
-        body: `Load fell ${Math.abs(Math.round(p.weightChangePct ?? 0))}% across the range. Check the setup, the pain notes and the recovery pattern before pushing it back up.`,
+        body: `Load fell ${Math.abs(Math.round(p.weightChangePct ?? 0))}% across the range. Worth asking why: the setup, the pain notes, the recovery pattern.`,
         evidence: `${p.sessions} sessions in range${p.poorRate !== null ? ` · ${Math.round(p.poorRate * 100)}% poor quality` : ""}`,
         score: 1.1,
         machineId: p.machineId,
       });
     }
   }
+  const stall = stallsInsight(stalls, plateaus);
+  if (stall) out.unshift(stall);
   return out;
 }
 
@@ -289,25 +320,27 @@ export function rhythmInsights(rhythm: AttendanceRhythm, firstName: string): Ins
 
 export function coverageInsights(summary: Summary): Insight[] {
   const out: Insight[] = [];
-  if (meetsRuleOfThree(summary.sessions) && summary.tutCoverage < 0.5) {
+  // Only what Journey recorded could have carried either (an import never did).
+  const inJourney = summary.beforeJourneySessions > 0 ? " in Journey" : "";
+  if (meetsRuleOfThree(summary.journeySessions) && summary.tutCoverage < 0.5) {
     out.push({
       id: "coverage:tut",
       kind: "coverage",
       tone: "info",
-      title: `Time under tension is recorded on ${Math.round(summary.tutCoverage * 100)}% of sets`,
+      title: `Time under tension is recorded on ${Math.round(summary.tutCoverage * 100)}% of sets${inJourney}`,
       body: "The TUT trend and its correlations fill in as trainers log timed sets. Nothing here is estimated.",
-      evidence: `${summary.sessions} sessions`,
+      evidence: `${summary.journeySessions} sessions${inJourney}`,
       score: 0.2,
     });
   }
-  if (meetsRuleOfThree(summary.sessions) && summary.checkInCoverage < 0.5) {
+  if (meetsRuleOfThree(summary.journeySessions) && summary.checkInCoverage < 0.5) {
     out.push({
       id: "coverage:checkin",
       kind: "coverage",
       tone: "info",
-      title: `The briefing's dials were tapped on ${Math.round(summary.checkInCoverage * 100)}% of sessions`,
+      title: `The briefing's dials were tapped on ${Math.round(summary.checkInCoverage * 100)}% of sessions${inJourney}`,
       body: "Readiness vs output needs sleep, energy, recovery or stress on the Dial before the session. One tap per session is enough.",
-      evidence: `${summary.sessions} sessions`,
+      evidence: `${summary.journeySessions} sessions${inJourney}`,
       score: 0.2,
     });
   }

@@ -213,4 +213,67 @@ describe("ClinicalDashboard's widest range and a client's past", () => {
       expect(empty.querySelector(".cr-empty")?.textContent).toContain("pick All in Journey");
     }
   });
+
+  it("says what the sessions from before Journey can show, claims nothing about them, and gives the stalls one line (Oct 14 2026)", async () => {
+    const { sessions, logs } = synthetic();
+    // The first six as the FileMaker import writes them: weight and reps, no check-in.
+    const mixed = sessions.map((s, i) => (i < 6 ? ({ ...s, legacy_filemaker_id: `fm:c1:${s.date}`, preSessionCheckIn: undefined, clientFeel: undefined } as WorkoutSession) : s));
+    const report = buildReport({
+      client,
+      machines: [{ id: "leg-press", name: "Leg Press" } as any, { id: "chest", name: "Chest Press" } as any],
+      trainers: [],
+      sessions: mixed,
+      logs,
+      incidents: [],
+      pulseHistory: null,
+      range: { preset: "custom", from: day(0), to: day(40) },
+    });
+    // Time under tension is drawn from the first session Journey recorded, not across the imported weeks.
+    expect(report.tutPeriod).toBe("week");
+    expect(report.tutWeeks.length).toBeLessThan(report.weeks.length);
+    expect(report.tutWeeks[0].weekStart >= report.weeks[report.weeks.length - report.tutWeeks.length].weekStart).toBe(true);
+    const host = await mount(
+      <ClinicalDashboard report={report} clientName="Judy Kaizen" presets={RANGE_PRESETS} onPreset={() => {}} onRegenerate={() => {}} />,
+    );
+    const text = host.textContent ?? "";
+    const line = host.querySelector('[data-testid="before-journey"]')!;
+    expect(line.textContent).toMatch(/^6 of these 12 sessions are from before Journey: weight and reps only\. Rep quality, time under tension, the Dial and pain count from \w{3} \d+, over the 6 sessions Journey recorded\.$/);
+    // Pain: nothing is said about the imported visits but that they carry no record.
+    expect(text).toContain("6 of 6 sessions Journey recorded raised nothing. The 6 from before Journey carry no pain record.");
+    expect(text).toContain("Nothing hurt, nothing was flagged and no incident was filed in the sessions Journey recorded.");
+    // The dials: of the six sessions Journey recorded, every one asked.
+    expect(text).toContain("of sessions in Journey asked sleep, energy, recovery, stress or a region");
+    // Both machines sit at one load: one finding, a door down to them, and a question, never advice.
+    const stalls = [...host.querySelectorAll(".cr-insight")].find((c) => /machines at the same weight/.test(c.textContent ?? ""))!;
+    expect(stalls.textContent).toContain("2 machines at the same weight for 6 sessions or more");
+    expect(stalls.textContent).toContain("Worth asking why.");
+    expect(text).not.toMatch(/deliberate progression|cadence change|pushing it back up/i);
+    const go = stalls.querySelector<HTMLButtonElement>(".cr-insight__go")!;
+    expect(go.textContent).toContain("See Progression stalls");
+    const scrolled = vi.fn();
+    const target = host.querySelector<HTMLElement>("#cr-stalls")!;
+    expect(target.querySelector("h3")?.textContent).toBe("Progression stalls");
+    target.scrollIntoView = scrolled;
+    await act(async () => go.click());
+    expect(scrolled).toHaveBeenCalled();
+  });
+
+  it("says nothing about before Journey when every session is Journey's", async () => {
+    const { sessions, logs } = synthetic();
+    const report = buildReport({
+      client,
+      machines: [{ id: "leg-press", name: "Leg Press" } as any, { id: "chest", name: "Chest Press" } as any],
+      trainers: [],
+      sessions,
+      logs,
+      incidents: [],
+      pulseHistory: null,
+      range: { preset: "custom", from: day(0), to: day(40) },
+    });
+    const host = await mount(
+      <ClinicalDashboard report={report} clientName="Judy Kaizen" presets={RANGE_PRESETS} onPreset={() => {}} onRegenerate={() => {}} />,
+    );
+    expect(host.querySelector('[data-testid="before-journey"]')).toBeNull();
+    expect(host.textContent).not.toContain("in Journey");
+  });
 });

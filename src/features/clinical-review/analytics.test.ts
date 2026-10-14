@@ -24,7 +24,7 @@ import {
   compact,
 } from "./analytics";
 import { RULE_OF_THREE, type SessionFact } from "./types";
-import { correlationInsights, coverageInsights, plateauInsights, rankInsights, rhythmInsights, stallSentence } from "./insights";
+import { correlationInsights, coverageInsights, plateauInsights, STALLS_SECTION_ID, rankInsights, rhythmInsights, stallSentence } from "./insights";
 
 /* ------------------------------------------------------------------ *
  * Fixture: 24 sessions, twice a week, with patterns planted on purpose:
@@ -135,6 +135,7 @@ function fixture() {
 function fact(patch: Partial<SessionFact>): SessionFact {
   return {
     id: "x",
+    beforeJourney: false,
     date: "2026-01-01",
     dayMs: 0,
     startMs: null,
@@ -527,13 +528,21 @@ describe("insights", () => {
     expect(sleep!.evidence).toMatch(/6 of 24 sessions/);
     expect(corr.some((i) => i.outcome === ("tonnageIndex" as string))).toBe(false);
 
+    // Two machines stalled: ONE finding names them both and links down to
+    // Progression stalls (AJ, Oct 14 2026: "One line for all stalls"), and
+    // it asks why rather than suggesting a change ("Worth asking why").
     const plateaus = plateauInsights(detectPlateaus(built.sets.filter((s) => s.date >= day(70)), names));
-    const lp = plateaus.find((p) => p.machineId === "leg-press")!;
-    expect(lp).toBeDefined();
-    expect(lp.title).toMatch(/116 lb for 6 sessions/);
-    expect(lp.body).toMatch(/reps flat at 8/);
-    const hip = plateaus.find((p) => p.machineId === "hip-adduction")!;
-    expect(hip.body).toMatch(/hold flat at 60s/);
+    const stalls = plateaus.find((p) => p.id === "plateau:stalls")!;
+    expect(stalls).toBeDefined();
+    expect(stalls.title).toBe("2 machines at the same weight for 6 sessions or more");
+    expect(stalls.body).toBe("hip-adduction 10 sessions, leg-press 6. Worth asking why.");
+    expect(stalls.goTo).toEqual({ id: STALLS_SECTION_ID, label: "See Progression stalls" });
+    expect(plateaus.some((p) => p.id === "plateau:leg-press" || p.id === "plateau:hip-adduction")).toBe(false);
+    // One machine alone keeps its own card, with its reps in words.
+    const one = plateauInsights(detectPlateaus(built.sets.filter((s) => s.date >= day(70) && s.machineId === "leg-press"), names));
+    expect(one[0]).toMatchObject({ id: "plateau:leg-press", title: expect.stringMatching(/116 lb for 6 sessions/) });
+    expect(one[0].body).toMatch(/reps flat at 8\. Worth asking why\.$/);
+    expect(one[0].body).not.toMatch(/progression|cadence|different machine/i);
 
     const ranked = rankInsights([...corr, ...plateaus], 5);
     expect(ranked).toHaveLength(5);
@@ -554,6 +563,38 @@ describe("insights", () => {
     const cov = coverageInsights(summary);
     expect(cov.some((i) => i.id === "coverage:tut")).toBe(true);
     expect(cov.some((i) => i.id === "coverage:checkin")).toBe(true);
+  });
+
+  it("counts what only Journey records over the sessions Journey recorded, never the imported years (Oct 14 2026)", () => {
+    const base = { sets: 10, setsRated: 0, setsMax: 0, setsDone: 10, setsPoor: 0, tonnage: 100, reps: 10 };
+    const imported = (date: string) => fact({ ...base, beforeJourney: true, setsWithTut: 0, date });
+    const recorded = (date: string) =>
+      fact({ ...base, setsWithTut: 10, date, readiness: { sleep: 1, energy: null, recovery: null, stress: null } });
+    const facts = [imported("2025-01-01"), imported("2025-01-04"), imported("2025-01-07"), imported("2025-01-10"), recorded("2026-07-16"), recorded("2026-07-19"), recorded("2026-07-22")];
+    const summary = summarize(facts);
+    expect(summary).toMatchObject({ sessions: 7, journeySessions: 3, beforeJourneySessions: 4, journeyFrom: "2026-07-16" });
+    // Every set Journey recorded was timed, and every session asked the Dial.
+    expect(summary.tutCoverage).toBe(1);
+    expect(summary.checkInCoverage).toBe(1);
+    const cov = coverageInsights(summary);
+    expect(cov.some((i) => i.id === "coverage:tut" || i.id === "coverage:checkin")).toBe(false);
+
+    // The imported sessions are never "quiet": they carry no pain record.
+    const pain = painTimeline(facts);
+    expect(pain).toMatchObject({ sessions: 3, quietSessions: 3, beforeJourney: 4 });
+  });
+
+  it("says a coverage gap of Journey's own sessions as Journey's", () => {
+    const base = { sets: 10, setsRated: 0, setsMax: 0, setsDone: 10, setsPoor: 0, tonnage: 100, reps: 10, setsWithTut: 0 };
+    const summary = summarize([
+      fact({ ...base, beforeJourney: true, date: "2025-01-01" }),
+      fact({ ...base, date: "2026-07-16" }),
+      fact({ ...base, date: "2026-07-19" }),
+      fact({ ...base, date: "2026-07-22" }),
+    ]);
+    const tut = coverageInsights(summary).find((i) => i.id === "coverage:tut")!;
+    expect(tut.title).toBe("Time under tension is recorded on 0% of sets in Journey");
+    expect(tut.evidence).toBe("3 sessions in Journey");
   });
 
   it("writes the stall rows as sentences and says 'not enough sessions yet' under three", () => {
@@ -671,5 +712,24 @@ describe("formatting", () => {
     expect(compact(1284)).toBe("1.3K");
     expect(compact(111050)).toBe("111K");
     expect(compact(2_400_000)).toBe("2.4M");
+  });
+});
+
+describe("sessions from before Journey (Oct 14 2026)", () => {
+  it("marks an imported visit as before Journey, and never reads a placeholder time as a time", () => {
+    const sessions = [
+      { id: "fm", clientId: "c1", status: "Completed", date: "2025-03-04", legacy_filemaker_id: "fm:1:2025-03-04" },
+      // "Log past session" files its day at 12:00 UTC: 8 AM in Ohio, a time nobody trained.
+      { id: "past", clientId: "c1", status: "Completed", date: "2026-07-01", startTime: "2026-07-01T12:00:00.000Z" },
+      { id: "live", clientId: "c1", status: "Completed", date: "2026-07-16", startTime: "2026-07-16T13:30:00.000Z" },
+    ] as unknown as WorkoutSession[];
+    const logs = sessions.map((s) => ({ id: `l-${s.id}`, sessionId: s.id, machineId: "leg-press", weight: "100", reps: "8" })) as unknown as ExerciseLog[];
+    const { facts } = buildFacts(sessions, logs, [], { timeZone: "America/New_York" });
+    const byId = Object.fromEntries(facts.map((f) => [f.id, f]));
+    expect(byId.fm.beforeJourney).toBe(true);
+    expect(byId.past.beforeJourney).toBe(false);
+    expect(byId.live.beforeJourney).toBe(false);
+    expect(byId.past.hour).toBe(null);
+    expect(byId.live.hour).toBe(9);
   });
 });

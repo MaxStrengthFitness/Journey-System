@@ -140,8 +140,18 @@ export function summarize(facts: SessionFact[]): Summary {
   let setsDone = 0;
   let setsPoor = 0;
   let withCheckIn = 0;
+  // What only Journey records (time under tension, the check-in) is counted
+  // over the sessions Journey recorded: an imported visit never could.
+  let journeySessions = 0;
+  let journeySets = 0;
+  let journeyFrom: string | null = null;
   const rests: number[] = [];
   for (const f of facts) {
+    if (!f.beforeJourney) {
+      journeySessions += 1;
+      journeySets += f.sets;
+      if (journeyFrom === null || f.date < journeyFrom) journeyFrom = f.date;
+    }
     tonnage += f.tonnage;
     reps += f.reps;
     tut += f.tutSeconds;
@@ -151,7 +161,7 @@ export function summarize(facts: SessionFact[]): Summary {
     setsMax += f.setsMax;
     setsDone += f.setsDone;
     setsPoor += f.setsPoor;
-    if (anyDialAsked(f)) withCheckIn += 1;
+    if (!f.beforeJourney && anyDialAsked(f)) withCheckIn += 1;
     if (f.restDays !== null && f.restDays > 0) rests.push(f.restDays);
   }
   const first = facts[0]?.date ?? null;
@@ -168,8 +178,11 @@ export function summarize(facts: SessionFact[]): Summary {
     setsPoor,
     maxRate: setsRated ? setsMax / setsRated : null,
     poorRate: setsRated ? setsPoor / setsRated : null,
-    tutCoverage: sets ? setsWithTut / sets : 0,
-    checkInCoverage: sessions ? withCheckIn / sessions : 0,
+    tutCoverage: journeySets ? setsWithTut / journeySets : 0,
+    checkInCoverage: journeySessions ? withCheckIn / journeySessions : 0,
+    journeySessions,
+    beforeJourneySessions: sessions - journeySessions,
+    journeyFrom,
     sessionsPerWeek: sessions >= 2 ? sessions / (spanDays / 7) : null,
     medianRestDays: median(rests),
     longestGapDays: rests.length ? Math.max(...rests) : null,
@@ -677,7 +690,10 @@ export function attendanceRhythm(facts: SessionFact[], range: ReportRange): Atte
 export function painTimeline(facts: SessionFact[], machineName: (id: string) => string = (id) => id): PainTimeline {
   const events: PainEvent[] = [];
   let quiet = 0;
-  for (const f of [...facts].sort((a, b) => a.date.localeCompare(b.date))) {
+  // A session from before Journey carries no pain record: it is neither
+  // quiet nor not, so it is counted apart and never said to have raised nothing.
+  const recorded = facts.filter((f) => !f.beforeJourney);
+  for (const f of [...recorded].sort((a, b) => a.date.localeCompare(b.date))) {
     let raised = false;
     const seen = new Set<string>();
     for (const r of f.regionDials) {
@@ -701,7 +717,7 @@ export function painTimeline(facts: SessionFact[], machineName: (id: string) => 
     }
     if (!raised) quiet += 1;
   }
-  return { events, quietSessions: quiet, sessions: facts.length };
+  return { events, quietSessions: quiet, sessions: recorded.length, beforeJourney: facts.length - recorded.length };
 }
 
 /* ------------------------------------------------------------------ *
