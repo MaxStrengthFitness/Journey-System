@@ -68,6 +68,9 @@
  * sessions of its own is fine here (they come after the imported days). It
  * saves what it will change to backups/filemaker/ first. Dry run by default;
  * --commit --expect N (N the visits to change), --trial on the real database.
+ * A client imported with an older table (Lynne Koszkalda, Oct 12, before the
+ * Hoist leg press had a machine): --relabel-from <that table>, so the plan of
+ * what was written is the one that was written.
  *   npx tsx scripts/import-filemaker.ts <profile> <workouts> --map <table with the client's rows> --through 2026-10-11 --relabel
  *
  * Flags: --map <csv>, --through YYYY-MM-DD (the last day to import; default
@@ -122,7 +125,7 @@ register("./lib/stub-assets.mjs", import.meta.url);
 const { draftMap, machineResolver, mapFromCsv, mapToCsv, tableProblems } = await import("../src/features/filemaker-import/machine-map.ts");
 const { MOVEMENTS } = await import("../src/features/catalog/names.ts");
 
-const VALUE_FLAGS = new Set(["map", "through", "expect", "key", "project", "database"]);
+const VALUE_FLAGS = new Set(["map", "through", "expect", "key", "project", "database", "relabel-from"]);
 const BOOLEAN_FLAGS = new Set(["commit", "emulator", "seed-emulator", "verify", "allow-waiting", "trial", "relabel"]);
 const OUT_DIR = path.resolve(process.cwd(), "backups", "filemaker");
 /** Writes in one transaction: a batch of whole visits, the client, the totals and the settings. */
@@ -165,6 +168,9 @@ const trial = hasFlag("trial");
 if (trial && emulator) stop("--trial is for the real database; the emulator takes any number of clients.");
 const relabel = hasFlag("relabel");
 if (relabel && !flag("map")) stop("--relabel needs --map: the machine table with the client's own rows.");
+const relabelFrom = flag("relabel-from");
+if (relabelFrom && !relabel) stop("--relabel-from only works with --relabel.");
+if (relabelFrom && !fs.existsSync(relabelFrom)) stop(`no machine table at ${relabelFrom}.`);
 // Refused before anything is read when it can be told now; a trial's size is checked once the clients are known.
 if (commit && !trial) {
   const refusal = writeRefusal({ ready: PRODUCTION_IMPORT_READY, emulator, trial, clientsToWrite: 0 });
@@ -402,8 +408,11 @@ async function main() {
   fs.writeFileSync(draftPath, mapToCsv(draft, new Map(studios.map((s) => [s.id, String(s.name ?? s.id)])), clientNames));
   // A dry run with no table plans from the draft, so its counts show what the sure matches alone would do.
   const resolve = machineResolver(mapPath ? table : draft);
-  // --relabel: what the import wrote, the table without the client's own rows.
-  const resolveOld = (client: string) => machineResolver(table.filter((r) => r.client !== client));
+  // --relabel: what the import wrote. The table it used when one is named (--relabel-from: a client imported
+  // before the studio's table changed), else today's table without the client's own rows.
+  const usedTable = relabelFrom ? mapFromCsv(fs.readFileSync(relabelFrom, "utf-8")) : null;
+  if (usedTable?.problems.length) stop(`the table named by --relabel-from has mistakes:\n  ${usedTable.problems.join("\n  ")}`);
+  const resolveOld = (client: string) => machineResolver(usedTable ? usedTable.rows : table.filter((r) => r.client !== client));
 
   /* Each client: visits, findings, what Journey has, the plan. */
   const reports: ClientReport[] = [];
