@@ -22,10 +22,13 @@ export function useStudioMachineSettings(studioId: string | null) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!studioId) {
-      setSettingsByMachineId({});
-      return;
-    }
+    // Another studio's cards never stand in for this one's: the map is
+    // emptied when the studio changes and when a read fails (the studio
+    // machines round's review, Oct 13 2026: the session and the profile read
+    // these too, and the catalog's machines share ids across studios).
+    const clear = () => setSettingsByMachineId((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+    clear();
+    if (!studioId) return;
     setLoading(true);
     const q = query(
       collection(db, "studioMachineSettings"),
@@ -44,6 +47,7 @@ export function useStudioMachineSettings(studioId: string | null) {
       },
       (err) => {
         console.error("Error loading studio machine settings:", err);
+        clear();
         setLoading(false);
       },
     );

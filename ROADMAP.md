@@ -21,7 +21,7 @@ status block below and the items that had been finished were checked against
 `origin/master` on Oct 7 2026, and the status block again on Oct 9 2026
 after the open session round; the follow-up pile is still as the Sep 28–29
 rounds left it, so check a round's own document before trusting a line there.
-**Planned** was added on Oct 9 2026 from AJ's list. The status block, **Confirm
+**Planned** was added on Oct 9 2026 from AJ's list, and its item 5 on Oct 12 2026. The status block, **Confirm
 before anything else** and **Next** were checked against production on Oct 10
 2026 (the pre-launch round, `docs/rounds/2026-10-10-prelaunch.md`).*
 
@@ -408,6 +408,39 @@ happened (`docs/business/migration-and-prior-history.md`), and Journey sends
 nothing itself; a person hands the document over. The client sign-in comes
 later and would change a line of **Not building** ("No client app or
 portal"), with its own decisions about sign-in and what a client may read.
+
+### 5. Variations of one machine
+AJ, Oct 12 2026, while the westlake and Willoughby floors were being built:
+"some machines have different variations or different ways to perform them,
+for instance the 4 way neck machine has 4 different ways to use it, torso
+rotation has 2 different directions, heck even torso pulldown has 6 different
+ways to angle the handle which all change which muscles are activating, like
+on compound row, horizontal handles vs vertical handles. file maker didnt but
+we need to add to the road map different variations to one single machine".
+
+- **What a variation is.** One unit, several ways to use it: the neck
+  machine's four directions, Torso Rotation's left and right, the Pulldown's
+  handle angles, the Compound Row's horizontal or vertical handles. Each one
+  works different muscles, so each has its own weights and its own story.
+- **What exists today.** A set can carry a side (`side` "Left" / "Right",
+  `repsLeft` / `repsRight` on an exercise log, read by the Staircase), which
+  covers some of a two-direction machine. Nothing names a variation. FileMaker
+  had none either. Solon writes Torso Rotation as "7.6" (7 left, 6 right) in
+  one box, and the FileMaker import holds that as it is.
+- **What it would touch.** The catalog (head office names a movement's
+  variations and which muscles each one works, through the anatomy model), a
+  studio's unit (which variations this unit has), the session (pick the
+  variation at the machine, its weights and settings remembered apart), a
+  routine and its plan (a routine names a variation, not only a machine), and
+  everything that counts per machine: the Staircase and the green %, machine
+  fit, machine trends, the starting weights.
+
+Open: whether a variation is its own line on the session's grid, or a picker
+on one machine's line; whether its settings are kept apart; whether head
+office alone names the variations or a studio may add its own. A variation
+on an exercise log, a routine or the catalog is a Firestore structure change
+and needs AJ's OK. AJ: "i dont think we have enough usage this week to
+complete it but maybe".
 
 ---
 

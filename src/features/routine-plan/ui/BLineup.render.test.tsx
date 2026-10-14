@@ -286,6 +286,34 @@ describe("the A | B lineup on Routine A", () => {
     expect(two.write.change.reason).toBe("Client asked");
   });
 
+  /* All N (Oct 13 2026, AJ's "2. a"): every swap that can go in now, beside
+     Two and Three once there are more than three. */
+  it("All N puts every ready swap in at once, ONE write; it isn't offered while Three already is all", async () => {
+    const FIVE: PlanSwap[] = [
+      { replaces: "m-leg-press", with: "m-ext" },
+      { replaces: "m-compound-row", with: "m-simple-row" },
+      { replaces: "m-chest-press", with: "m-overhead-press" },
+      { replaces: "m-lumbar", with: "m-abs" },
+      { replaces: "m-hip-add", with: "m-hip-abd" },
+    ];
+    const plan: RoutinePlan = { ...B_PLAN, intended: bIntendedOf(A, FIVE), swaps: FIVE };
+    const b = { ...ROUTINE_B, machineIds: bRoutineOf(A, FIVE, 1), plan } as Routine & { id: string };
+    await mount(lineup(bSideOf(b)));
+    expect(has("Swap in the next three")).toBe(true);
+    await tap("Swap in all 4");
+    await tap("Save change");
+    expect(calls.saves).toHaveLength(1);
+    const all = calls.saves[0]!.write;
+    expect(all.machineIds).toEqual(bRoutineOf(A, FIVE, 5));
+    expect([all.change, ...(all.also ?? [])].map((c) => c.machineIds[1])).toEqual(["m-simple-row", "m-overhead-press", "m-abs", "m-hip-abd"]);
+    act(() => root?.unmount());
+    document.body.innerHTML = "";
+    // Two left: Two is all of them, and no All is drawn.
+    await mount(lineup(bSideOf(ROUTINE_B)));
+    expect(has("Swap in the next two")).toBe(true);
+    expect(has(/^Swap in all/)).toBe(false);
+  });
+
   it("a tap on B's cell opens its place's strip, and a machine picked there is B's planned swap", async () => {
     await mount(lineup(bSideOf(ROUTINE_B)));
     await tap(new RegExp(`^Routine B: ${esc(nameOf("m-chest-press"))} · Follows A$`));

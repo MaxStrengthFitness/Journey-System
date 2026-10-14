@@ -286,6 +286,31 @@ describe("turning B on with nothing in Routine B opens Plan B, and writes no Rou
     expect(fake.batches[0]!.ops[2]!.data).toEqual({ isRoutineBActive: true });
   });
 
+  /* Start B whole (Oct 13 2026; AJ: "i want to additionally be able to just
+     turn on a B routine and swap instantly to it without having to go through
+     a transition phase", "2. a"): beside Start B, every swap in at once. */
+  it("Start B whole is ONE batch too: Routine B with every swap in, its plan, its start change, and B on", async () => {
+    await mount(<ProfileLike initial={[ROUTINE_A]} known />);
+    await click(switchOn());
+    expect(has("Start B")).toBe(true);
+    await click(button("Start B whole"));
+    expect(fake.batches).toHaveLength(1);
+    expect(writes().map((w) => w.replace(/auto-\d+/g, "*"))).toEqual([
+      "set routines/*",
+      "set routines/*/planChanges/*",
+      "update clients/c1",
+    ]);
+    const made = fake.batches[0]!.ops[0]!.data as { name: string; machineIds: string[]; plan: RoutinePlan };
+    expect(made.name).toBe("Routine B");
+    const swaps = made.plan.swaps ?? [];
+    expect(swaps.length).toBeGreaterThan(1);
+    // B is built: every swap made, B as its plan intends.
+    expect(made.machineIds).toEqual(made.plan.intended);
+    expect(made.machineIds.filter((id, i) => id !== A[i])).toHaveLength(swaps.length);
+    expect(fake.batches[0]!.ops[1]!.data).toMatchObject({ kind: "start", value: "B whole" });
+    expect(fake.batches[0]!.ops[2]!.data).toEqual({ isRoutineBActive: true });
+  });
+
   it("from the Edit routine drawer's inactive B tab: the drawer closes, Plan B opens, nothing is written", async () => {
     await mount(<ProfileLike initial={[ROUTINE_A]} known />);
     await click(button("Open the drawer"));

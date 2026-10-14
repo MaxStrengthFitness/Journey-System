@@ -16,6 +16,7 @@ import {
   B_PLANNED,
   B_PURPOSE_WORDS,
   B_START,
+  B_START_WHOLE,
   B_SWAP_KEPT,
   B_SWAP_MADE,
   B_SWAP_PLANNED,
@@ -262,6 +263,26 @@ describe("starting B: a copy of A with one machine different", () => {
     expect(Object.values(started.plan).some((v) => v === undefined)).toBe(false);
   });
 
+  /* Start B whole (Oct 13 2026; AJ: "just turn on a B routine and swap
+     instantly to it without having to go through a transition phase", "2. a"). */
+  it("Start B whole: Routine B starts with every swap made, the same plan, one start change naming every pair", () => {
+    const whole = startBPlan({ aRoutine: A, aPlan: null, floor: ALL, purpose: "variety", swaps: SWAPS, who, todayYmd: TODAY, whole: true })!;
+    const oneAtATime = startBPlan({ aRoutine: A, aPlan: null, floor: ALL, purpose: "variety", swaps: SWAPS, who, todayYmd: TODAY })!;
+    expect(whole.machineIds).toEqual(bRoutineOf(A, SWAPS, SWAPS.length));
+    expect(whole.machineIds).toEqual(whole.plan.intended);
+    expect(whole.plan).toEqual(oneAtATime.plan);
+    expect(whole.change).toEqual({ kind: "start", machineIds: SWAPS.flatMap((s) => [s.replaces, s.with]), value: B_START_WHOLE });
+    // B is built the day it starts: no swap left to make.
+    expect(bStatus(SWAPS, whole.machineIds)).toMatchObject({ made: SWAPS.length, built: true, next: null });
+  });
+
+  it("Start B whole with one swap is the ordinary start", () => {
+    const one = [SWAPS[0]!];
+    expect(startBPlan({ aRoutine: A, floor: ALL, purpose: "variety", swaps: one, who, todayYmd: TODAY, whole: true })).toEqual(
+      startBPlan({ aRoutine: A, floor: ALL, purpose: "variety", swaps: one, who, todayYmd: TODAY }),
+    );
+  });
+
   it("recovery, both: the purpose's words and kinds", () => {
     const r = startBPlan({ aRoutine: A, floor: ALL, purpose: "recovery", swaps: SWAPS, who, todayYmd: TODAY })!;
     expect(r.plan.purpose).toBe("Recovery: a region twice a week, its heaviest work split");
@@ -466,6 +487,7 @@ describe("B's changes", () => {
   it("the Changes list says each of B's moves in words", () => {
     const words = { nameOf, routineName: "Routine B" };
     expect(planChangeWhat({ kind: "start", machineIds: ["m-leg-press", "m-ext"], value: B_START }, words)).toBe("Started B: ext for leg press");
+    expect(planChangeWhat({ kind: "start", machineIds: ["m-leg-press", "m-ext", "m-hip-add", "m-hip-abd"], value: B_START_WHOLE }, words)).toBe("Started B whole, all 2 swaps in");
     expect(planChangeWhat({ kind: "swap", machineIds: ["m-leg-press", "m-ext"], value: B_SWAP_MADE }, words)).toBe("Swapped ext in for leg press");
     expect(planChangeWhat({ kind: "swap", machineIds: ["m-hip-add", "m-leg-curl"], value: B_SWAP_PLANNED }, words)).toBe("B's swap for hip add: leg curl");
     expect(planChangeWhat({ kind: "swap", machineIds: ["m-leg-press"], value: B_SWAP_KEPT }, words)).toBe("B keeps leg press");

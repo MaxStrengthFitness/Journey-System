@@ -246,6 +246,22 @@ describe("the starting plan", () => {
     expect(floorIndex(floor).get("m-leg-press")).toBe("unit-m-leg-press");
   });
 
+  it("maps a movement to the unit that follows the standard even when another unit of it walks first", () => {
+    // Willoughby (Oct 12 2026): Leg Press Nt is walked before Leg Press Imag.,
+    // and the Imagine Strength unit is the catalog copy, at m-leg-press.
+    const nt = { id: "sm-studio-leg-press-nt", name: "Leg Press Nt", canonicalId: "m-leg-press" };
+    const imag = { id: "m-leg-press", name: "Leg Press Imag.", canonicalId: "m-leg-press" };
+    const rest = ALL.filter((m) => m.id !== "m-leg-press");
+    const floor: FloorMachine[] = [nt, imag, ...rest];
+    expect(floorIndex(floor).get("m-leg-press")).toBe("m-leg-press");
+    expect(floorIndex([imag, nt]).get("m-leg-press")).toBe("m-leg-press");
+    // With no catalog copy on the floor, the first unit in walking order still answers.
+    expect(floorIndex([nt, { id: "sm-studio-leg-press-mx", canonicalId: "m-leg-press" }]).get("m-leg-press")).toBe(nt.id);
+    const { startWith } = startingPlanFromRoutine(routineOf("academy-clear-dip-adduction"), who, floor, "2026-10-09");
+    expect(startWith).toContain("m-leg-press");
+    expect(startWith).not.toContain(nt.id);
+  });
+
   it("makes a plan every Academy template can start, with no sequencing rule broken on day one", () => {
     for (const r of ACADEMY) {
       const { plan, startWith } = startingPlanFromRoutine(r, who, ALL, "2026-10-09");

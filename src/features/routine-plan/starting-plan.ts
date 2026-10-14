@@ -108,12 +108,23 @@ export function academyTemplateName(t: Pick<SelectionTemplate, "id" | "label">):
   return CLEAR_ROW_NAME[t.id] ?? sayableTemplateLabel(t);
 }
 
-/** Catalog id → this floor's id for it (the first unit on the floor). */
+/**
+ * Catalog id → this floor's id for it: the unit that follows the standard
+ * (the catalog copy, filed at the catalog's own id), else the first unit of
+ * it on the floor. A floor with two units of one movement lists them in its
+ * walking order, and the standard one need not come first: Willoughby walks
+ * Leg Press Nt before Leg Press Imag., and AJ chose the Imagine Strength unit
+ * to follow the standard (Oct 12 2026), so a new client's plan starts on it.
+ * The same rule as `onThisFloor`'s exact id first (start-from.ts).
+ */
 export function floorIndex(floor: readonly FloorMachine[]): Map<string, string> {
   const byCanonical = new Map<string, string>();
   for (const m of floor) {
     const canonical = m.canonicalId ?? canonicalMachineId(m.id, m.name);
-    if (canonical && !byCanonical.has(canonical)) byCanonical.set(canonical, m.id);
+    if (!canonical) continue;
+    if (m.id === canonical || !byCanonical.has(canonical)) {
+      if (byCanonical.get(canonical) !== canonical) byCanonical.set(canonical, m.id);
+    }
   }
   return byCanonical;
 }

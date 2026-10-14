@@ -45,6 +45,7 @@
  * Journey grid and back.
  */
 import { rosterCoverage } from "./programming-summary";
+import { floorWithHistoryMachines } from "../../lib/floor-machines";
 import { neverTriedPhrase, type HistoryCoverage } from "../../lib/prior-history";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -193,13 +194,24 @@ export function ProgrammingTab({
     if (toReview !== null) setToReview(null);
   }
 
+  // The machines a routine's rows are named from: this floor's own version
+  // first (its name, a studio-built machine included), then every other
+  // machine the app knows, so a routine machine the floor no longer has
+  // keeps its name (the studio machines round, Oct 13 2026: a routine
+  // holding Strongsville's Hoist leg press said "Unknown machine" here and
+  // its row couldn't be opened).
+  const routineMachines = useMemo(
+    () => (floorMachines ? floorWithHistoryMachines(floorMachines, machines, machines.map((m) => m.id ?? "")) : machines),
+    [floorMachines, machines],
+  );
+
   // Computed here and handed down, so the context line and the routine panel
   // are the same numbers from the same walk of the logs.
   const model = useRoutinesModel({
     client,
     clientId,
     routines,
-    machines,
+    machines: routineMachines,
     clientSettings,
     allLogs,
     sessions,
@@ -371,7 +383,7 @@ export function ProgrammingTab({
     client,
     clientId,
     routines,
-    machines,
+    machines: routineMachines,
     clientSettings,
     allLogs,
     sessions,

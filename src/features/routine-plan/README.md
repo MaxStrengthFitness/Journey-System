@@ -70,7 +70,14 @@ screens in `ui/`.
   machine different. But there are times where a trainer might do two
   machines different or three machines different in a single session").
   Turning B on with nothing in B opens Plan B, never an empty Routine B;
-  Start B is one batch with the client's `isRoutineBActive`. Every writer
+  Start B is one batch with the client's `isRoutineBActive`. Beside it,
+  **Start B whole** (Oct 13 2026; AJ: "i want to additionally be able to
+  just turn on a B routine and swap instantly to it without having to go
+  through a transition phase", "2. a"): the same plan and the same one
+  batch with every swap made (`startBPlan({ whole })`, the change's value
+  `B_START_WHOLE`); Start B stays the default. A B already started has
+  **All N** beside Two and Three once more than three swaps are ready
+  (`docs/rounds/2026-10-13-studio-machines.md`). Every writer
   that moves Routine A's machines (Programming's Lineup, the Edit routine
   drawer, the session's plan sheet, the Wrap-up's Next time) writes Routine
   B in the same batch when B has a plan of swaps: B's unswapped places follow

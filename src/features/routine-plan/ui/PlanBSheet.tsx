@@ -27,6 +27,13 @@
  * still on A's deck says so ("Left out: Chest Press isn't in Routine A
  * yet") and is left out of this start.
  *
+ * START B WHOLE (the studio machines round, Oct 13 2026; AJ: "i want to
+ * additionally be able to just turn on a B routine and swap instantly to it
+ * without having to go through a transition phase", then "2. a"): beside
+ * Start B, when B has two swaps or more, the same plan with EVERY swap in at
+ * once, in the same one batch with the switch on. Start B stays the default
+ * (blue): the Academy's way, one machine at a time.
+ *
  * Nothing is written before Start B. A draft changed from the suggestion is
  * registered as unsaved, so closing the sheet over it asks first. The sheet
  * only asks; the caller writes.
@@ -122,9 +129,9 @@ export function PlanBSheet({ open, aRoutine, aPlan, floor, nameOf, who, todayYmd
       ? `Left out: ${nameOf(s.replaces)} isn't in Routine A yet`
       : "Left out: A or the floor changed";
 
-  const start = () => {
+  const start = (whole = false) => {
     if (!who) return;
-    const started = startBPlan({ aRoutine, aPlan, floor, purpose, swaps, who, todayYmd });
+    const started = startBPlan({ aRoutine, aPlan, floor, purpose, swaps, who, todayYmd, whole });
     if (!started) return;
     unsaved.release();
     onStart({ machineIds: started.machineIds, plan: started.plan, change: signedChange(started.change, who) });
@@ -137,9 +144,16 @@ export function PlanBSheet({ open, aRoutine, aPlan, floor, nameOf, who, todayYmd
       meta="B starts as a copy of A with one machine different, then A and B alternate."
       onClose={close}
       footer={
-        <Button className="hover:bg-primary" disabled={!canStart} onClick={start}>
-          Start B
-        </Button>
+        <>
+          {kept.length > 1 && (
+            <Button variant="outline" disabled={!canStart} onClick={() => start(true)}>
+              Start B whole
+            </Button>
+          )}
+          <Button className="hover:bg-primary" disabled={!canStart} onClick={() => start()}>
+            Start B
+          </Button>
+        </>
       }
     >
       <BAcademyLine aRunsLine={aRunsLine} />
