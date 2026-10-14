@@ -88,8 +88,8 @@ describe("the machine table", () => {
   it("goes to CSV and back, with the studio's name for the reader only", () => {
     const rows = draftMap(seen, floors);
     const csv = mapToCsv(rows, new Map([["S1", "Strongsville"]]));
-    expect(csv.split("\r\n")[0]).toBe("Studio,Studio name,FileMaker machine,Journey machine,From,Until,Uses,First used,Last used,Suggested,Note");
-    expect(csv).toContain("S1,Strongsville,Comp. Row,m-compound-row");
+    expect(csv.split("\r\n")[0]).toBe("Studio,Studio name,Client,Client name,FileMaker machine,Journey machine,From,Until,Uses,First used,Last used,Suggested,Note");
+    expect(csv).toContain("S1,Strongsville,,,Comp. Row,m-compound-row");
     const back = mapFromCsv(csv);
     expect(back.problems).toEqual([]);
     expect(back.rows.map((r) => [r.studio, r.fmName, r.machineId])).toEqual([
@@ -151,5 +151,73 @@ describe("the machine table", () => {
       { studio: "S1", fmName: "chest  fly", machineId: "m-other", from: null, until: null, uses: 0, firstUsed: null, lastUsed: null, suggested: null, note: null },
     ];
     expect(draftMap([{ studio: "S1", fmName: "Chest fly", day: "2026-01-01" }], new Map(), settled).map((r) => r.machineId).sort()).toEqual(["m-chest-fly", "m-other"]);
+  });
+});
+
+describe("one client's own rows (Allan Boike's export, Oct 13 2026)", () => {
+  const row = (fmName: string, machineId: string, extra: Partial<MapRow> = {}): MapRow => ({
+    studio: "S1",
+    fmName,
+    machineId,
+    from: null,
+    until: null,
+    uses: 0,
+    firstUsed: null,
+    lastUsed: null,
+    suggested: null,
+    note: null,
+    ...extra,
+  });
+  // The studio's names, and one client whose export named two machines wrongly from Aug 24 2024.
+  const rows: MapRow[] = [
+    row("Abs", "m-abs"),
+    row("Chest fly", "m-chest-fly"),
+    row("Abs", "m-chest-fly", { client: "C1", from: "2024-08-24" }),
+    row("Chest fly", "m-pulldown", { client: "C1", from: "2024-08-24" }),
+  ];
+
+  it("answers for that client on the days it claims, and the studio's row everywhere else", () => {
+    const resolve = machineResolver(rows);
+    expect(resolve("S1", "Abs", "2024-08-24", "C1")).toBe("m-chest-fly");
+    expect(resolve("S1", "Chest fly", "2026-10-10", "C1")).toBe("m-pulldown");
+    expect(resolve("S1", "Abs", "2024-08-20", "C1")).toBe("m-abs");
+    expect(resolve("S1", "Abs", "2024-08-24", "C2")).toBe("m-abs");
+    expect(resolve("S1", "Abs", "2024-08-24")).toBe("m-abs");
+  });
+
+  it("holds an entry back when two of the client's own rows claim the day, and says so before an import", () => {
+    const clash = [...rows, row("Abs", "m-lumbar", { client: "C1", from: "2025-01-01" })];
+    expect(machineResolver(clash)("S1", "Abs", "2025-02-01", "C1")).toBe(null);
+    expect(tableProblems(clash, () => true)).toEqual(['Abs (S1, client C1): two rows claim the same days ("m-chest-fly" and "m-lumbar"); give them From and Until']);
+    // The client's row over the studio's is what it is for, never a clash.
+    expect(tableProblems(rows, () => true)).toEqual([]);
+  });
+
+  it("goes to CSV and back with the client's name for the reader only, and reads a table that has no Client column", () => {
+    const csv = mapToCsv(rows, new Map([["S1", "Strongsville"]]), new Map([["C1", "Allan Boike"]]));
+    expect(csv).toContain("S1,Strongsville,C1,Allan Boike,Abs,m-chest-fly,2024-08-24");
+    expect(mapFromCsv(csv).rows.map((r) => [r.client, r.fmName, r.machineId, r.from])).toEqual([
+      [null, "Abs", "m-abs", null],
+      [null, "Chest fly", "m-chest-fly", null],
+      ["C1", "Abs", "m-chest-fly", "2024-08-24"],
+      ["C1", "Chest fly", "m-pulldown", "2024-08-24"],
+    ]);
+    expect(mapFromCsv("Studio,FileMaker machine,Journey machine\nS1,Abs,m-abs\n").rows[0].client).toBe(null);
+  });
+
+  it("counts a client's use on the client's row when it claims the day, and keeps the rows apart in the draft", () => {
+    const drafted = draftMap(
+      [
+        { studio: "S1", fmName: "Abs", day: "2024-08-20", client: "C1" },
+        { studio: "S1", fmName: "Abs", day: "2024-09-01", client: "C1" },
+        { studio: "S1", fmName: "Abs", day: "2024-09-01", client: "C2" },
+      ],
+      new Map(),
+      rows,
+    );
+    expect(drafted.filter((r) => r.fmName === "Abs").map((r) => [r.client ?? null, r.uses])).toEqual([
+      [null, 2],
+      ["C1", 1],
+    ]);
   });
 });

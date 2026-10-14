@@ -9,11 +9,19 @@
  *
  * The table is a CSV a person can open in Excel (the import writes a draft):
  *
- *   Studio, Studio name, FileMaker machine, Journey machine, From, Until,
- *   Uses, First used, Last used, Suggested, Note
+ *   Studio, Studio name, Client, Client name, FileMaker machine,
+ *   Journey machine, From, Until, Uses, First used, Last used, Suggested, Note
  *
  *   - "Studio" is the Journey studio's id (the client's home studio); "Studio
  *     name" is only there for the person reading it.
+ *   - "Client" (usually blank) is a Journey client's id when a row is for
+ *     that one client: FileMaker names one client's machines differently
+ *     from the rest of the studio, or names them wrongly for a stretch of
+ *     days. Allan Boike's export (Oct 13 2026) put "Abs" on his Chest Fly and
+ *     six other names on the wrong machines from Aug 24 2024 on; the chart
+ *     was right. A client's row wins over the studio's on the days it
+ *     claims; on any other day the studio's row answers. "Client name" is
+ *     only for the person reading it.
  *
  *   - "Journey machine" is the machine's id on that studio's floor (the
  *     roster's id, which is the catalog id for a standard unit). Blank means
@@ -47,6 +55,12 @@ export interface FloorUnit {
 
 export interface MapRow {
   studio: string;
+  /**
+   * A Journey client's id (`clients/{id}`) when the row is that one client's:
+   * it wins over the studio's row for the same name on the days it claims.
+   * Absent or null, the row is for everyone at the studio.
+   */
+  client?: string | null;
   fmName: string;
   machineId: string | null;
   from: string | null;
@@ -61,6 +75,8 @@ export interface MapRow {
 const HEADERS = [
   "Studio",
   "Studio name",
+  "Client",
+  "Client name",
   "FileMaker machine",
   "Journey machine",
   "From",
@@ -116,11 +132,14 @@ export function suggest(fmName: string, floor: readonly FloorUnit[]): { machineI
   return { machineId: null, sure: false, note: `${movementName}: not on this studio's floor. Add it to the floor, or choose another` };
 }
 
-/** The rows that could claim a FileMaker name, by studio and the name's normal form. */
+/** The key of the rows that could claim a FileMaker name: studio, client (blank for the studio's own) and the name's normal form. */
+const rowKey = (studio: string, client: string | null | undefined, fmName: string) => `${studio}\u0000${client ?? ""}\u0000${normaliseName(fmName)}`;
+
+/** The rows that could claim a FileMaker name, by studio, client and the name's normal form. */
 function indexRows(rows: readonly MapRow[]): Map<string, MapRow[]> {
   const index = new Map<string, MapRow[]>();
   for (const r of rows) {
-    const key = `${r.studio}\u0000${normaliseName(r.fmName)}`;
+    const key = rowKey(r.studio, r.client, r.fmName);
     (index.get(key) ?? index.set(key, []).get(key)!).push(r);
   }
   return index;
@@ -130,7 +149,7 @@ const claimsDay = (r: MapRow, day: string) => (!r.from || day >= r.from) && (!r.
 
 /** The draft table for what the files hold: one row per studio and FileMaker name, with the uses and a suggestion. */
 export function draftMap(
-  seen: readonly { studio: string; fmName: string; day: string }[],
+  seen: readonly { studio: string; fmName: string; day: string; client?: string | null }[],
   floors: ReadonlyMap<string, readonly FloorUnit[]>,
   existing: readonly MapRow[] = [],
 ): MapRow[] {
@@ -138,10 +157,12 @@ export function draftMap(
   // rows that disagree are the person's to see, not the draft's to merge); uses refreshed.
   const rows: MapRow[] = existing.map((r) => ({ ...r, uses: 0, firstUsed: null, lastUsed: null }));
   const index = indexRows(rows);
-  for (const { studio, fmName, day } of seen) {
-    const key = `${studio}\u0000${normaliseName(fmName)}`;
+  for (const { studio, fmName, day, client } of seen) {
+    // A use counts on the client's own row when one claims the day, else on the studio's.
+    const own = client ? (index.get(rowKey(studio, client, fmName)) ?? []).find((r) => claimsDay(r, day)) : undefined;
+    const key = rowKey(studio, null, fmName);
     const settled = index.get(key) ?? [];
-    const target = settled.find((r) => claimsDay(r, day)) ?? settled[0];
+    const target = own ?? settled.find((r) => claimsDay(r, day)) ?? settled[0];
     if (target) {
       target.uses += 1;
       if (!target.firstUsed || day < target.firstUsed) target.firstUsed = day;
@@ -164,14 +185,36 @@ export function draftMap(
     rows.push(row);
     index.set(key, [row]);
   }
-  return rows.sort((a, b) => a.studio.localeCompare(b.studio) || b.uses - a.uses || a.fmName.localeCompare(b.fmName));
+  // The studio's own rows first, then each client's.
+  return rows.sort((a, b) => a.studio.localeCompare(b.studio) || (a.client ?? "").localeCompare(b.client ?? "") || b.uses - a.uses || a.fmName.localeCompare(b.fmName));
 }
 
-/** The table as CSV. `studioNames` only labels the rows for a person; "Studio" (the id) is what is read back. */
-export function mapToCsv(rows: readonly MapRow[], studioNames: ReadonlyMap<string, string> = new Map()): string {
+/**
+ * The table as CSV. `studioNames` and `clientNames` only label the rows for a
+ * person; "Studio" and "Client" (the ids) are what is read back.
+ */
+export function mapToCsv(
+  rows: readonly MapRow[],
+  studioNames: ReadonlyMap<string, string> = new Map(),
+  clientNames: ReadonlyMap<string, string> = new Map(),
+): string {
   return Papa.unparse({
     fields: [...HEADERS],
-    data: rows.map((r) => [r.studio, studioNames.get(r.studio) ?? "", r.fmName, r.machineId ?? "", r.from ?? "", r.until ?? "", r.uses, r.firstUsed ?? "", r.lastUsed ?? "", r.suggested ?? "", r.note ?? ""]),
+    data: rows.map((r) => [
+      r.studio,
+      studioNames.get(r.studio) ?? "",
+      r.client ?? "",
+      r.client ? clientNames.get(r.client) ?? "" : "",
+      r.fmName,
+      r.machineId ?? "",
+      r.from ?? "",
+      r.until ?? "",
+      r.uses,
+      r.firstUsed ?? "",
+      r.lastUsed ?? "",
+      r.suggested ?? "",
+      r.note ?? "",
+    ]),
   });
 }
 
@@ -202,6 +245,7 @@ export function mapFromCsv(text: string): { rows: MapRow[]; problems: string[] }
     const machine = cell(r, "Journey machine");
     const row: MapRow = {
       studio,
+      client: cell(r, "Client"),
       fmName,
       machineId: machine && machine.toLowerCase() === SKIP ? SKIP : machine,
       from: day(cell(r, "From"), i + 2, "From"),
@@ -225,18 +269,20 @@ export function mapFromCsv(text: string): { rows: MapRow[]; problems: string[] }
  */
 export function tableProblems(rows: readonly MapRow[], onFloor: (studio: string, machineId: string) => boolean): string[] {
   const problems: string[] = [];
+  const where = (r: MapRow) => (r.client ? `${r.studio}, client ${r.client}` : r.studio);
   for (const r of rows) {
     if (r.machineId && r.machineId !== SKIP && !onFloor(r.studio, r.machineId)) {
-      problems.push(`${r.fmName} (${r.studio}): "${r.machineId}" is not a machine on that studio's floor`);
+      problems.push(`${r.fmName} (${where(r)}): "${r.machineId}" is not a machine on that studio's floor`);
     }
   }
+  // A client's row may claim the studio row's days (that is what it is for); two rows of the same kind may not.
   for (const group of indexRows(rows.filter((r) => r.machineId)).values()) {
     for (let i = 0; i < group.length; i += 1) {
       for (let j = i + 1; j < group.length; j += 1) {
         const a = group[i];
         const b = group[j];
         const overlap = (!a.until || !b.from || b.from <= a.until) && (!b.until || !a.from || a.from <= b.until);
-        if (overlap) problems.push(`${a.fmName} (${a.studio}): two rows claim the same days ("${a.machineId}" and "${b.machineId}"); give them From and Until`);
+        if (overlap) problems.push(`${a.fmName} (${where(a)}): two rows claim the same days ("${a.machineId}" and "${b.machineId}"); give them From and Until`);
       }
     }
   }
@@ -244,15 +290,20 @@ export function tableProblems(rows: readonly MapRow[], onFloor: (studio: string,
 }
 
 /**
- * The Journey machine for a FileMaker name at a studio on a day: its id, "skip",
- * or null when nobody has settled it (the entry is held back). Built once over
- * the table, then a lookup per entry.
+ * The Journey machine for a FileMaker name at a studio on a day, for a client:
+ * its id, "skip", or null when nobody has settled it (the entry is held back).
+ * The client's own row answers on the days it claims; otherwise the studio's.
+ * Built once over the table, then a lookup per entry.
  */
-export function machineResolver(rows: readonly MapRow[]): (studio: string, fmName: string, day: string) => string | null {
+export function machineResolver(rows: readonly MapRow[]): (studio: string, fmName: string, day: string, client?: string | null) => string | null {
   const index = indexRows(rows);
-  return (studio, fmName, day) => {
-    const settled = (index.get(`${studio}\u0000${normaliseName(fmName)}`) ?? []).filter((r) => r.machineId && claimsDay(r, day));
-    // Two rows that both claim the day are a mistake in the table: nobody's guess wins.
+  const claiming = (key: string, day: string) => (index.get(key) ?? []).filter((r) => claimsDay(r, day));
+  return (studio, fmName, day, client) => {
+    // Two rows that both claim the day are a mistake in the table: nobody's guess wins. A client's
+    // row with no Journey machine yet holds the entry back; it never falls through to the studio's.
+    const own = client ? claiming(rowKey(studio, client, fmName), day) : [];
+    if (own.length) return own.length === 1 ? own[0].machineId : null;
+    const settled = claiming(rowKey(studio, null, fmName), day).filter((r) => r.machineId);
     return settled.length === 1 ? settled[0].machineId : null;
   };
 }

@@ -54,12 +54,29 @@
  *   npx firebase emulators:exec --only firestore --project demo-fm-import "npx tsx scripts/import-filemaker.ts <files> --emulator --seed-emulator --map <table> --through 2026-10-11 --commit --expect N"
  *   On Windows the emulator's Java process can outlive emulators:exec and hold port 8080: stop it before the next run.
  *
+ * RELABEL (--relabel; Oct 14 2026, after Allan Boike's trial import put his
+ * weights on the wrong machines because FileMaker's export named them wrongly
+ * from Aug 24 2024): give the machine table the client's own rows (a
+ * "Client" column, machine-map.ts) and run the same files with --relabel. It
+ * plans the visits twice, with the studio's rows (what the import wrote) and
+ * with the client's rows too (what it should have written), and moves each
+ * imported set to its right machine. It never creates or deletes a visit,
+ * never changes a set's numbers, leaves alone any visit someone edited or
+ * whose sets are not exactly what the import wrote, and keeps every weight
+ * a person or Journey's own sessions set (relabel.ts). Then it works out the
+ * client's machine totals again from every session. A client with Journey
+ * sessions of its own is fine here (they come after the imported days). It
+ * saves what it will change to backups/filemaker/ first. Dry run by default;
+ * --commit --expect N (N the visits to change), --trial on the real database.
+ *   npx tsx scripts/import-filemaker.ts <profile> <workouts> --map <table with the client's rows> --through 2026-10-11 --relabel
+ *
  * Flags: --map <csv>, --through YYYY-MM-DD (the last day to import; default
  * the day before the client's home studio's switch-over day, and a dry run
  * with neither uses yesterday), --commit, --expect N, --allow-waiting,
  * --verify (reads back what is in Journey), --emulator, --seed-emulator,
  * --trial (at most five clients on the real database while the full import
- * is switched off), --key / --project / --database (as the other scripts).
+ * is switched off), --relabel (above), --key / --project / --database (as
+ * the other scripts).
  */
 
 import fs from "fs";
@@ -73,7 +90,7 @@ import { readTable } from "../src/features/filemaker-import/files.ts";
 import { fileKindOf, parseDay, readProfiles, readWorkoutLines, type ProfileRecord, type WorkoutLine } from "../src/features/filemaker-import/records.ts";
 import { columnsLookSwapped, findingsOf, groupVisits } from "../src/features/filemaker-import/visits.ts";
 import type { FloorUnit, MapRow } from "../src/features/filemaker-import/machine-map.ts";
-import { clientWriteFor, numberOffsetFor, planClient, visitInstant, type ClientPlan, type PlannedSession } from "../src/features/filemaker-import/plan.ts";
+import { clientWriteFor, numberOffsetFor, planClient, visitInstant, type ClientNow, type ClientPlan, type PlannedLog, type PlannedSession } from "../src/features/filemaker-import/plan.ts";
 import { clientLines, summaryLines, type ClientReport } from "../src/features/filemaker-import/report.ts";
 import { TRIAL_MAX_CLIENTS, writeRefusal } from "../src/features/filemaker-import/lock.ts";
 import { chooseClientDoc } from "../src/lib/mindbody-site.ts";
@@ -82,6 +99,9 @@ import { isPerSideMachine } from "../src/lib/floor-machines.ts";
 import { mergeMachineTotals, machineTotalsPath, mergeWriteOf } from "../src/features/machine-totals/totals.ts";
 import { DEFAULT_TIME_ZONE, studioDayKeyOf, studioTodayKey } from "../src/lib/studio-time.ts";
 import { priorHistoryOf } from "../src/lib/prior-history.ts";
+import { plainFieldOps, rollupFromHistory } from "../src/lib/client-rollups.ts";
+import { isPerformedLog } from "../src/lib/set-outcome.ts";
+import { involvedMachines, logsAfter, sessionOutcome, totalsPlan, type Move, type StoredLog, type StoredSession, type TotalsPlan } from "../src/features/filemaker-import/relabel.ts";
 
 /**
  * The app is ready since the history-ready round (Oct 12 2026: the session
@@ -103,7 +123,7 @@ const { draftMap, machineResolver, mapFromCsv, mapToCsv, tableProblems } = await
 const { MOVEMENTS } = await import("../src/features/catalog/names.ts");
 
 const VALUE_FLAGS = new Set(["map", "through", "expect", "key", "project", "database"]);
-const BOOLEAN_FLAGS = new Set(["commit", "emulator", "seed-emulator", "verify", "allow-waiting", "trial"]);
+const BOOLEAN_FLAGS = new Set(["commit", "emulator", "seed-emulator", "verify", "allow-waiting", "trial", "relabel"]);
 const OUT_DIR = path.resolve(process.cwd(), "backups", "filemaker");
 /** Writes in one transaction: a batch of whole visits, the client, the totals and the settings. */
 const WRITES_PER_TRANSACTION = 400;
@@ -143,6 +163,8 @@ if (commit && expected === null) stop("--commit needs --expect N, N being the dr
 if (!inputs.length) stop("give the FileMaker files (or a folder of them) to read.");
 const trial = hasFlag("trial");
 if (trial && emulator) stop("--trial is for the real database; the emulator takes any number of clients.");
+const relabel = hasFlag("relabel");
+if (relabel && !flag("map")) stop("--relabel needs --map: the machine table with the client's own rows.");
 // Refused before anything is read when it can be told now; a trial's size is checked once the clients are known.
 if (commit && !trial) {
   const refusal = writeRefusal({ ready: PRODUCTION_IMPORT_READY, emulator, trial, clientsToWrite: 0 });
@@ -286,6 +308,10 @@ interface ClientRun {
   completed: number;
   wholeStory: boolean;
   tz: string;
+  /** --relabel: the plan with the studio's rows only, what the import wrote. */
+  oldPlan: ClientPlan | null;
+  /** --relabel: every session Journey holds for the client, imported and its own. */
+  sessions: { id: string; data: DocumentData }[];
 }
 
 async function main() {
@@ -364,15 +390,20 @@ async function main() {
     table = read.rows;
   }
   const seen = found.flatMap((f) =>
-    "docId" in f ? linesOf.get(f.profile)!.filter((l) => l.day && l.machine).map((l) => ({ studio: String(f.data.homeStudioId), fmName: l.machine, day: l.day! })) : [],
+    "docId" in f
+      ? linesOf.get(f.profile)!.filter((l) => l.day && l.machine).map((l) => ({ studio: String(f.data.homeStudioId), fmName: l.machine, day: l.day!, client: f.docId }))
+      : [],
   );
   const draft = draftMap(seen, floors, table);
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const draftPath = path.join(OUT_DIR, mapPath ? `machine-table-refreshed-${stamp}.csv` : fs.existsSync(path.join(OUT_DIR, "machine-table.csv")) ? `machine-table-draft-${stamp}.csv` : "machine-table.csv");
-  fs.writeFileSync(draftPath, mapToCsv(draft, new Map(studios.map((s) => [s.id, String(s.name ?? s.id)]))));
+  const clientNames = new Map(found.flatMap((f) => ("docId" in f ? [[f.docId, [f.data.firstName, f.data.lastName].filter(Boolean).join(" ") || (f.profile.name ?? "")] as [string, string]] : [])));
+  fs.writeFileSync(draftPath, mapToCsv(draft, new Map(studios.map((s) => [s.id, String(s.name ?? s.id)])), clientNames));
   // A dry run with no table plans from the draft, so its counts show what the sure matches alone would do.
   const resolve = machineResolver(mapPath ? table : draft);
+  // --relabel: what the import wrote, the table without the client's own rows.
+  const resolveOld = (client: string) => machineResolver(table.filter((r) => r.client !== client));
 
   /* Each client: visits, findings, what Journey has, the plan. */
   const reports: ClientReport[] = [];
@@ -422,31 +453,40 @@ async function main() {
       visits,
       through,
       timeZone: tz,
-      machineFor: (fmName: string, day: string) => resolve(home, fmName, day),
+      machineFor: (fmName: string, day: string) => resolve(home, fmName, day, f.docId),
       perSide: perSide(home),
       journeyDays,
       existing,
     };
     // Numbered from the stated total, when there is one: the count of numbered visits comes from a first pass.
-    const plan = planClient({ ...input, numberOffset: numberOffsetFor(prior, planClient({ ...input, numberOffset: 0 }).sessions.length, existing.size) });
+    const offset = numberOffsetFor(prior, planClient({ ...input, numberOffset: 0 }).sessions.length, existing.size);
+    const plan = planClient({ ...input, numberOffset: offset });
+    let oldPlan: ClientPlan | null = null;
+    if (relabel) {
+      const old = resolveOld(f.docId);
+      oldPlan = planClient({ ...input, numberOffset: offset, machineFor: (fmName: string, day: string) => old(home, fmName, day, f.docId) });
+    }
 
     let stopped: string | null = null;
     const ownSessions = sessionsSnap.size - existing.size;
     const plannedIds = new Set(plan.sessions.map((s) => s.id));
     const gone = [...existing.keys()].filter((id) => !plannedIds.has(id));
-    if (ownSessions > 0) stopped = `Journey already holds ${ownSessions} session${ownSessions === 1 ? "" : "s"} of its own for the client; imported numbers would clash. Import before the first Journey session (after the pre-launch reset).`;
+    const oldIds = oldPlan ? oldPlan.sessions.map((s) => s.id).join() : "";
+    if (relabel && oldPlan && oldIds !== plan.sessions.map((s) => s.id).join()) stopped = "the client's own rows change which visits import, not only their machines: a relabel can't do that.";
+    else if (relabel && !existing.size) stopped = "nothing of this client's was imported yet: import first.";
+    else if (ownSessions > 0 && !relabel) stopped =`Journey already holds ${ownSessions} session${ownSessions === 1 ? "" : "s"} of its own for the client; imported numbers would clash. Import before the first Journey session (after the pre-launch reset).`;
     else if (gone.length) stopped = `${gone.length} session${gone.length === 1 ? "" : "s"} imported before ${gone.length === 1 ? "is" : "are"} no longer in this export or after --through (${gone.slice(0, 5).map((id) => id.slice(-10)).join(", ")}${gone.length > 5 ? ", ..." : ""}). A person decides what happened first.`;
     else if (plan.numberDrift.length) stopped = `the numbering has moved since an earlier run (${plan.numberDrift.length} sessions, e.g. ${plan.numberDrift[0].id.slice(-10)} was #${plan.numberDrift[0].stored}, now #${plan.numberDrift[0].planned}): the export or --through changed.`;
 
     const firstAppt = dayOf(f.profile.firstAppointment ?? f.data.firstAppointmentDate, tz);
     const wholeStory = !!(firstAppt && visits[0] && Date.parse(visits[0].day) - Date.parse(firstAppt) <= 21 * 86_400_000);
-    runs.push({ docId: f.docId, profile: f.profile, plan, stopped, completed, wholeStory, tz });
+    runs.push({ docId: f.docId, profile: f.profile, plan, stopped, completed, wholeStory, tz, oldPlan, sessions: sessionsSnap.docs.map((d) => ({ id: d.id, data: d.data() as DocumentData })) });
     reports.push({
       ...base,
       journey: { docId: f.docId, homeStudio: studioName(home), journeyName: [f.data.firstName, f.data.lastName].filter(Boolean).join(" ") || null },
       stopped,
       findings: findingsOf(visits, undated, (fm, day) => {
-        const id = resolve(home, fm, day);
+        const id = resolve(home, fm, day, f.docId);
         return !!id && perSide(home)(id);
       }),
       plan,
@@ -477,6 +517,11 @@ async function main() {
     ),
   );
   console.log(`Report: ${reportPath}`);
+
+  if (relabel) {
+    await relabelRuns(db, runs, stamp, (studio, id) => unitOf(studio, id)?.name ?? catalogName.get(id) ?? id);
+    return;
+  }
 
   if (hasFlag("verify")) await verify(db, runs);
   const clientsToWrite = writable.filter((r) => r.plan.sessions.some((s) => !s.exists)).length;
@@ -603,6 +648,229 @@ async function writeChunk(db: Firestore, run: ClientRun, chunk: PlannedSession[]
     }
     return { sessions: create.length, sets };
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * --relabel: imported sets back on the right machines (relabel.ts)
+ * ------------------------------------------------------------------ */
+
+/** A stored value as JSON with its keys in order, to tell whether two maps are the same. */
+const stable = (v: unknown): string =>
+  JSON.stringify(v, (_k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
+
+interface RelabelRun {
+  run: ClientRun;
+  home: string;
+  changes: { id: string; day: string; sessionMachineIds: string[] | null; set: PlannedLog[]; remove: string[] }[];
+  moves: Move[];
+  /** The whole map, worked out again from every session; null when it is already right. */
+  machineStats: Record<string, unknown> | null;
+  totals: TotalsPlan;
+  /** Old-side machine fields on the client document that come off with the replace (machine-totals/totals.ts). */
+  clientDeletes: string[];
+  backup: Record<string, unknown>;
+}
+
+const EMPTY_NOW: ClientNow = {
+  priorHistory: null,
+  lastSessionDate: null,
+  legacyFilemakerId: null,
+  completedSessions: 0,
+  trainerTally: null,
+  topTrainerId: null,
+  machineStats: null,
+  lastMetricDay: () => null,
+};
+
+async function relabelRuns(db: Firestore, runs: ClientRun[], stamp: string, nameOf: (studio: string, id: string) => string) {
+  console.log("\nRELABEL: imported sets back on the right machines");
+  const work: RelabelRun[] = [];
+  for (const run of runs) {
+    const label = run.profile.name ?? run.docId;
+    if (run.stopped || !run.oldPlan) {
+      console.log(`  ${label}: left out (${run.stopped ?? "no plan"})`);
+      continue;
+    }
+    if (run.plan.unmatched.length || run.oldPlan.unmatched.length) {
+      console.log(`  ${label}: left out (FileMaker names nobody has matched: ${[...new Set([...run.plan.unmatched, ...run.oldPlan.unmatched])].join(", ")})`);
+      continue;
+    }
+    const home = String(run.plan.sessions[0]?.data.homeStudioId ?? "");
+    const name = (id: string) => nameOf(home, id);
+    const oldById = new Map(run.oldPlan.sessions.map((s) => [s.id, s]));
+    const pairs = run.plan.sessions.filter((s) => s.exists && oldById.has(s.id)).map((neu) => ({ old: oldById.get(neu.id)!, neu }));
+
+    // Every set Journey holds for the client, imported and its own.
+    const logsSnap = await db.collection("exerciseLogs").where("clientId", "==", run.docId).orderBy("createdAt", "asc").get();
+    const allLogs: StoredLog[] = logsSnap.docs.map((d) => ({ id: d.id, data: d.data() as Record<string, unknown> }));
+    const logsBySession = new Map<string, StoredLog[]>();
+    for (const l of allLogs) {
+      const s = String(l.data.sessionId ?? "");
+      (logsBySession.get(s) ?? logsBySession.set(s, []).get(s)!).push(l);
+    }
+    const sessionById = new Map(run.sessions.map((s) => [s.id, s.data]));
+    const isImp = (id: string) => isImported(id, sessionById.get(id) ?? {});
+
+    const changes: RelabelRun["changes"] = [];
+    const moves: Move[] = [];
+    const left: { day: string; why: string }[] = [];
+    for (const { old, neu } of pairs) {
+      const stored: StoredSession = { id: neu.id, data: (sessionById.get(neu.id) ?? {}) as Record<string, unknown>, logs: logsBySession.get(neu.id) ?? [] };
+      const out = sessionOutcome(old, neu, stored);
+      if (out.kind === "left") left.push({ day: neu.day, why: out.why });
+      else if (out.kind === "change") {
+        changes.push({ id: neu.id, day: neu.day, sessionMachineIds: out.sessionMachineIds, set: out.set, remove: out.remove });
+        moves.push(...out.moves);
+      }
+    }
+    // A visit that can't be relabeled would leave the client's totals and sets disagreeing: the client waits whole.
+    if (left.length) {
+      console.log(`  ${label}: left out, ${left.length} visit${left.length === 1 ? "" : "s"} can't be relabeled safely (a person looks first):`);
+      for (const l of left.slice(0, 12)) console.log(`    ${l.day}: ${l.why}`);
+      continue;
+    }
+
+    // The machine totals, from every set Journey will hold.
+    const after = logsAfter(allLogs, changes);
+    const rolled = rollupFromHistory(
+      run.sessions.map((s) => ({ id: s.id, status: s.data.status, date: s.data.date, trainerId: s.data.trainerId ?? null, trainerInitials: s.data.trainerInitials ?? null })),
+      after.map((l) => ({ ...(l.data as object), sessionId: String(l.data.sessionId ?? "") })) as never,
+      [],
+    );
+    const [clientSnap, totalsSnap] = await db.getAll(db.doc(`clients/${run.docId}`), db.doc(machineTotalsPath(run.docId).join("/")));
+    const clientData = (clientSnap.data() ?? {}) as DocumentData;
+    const totalsData = (totalsSnap.data() ?? {}) as DocumentData;
+    const merged = mergeMachineTotals(clientData, totalsData);
+    const machineStats = stable(merged.machineStats ?? {}) === stable(rolled.machineStats) ? null : (rolled.machineStats as Record<string, unknown>);
+
+    const involved = involvedMachines(pairs);
+    const settingSnaps = involved.length ? await db.getAll(...involved.map((m) => db.doc(`clientMachineSettings/${run.docId}_${m}`))) : [];
+    const settingsOnFile = new Map(settingSnaps.flatMap((s, i) => (s.exists ? [[involved[i], s.data() as Record<string, unknown>] as const] : [])));
+    const journeyMachines = new Set(
+      allLogs.filter((l) => !isImp(String(l.data.sessionId ?? "")) && isPerformedLog(l.data as never)).map((l) => String(l.data.machineId ?? "")),
+    );
+    const writeOf = (sessions: PlannedSession[], firstDays: Record<string, string>) =>
+      clientWriteFor(sessions, firstDays, EMPTY_NOW, plainFieldOps, { fmClientId: run.profile.fmClientId, wholeStory: run.wholeStory });
+    const totals = totalsPlan({
+      involved,
+      oldWrite: writeOf(pairs.map((p) => p.old), run.oldPlan.firstDays),
+      newWrite: writeOf(pairs.map((p) => p.neu), run.plan.firstDays),
+      metricsOnFile: (merged.currentMachineMetrics ?? {}) as never,
+      settingsOnFile,
+      journeyMachines,
+      isImportedSession: isImp,
+    });
+    const clientDeletes = [
+      ...(machineStats && clientData.machineStats ? ["machineStats"] : []),
+      ...Object.keys(totals.metrics).filter((m) => clientData.currentMachineMetrics?.[m]).map((m) => `currentMachineMetrics.${m}`),
+    ];
+
+    work.push({
+      run,
+      home,
+      changes,
+      moves,
+      machineStats,
+      totals,
+      clientDeletes,
+      backup: {
+        client: run.docId,
+        name: label,
+        at: stamp,
+        sessions: changes.map((c) => ({ id: c.id, sessionMachineIds: sessionById.get(c.id)?.sessionMachineIds ?? null })),
+        logs: changes.flatMap((c) => logsBySession.get(c.id) ?? []),
+        machineTotals: totalsData,
+        clientMachineFields: { machineStats: clientData.machineStats ?? null, currentMachineMetrics: clientData.currentMachineMetrics ?? null },
+        clientMachineSettings: Object.fromEntries(settingsOnFile),
+      },
+    });
+
+    // What a person reads before saying go.
+    const sets = changes.reduce((n, c) => n + c.set.length, 0);
+    console.log(`\n  ${label}: ${changes.length} of ${pairs.length} imported visits change${changes.length ? ` (${changes[0].day} to ${changes[changes.length - 1].day}), ${sets} sets rewritten` : ""}`);
+    const byMove = new Map<string, Move[]>();
+    for (const m of moves) {
+      const k = `${m.from}\u0000${m.to}`;
+      (byMove.get(k) ?? byMove.set(k, []).get(k)!).push(m);
+    }
+    for (const list of [...byMove.values()].sort((a, b) => b.length - a.length)) {
+      const days = list.map((m) => m.day).sort();
+      console.log(`    ${name(list[0].from)} -> ${name(list[0].to)}: ${list.length} sets, ${days[0]} to ${days[days.length - 1]}, last at ${list[list.length - 1].weight}`);
+    }
+    for (const [m, v] of Object.entries(totals.metrics)) {
+      const was = merged.currentMachineMetrics?.[m];
+      console.log(`    Last time on ${name(m)}: ${was?.weight ?? "none"} -> ${v ? `${v.weight} (${String(v.lastSessionId).slice(-10)})` : "none"}`);
+    }
+    for (const s of totals.settings) {
+      const was = settingsOnFile.get(s.machineId);
+      if (s.currentWeight !== undefined) console.log(`    Next time's weight on ${name(s.machineId)}: ${was?.currentWeight ?? "none"} -> ${s.currentWeight ?? "none"}`);
+      if (s.startingWeight !== undefined) console.log(`    Starting weight on ${name(s.machineId)}: ${was?.startingWeight ?? "none"} -> ${s.startingWeight ?? "none"}`);
+    }
+    for (const k of totals.kept) console.log(`    Kept: ${name(k.machineId)}, ${k.what}`);
+    if (machineStats) console.log(`    Machine stats: worked out again from all ${run.sessions.length} of the client's sessions`);
+  }
+
+  const toChange = work.reduce((n, w) => n + w.changes.length, 0);
+  const touched = work.filter((w) => w.changes.length || w.machineStats || Object.keys(w.totals.metrics).length || w.totals.settings.length);
+  const refusal = writeRefusal({ ready: PRODUCTION_IMPORT_READY, emulator, trial, clientsToWrite: touched.length });
+  if (!commit) {
+    console.log(`\nDRY RUN: nothing was written. To write: --commit --expect ${toChange}${emulator || PRODUCTION_IMPORT_READY ? "" : " --trial"}`);
+    return;
+  }
+  if (refusal) stop(refusal);
+  if (expected !== toChange) stop(`--expect ${expected}, but this run would change ${toChange} visits. Run the dry run again and use its number.`);
+
+  for (const w of touched) {
+    const label = w.run.profile.name ?? w.run.docId;
+    const backupPath = path.join(OUT_DIR, `relabel-backup-${w.run.docId}-${stamp}.json`);
+    fs.writeFileSync(backupPath, JSON.stringify(w.backup, null, 2));
+    console.log(`\n  ${label}: what it held is saved at ${backupPath}`);
+
+    // The visits, in batches; each visit whole in one batch.
+    let batch = db.batch();
+    let pending = 0;
+    let visits = 0;
+    for (const c of w.changes) {
+      const cost = 1 + c.set.length + c.remove.length;
+      if (pending && pending + cost > WRITES_PER_TRANSACTION) {
+        await batch.commit();
+        batch = db.batch();
+        pending = 0;
+      }
+      if (c.sessionMachineIds) batch.update(db.doc(`sessions/${c.id}`), { sessionMachineIds: c.sessionMachineIds });
+      for (const l of c.set) batch.set(db.doc(`exerciseLogs/${l.id}`), l.data);
+      for (const id of c.remove) batch.delete(db.doc(`exerciseLogs/${id}`));
+      pending += cost;
+      visits += 1;
+    }
+    if (pending) await batch.commit();
+
+    // Then the totals and next time's weights, together.
+    const final = db.batch();
+    const dotted: Record<string, unknown> = {};
+    if (w.machineStats) dotted.machineStats = w.machineStats;
+    for (const [m, v] of Object.entries(w.totals.metrics)) dotted[`currentMachineMetrics.${m}`] = v === null ? FieldValue.delete() : v;
+    if (Object.keys(dotted).length) {
+      const { data, mergeFields } = mergeWriteOf({ ...dotted, updatedAt: FieldValue.serverTimestamp() });
+      final.set(db.doc(machineTotalsPath(w.run.docId).join("/")), data, { mergeFields });
+    }
+    if (w.clientDeletes.length) final.update(db.doc(`clients/${w.run.docId}`), Object.fromEntries(w.clientDeletes.map((f) => [f, FieldValue.delete()])));
+    for (const s of w.totals.settings) {
+      const fields: Record<string, unknown> = { clientId: w.run.docId, machineId: s.machineId, homeStudioId: w.home, clientHomeStudioId: w.home };
+      // Next time's weight carries the day it is from, as the import writes it; a starting weight alone leaves that be.
+      if (typeof s.currentWeight === "number") Object.assign(fields, { currentWeight: s.currentWeight, updatedBy: "filemaker-import", updatedAt: visitInstant(s.day, w.run.tz) });
+      else if (s.currentWeight === null) fields.currentWeight = FieldValue.delete();
+      if (s.startingWeight !== undefined) {
+        fields.startingWeight = s.startingWeight === null ? FieldValue.delete() : s.startingWeight;
+        fields.startingWeightDate = s.startingWeight === null ? FieldValue.delete() : `${s.startingDay}T12:00:00.000Z`;
+      }
+      final.set(db.doc(`clientMachineSettings/${w.run.docId}_${s.machineId}`), fields, { merge: true });
+    }
+    await final.commit();
+    console.log(`  ${label}: ${visits} visits relabeled; machine totals and next time's weights written.`);
+  }
+  // Machine fit is built from the set-ups (clientMachineSettings' dials), which a relabel never touches.
+  console.log("\nDone. Nothing else to run: the Sunday machine-trends job reads the sets again by itself.");
 }
 
 /** What is in Journey now, for each client in the files. */

@@ -69,6 +69,14 @@ npx tsx scripts/import-filemaker.ts "C:\Users\austi\Downloads\ClientProfile.xlsx
 
 The rehearsal on a throwaway emulator (nothing real touched): see the script's header.
 
+## When FileMaker named a client's machines wrongly: client rows and `--relabel`
+
+**FileMaker's export can name a machine wrongly while the chart a trainer reads is right.** Allan Boike's trial import (Oct 13 2026, Strongsville) put his weights on the wrong machines: from Aug 24 2024, the week Bicep, Lateral Raise and Chest fly joined his routines, the export's `MachineName` was shifted round eight machines ("Abs" was his Chest Fly, "Chest fly" his Pulldown, "Pulldown" his Pullover, "Pullover" his Overhead, "Overhead" his Lumbar, "Lumbar" his Abs, Seated Dip and Comp. Row swapped). The weights and the order were right. It was proven against his session in Journey that day and his FileMaker chart, and every machine's weight runs straight through the change once the names are put right. AJ: machines are also named differently for some clients at one studio, and FileMaker holds "data in the wrong field".
+
+- **Client rows** (`machine-map.ts`): the table's "Client" column takes a Journey client's id. Such a row is that client's alone and wins over the studio's row on the days it claims (From / Until); every other day the studio's row answers. The import reads them like any other row.
+- **`--relabel`** (the script): for a client already imported, run the same files with a table that has the client's rows. It plans the visits with the studio's rows (what was written) and with the client's (what should have been), and `relabel.ts` moves each set to its machine. It refuses, for that client, if Journey's sets aren't exactly what the import wrote, if anyone edited a visit, or if the corrected names would add or drop a set rather than move one. "Last time" and next time's weight change only where the import put them: anything a person set afterwards, or Journey's own sessions wrote, stays. The machine stats are worked out again from every session (the profile's own backfill, `rollupFromHistory`). It saves what it changes to `backups\filemaker\relabel-backup-*.json` first. Dry run, then `--commit --expect N --trial`.
+- **There is no way to tell from the numbers alone** which client's export is wrong: it took a real session and the chart. The full export must take each line's machine from where the chart takes it (asked of the developer, Oct 14 2026).
+
 ## Still to come
 
 - **Notes**: the profile's standing note is reported, not imported, until AJ answers how loud imported notes come in.
