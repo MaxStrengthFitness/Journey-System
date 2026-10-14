@@ -9961,10 +9961,14 @@ describe("a finish is counted once (Oct 12 2026)", () => {
 
   /* Measured on Oct 12 2026 against the rules as they stand: the home
      studio's trainer takes over and deletes; an approved studio's trainer
-     deletes, and its take-over is refused only because the update rule runs
+     deletes, and its take-over was refused only because the update rule ran
      out of its 1,000-expression budget on that path (an accident of cost,
-     not a rule). The doors refuse both (a session hosted elsewhere is
-     described, never cleared); tightening the rules is parked for AJ. */
+     not a rule), and only with no role claim on the token: with one, as
+     every trainer carries in production, it passed. Since privacy Round 0
+     (Oct 14 2026) the update rule resolves the caller once
+     (sessionIsReadable), so it passes either way, as the rule always said.
+     The doors refuse both (a session hosted elsewhere is described, never
+     cleared); tightening the rules is parked for AJ. */
   it("#24 (a parked gap, recorded as it stands): the client's home studio and an approved studio reach a session hosted elsewhere", async () => {
     const HS = "onceHomeH";
     const seed = async () =>
@@ -9985,7 +9989,7 @@ describe("a finish is counted once (Oct 12 2026)", () => {
     await seed();
     await assertSucceeds(deleteDoc(doc(as("trainerH"), "sessions", HS)));
     await seed();
-    await assertFails(takeOver("trainerX"));
+    await assertSucceeds(takeOver("trainerX"));
     await seed();
     await assertSucceeds(deleteDoc(doc(as("trainerX"), "sessions", HS)));
   });
@@ -10416,5 +10420,321 @@ describe("privacy Round 0: strangers out", () => {
     it("while the studio's own leader reads its vault as before", async () => {
       await assertSucceeds(getDoc(doc(as("ownerA"), "studios", "studioA", "vault", "v1")));
     });
+  });
+});
+
+// ── PRIVACY ROUND 0: HONEST SESSIONS (Oct 14 2026) ──────────────────────
+// sessionIsReadable trusts a session's host and client, so an update may no
+// longer move either (sessionTenancyKept): the host stays, or a session with
+// none is given its client's home or the caller's studio once; the client
+// stays, or is named once on an open session, or is moved by the merge, to a
+// client the caller can read, and never across the Demo Mode line. Every
+// write the app makes to a session is here in its own shape and passes; the
+// round document lists them with their file and line.
+describe("privacy Round 0: honest sessions", () => {
+  const as = (uid: string) => testEnv.authenticatedContext(uid).firestore();
+  const S = "honestS";
+  const OPEN = "honestOpen";
+  const LEGACY = "honestLegacy";
+  const hourAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "trainers", "trainerA2"), { fullName: "Trainer A2", initials: "A2", role: "LifeTransformer", primaryHomeStudioId: "studioA", accessibleStudioIds: ["studioA"] });
+      await setDoc(doc(db, "trainers", "leaderA"), { fullName: "Lee Leader", initials: "LL", role: "StudioLeader", primaryHomeStudioId: "studioA", accessibleStudioIds: ["studioA"] });
+      await setDoc(doc(db, "trainers", "adminHS"), { fullName: "Ada Admin", initials: "AA", role: "Admin", primaryHomeStudioId: "studioA" });
+      const client = (home: string, extra: Record<string, unknown> = {}) => ({ firstName: "C", lastName: home, isActive: true, remainingSessions: 0, homeStudioId: home, ...extra });
+      await setDoc(doc(db, "clients", "clientA"), client("studioA"));
+      await setDoc(doc(db, "clients", "clientB"), client("studioB"));
+      // Homed at A, approved to cross-train at B: trainerB reads her.
+      await setDoc(doc(db, "clients", "clientV"), client("studioA", { approvedCrossTrainStudioIds: ["studioB"] }));
+      // Homed at B, approved at A: a visitor in A's roster.
+      await setDoc(doc(db, "clients", "visitorAtA"), client("studioB", { approvedCrossTrainStudioIds: ["studioA"] }));
+      await setDoc(doc(db, "clients", "tempP"), client("studioA", { isProvisional: true }));
+      await setDoc(doc(db, "clients", "demoClient"), client("demo-studio", { isDemo: true }));
+      await setDoc(doc(db, "sessions", S), {
+        clientId: "clientA", hostedAtStudioId: "studioA", homeStudioId: "studioA", clientHomeStudioId: "studioA",
+        trainerId: "trainerA", startedByTrainerId: "trainerA", trainerName: "Trainer A", trainerInitials: "TA",
+        status: "In-Progress", sessionNumber: 5, date: "2026-10-14", pausedAt: null, totalPausedMs: 0,
+        sessionMachineIds: ["m1", "m2"], lastHeartbeatAt: hourAgo, createdAt: hourAgo,
+      });
+      await setDoc(doc(db, "sessions", OPEN), {
+        isUnassigned: true, sessionType: "Standard", sessionNumber: 0, date: "2026-10-14", hostedAtStudioId: "studioA",
+        clientHomeStudioId: null, isCrossTrain: false, sessionMachineIds: [], trainerId: "trainerA", startedByTrainerId: "trainerA",
+        trainerName: "Trainer A", trainerInitials: "TA", status: "In-Progress", lastHeartbeatAt: hourAgo, createdAt: hourAgo,
+      });
+      // A legacy session written before hostedAtStudioId: no host at all.
+      await setDoc(doc(db, "sessions", LEGACY), {
+        clientId: "clientV", trainerId: "trainerB", trainerName: "Trainer B", trainerInitials: "TB",
+        status: "In-Progress", sessionNumber: 3, date: "2026-10-01", createdAt: hourAgo,
+      });
+      await setDoc(doc(db, "exerciseLogs", `${S}_m1`), { sessionId: S, machineId: "m1", clientId: "clientA", weight: "100", reps: "10", studioId: "studioA" });
+    });
+  });
+
+  describe("every write the app makes to a session still passes", () => {
+    it("pause and resume (WorkoutTrackerView toggleSessionPause)", async () => {
+      const db = as("trainerA");
+      await assertSucceeds(updateDoc(doc(db, "sessions", S), { pausedAt: new Date() }));
+      await assertSucceeds(updateDoc(doc(db, "sessions", S), { pausedAt: null, totalPausedMs: 120000 }));
+    });
+
+    it("resume a colleague's left-open session, and take over a watched one (takeOverPatch)", async () => {
+      const patch = (uid: string, name: string, initials: string, device: string) => ({
+        trainerId: uid, trainerName: name, trainerInitials: initials, recordingDeviceId: device,
+        lastHeartbeatAt: serverTimestamp(),
+      });
+      await assertSucceeds(updateDoc(doc(as("trainerA2"), "sessions", S), patch("trainerA2", "Trainer A2", "A2", "dev-2")));
+      await assertSucceeds(updateDoc(doc(as("ownerA"), "sessions", S), patch("ownerA", "Owner A", "OA", "dev-3")));
+    });
+
+    it("continue on this iPad, the heartbeat, and the session's own list", async () => {
+      const db = as("trainerA");
+      await assertSucceeds(updateDoc(doc(db, "sessions", S), { recordingDeviceId: "dev-9", lastHeartbeatAt: serverTimestamp() }));
+      await assertSucceeds(updateDoc(doc(db, "sessions", S), { lastHeartbeatAt: serverTimestamp() }));
+      await assertSucceeds(updateDoc(doc(db, "sessions", S), { sessionMachineIds: ["m2", "m1", "m3"], lastHeartbeatAt: serverTimestamp() }));
+    });
+
+    it("Start's follow-up: the routine made and the session told, in one batch", async () => {
+      const db = as("trainerA");
+      const b = writeBatch(db);
+      b.set(doc(db, "routines", "routineHS"), { clientId: "clientA", studioId: "studioA", name: "Routine A", machineIds: [] });
+      b.update(doc(db, "sessions", S), { routineId: "routineHS", sessionMachineIds: ["m1", "m2"], lastHeartbeatAt: serverTimestamp() });
+      await assertSucceeds(b.commit());
+    });
+
+    it("resume a colleague's left-open OPEN session, and keep a set-up on it", async () => {
+      const db = as("trainerA2");
+      await assertSucceeds(updateDoc(doc(db, "sessions", OPEN), {
+        trainerId: "trainerA2", trainerName: "Trainer A2", trainerInitials: "A2", recordingDeviceId: "dev-2", lastHeartbeatAt: serverTimestamp(),
+      }));
+      await assertSucceeds(updateDoc(doc(db, "sessions", OPEN), { "heldSetup.m1": { values: { Seat: "3" }, at: serverTimestamp(), byUid: "trainerA2" } }));
+    });
+
+    it("Who's this?: the session's trainer names a client from the studio's roster, a visitor approved here included", async () => {
+      const assign = (clientId: string, home: string) => ({
+        clientId, isUnassigned: false, mindbodyClientId: null, clientName: "C", homeStudioId: home, clientHomeStudioId: home,
+        isCrossTrain: home !== "studioA", sessionNumber: 1, lastHeartbeatAt: serverTimestamp(),
+      });
+      await assertSucceeds(updateDoc(doc(as("trainerA"), "sessions", OPEN), assign("visitorAtA", "studioB")));
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await updateDoc(doc(context.firestore(), "sessions", OPEN), { clientId: deleteField(), isUnassigned: true });
+      });
+      await assertSucceeds(updateDoc(doc(as("trainerA"), "sessions", OPEN), assign("clientA", "studioA")));
+    });
+
+    it("At End Session and back again (the endTime mark)", async () => {
+      const db = as("trainerA");
+      await assertSucceeds(updateDoc(doc(db, "sessions", S), { endTime: serverTimestamp() }));
+      await assertSucceeds(updateDoc(doc(db, "sessions", S), { endTime: deleteField() }));
+    });
+
+    it("Finish, then the Wrap-up's effort Dial on the finished session", async () => {
+      const db = as("trainerA");
+      await assertSucceeds(updateDoc(doc(db, "sessions", S), {
+        status: "Completed", endTime: serverTimestamp(), trainerId: "trainerA", trainerName: "Trainer A", trainerInitials: "TA",
+        clientId: "clientA", homeStudioId: "studioA", clientHomeStudioId: "studioA", hostedAtStudioId: "studioA",
+      }));
+      await assertSucceeds(updateDoc(doc(db, "sessions", S), { effort: 7, effortDefaulted: deleteField() }));
+    });
+
+    it("Finish it as it was: a colleague finishes it under its own trainer, with the marker", async () => {
+      const db = as("ownerA");
+      const b = writeBatch(db);
+      b.update(doc(db, "sessions", S), {
+        status: "Completed", endTime: hourAgo, trainerId: "trainerA", trainerName: "Trainer A", trainerInitials: "TA",
+        clientId: "clientA", homeStudioId: "studioA", clientHomeStudioId: "studioA", hostedAtStudioId: "studioA",
+      });
+      b.set(doc(db, "sessions", S, "finish", "once"), { finishId: "f-asit", by: "ownerA", at: serverTimestamp(), clientId: "clientA", deviceId: "dev-o", asItWas: true });
+      await assertSucceeds(b.commit());
+    });
+
+    it("Finish of a session with no host fills it with the client's home, for a visitor who doesn't work there", async () => {
+      await assertSucceeds(updateDoc(doc(as("trainerB"), "sessions", LEGACY), {
+        status: "Completed", endTime: serverTimestamp(), trainerId: "trainerB", trainerName: "Trainer B", trainerInitials: "TB",
+        clientId: "clientV", homeStudioId: "studioA", clientHomeStudioId: "studioA", hostedAtStudioId: "studioA",
+      }));
+    });
+
+    it("...or with a studio the caller works at", async () => {
+      await assertSucceeds(updateDoc(doc(as("trainerB"), "sessions", LEGACY), { hostedAtStudioId: "studioB" }));
+    });
+
+    it("History: edit a finished session hosted elsewhere, as a trainer at the client's home; and delete one", async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await updateDoc(doc(context.firestore(), "sessions", LEGACY), { status: "Completed", hostedAtStudioId: "studioB" });
+      });
+      const db = as("trainerA");
+      await assertSucceeds(updateDoc(doc(db, "sessions", LEGACY), {
+        notes: "Corrected", editedAt: serverTimestamp(), editedByUid: "trainerA", editedByName: "Trainer A", editedByInitials: "TA",
+        editCount: increment(1), updatedAt: new Date(), sessionMachineIds: ["m1"],
+      }));
+      const b = writeBatch(db);
+      b.delete(doc(db, "sessions", LEGACY));
+      await assertSucceeds(b.commit());
+    });
+
+    it("Discard: the session and its sets in one batch", async () => {
+      const db = as("trainerA");
+      const b = writeBatch(db);
+      b.delete(doc(db, "exerciseLogs", `${S}_m1`));
+      b.delete(doc(db, "exerciseLogs", `${S}_m2`));
+      b.delete(doc(db, "sessions", S));
+      await assertSucceeds(b.commit());
+    });
+
+    it("the provisional merge: a leader moves a temporary client's sessions to a client in the studio's roster, a visitor included", async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        for (let i = 0; i < 30; i += 1) {
+          await setDoc(doc(db, "sessions", `merge${i}`), {
+            clientId: "tempP", hostedAtStudioId: "studioA", trainerId: "trainerA", status: "Completed", sessionNumber: i + 1,
+          });
+        }
+      });
+      const db = as("leaderA");
+      const b = writeBatch(db);
+      for (let i = 0; i < 30; i += 1) b.update(doc(db, "sessions", `merge${i}`), { clientId: "visitorAtA" });
+      await assertSucceeds(b.commit());
+      expect((await getDoc(doc(db, "sessions", "merge29"))).data()?.clientId).toBe("visitorAtA");
+    });
+
+    it("an administrator merges across studios", async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "sessions", "merge0"), { clientId: "tempP", hostedAtStudioId: "studioA", trainerId: "trainerA", status: "Completed" });
+      });
+      await assertSucceeds(updateDoc(doc(as("adminHS"), "sessions", "merge0"), { clientId: "clientB" }));
+    });
+
+    it("Demo Mode's reset writes its own sessions over again, whole", async () => {
+      const demoSession = {
+        clientId: "demoClient", clientName: "C demo-studio", hostedAtStudioId: "demo-studio", clientHomeStudioId: "demo-studio",
+        homeStudioId: "demo-studio", status: "Completed", trainerId: "demo-trainer-ana", startedByTrainerId: "demo-trainer-ana",
+        trainerName: "Ana Demo", trainerInitials: "AD", sessionNumber: 4, date: "2026-10-01", isDemo: true,
+      };
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "sessions", "demo-session-1"), demoSession);
+      });
+      const db = as("trainerB");
+      const b = writeBatch(db);
+      b.set(doc(db, "sessions", "demo-session-1"), demoSession, { merge: false });
+      await assertSucceeds(b.commit());
+    });
+
+    it("Start, Open session and Log past session create as before (the create rule is unchanged)", async () => {
+      const db = as("trainerA");
+      await assertSucceeds(setDoc(doc(db, "sessions", "startHS"), { clientId: "clientA", hostedAtStudioId: "studioA", status: "In-Progress", trainerId: "trainerA" }));
+      await assertSucceeds(setDoc(doc(db, "sessions", "openHS"), { isUnassigned: true, hostedAtStudioId: "studioA", status: "In-Progress", trainerId: "trainerA" }));
+      await assertSucceeds(setDoc(doc(db, "sessions", "pastHS"), { clientId: "clientA", hostedAtStudioId: "unknown", status: "Completed", trainerId: "trainerA", sessionNumber: 2 }));
+    });
+  });
+
+  describe("what can no longer happen", () => {
+    it("re-hosting a session, at Demo Mode, at another studio, for anyone, an administrator included", async () => {
+      await assertFails(updateDoc(doc(as("trainerA"), "sessions", S), { hostedAtStudioId: "demo-studio" }));
+      await assertFails(updateDoc(doc(as("trainerA"), "sessions", S), { hostedAtStudioId: "studioB" }));
+      await assertFails(updateDoc(doc(as("adminHS"), "sessions", S), { hostedAtStudioId: "studioB" }));
+      await assertFails(updateDoc(doc(as("trainerA"), "sessions", S), { hostedAtStudioId: deleteField() }));
+    });
+
+    it("giving a session with no host a studio that is neither its client's home nor the caller's, or Demo Mode", async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "studios", "studioC"), { name: "Studio C" });
+      });
+      await assertFails(updateDoc(doc(as("trainerB"), "sessions", LEGACY), { hostedAtStudioId: "studioC" }));
+      await assertFails(updateDoc(doc(as("trainerB"), "sessions", LEGACY), { hostedAtStudioId: "demo-studio" }));
+    });
+
+    it("naming a client on an open session that the caller can't read", async () => {
+      await assertFails(updateDoc(doc(as("trainerA"), "sessions", OPEN), { clientId: "clientB", isUnassigned: false }));
+    });
+
+    it("naming a Demo client on a real open session, or a real client on a Demo one", async () => {
+      await assertFails(updateDoc(doc(as("trainerA"), "sessions", OPEN), { clientId: "demoClient", isUnassigned: false }));
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "sessions", "demoOpen"), {
+          isUnassigned: true, hostedAtStudioId: "demo-studio", trainerId: "trainerB", status: "In-Progress",
+        });
+      });
+      await assertFails(updateDoc(doc(as("trainerB"), "sessions", "demoOpen"), { clientId: "clientB", isUnassigned: false }));
+      // ...while Demo Mode's own open session takes a Demo client, as before.
+      await assertSucceeds(updateDoc(doc(as("trainerB"), "sessions", "demoOpen"), { clientId: "demoClient", isUnassigned: false }));
+    });
+
+    it("re-pointing a client's session at a client the caller can't read, or at a Demo client", async () => {
+      await assertFails(updateDoc(doc(as("trainerA"), "sessions", S), { clientId: "clientB" }));
+      await assertFails(updateDoc(doc(as("trainerA"), "sessions", S), { clientId: "demoClient" }));
+      await assertFails(updateDoc(doc(as("adminHS"), "sessions", S), { clientId: "demoClient" }));
+    });
+
+    it("taking a session's client off it", async () => {
+      await assertFails(updateDoc(doc(as("trainerA"), "sessions", S), { clientId: "" }));
+      await assertFails(updateDoc(doc(as("trainerA"), "sessions", S), { clientId: deleteField() }));
+    });
+  });
+
+  describe("a real client's approvals never name Demo Mode", () => {
+    it("is refused for a trainer, a leader and an administrator alike", async () => {
+      for (const uid of ["trainerA", "ownerA", "adminHS"]) {
+        await assertFails(updateDoc(doc(as(uid), "clients", "clientA"), { approvedCrossTrainStudioIds: ["studioB", "demo-studio"] }));
+        await assertFails(updateDoc(doc(as(uid), "clients", "clientA"), { approvedCrossTrainStudioIds: arrayUnion("demo-studio") }));
+      }
+    });
+
+    it("leaves every other approval as it was, and a Demo client's own", async () => {
+      await assertSucceeds(updateDoc(doc(as("trainerA"), "clients", "clientA"), { approvedCrossTrainStudioIds: ["studioB"] }));
+      await assertSucceeds(updateDoc(doc(as("trainerA"), "clients", "clientA"), { approvedCrossTrainStudioIds: [] }));
+      await assertSucceeds(updateDoc(doc(as("trainerB"), "clients", "demoClient"), { approvedCrossTrainStudioIds: ["demo-studio"] }));
+    });
+
+    it("checks only what is added: a client already holding demo-studio can lose it, or gain another studio", async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await updateDoc(doc(context.firestore(), "clients", "clientA"), { approvedCrossTrainStudioIds: ["demo-studio"] });
+      });
+      await assertSucceeds(updateDoc(doc(as("trainerA"), "clients", "clientA"), { approvedCrossTrainStudioIds: ["demo-studio", "studioB"] }));
+      await assertSucceeds(updateDoc(doc(as("trainerA"), "clients", "clientA"), { approvedCrossTrainStudioIds: ["studioB"] }));
+    });
+
+    it("Finish's totals on a client still land (the approvals aren't touched)", async () => {
+      await assertSucceeds(updateDoc(doc(as("trainerA"), "clients", "clientA"), {
+        completedSessions: increment(1), sessionCount: increment(1), lastSessionDate: "2026-10-14", updatedAt: serverTimestamp(),
+      }));
+      await assertSucceeds(updateDoc(doc(as("trainerB"), "clients", "clientV"), {
+        completedSessions: increment(1), sessionCount: increment(1), lastSessionDate: "2026-10-14", updatedAt: serverTimestamp(),
+      }));
+    });
+  });
+});
+
+// The sessions update rule asks who may update with the caller resolved once
+// (sessionIsReadable, privacy Round 0): the same people as before, with or
+// without a role claim on the token. Without one, the old test ran out of the
+// 1,000-expression budget on the client branch (docs/ops/RULES-NOTES.md
+// #sessiontenancykept, "THE BUDGET").
+describe("privacy Round 0: the sessions update asks the same people, resolved once", () => {
+  const ctx = (uid: string, claim: boolean) =>
+    testEnv.authenticatedContext(uid, claim ? { role: "LifeTransformer" } : {}).firestore();
+  const edit = { notes: "Corrected", editCount: increment(1), editedAt: serverTimestamp(), updatedAt: new Date() };
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "studios", "studioC"), { name: "Studio C" });
+      await setDoc(doc(db, "trainers", "trainerC"), { fullName: "Trainer C", initials: "TC", role: "LifeTransformer", primaryHomeStudioId: "studioC", accessibleStudioIds: ["studioC"] });
+      await setDoc(doc(db, "clients", "clientV"), { firstName: "Vi", lastName: "Visit", isActive: true, remainingSessions: 0, homeStudioId: "studioA", approvedCrossTrainStudioIds: ["studioB"] });
+      await setDoc(doc(db, "sessions", "histV"), { clientId: "clientV", trainerId: "trainerA", hostedAtStudioId: "studioA", status: "Completed", sessionNumber: 4, date: "2026-10-02" });
+    });
+  });
+
+  it.each([false, true])("an approved studio's trainer edits the client's session in History (role claim: %s)", async (claim) => {
+    await assertSucceeds(updateDoc(doc(ctx("trainerB", claim), "sessions", "histV"), edit));
+  });
+
+  it.each([false, true])("the client's home studio's trainer and an administrator do too, and a trainer the session is nothing to doesn't (role claim: %s)", async (claim) => {
+    await assertSucceeds(updateDoc(doc(ctx("trainerA", claim), "sessions", "histV"), edit));
+    await assertFails(updateDoc(doc(ctx("trainerC", claim), "sessions", "histV"), edit));
+    await assertSucceeds(updateDoc(doc(testEnv.authenticatedContext("adminClaimOnly", { role: "Admin" }).firestore(), "sessions", "histV"), edit));
+    await assertFails(updateDoc(doc(testEnv.authenticatedContext("strangerS", {}).firestore(), "sessions", "histV"), edit));
   });
 });

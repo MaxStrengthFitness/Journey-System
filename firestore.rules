@@ -181,6 +181,16 @@ service cloud.firestore {
               || !clientId.matches('^[0-9]+(-[0-9]+)?$'));
     }
 
+    /* PRIVACY ROUND 0 (Oct 14 2026): a real client is never approved at
+       Demo Mode, where every trainer works, so it would hand her to everyone.
+       Only an approval being ADDED is checked; anyone, administrators too. */
+    function approvalsStayReal(b, a) {
+      return !a.diff(b).affectedKeys().hasAny(['approvedCrossTrainStudioIds'])
+          || isDemoStudioId(studioIdOf(a))
+          || !idListOf(a, 'approvedCrossTrainStudioIds').toSet()
+                .difference(idListOf(b, 'approvedCrossTrainStudioIds').toSet()).hasAny(['demo-studio']);
+    }
+
     function isTrainerOfClient(clientId) {
       return exists(/databases/$(database)/documents/clients/$(clientId)) && 
              isTrainerOfClientData(
@@ -833,6 +843,43 @@ service cloud.firestore {
       return before.get('status', '') != 'Completed'
           || !after.diff(before).affectedKeys().hasAny(
                ['trainerId', 'trainerName', 'trainerInitials', 'startedByTrainerId', 'recordingDeviceId', 'lastHeartbeatAt']);
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#sessiontenancykept
+    function sessionTenancyKept(b, a) {
+      return !a.diff(b).affectedKeys().hasAny(['hostedAtStudioId', 'clientId']) || sessionTenancyMoved(b, a);
+    }
+
+    function sessionTenancyMoved(b, a) {
+      let bh = b.get('hostedAtStudioId', '');
+      let ah = a.get('hostedAtStudioId', '');
+      let bc = b.get('clientId', '');
+      let ac = a.get('clientId', '');
+      return (ah == bh || ((bh == null || bh == '') && (ah == null || ah == '' || sessionHostFilled(a, ah))))
+          && (ac == bc || (ac is string && ac != '' && sessionClientMoved(b, bc, ah, ac)));
+    }
+
+    /** A session with no studio given one once: its client's home (Finish), or the caller's studio, never Demo Mode. */
+    function sessionHostFilled(a, ah) {
+      let cid = a.get('clientId', '');
+      return ah is string
+          && ((cid is string && cid != ''
+               && existsAfter(/databases/$(database)/documents/clients/$(cid))
+               && studioIdOf(getAfter(/databases/$(database)/documents/clients/$(cid)).data) == ah)
+              || (!isDemoStudioId(ah) && coverageWriterAllowed(ah)));
+    }
+
+    /** Named once on an open session (Who's this?, or Finish), or moved by the merge. */
+    function sessionClientMoved(b, bc, host, ac) {
+      let r = getRole();
+      let t = callerTrainer();
+      let c = getAfter(/databases/$(database)/documents/clients/$(ac)).data;
+      return isDemoStudioId(host) == isDemoStudioId(studioIdOf(c))
+          && (roleIsSuper(r) || clientIsReadableBy(c, r, t))
+          && ((b.get('isUnassigned', false) == true && (bc == null || bc == ''))
+              || (bc is string && bc != '' && (roleIsSuper(r)
+                  || (exists(/databases/$(database)/documents/clients/$(bc))
+                      && clientIsReadableBy(get(/databases/$(database)/documents/clients/$(bc)).data, r, t)))));
     }
 
     // Why: docs/ops/RULES-NOTES.md#logsessionreach
@@ -1766,6 +1813,7 @@ service cloud.firestore {
                     && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['renewal'])
                     && !(request.resource.data.diff(resource.data).affectedKeys().hasAny(['machineStatsBackfilledAt'])
                          && 'machineStatsBackfilledAt' in request.resource.data)
+                    && approvalsStayReal(resource.data, request.resource.data)
                     && (isSuperAdmin()
                         || crossTrainSessionTotals(resource.data, callerTrainer())
                         || (isAnyAuthenticatedTrainer()
@@ -2073,16 +2121,14 @@ service cloud.firestore {
                                 || namedClientIsReadable(
                                      request.resource.data.get('clientId', '')))));
 
+      // Who may update: the same people as before (administrators; the session's
+      // trainer, anyone at its host, anyone who can read its client), asked with
+      // the caller resolved once, as the read is (privacy Round 0: the budget).
       allow update: if isValidSession(request.resource.data)
                     && openSessionWriteOk(resource.data, request.resource.data)
                     && finishedHolderKept(resource.data, request.resource.data)
-                    && (isSuperAdmin()
-                        || (isAnyAuthenticatedTrainer()
-                            && (resource.data.get('trainerId', '') == request.auth.uid
-                                || isTrainerOfStudio(
-                                     resource.data.get('hostedAtStudioId', ''))
-                                || namedClientIsReadable(
-                                     resource.data.get('clientId', '')))));
+                    && sessionTenancyKept(resource.data, request.resource.data)
+                    && sessionIsReadable(resource.data, getRole(), callerTrainer());
 
       /* Deleting a session is the same reach as editing one (Sep 17 2026).
          It was super-admin-and-owner only, which meant a trainer who logged a

@@ -538,6 +538,72 @@ longer flip the credit either (its totals can still count: the guard
 covers new-version finishes only).
 ```
 
+<a id="sessiontenancykept"></a>
+### `function sessionTenancyKept` (and `sessionHostFilled`, `sessionClientMoved`)
+
+```text
+HONEST SESSIONS (privacy Round 0, Oct 14 2026;
+docs/rounds/2026-10-14-strangers-out.md). sessionIsReadable trusts a
+session's hostedAtStudioId and clientId: whoever works at the host, and
+whoever can read the client, reads it. Until this round anyone who could
+update a session could rewrite both. Re-hosting a session at demo-studio,
+where every trainer works, handed it to every trainer in the company;
+re-hosting it at another studio, or re-pointing it at another studio's
+client, handed it to that studio. Now, on every update:
+
+  The host stays as it is. A session with none (null or '') may be given
+  one once: its own client's home (what Finish writes, `|| homeStudioId`,
+  lib/sync-utils.ts), which adds no reader the client didn't already
+  have, or a studio the caller works at that isn't Demo Mode.
+
+  The client stays as it is, or changes in one of two ways, to a client on
+  record after the write whom the caller can read (an administrator can
+  read every client):
+    - named once on an open session (isUnassigned before the write, no
+      client yet): Who's this?, or a Finish after a refused Who's this?
+      The picker lists only clients this iPad could read (the studio's
+      roster and its approved visitors) or one just added here;
+    - moved from one client to another by the provisional merge
+      (admin/provisional/mergeClient.ts), by someone who can read both.
+  Either way the client and the host are both Demo Mode's or both not: a
+  real session never names a Demo client (everyone reads those) and a Demo
+  session never names a real one.
+
+Nothing is read unless the host or the client changes: every heartbeat,
+pause, take-over, list change, held set-up, End Session mark, Wrap-up
+effort and History edit pays one diff (sessionTenancyKept asks the diff
+first; sessionTenancyMoved runs only when one of the two moved).
+
+THE BUDGET. Added to the old "who may update" test, this clause took a
+History edit by a trainer at the client's home, on a session hosted at
+another studio, past the 1,000-expression limit (measured on the
+emulator with no role claim on the token, the worst case: the old test
+re-derived getRole() and the trainer document through isSuperAdmin(),
+isTrainerOfStudio() twice and namedClientIsReadable()). Two History edits
+through the client branch were already over it on master. So the update
+rule now asks sessionIsReadable(resource.data, getRole(), callerTrainer()),
+the read rule's resolve-once helper: the same people (administrators; the
+session's trainer; trainerWorksAt or trainerLeads at its host, which is
+exactly isTrainerOfStudio; sessionClientIsReadable, which is exactly
+namedClientIsReadable) at about two thirds of the cost. Measured with
+the coverage report (KNOWN-TRAPS, "writesForStudio is itself most of the
+budget"): the History edit 1,656 on master, 1,108 now; a heartbeat 1,111
+and 925; a take-over by a guest 1,370 and 957; Who's this? 1,111 and
+1,155; the merge 1,262 and 1,268. The delete rule is unchanged.
+
+The trainer is
+not pinned here: a finished session's trainer was already pinned by
+finishedHolderKept (Oct 12 2026), and a running one changes hands by a
+take-over. The delete rule decides from the stored document, which this
+keeps honest, so it needs no clause of its own.
+
+The design (Oct 12 2026) had the merge as "leads both clients' homes";
+Round 0 takes "can read both", what a leader running the merge from My
+Studio -> Team can always do (the survivor is from the studio's roster),
+because AJ's condition for this round is that nothing changes for anyone
+let in. Round 1 narrows it with the merge's own precheck in the app.
+```
+
 <a id="logsessionreach"></a>
 ### `function logSessionReach`
 
