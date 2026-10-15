@@ -1,6 +1,6 @@
 # The CLAUDE.md trim — Oct 9 2026
 
-Branch `oct9/claude-md`, on master's `546bb0aa`; redone on master's `7957d1a0` on Oct 10 2026 (section 7). Documents and one test only: no app code, no rules, no index, nothing a trainer sees, nothing to deploy.
+Branch `oct9/claude-md`, on master's `546bb0aa`; redone on master's `7957d1a0` on Oct 10 2026 (section 7), and again on master's `aa846261` on Oct 14 2026, branch `oct14/claude-md` (section 8). Documents and one test only: no app code, no rules, no index, nothing a trainer sees, nothing to deploy.
 
 ## 1. What AJ asked
 
@@ -75,3 +75,27 @@ AJ, Oct 10 2026: "redo the CLAUDE.md trim on today's master, then I read the rev
 **Measured on the branch** (Oct 10 2026, the worktree on AJ's PC, its files in LF): `src/claude-md.test.ts` 6 passing; the suite **13,470** passing in 815 files (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`: master's 13,464 in 814, the settings card's count, plus this test's 6); typecheck **2** (`clinical-review/charts.tsx`, `EditTrainerModal.tsx`); `git ls-files | tr A-Z a-z | sort | uniq -d` prints nothing. Rules tests not run (no rules change; 351 is the open session round's count).
 
 **Still standing from section 5, outside `CLAUDE.md`:** the Note for the next trainer "for three weeks" in `docs/ARCHITECTURE.md` (the Active Session, End) and `docs/business/glossary.md`; "Admins → Catalog → Models" in `src/features/admin/machines/README.md`. Left as they are, for AJ's word.
+
+## 8. Oct 14 2026: redone on `aa846261`
+
+AJ, Oct 14 2026, asked whether to redo the trim on today's version: **"a"**, redo it on today's version and merge it; AJ skims the review page afterwards. By then master was 136 commits past `7957d1a0`, and the Oct 10 branch had never reached it. Branch `oct14/claude-md`, cut from master's `aa846261`. Still documents and one test: nothing to deploy.
+
+- **The merge** (`1ddbcfd6`): `oct9/claude-md` (`f135a5e7`) merged in. Four conflicts. `CLAUDE.md` took master's version, the source for the next step. `docs/KNOWN-TRAPS.md` kept master's baselines: the Oct 10 Tests row the trim had moved was already there word for word, moved by the franchise partition. `docs/rounds/CHANGELOG.md` and `docs/rounds/README.md` kept every entry from both sides. The READMEs, `docs/ARCHITECTURE.md`, `docs/START-HERE.md` and `docs/business/running-costs.md` merged by themselves, the trim's additions beside master's.
+- **Regenerated from master's own text** (`7026eb36`), by script, never retyped. Of the 57 decisions on master, 55 had the same full text as on `7957d1a0`: 18 stand as they were and 37 reuse the short forms written on Oct 9 and 10. Two had changed since, and their short forms are new: **Mindbody freshness** (master added "One Mindbody read serves a whole site", the Mindbody savings round, Oct 12 2026) and **A new client's start** (master added "Plan B also offers Start B whole", Oct 13 2026). Their entries in `docs/DECISIONS.md` take master's full text word for word. The open session's decision, written in the Oct 10 redo and still not on master, is kept with its entry. The query-index entry's "Where it lives" takes master's Security rules row as it now stands (it gained `docs/ops/RULES-NOTES.md`). The script checks that every decision's full text is in `CLAUDE.md` or `docs/DECISIONS.md`, and every link lands on a heading.
+- **The rows master added or grew since `7957d1a0`**, each one line now, the detail in the folder's README: the FileMaker import (a clause in its README: `repsOf` / `isRepsNotRecorded`), the progress report (its README names `sheet-from-report.ts`, the one plan both drawings use), the Deep Dive (a new `src/features/clinical-review/README.md`), the rules' notes (on the Security rules row) and a machine's setting names in two places (a section in `src/features/admin/machines/README.md`; the trap was already in `docs/KNOWN-TRAPS.md`). The open session's row is shorter; its names are all in its README.
+- **The Tests row** is short again. Master's row (14,623 on `oct14/fm-client-names`) is in `docs/KNOWN-TRAPS.md#baselines` word for word.
+- **The areas built Oct 9 to 14** (`21cc7713`), one row each: launch, reset and deploys (`docs/ops/LAUNCH.md`, `RESET-BEFORE-LAUNCH.md`, `DEPLOYS-AND-ROLLBACK.md`, `TRAINER-QUICK-START.md`); the studio map and the machine's card; FileMaker floors with `scripts/build-floors-from-filemaker.ts`; switching studio; rooms and the Calendar; the PC build's mark (a new `src/features/environment-mark/README.md`). The session record's row names the sessions round (a finish counted once, Continue on this iPad, a session left open cleared by anyone at the studio), and its README names `docs/rounds/2026-10-12-sessions.md`. `functions/README.md` has the staff webhook (Oct 12 2026: a staff number matched by site). The studio map, machine card, studio switch, FileMaker floors, rooms and Calendar READMEs already said what their rows say.
+- **The name check, against master's file:** 964 distinct names in backticks. 954 are found again exactly in the new `CLAUDE.md`, a README, `docs/DECISIONS.md`, `docs/KNOWN-TRAPS.md` or `docs/business/`; 10 by the file's own name in its folder's README (`renewals/RenewalRow.tsx`, `renewals/plan.ts`, `renewals/name-suggest.ts`, `src/features/admin/AdminDashboardView.tsx`, `src/features/admin/scope.ts`, `journey/CaseForm.tsx`, `studios/{s}/setupItems`, `src/features/client-notes/mattering.ts`, `src/features/client-notes/threads.ts`, `docs/rounds/README.md`); none lost. The four the Oct 9 and Oct 10 checks found only in another spelling now appear exactly (client-notes, relay and running-costs).
+
+| | Master `aa846261` | Redone |
+| --- | --- | --- |
+| `CLAUDE.md` | 119,539 characters (120,120 bytes), 18,263 words | 44,930 characters (38%), 6,922 words |
+| Where things are | 58 rows, the longest 3,510 | 64 rows, the longest 303 |
+| Decisions | 57, the longest 3,880 | 58: 40 shortened (37 from Oct 9 and 10, 2 new, the open session's), 18 as they were; the longest 644 |
+| `docs/DECISIONS.md` | — | 40 entries, 57,756 characters |
+
+**The limit is close.** The file is 70 characters under the test's 45,000, so the next round that adds a map row will have to move something out first. That is what the test is for; its limits are unchanged.
+
+**Measured on the branch** (Oct 14 2026, the worktree on AJ's PC, its files in LF): the suite **14,635** passing in 887 files (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`: master's 14,629 in 886 plus this test's 6); typecheck **2** (`clinical-review/charts.tsx`, `EditTrainerModal.tsx`); `git ls-files | tr A-Z a-z | sort | uniq -d` prints nothing. Rules tests not run (no rules change).
+
+**Section 5's leftovers outside `CLAUDE.md`:** the Note for the next trainer "for three weeks" in `docs/ARCHITECTURE.md` and `docs/business/glossary.md` still stands, for AJ's word; `src/features/admin/machines/README.md` now says Admins → Standard → Machines → Models, put right on master since Oct 10.
