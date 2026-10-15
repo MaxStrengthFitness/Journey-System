@@ -5,6 +5,12 @@ Round: History tab, Sep 10 2026. Replaces `components/ClientHistoryCalendar.tsx`
 and the harness at 834×1194, 1024×1366, 1194×834 and 1366×1024 in both themes.
 **Not yet looked at on a real iPad.**
 
+Where it lives now: on the client profile's **Activity Archive** tab, as its
+**Calendar** and **Sessions** views. Until Sep 15 2026 it was the profile's
+History tab. This folder holds those two views, the session pop-up (edit, add
+and remove machines, the edit stamp) and the three-pane "Log past session"
+form.
+
 ---
 
 ## 1. What was wrong

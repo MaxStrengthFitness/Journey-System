@@ -47,3 +47,9 @@ A note of its own can be **offered to every MSF studio** by its author or a lead
 | `useFloorNotes.ts` | One listener for the studio's notes, mounted by the screen; a failed read is "couldn't load", never "no notes" |
 | `useFloorNoteSwitches.tsx` | Who may offer what, the same on both screens |
 | `FloorNotes.tsx` + `floor-notes.css` | The list. Every box that holds typing joins the unsaved-changes registry, and the list is keyed by studio and machine so a draft never follows a trainer to the next one. An update or close box's words are held by the list, not the note: a note closed on another iPad mid-sentence opens the closed list with the words still in it (they go on as an update), and one taken off the list leaves them in a card that saves them as a new note. A refused write says it isn't yours to change, never that the connection failed. `FloorNotes.render.test.tsx`; the stylesheet is held by `my-studio/look.test.ts` |
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- **`FloorNotes.tsx` draws each note with two buttons; the rest are behind More.**
+- **The machine menu reads a machine's notes through `equipment/FloorNoteCard.tsx`'s `useFloorNote` and `FloorNoteLines`**: the Relay flag first, then the open notes. This is read-only in both doors.
+- **The machine menu's note box writes a floor note** ("The machine itself"), and never a Relay flag. A fault with the machine itself is a floor note from the card.

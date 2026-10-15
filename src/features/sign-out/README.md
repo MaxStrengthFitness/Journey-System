@@ -61,3 +61,8 @@ past sessions keep their name, and the studio's Team lists them under
 "Accounts switched off" with Switch back on. The rules stop a trainer writing
 their own `isActive`; the Firebase Auth user itself stays enabled until a
 Cloud Function turns it off (the file's header says what that needs).
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- `sign-out.ts` is the file that clears storage on a sign-out (`clearPersonalStorage`, `clearSessionHandoffs` and `endPersonalSession`), keeping the pinned studio and any unsaved session notes.
+- **Who may open Operations.** `src/features/admin/operations-access.ts` is the one answer to "may this person open Operations" (`mayOpenOperations`). The menu, the route (`useGuardedPlace`) and the Operations shell all ask it, and the route asks again whenever the person or the studio changes. A screen a role may not open is refused on the screen itself, not only hidden in the menu. It came in with this round (Sep 24 2026).

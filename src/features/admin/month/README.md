@@ -28,3 +28,7 @@ Every date the app could infer for when a client started — her first session i
 - `month.ts` — pure: the months, the four lists, the day groups (the month's sentence, `monthSentence`, went in the calm round, Oct 3 2026); `month.test.ts`.
 - `MonthPage.tsx` — the screen; `MonthPage.render.test.tsx` mounts it over a studio's worth of answers.
 - `../shell/places.ts` — the destination; `../shell/OperationsNav.tsx` its icon; `../shell/ops.css` the month nav and the row head (`ops-month-*`).
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- The round is `docs/rounds/2026-09-29-month-and-first-day.md` (Sep 29 2026).

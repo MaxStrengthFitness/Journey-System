@@ -368,3 +368,7 @@ moved it.
   that orange is the live thing, blue is actionable and crimson is a set that
   needs work. Four more saturated colours would turn the screen into a paint
   chart. The pillars get a tinted letter mark and nothing else.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- **What this folder holds:** the Life section of the client profile (the FORD page, Notes & Profile), mid-session capture, the Wrap-up's sweep (the post-session screen) and the studio Delight queue. The Hub's Get to know reads FORD once per studio visit (`hub-read.ts`, the third query shape; wave 2 hub, Sep 28 2026).

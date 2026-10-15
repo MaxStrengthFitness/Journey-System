@@ -359,3 +359,13 @@ offline, failed, not linked, nothing agreed) and for Openings.
   that week comes into the window.
 - A trainer Mindbody lists as inactive while they keep Journey access is
   still checked (a product call left with AJ).
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- The follow-up round document is `docs/rounds/2026-09-27-voice-review-followup.md`.
+- Colleagues' agreed weeks are seen on My Studio → Openings → Who's usually
+  in, because `ColleagueStandingWeek` is unreachable while another trainer's
+  profile can't be opened.
+- Openings' first piece, the whole-read record of which days a pull read in
+  full (`studios/{s}/scheduleCoverage/{month}`), lives in
+  `src/features/openings/` (`docs/rounds/2026-09-27-coverage-record.md`).

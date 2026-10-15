@@ -64,3 +64,14 @@ Every record is written only from this folder (or `features/admin/bugs/` for the
 ## Tests
 
 The pure halves: `nav.test.ts`, `search.test.ts`, `studios/stages.test.ts`, `studios/role-change.test.ts` (roles and the details and franchise records), `studios/studio-membership.test.ts` (where a person works), `machinery/sync-check.test.ts`, `home/home.test.ts`, `home/home-marks.test.ts`, `standard/studio-defaults.test.ts`, `standard/setting-defaults.test.ts`, `activity/activity.test.ts` (it also reads `firestore.rules` for the seven kinds), `launches/checklist.test.ts`, and the third wave's `home/overdue-setup.test.ts` and `home/launch-needs.test.ts` (with `my-studio/StudioActivityPanel.render.test.tsx` beside its panel). The mounted ones: `AdminsDashboardView.render.test.tsx` (every page, the portrait bar, the search opening a studio, a person and a machine, a Home mark whose condition ended), `kit.render.test.tsx`, `studios/studios.render.test.tsx` (the grouped list, a studio's five tabs, the tabs asking before a half-typed detail is lost, the danger zone, the checklist on Setup, a details save recorded, Change role), `studios/StudiosDialog.render.test.tsx` (Studios: a second studio, Take off this studio's team, the home studio refused), `machinery/SyncCheck.render.test.tsx`, `home/AdminsHome.render.test.tsx` (with Take it, Snooze, Dismiss, Undo, Set aside), `standard/StudioDefaultsCard.render.test.tsx`, `standard/SettingDefaultsPage.render.test.tsx`, `activity/ActivityPage.render.test.tsx`, `launches/launches.render.test.tsx` (Launches, Add a studio, the checklist, the Opening panel), and beside their screens `admin/limbo/AdminLimboQueue.render.test.tsx` and `admin/bugs/AdminBugReportsTab.render.test.tsx` (with the reply). The rules: the `describe("wave 2 admins", ...)` block at the end of `tests/firestore.rules.test.ts`.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- **Home's list is `home/needs.ts`:** at most seven items, one condition each, and an item clears itself when its condition ends. A read that failed is "Couldn't check".
+- **Limbo** (Machinery) is grouped by Mindbody site and location, and Dismiss is done at once with Undo.
+- **Mindbody sync** (Machinery, `machinery/`) lists every studio's pull from its lease, worst first.
+- **Bug reports** (Machinery) sort into four states: New · Looking into it · Fixed · Won't fix.
+- **The search** across studios, machines and people is `search.ts`, opened with Ctrl K.
+- **Studio defaults** (Standard, `standard/`) is Max Strength's default for each studio setting, beside the app's own (`features/studio-settings`).
+- **Home's Take it · Snooze · Dismiss** is `home/home-marks.ts`, stored at `adminHome/{itemKey}`.
+- **Ask the leader** and **See as** stay parked, with their proposals in `docs/rounds/2026-09-29-admins-3.md`.

@@ -430,3 +430,9 @@ The web service does not touch Firestore (`docs/business/does-this-scale.md` §1
 1. **Firebase console → Firestore → Usage.** Compare reads a day against about 90k per studio at 80 clients and 225k at 210. Look for a spike at 2am (driver #2).
 2. **Render → web service → Logs, search `client lookup`.** Each pull logs one line. A near pull should read `1 page(s)`.
 3. **The Mindbody developer invoice.** It confirms the price per call, whether tokens are billed, and whether webhooks cost anything. That is the biggest unknown in the Mindbody line.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- The cost plan's round document, `docs/rounds/2026-09-26-cost-plan.md`, holds AJ's freshness ranking (Sep 26 2026), what was built, and the invoice question for Mindbody (settled on Oct 5 2026, R29: Mindbody bills every call). The arithmetic for the two models is `docs/business/running-costs-model.py` and `docs/business/cost-plan-model.py`.
+- `scripts/onboard-studio.ts` brings a studio's clients in before it launches. It is a dry run by default (`--commit` writes), it does one evening's share a run, and `--verify` is the proof.
+- `lib/first-booking-sync.ts` (in `src/`) is the nightly sync of anyone booked who never was synced.

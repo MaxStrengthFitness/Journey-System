@@ -7,7 +7,7 @@ how a studio leader rehearses a Monday, and — the use it was built for on Sep 
 2026 — how AJ shows the app to his boss on the live Render URL without opening a real client's history in front
 of him.
 
-Round: **Demo Mode, Sep 20 2026** (branch `claude-experiment`). The design is
+Round: **Demo Mode, Sep 20 2026** (branch `claude-experiment`; the round document is `docs/rounds/2026-09-20-demo-mode.md`). The design is
 carried over from the retired `demo-mode-foundation` branch (Sep 6, tag
 `archive/demo-mode-foundation`), which proved it and then fell 259 commits
 behind. This is a rebuild against current `master`, not a merge.
@@ -26,7 +26,9 @@ studio id. A parallel store means a second code path through every screen, and a
 second code path is a second thing to keep true. Within a month the demo would
 be showing a version of the app that no longer exists.
 
-So `studios/demo-studio` is a studio like Solon is a studio. The Journey grid,
+So `studios/demo-studio` is a studio like Solon is a studio. It is flagged
+`isDemo`, and everyone has the run of it: that access is derived from the id,
+never granted to anyone one by one. The Journey grid,
 the renewal pipeline, the attendance watch, Machine fit, Operations — all of it
 works inside Demo Mode because none of it knows it is in Demo Mode.
 
@@ -74,6 +76,9 @@ studio twice; either half makes it demo.
 | `seed-write.ts` | Lays that list down with the client SDK, in batches |
 | `DemoBanner.tsx` | One line across every screen, the Active Session included |
 | `SetUpDemoCard.tsx` | Set up and reset, from the studio selection screen |
+
+`seed-core.ts` builds the documents and every id in them is derived, so Set up
+and Reset are one button.
 
 ## What a Reset leaves behind
 

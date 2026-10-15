@@ -5,7 +5,8 @@ built once a week by `server/machine-trends-job.ts` (Render cron, Sundays 3am
 ET) into `machineTrends/{machineId}` plus `machineTrends/_summary`. The Settings
 card reads it for its height-based suggestion, and since the machine-fit round
 (Sep 17) the same run also writes machine fit's **company tier** — see "The fit
-block" below.
+block" below. `trends.ts` is the weekly job's pure core: it builds the documents
+from plain data, and the job only reads and writes around it.
 
 **Why it exists.** Until the cost round (Sep 2026) a nightly job read *every*
 exercise log ever written to rank clients by load, and nothing in the app

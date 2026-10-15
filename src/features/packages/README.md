@@ -40,3 +40,9 @@ Packages are not decided in the consultation. A prospect tries their free workou
 - **Per-studio money-fallback notes** ("set per studio" in AJ's answer): today the notes are the company's words plus the studio's own numbers. A studio-written list would be a new top-level field in `config/renewals`, which the rules allow only after a rules change.
 - **The recommendation is not saved.** It will live on the consultation record (`studios/{s}/consultations/{id}`, build step 2, which needs AJ's Firestore OK).
 - **Outcomes and the Brief compare packages by months only** (`outcomes.ts` renewalKind, `options.ts` upgradeVerdict), so a once-a-week row would read as "upgraded" from a shorter twice-a-week one. The packages screen never asks a leader to add one; if a studio does, those two want a frequency check.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- The screen explains the studio's own package table to someone who hasn't chosen yet. `package-table.ts` is the arithmetic: paid in full is ONE payment, and a total the table can't stand behind is withheld rather than shown.
+- The screen is opened from the Wrap-up's "Packages at {studio}" card, for a client with no package on file.
+- The round is `docs/rounds/2026-09-24-packages.md`.

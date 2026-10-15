@@ -1,6 +1,6 @@
 # features/machine-db — the MSF machine database
 
-Round: Learning + Planner, Sep 2026. AJ asked for this:
+Round: Learning + Planner, Sep 2026 (the first round; its document is `docs/rounds/LEARNING-PLANNER-ROUND.md`). AJ asked for this:
 
 > "studio should 100% be able to make machines and add them to the database but I think we just need to have a overall all MSF machines, then studios can adopt machines from this machine database and then studios can also grab information submitted by other studios about the machine and read the catalog"
 

@@ -114,3 +114,13 @@ Overview until Sep 28 2026) for a franchise owner who sees one studio
 | `intent.ts` (+ test) | Opening Relay at a note, a job, a share, Mine or the Floor |
 | `planner.render.test.tsx` | Mounts My Studio: Relay's three tabs and every section, and opens a note, the task wizard and the job composer |
 | `planner.css` | On the Studio Hub's `--st-*` tokens |
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- **The Board was rebuilt on Oct 3 2026** (`docs/rounds/2026-10-03-relay-board.md`; AJ: "this is replacing the laminated paper of a to-do list"). It is the studio's day as one kamishibai board: the parts of the day (Opening · Between clients · Close · This week) are tabs in the bar under a calm header (`RelayContext.slots`), and there are four columns (Floor · Desk · Clients · Team) of the one checkbox card (`board/cards.ts` is the model, `BoardCardView.tsx` draws it). Nothing is dealt ("No, the board is the plan"). The box finishes the work in one tap with an Undo, or opens the work where one tap can't. The card's words open the work beside the board. The Floor Map is folded under today's cards. "Quiet floor right now" comes from the studio's own number (`board/right-now.ts`).
+- **The Tracker's lists and the Journal's places are tabs in the same bar.** The Journal's places are Today · Notes · Day logs · On this day · Studio shelf. Today holds what to carry and the day's one line (`notes/JournalToday.tsx`; see `notes/README.md`).
+- **Gone since the rebuild:** the doors, the dealt card, Tracking, Opening and Close out, and the header's time button.
+- **Ask the team** is `board/AskSheet.tsx` over `board/ask.ts` (six typed tiles). The + button is Capture (`board/CaptureSheet.tsx`), for your own things.
+- **The second wave (Sep 28 2026; `docs/rounds/2026-09-28-relay-2.md`)** brought Since you were in (`board/since.ts`, `board/last-seen.ts`, `studios/{s}/lastSeen/{uid}`) and cover asks that keep their time (`board/cover.ts`, `taskRequests.coverAt`). The studio's quiet floor and the machines' care are read through `features/studio-settings`. The Journal's notes and day logs are `notes/journal.ts`, with day logs at `studios/{s}/dayLogs/{uid}_{day}`.
+- **The third wave (Sep 29 2026; `docs/rounds/2026-09-29-relay-3.md`):** a trainer's own cases are saved through `saveCase` in `admin/journey/case-store`, by `MyCaseEditor`.
+- **The rounds:** `docs/rounds/2026-09-28-relay.md` is the Relay room, and `docs/rounds/2026-09-16-relay.md` is the first Relay round.

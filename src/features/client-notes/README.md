@@ -8,11 +8,12 @@ Everything a coach writes about a client is a note in `journalEntries`, read onc
 
 - **The categories** are Coaching & equipment · Health · Incident · Retention · FORD / Life · Preference (Admin read-only). Coaching & equipment's optional second tap is a 4 P or Set-up (`kind: "equipment"`); Health's is Injury or pain · Surgery · Medication · Diagnosis · Care outside the studio (stored in `category` on `kind: "injury"`); Retention is the new kind `retention`. Nothing stored was rewritten — `noteCategoryOf` reads every old note under the new names. **`storedNoteOf`** is the one answer every door writes through (the composer, the session's unsaved draft, the tray via `storedKindOf`). `DEFAULT_IMPORTANCE` is the starting loudness: Health, Incident and Retention start at Heads up (Incident was Critical until Oct 3).
 - **Where on the body** (`body-parts.ts`, `BodyPartPicker.tsx`): AJ's fixed head-to-toe map, asked only for Health and Incident, optional, sides for paired parts, each part naming its Pulse region (`pulse`) so a note and a Pulse answer can be counted as one. Stored as `bodyParts` on the root, only when a part was picked.
-- **Health, Incident and Retention reach the studio's leaders** (`isForLeaders`): Operations → Today's "from the team's notes" (`admin/overview/team-notes.ts`), Seen = the existing acknowledgement.
+- **Health, Incident and Retention reach the studio's leaders** (`isForLeaders`): Operations → Today's "from the team's notes" (`admin/overview/team-notes.ts`), Seen = the existing acknowledgement, keyed `note:{id}`.
 - **A Heads up is read out at four of her sessions** (`heads-up.ts`), counted from its newest word — an update puts it back on.
 - **Every door files as it writes**: the arrival note and the End Session box offer "File it as"; a pain skip becomes an Incident at Finish (`pain-notes.ts`).
 - **Notes answers a question** (`ask.ts`, `AskBar.tsx`): What's going on with her right now? · Her health · How to train her · Is she staying with us? · Her life · Her time here · Every note. Each is a view over the notes' facets, never a copy; a question with a deeper page opens it. The page opens on "right now"; Resolved keeps its way back under every question (`#notes-resolved`).
 - **Retention conversations** (`retention.ts`): what was said about staying is a Retention thread on her record; the Operations case writes onto it (`admin/journey/RetentionConversations.tsx`).
+- **The briefing's standing health context** is `briefing/briefing-notes.ts` `standingHealth`: the Health notes that stay true for a client are read from there, not from this folder.
 
 This README was started in the client codex round (Sep 2026, phase 7) with the pieces below; phase 9 added the Notes page itself (the first section).
 
@@ -34,7 +35,7 @@ Notes & Profile's second page (client codex, phase 9). The codex's adapter (`cli
 
 ## A note's session, and one machine's notes — `session-link.ts` (FileMaker parity, Oct 1 2026)
 
-AJ, Oct 1 2026, instead of FileMaker's notes on a session number and on a set: *"I more like the idea of having one spot to take the notes at and organize where it goes … if made within a session it should link that session and that solves that and then I can see all notes about a clients machine performance and see the session it was associated with."* So notes are still written in one place and filed by kind here; the grids only flag a machine that has notes, as before.
+AJ, Oct 1 2026, instead of FileMaker's notes on a session number and on a set: *"I more like the idea of having one spot to take the notes at and organize where it goes … if made within a session it should link that session and that solves that and then I can see all notes about a clients machine performance and see the session it was associated with."* So notes are still written in one place and filed by kind here; the grids only flag a machine that has notes, as before. AJ chose this over note marks on the grids: the note stays in one spot, and its session link (`session-link.ts`) is how Notes opens the session it was written in.
 
 - **Every note the live session writes carries its session**: the session note sheet (Note), the machine menu's note and set-up reasons (the machine sheet's until Oct 4 2026), the arrival note at Start, the Note for the next trainer, and the Wrap-up's draft and Profile note. They always carried `sessionId`; since Oct 1 2026 they carry `sessionNumber` and `sessionDay` (the studio day) beside it, through `sessionLinkOf`, so the page needs no read per note. Remember this (FORD) is FORD's, not a journal note, and keeps its own `sessionId`.
 - **"From session #12 · Sep 30"** under a note written in a session (`sessionLinkLabel`): the note's own fields first, else the session in the tab's sessions stream (`journal.recentSessions`), else "From a session". The number only past the session-number gate (`canQuoteSessionNumber`) — otherwise "From the session on Sep 30". The line is a 40px button that opens that session in Activity Archive's pop-up (`SessionDetailDialog`), from the stream, or read ONCE (`getDoc`) for an older session the stream doesn't hold.
@@ -62,6 +63,8 @@ Settled life notes (a birthday, an anniversary) **show on FORD, not Notes**, sin
 ## `mattering.ts` — when a note matters, and when its window has ended
 
 `mattersOn(entry, day)` is "does this note matter today". `windowEnded(entry, today)` is a different question — **has its window run out** — and the two are not opposites: a note whose start is pushed ahead does not matter yet, but it has not ended. The entry card used `!mattersOn` and read "Ended —" on notes that had not begun. `windowEnded` is true only for a range whose last day has gone by or a one-off day that has passed; never for an "always" note, a yearly day, or a closed note.
+
+`mattering.ts` is the ONE answer to "does this note matter today", and anything that asks that asks here. A note matters in one of three shapes: **Always**, **From – until**, or **Only on a day** (which can repeat yearly, for a birthday or an anniversary). Nothing expires on its own, so a note comes up for a **60-day review** instead of dropping: "Still matters" restarts the clock and "No longer matters" resolves it. `MatteringPicker.tsx` is the control in the composer, and `QuickNoteDialog.tsx` is the Note button on the client's header.
 
 ## `record-selectors.ts` — every note selection the record makes, once
 
@@ -94,3 +97,11 @@ Pure: no React, no Firestore, no clock of its own. `record-selectors.test.ts` ru
 ## Outside the record — the Hub card's red triangle
 
 A Critical note also marks the client's appointment card on the Hub (AJ, Sep 24 2026 — question 12 of the Sep 20 audit). It lives outside this folder, in `lib/hub-critical-notes.ts` (the rule) and `hooks/useHubCriticalNotes.ts` (one live read of the day's booked clients' Critical notes, thirty to a query), but it reads with this folder's rules: a Critical thread ROOT that `mattersOn` the booking's studio day, and never a thread update. Like `CriticalLine`, it **ignores dismissals**, and a client whose notes could not be read is unknown, never clear. So anything that changes what "a Critical note that matters" means here changes the Hub too, and `hub-critical-notes.test.ts` / `hub-schedule/HubCard.render.test.tsx` will say so.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- **A note is a thread** (`threads.ts`; read its header first; `docs/rounds/2026-09-20-note-threads.md` is the round). An update is an ordinary journal entry carrying `threadId`, and the window, the loudness and `resolvedAt` live on the ROOT and nowhere else.
+- **The three zones are decided from that timing, not from a second status**: Open, Standing context and Resolved (`zoneOf` in `threads.ts`).
+- **`thread-write.ts` is the only place a thread is written to.** `NoteThreadCard.tsx` draws the spine of updates.
+- **"No need to remind me" is `dismissals.ts` plus `noteDismissals/{uid}`.** It is per trainer and private, and any update to the thread undoes it.
+- **A note written in a session carries the session's number and day, and Notes opens that session** (`session-link.ts`, Oct 1 2026; AJ chose this over note marks on the grids).

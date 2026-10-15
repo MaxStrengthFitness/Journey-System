@@ -110,3 +110,11 @@ The screens' half, on the data above:
 ## Tests
 
 Every pure file is tested beside itself (`options.ts` inside `sentences.test.ts`); the `use*.ts` hooks are thin Firestore wrappers. The engine suite covers both clocks, the four situations, paid in full, away, pace windows and a renewal on the books. The rules are tested in `tests/firestore.rules.test.ts` (search "RENEWALS").
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- The renewals dashboard (Oct 7 2026) has its own round document: `docs/rounds/2026-10-07-renewals-dashboard.md`.
+- The renewal settings are on My Studio → Studio since the Operations round, not on Operations; the settings panel's code lives in `../admin/renewals/` (`RenewalSettingsPanel.tsx`).
+- The trainer's mark on whether a contract auto-renews is the **On auto-renewal** box on Account (`client.autoRenewMark`).
+- The studio's own answer, `packagesRenewAutomatically`, is set on My Studio → Studio → Renewals → Auto-renewal and saved in `studios/{s}/config/renewals`, which the studio's leaders write.
+- The auto-renew round is `docs/rounds/2026-09-25-auto-renew.md`; it reached master on Oct 1 2026 as `oct1/auto-renew`.
