@@ -478,8 +478,10 @@ usual week, or stands on the trainer's word like days away.
 
 ### Small items, each plan first
 
-- **The next design check (a UI visual check): the design-tokens rule and the
-  Navy Frame.** AJ, Oct 15 2026, on the trim's review page: "id like to
+- **The next design check (a UI visual check): the design-tokens rule, the
+  Navy Frame, and Type and depth ("Refined Lift").** On Type and depth (the
+  display face, the type scale, buttons' lift and press, panels and wells):
+  "Another one to add to the visual check" (AJ, Oct 15 2026). AJ, Oct 15 2026, on the trim's review page: "id like to
   evaluate this rule again in another design check eventually" (the rule that
   every colour comes from the tokens, the copied feature palettes and the tests
   that hold them) and, on the Navy Frame, "I want to also include this in our
