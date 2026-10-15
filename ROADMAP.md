@@ -281,6 +281,31 @@ step-by-step protocol. What AJ wants from it:
   (`machineModels/{id}.size`, Oct 12 2026), and a unit can carry its own size
   (`roster.unit.size`). A studio adding one would pick the model and get its
   dials and footprint.
+- **One movement, many models, the standard on top.** AJ, Oct 15 2026: "rather
+  than cataloging a whole different machine just for the same exact seated dip
+  that just have a different seat size ... under the seated dip you can change
+  the variation to be Seated dip - Imagine Strength 2018 or Seated Dip -
+  Imagine Strength 2022 or Seated Dip - Hoist Model # XXXXXXX ... so we have a
+  more organized list of machines that isn't as intimidating and then Admins
+  just set what is the default or standard machines that would sit at the top
+  of the variation list". And on averages: "a large amount of clients could be
+  on the wrong settings", so studios may stray from the norm. The data for it
+  exists: the model record (`machineModels/{id}`: maker, model, the MSF
+  movement it is, its dials and size; twenty Imagine Strength models seeded
+  Oct 12 2026) and a unit naming its `modelId`. The round makes "a model of a
+  movement we already have" the easy way to add hardware (Strongsville's Hoist
+  would have been the Leg Press · Hoist, not a custom machine), lets
+  administrators mark each movement's standard model (top of the list), and
+  lets machine fit compare clients on the same model rather than blending a
+  Hoist seat 4 with an Imagine Strength seat 4 (the follow-up pile's "settings
+  numbers blended across models"). On screen, a different piece of hardware is
+  a **model**; a different way to use one unit is a **variation** (item 5).
+  On a machine's Catalog page the models come in AJ's order (Oct 15 2026:
+  "it should show their studio as the favorited and then next the company
+  standard (unless it is their studios) and then all the other variants to
+  pick from just in case a trainer wanted to learn about other machines"):
+  this studio's own first, then Max Strength's standard model unless it is
+  the same one, then every other model to read about.
 - **Head office adopts a studio's best work easily.** AJ, Oct 15 2026: "i
   just dont want studios willy nilly posting information to the company wide
   catalog ... but in the event that a studio had been a studio to be a first
@@ -345,6 +370,9 @@ activating, like on compound row, horizontal handles vs vertical handles. file
 maker didnt but we need to add to the road map different variations to one
 single machine".
 
+- **Not a model.** A different maker, year or part on the same movement (a
+  Seated Dip with another seat size) is a model of the movement, in item 2's
+  machine editor round (AJ, Oct 15 2026), not a variation.
 - **What a variation is.** One unit, several ways to use it: the neck
   machine's four directions, Torso Rotation's left and right, the Pulldown's
   handle angles, the Compound Row's handles. Each works different muscles, so
@@ -454,8 +482,43 @@ dont know its an option".
 Open: whether a block with a reason needs a leader's agreement like the
 usual week, or stands on the trainer's word like days away.
 
+### 9. A studio's own time zone
+
+AJ, Oct 15 2026 (a comment on the trim's review page, on "Dates are the
+studio's Eastern day"): "the corporate locations are in Ohio but we have some
+all over the country so we will need to be able to change timezones for a
+studio eventually".
+
+- **What exists.** Every date goes through `src/lib/studio-time.ts` (about
+  250 files), which already takes a zone and checks it is a real one, with
+  Eastern (`America/New_York`) as the default; the Sunday job's Openings
+  summary already carries a `tz` that nothing reads yet.
+- **What this adds.** A studio's zone as one of its settings (head office
+  sets it when it opens a studio), handed to every date the screens, the
+  nightly and weekly jobs, the Mindbody schedule and the reports work out for
+  that studio, and the Calendar's parked day shift for iPads east of Eastern
+  settled with it. Tested across zones, the way the suite is held to Eastern
+  today.
+- **When.** Before the first studio outside Eastern opens on Journey.
+
+Open: when that first studio is expected.
+
 ### Small items, each plan first
 
+- **The next design check (a UI visual check).** AJ, Oct 15 2026, on the
+  trim's review page, named three decisions to look at again:
+  - the design-tokens rule (every colour from the tokens, the copied feature
+    palettes and the tests that hold them): "id like to evaluate this rule
+    again in another design check eventually";
+  - the Navy Frame (the frame's navy, blue for yours and every Save, orange
+    only for now and go, light and dark): "I want to also include this in our
+    UI visual check eventually";
+  - Type and depth, "Refined Lift" (the display face, the type scale, buttons'
+    lift and press, panels and wells): "Another one to add to the visual
+    check".
+
+  Each is brought to AJ with what it costs and what it protects before
+  anything changes; until then all three stand.
 - **What Journey collects that nothing reads yet** (AJ, Oct 15 2026: "anything
   we collect we want to use"): a read-only sweep of the fields Journey writes
   against the screens, reports and jobs that read them, with each unread field
@@ -517,8 +580,8 @@ usual week, or stands on the trainer's word like days away.
 - Accessibility pass. (Cold-load timing on a studio iPad is measured by the
   perf lab, `harness/perf-lab/`, and each cold open's boot report.)
 - Architected for, not built: automated retention beyond flags (in-app only),
-  the InBody Web API per studio, badges and awards, a second time zone,
-  `strict` TypeScript, Cloud Functions tests in CI.
+  the InBody Web API per studio, badges and awards, `strict` TypeScript,
+  Cloud Functions tests in CI. (A studio's own time zone is Planned item 9.)
 
 ---
 
