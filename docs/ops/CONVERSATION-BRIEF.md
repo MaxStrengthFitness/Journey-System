@@ -45,8 +45,8 @@ If a question or idea touches one of these, name the rule and ask how AJ wants t
 3. **Unknown is not empty.** If Journey couldn't read something, it says "can't tell", never "none" or "all clear".
 4. **Sentences, not scores.** Every claim on a screen needs enough evidence behind it; below that, the screen says "not enough data yet". A confident wrong number is worse than none.
 5. **Prior history is real history.** Never call a long-standing client new because Journey has few sessions for them.
-6. **Nothing contacts clients or trainers.** No email, text or push. Everything is in the app.
-7. **Journey never books in Mindbody**, and anything that asks Mindbody more often costs money and needs AJ's OK.
+6. **Nothing contacts clients or trainers, yet.** No email, text or push today; everything is in the app. AJ (Oct 15 2026): "this is not a NEVER do its a we arent doing yet", so it may come later as its own round.
+7. **Journey never books a Mindbody visit** ("2.50 fee is crazy for that", AJ, Oct 15 2026), and anything that asks Mindbody more often costs money and needs AJ's OK.
 8. **Recognition, never ranking**, among trainers.
 9. **Max Strength owns the method; a studio owns its hardware.**
 10. **Names are never cut short**, and nothing you tap is smaller than a fingertip (40 px).

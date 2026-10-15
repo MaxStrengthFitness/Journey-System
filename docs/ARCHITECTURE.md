@@ -119,7 +119,8 @@ FileMaker was "one big ugly Excel-looking thing", but it had real strengths, and
 | --- | --- |
 | **Mindbody** (people, bookings, contracts, payments) | Out of scope to *manage*. Journey **reads** it — including whether a client has a next session booked — and never writes to it. The standing week (Sep 27 2026) keeps the fence: it checks the coming week's bookings against each trainer's agreed week and never books, holds or changes anything in Mindbody (AJ: Mindbody charges for holds, a hold can email a client, and it would clash with the front desk, which books the regulars as recurring appointments). Openings (Sep 27 2026) keeps it too: it reads only the bookings Journey already syncs, asks Mindbody nothing new, books and holds nothing, and every offer ends "Check it in Mindbody before you promise it. Journey doesn't book." (AJ: Mindbody charges $2.50 for each appointment booked through its API) |
 | **Client logins or a client portal** | Out of scope |
-| **Automated client outreach** (email, SMS, push) | Out of scope. Nothing in Journey contacts a client or a trainer |
+| **Automated client outreach** (email, SMS, push) | Not yet: nothing in Journey contacts a client or a trainer today, and AJ (Oct 15 2026) calls it "not a NEVER do its a we arent doing yet" |
+| **Booking a Mindbody visit through the API** | Never (AJ, Oct 15 2026: "2.50 fee is crazy for that"; Mindbody charges $2.50 an appointment booked) |
 | **Wearables** | Out of scope |
 | **AI coaching** | Out of scope |
 | **Nutrition** | No tracking. *Nuance:* the check-in already records basic self-reported metrics (protein, hydration), so the database must accommodate basic assessment data — nothing more |
@@ -651,7 +652,7 @@ Automated retention beyond flags (still in-app only); the InBody Web API with on
 
 ### 5.6 Not building
 
-The fences in §1.7, restated as backlog answers: no client app or portal; no outreach of any kind; no booking, billing or payment features; no nutrition tracking beyond the check-in's self-reported fields; no wearables; no AI coaching; nothing for a company other than MSF.
+The fences in §1.7, restated as backlog answers: no client app or portal; no outreach yet (not never, AJ Oct 15 2026); never a Mindbody booking through the API; no billing or payment features; no nutrition tracking beyond the check-in's self-reported fields; no wearables; no AI coaching; nothing for a company other than MSF.
 
 ### 5.7 Open decisions for AJ
 

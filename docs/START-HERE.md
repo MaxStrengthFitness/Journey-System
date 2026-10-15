@@ -454,8 +454,10 @@ These exist because each one was learned the hard way. In plain language:
 3. **Prior history is real history.** The studios are mid-migration off
    FileMaker. An empty history in Journey means "no detail here", never "this
    never happened". Never call a client new because Journey hasn't seen them.
-4. **Nothing contacts clients or trainers.** No email, no SMS, no push. In-app
-   only. This is a product decision, not a technical limit.
+4. **Nothing contacts clients or trainers yet.** No email, no SMS, no push:
+   in-app only for now. AJ, Oct 15 2026: "this is not a NEVER do its a we
+   arent doing yet". What never happens is Journey booking a Mindbody visit
+   ("2.50 fee is crazy for that").
 5. **Nothing tappable is under 40px**, hover is never the only way to find
    something, and names are never truncated. It is an iPad held in one hand.
 6. **Mindbody owns people; Journey owns coaching.** Never match a client by

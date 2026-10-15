@@ -496,9 +496,11 @@ recommendation; the Journey tab is the other choice).
 ## Not building
 
 No client app or portal (a client sign-in is planned for later, item 4 of
-**Planned**, and would change this line). No outreach of any kind — no email,
-SMS or push, to clients or to trainers. No booking, billing or payment
-features. No nutrition tracking beyond the check-in's self-reported fields. No
+**Planned**, and would change this line). No outreach yet — no email, SMS or
+push, to clients or to trainers — but it is "not a NEVER do its a we arent
+doing yet" (AJ, Oct 15 2026), so it may come later as its own round. **Never a
+Mindbody booking** through the API: "Never do is Book a mindbody visit because
+2.50 fee is crazy for that" (AJ, Oct 15 2026). No billing or payment features. No nutrition tracking beyond the check-in's self-reported fields. No
 wearables. No AI coaching. Nothing for a company other than Max Strength
 Fitness. (`docs/ARCHITECTURE.md` §1.7.)
 
