@@ -300,6 +300,12 @@ step-by-step protocol. What AJ wants from it:
   Hoist seat 4 with an Imagine Strength seat 4 (the follow-up pile's "settings
   numbers blended across models"). On screen, a different piece of hardware is
   a **model**; a different way to use one unit is a **variation** (item 5).
+  On a machine's Catalog page the models come in AJ's order (Oct 15 2026:
+  "it should show their studio as the favorited and then next the company
+  standard (unless it is their studios) and then all the other variants to
+  pick from just in case a trainer wanted to learn about other machines"):
+  this studio's own first, then Max Strength's standard model unless it is
+  the same one, then every other model to read about.
 - **Head office adopts a studio's best work easily.** AJ, Oct 15 2026: "i
   just dont want studios willy nilly posting information to the company wide
   catalog ... but in the event that a studio had been a studio to be a first
