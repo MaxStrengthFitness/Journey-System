@@ -1,9 +1,11 @@
 # Start here — how Journey is put together
 
 *Written for AJ, Sep 21 2026; the deploy steps, the checks and the counts were
-brought up to date on Oct 7 2026. If you read one document about this project,
-read this one. It should take about fifteen minutes and it assumes you do not
-write code.*
+brought up to date on Oct 7 2026, and the whole page on Oct 15 2026 (the owner
+tier, the studio map, rooms, the open session, the FileMaker import, the
+progress report's one page and the launch plan). It is refreshed before every
+weekly 1-on-1. If you read one document about this project, read this one. It
+should take about fifteen minutes and it assumes you do not write code.*
 
 The point of this page is not to teach you to program. It is to give you the
 **map and the vocabulary**, so that when you want something changed you can
@@ -93,17 +95,35 @@ confusing bug is really a question about which system owns a fact.
 programs that run when Mindbody pokes us (a booking changed, a contract was
 signed). **"Render"** is the web host that serves the app itself.
 
+**And FileMaker, on the way out.** The studios' old system keeps running
+alongside Journey **as the backup** until every client is on Journey (AJ, Oct
+14 2026). Each studio's FileMaker history is brought into Journey **the night
+before that studio's cutover** (the day Journey becomes where sessions are
+logged), by an importer that writes each old visit as a finished session
+(`scripts/import-filemaker.ts`). Anything typed into FileMaker after the
+cutover is a backup and is never imported. Until the full export arrives, the
+importer runs only as a trial, five clients at a time.
+
 ---
 
-## 3. Who uses it, and the three tiers
+## 3. Who uses it, and the tiers
 
-The app has three modes, and they are not the same as job titles.
+The app has three modes (trainer, Operations, Admins), and who reaches what is
+not the same as job titles.
 
 | Tier | Who | What they get |
 | --- | --- | --- |
 | **Floor** | Life Transformer (a trainer) | The Hub, a client's profile, the Active Session, Learning, the Calendar |
 | **Studio** | Head Trainer, Studio Leader, Studio Owner (each its own label since Sep 27 2026) — or a trainer given *the grant* | The above, plus **My Studio** and **Operations** for their studio |
+| **Owner** | Franchise Owner (since the franchise partition, Oct 10 2026) | Exactly what a studio leader gets, for their home studio and each studio an administrator marked as theirs (Admins → the studio → Team → Studios → **Owns**), and nothing anywhere else |
 | **Company** | Administrator, Founder | The above, plus the **Admins dashboard** — the master catalog, every location, system tools |
+
+**Being let in is the door.** Anyone can sign in with Google (Outlook sign-in
+waits on Max Strength's IT admin), but an account sees nothing until someone
+lets it in, which gives it a trainer record. Since privacy Round 0, "strangers
+out" (live since Oct 15 2026), the database itself enforces that too: an
+account that was never let in reads nothing about a client or a studio's
+work. At each studio's launch AJ lets its trainers in (Oct 14 2026).
 
 The distinction that matters most, and that AJ set:
 
@@ -155,17 +175,19 @@ AJ's own tour, Sep 21 2026.
 | Screen | What it's for |
 | --- | --- |
 | **Hub** | Where a trainer lands. Today's sessions by trainer; cycle forward through the coming days |
-| **Calendar** | The schedule properly broken down — month, week, day; past days; sessions or events; the whole team or one person. All pulled from Mindbody. Where you go to actually look ahead |
+| **Calendar** | The schedule properly broken down — month, week, day; past days; sessions or events; the whole team or one person. All pulled from Mindbody. Where you go to actually look ahead. Since Oct 10 2026 it is the first **room**: its own bar and colour, so you know where you are at a glance, with the Day drawn exactly like the Hub's grid |
+| **Open session** | Since Oct 9 2026: start a session before you know who it is for (a walk-in, or Mindbody down). Every machine on the floor shows, + builds today's list, and **Who's this?** gives it its client at any time; then the ordinary Finish and Wrap-up. It feels like a FileMaker session |
 | **Client directory** | Search the clients at the studio you're in, and reach your Kaizen roster |
 | **Kaizen roster** | A trainer's own bookmarked clients — the ones they're watching, so they aren't searching "Jeff… Jeff what?" every time. Per trainer, on `trainers/{uid}.kaizenRoster` |
 | **Client profile** | Opened from the directory or the roster: the whole record of a person. "The four tabs run by depth: Journey (what she has done, the glance on the floor), Programming (what she's meant to do), Notes & Profile (who she is), Activity Archive (the whole record). Don't reorder, merge or add a tab without asking." |
 | **Start Session** | The door to the Active Session — briefing, live grid, wrap-up. Ranks 1 to 3 |
 | **Learning** | The protocol, every machine, and guides and coaching cues on becoming a better trainer |
-| **My Studio** | "How can I help the team right now?" Relay · Openings · Machines · Team · Studio. **Openings** (since Sep 27 2026) is when the studio is usually busy, what opened up in the next 7 days, what to offer a client for good, and who's usually in |
+| **My Studio** | "How can I help the team right now?" Relay · Openings · Machines · Team · Studio. **Openings** (since Sep 27 2026) is when the studio is usually busy, what opened up in the next 7 days, what to offer a client for good, and who's usually in. **Machines** opens on **the studio map** (since Oct 12 2026): the floor drawn to size, each machine where it stands; tap one for its card (Learn · Clean · Maintain · Set up). Relay's floor is the same map, where a tap marks a machine wiped |
+| **Progress report** | From a client's profile: the report a trainer builds with a client step by step, printed on **one page** (since Oct 13 2026), its parts chosen by why the client trains, and the same report on screen for the client to read |
 | **My Profile** | A trainer's own rundown — who's coming up, how their coaching is going — and, since Sep 27 2026, **My standing week**: when they usually take clients (up to three blocks a day) and their regulars, proposed to a studio leader, and the days they're away; and, since the Openings round, **Your week** (clients trained, session time, first session to last) and **My clients** (the clients they have trained most). Another trainer's profile can't be opened in the app, so colleagues' agreed weeks are seen on My Studio → Openings → Who's usually in |
 | **Operations** | "Where are we going wrong, and where are we going right?" Take what the app has gathered, put it together, see what it says |
 | **Admins dashboard** | Corporate setting the standard, the machines, and getting everyone set up for success |
-| **Switch studio** | In the header. Decides which floor loads, whose roster you search, which schedule you see — more than a preference |
+| **Switch studio** | The studio's name in the header, on every screen since Oct 12 2026. Decides which floor loads, whose roster you search, which schedule you see — more than a preference — and lets go of the client you had open |
 
 ### "I want to change…" → look here
 
@@ -174,6 +196,12 @@ AJ's own tour, Sep 21 2026.
 | The screen a trainer uses during a set | `src/components/WorkoutTrackerView.tsx` |
 | The Hub — the day's grid, its cards, the top, the peek, and the Opportunities list | `src/components/ClientsView.tsx` (the screen) + `src/features/hub-schedule/` (the grid) + `src/features/hub-opportunities/` (the list and the one engine both read) — read their `README.md`s |
 | The Calendar | `src/components/CalendarView.tsx` + `src/features/calendar/` |
+| A room's bar and colour (the Calendar first) | `src/features/rooms/` |
+| A session started with no client (the open session, Who's this?) | `src/features/open-session/` |
+| The studio map, and a machine's card | `src/features/studio-map/`, `src/features/machine-card/` |
+| The progress report (the printed page and the client's view) | `src/features/progress-report/` |
+| The Deep Dive (a client's long-term picture) | `src/features/clinical-review/` |
+| Bringing a client's FileMaker history in | `src/features/filemaker-import/` + `scripts/import-filemaker.ts` (read its `README.md` first) |
 | The client directory and the Kaizen roster | `src/features/client-directory/` (read its `README.md`), `src/features/trainer-profile/` |
 | What the trainer reads before a session | `src/features/briefing/` |
 | What the trainer sees after a session (the Wrap-up) | `src/components/WrapUpScreen.tsx` |
@@ -214,6 +242,25 @@ them is most of what makes a request land correctly.
 - **A trap** — something that broke once, written down in `docs/KNOWN-TRAPS.md`
   with the rule that came out of it. This is the project's scar tissue and it
   is genuinely valuable.
+- **A ship script** — `scripts/ship/ship-<round>.ps1`, the staged way a round
+  goes live: `-Stage prepare` checks everything and changes nothing,
+  `-Stage golive` makes a restore point, deploys and pushes. It writes a log
+  you can hand back to Claude.
+- **The weekly 1-on-1** — since Oct 14 2026: Claude rewrites
+  `docs/ops/CONVERSATION-BRIEF.md` and brings this page, `ROADMAP.md` and the
+  launch plan up to date, then asks AJ the week's questions one at a time, each
+  with a recommended answer. An answered question is never asked again.
+
+**About the launch**
+
+- **The cutover** — the day a studio starts logging every session in Journey
+  (My Studio → Studio → Details). From it, a booking with no Journey session
+  reads "not logged", and the nightly job starts refreshing that studio's
+  packages from Mindbody. The launch plan is `docs/ops/LAUNCH.md`.
+- **A trial import** — up to five clients' FileMaker histories brought in
+  ahead of the mass import, to test the importer on real records. Five are in.
+- **The settings audit** — before a studio's import, one name for each of a
+  machine's settings (AJ, Oct 13 2026: "they are such a mess in filemaker").
 
 **About the floor**
 
@@ -264,6 +311,15 @@ them is most of what makes a request land correctly.
   read only: where you see a colleague's usual week.
 - **Times with room** — the door on the Wrap-up, and the sheet it opens: the
   times with room, with no names, safe to turn to the client.
+- **A room** — an area of the app with its own bar and its own colour on that
+  bar, so you know where you are at a glance ("each place should feel a bit
+  different but the same", AJ, Oct 10 2026). The Calendar is the first; My
+  Studio and Relay are AJ's least favourite and candidates for the next.
+- **The studio map** — a studio's floor drawn to size. A machine with no
+  measured size takes its Imagine Strength model's ("not confirmed"); a
+  leader can arrange the floor and keep remodel plans apart from the real
+  one. AJ asked on Oct 14 2026 for a "mock studio" next: rough the room out
+  with boxes and let unsized machines take a guessed size.
 
 **About machines** — this is the part that matters most for franchising
 
@@ -300,10 +356,10 @@ Roughly, every time:
    any single phase can be undone without losing the rest.
 4. **Three checks run:**
    - **Typecheck** — does the code contradict itself? We compare the error
-     *count* to a baseline (2 as of Oct 7 2026). It is not zero and that is
-     fine.
-   - **Tests** — more than 12,000 small checks that pure logic still does what
-     it should.
+     *count* to a baseline (2, unchanged from Oct 1 to Oct 15 2026). It is not
+     zero and that is fine.
+   - **Tests** — about 14,650 small checks (Oct 15 2026) that pure logic still
+     does what it should, and about 590 more on the security wall alone.
    - **Build** — does it actually assemble into a website?
 5. **You look at it on the iPad**, for anything a trainer touches. This step
    cannot be skipped or automated. A green typecheck and green tests have all
@@ -419,6 +475,8 @@ These exist because each one was learned the hard way. In plain language:
 | --- | --- |
 | How is the project laid out? | this file |
 | What's next? | `ROADMAP.md` |
+| What's left before the launch? | `docs/ops/LAUNCH.md` |
+| What did AJ decide in the weekly 1-on-1? | `docs/ops/CONVERSATION-BRIEF.md` ("Decided"), and the 1-on-1's own round document (the first: `docs/rounds/2026-10-14-weekly-1on1.md`) |
 | Why is it built this way? | `docs/ARCHITECTURE.md` |
 | What broke before, and what rule came out of it? | `docs/KNOWN-TRAPS.md` |
 | How does the business work — packages, renewals, roles? | `docs/business/` |
@@ -436,9 +494,9 @@ These exist because each one was learned the hard way. In plain language:
 ## 10. A last word about "vibe coding"
 
 You built this app end to end without writing code, and it is a real system:
-about 500,000 lines (tests included), more than 12,000 automated checks, a
-security model, a franchise model and a method encoded in it (counted Oct 7
-2026). That is not a small thing.
+about 640,000 lines of code (tests included), about 14,650 automated checks and
+590 more on the security wall, a security model, a franchise model and a
+method encoded in it (counted Oct 15 2026). That is not a small thing.
 
 The part of this that is genuinely yours — and that no amount of code
 knowledge substitutes for — is knowing what happens in the room. Whether a
