@@ -476,6 +476,27 @@ dont know its an option".
 Open: whether a block with a reason needs a leader's agreement like the
 usual week, or stands on the trainer's word like days away.
 
+### 9. A studio's own time zone
+
+AJ, Oct 15 2026 (a comment on the trim's review page, on "Dates are the
+studio's Eastern day"): "the corporate locations are in Ohio but we have some
+all over the country so we will need to be able to change timezones for a
+studio eventually".
+
+- **What exists.** Every date goes through `src/lib/studio-time.ts` (about
+  250 files), which already takes a zone and checks it is a real one, with
+  Eastern (`America/New_York`) as the default; the Sunday job's Openings
+  summary already carries a `tz` that nothing reads yet.
+- **What this adds.** A studio's zone as one of its settings (head office
+  sets it when it opens a studio), handed to every date the screens, the
+  nightly and weekly jobs, the Mindbody schedule and the reports work out for
+  that studio, and the Calendar's parked day shift for iPads east of Eastern
+  settled with it. Tested across zones, the way the suite is held to Eastern
+  today.
+- **When.** Before the first studio outside Eastern opens on Journey.
+
+Open: when that first studio is expected.
+
 ### Small items, each plan first
 
 - **The next design check (a UI visual check).** AJ, Oct 15 2026, on the
@@ -553,8 +574,8 @@ usual week, or stands on the trainer's word like days away.
 - Accessibility pass. (Cold-load timing on a studio iPad is measured by the
   perf lab, `harness/perf-lab/`, and each cold open's boot report.)
 - Architected for, not built: automated retention beyond flags (in-app only),
-  the InBody Web API per studio, badges and awards, a second time zone,
-  `strict` TypeScript, Cloud Functions tests in CI.
+  the InBody Web API per studio, badges and awards, `strict` TypeScript,
+  Cloud Functions tests in CI. (A studio's own time zone is Planned item 9.)
 
 ---
 
