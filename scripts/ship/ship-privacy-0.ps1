@@ -87,7 +87,7 @@ $Folder = '.claude\worktrees\privacy-0'
 # GitHub master the round was built on, and the round's last commit before
 # this script's own (the script's commit may follow it, touching only itself).
 $BaseSha = 'aa84626196b1759911afae10b04ab526a0c2a0f7'
-$BranchExpected = 'f0f89468ac5b10679718d40e5a39ba9fb922e293'
+$BranchExpected = '97c55124dc609a3ff6e83e3d1995efe421f845ef'
 $ScriptPath = 'scripts/ship/ship-privacy-0.ps1'
 $RestoreTag = 'restore/2026-10-14-before-privacy-0'
 $TscBaseline = 2
@@ -280,7 +280,7 @@ if ($Stage -eq 'prepare') {
   }
   if ($rt.Code -ne 0) { Stop-Here 'test:rules failed (it needs a JDK, 21 or newer). Nothing is live; ask Claude with the log.' }
   $passed = @($rt.Output | Where-Object { "$_" -match 'Tests\s+\d+ passed' }) | Select-Object -Last 1
-  Log "Rules tests: $passed (Claude's run: 586)." 'Green'
+  Log "Rules tests: $passed (Claude's run: 587)." 'Green'
 
   # The audit: read only, production, the service account.
   if (-not $HaveKey) { Stop-Here "the service-account key is not in this folder or $MainRoot (service-account.json). The audit needs it. Ask Claude." }
