@@ -30,6 +30,7 @@ import * as fs from "fs";
 import { claimedProfile, tombstone } from "../src/features/trainer-identity/claim";
 import { addMachineTotalsWrite } from "../src/features/machine-totals/store";
 import { splitMachineTotalsUpdates } from "../src/features/machine-totals/totals";
+import { assignSessionPatch } from "../src/features/open-session/assign";
 
 let testEnv: RulesTestEnvironment;
 
@@ -10554,6 +10555,36 @@ describe("privacy Round 0: honest sessions", () => {
       await assertSucceeds(updateDoc(doc(as("trainerB"), "sessions", LEGACY), {
         status: "Completed", endTime: serverTimestamp(), trainerId: "trainerB", trainerName: "Trainer B", trainerInitials: "TB",
         clientId: "clientV", homeStudioId: "studioA", clientHomeStudioId: "studioA", hostedAtStudioId: "studioA",
+      }));
+    });
+
+    /* The coordinator's edge (Oct 14 2026): Who's this? hands assignSessionPatch
+       `session.hostedAtStudioId || contextActiveStudioId` (WorkoutTrackerView ~2961),
+       but only to work out isCrossTrain; the patch never writes the host. So an open
+       session with no host, named to a visitor approved at the caller's studio whose
+       home is elsewhere, passes: the host is untouched. Finish then fills the host
+       with the client's home (sync-utils), which the pin accepts. Open session itself
+       always writes the iPad's studio (open-session/start.ts), so this host-less open
+       session is a what-if, held here anyway. */
+    it("Who's this? and Finish on an open session with no host, naming a visitor homed elsewhere, both pass", async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "sessions", "hostlessOpen"), {
+          isUnassigned: true, hostedAtStudioId: "", trainerId: "trainerA", status: "In-Progress", sessionNumber: 0, date: "2026-10-14",
+        });
+      });
+      const db = as("trainerA");
+      // As the tracker builds it: the session's (empty) host, else the iPad's studio.
+      const sessionHost: string = "";
+      const patch = assignSessionPatch({
+        client: { id: "visitorAtA", firstName: "C", lastName: "studioB", homeStudioId: "studioB" },
+        hostedAtStudioId: sessionHost || "studioA",
+        stamp: serverTimestamp(),
+      });
+      expect(Object.keys(patch)).not.toContain("hostedAtStudioId");
+      await assertSucceeds(updateDoc(doc(db, "sessions", "hostlessOpen"), patch));
+      await assertSucceeds(updateDoc(doc(db, "sessions", "hostlessOpen"), {
+        status: "Completed", endTime: serverTimestamp(), trainerId: "trainerA", trainerName: "Trainer A", trainerInitials: "TA",
+        clientId: "visitorAtA", homeStudioId: "studioB", clientHomeStudioId: "studioB", hostedAtStudioId: "studioB", isUnassigned: false,
       }));
     });
 

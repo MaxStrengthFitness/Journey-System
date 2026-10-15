@@ -268,7 +268,15 @@ holds the four reads.
 - **The host fill** is the client's home only: the design also let a caller
   give a host-less session their own studio, which no app path does and
   which the branch review found would hand a guest's session to the guest's
-  home team.
+  home team. Who's this? hands `assignSessionPatch` the session's host or
+  the iPad's studio (`WorkoutTrackerView.tsx` ~2961), but only to work out
+  `isCrossTrain`: the patch never writes the host. Open session always
+  writes the iPad's studio (it refuses without one, `useClientMutations.ts`
+  :140), and Start's host is the iPad's studio or the trainer's home, which
+  every trainer record has. `src/features/privacy/session-writes.test.ts`
+  holds the first two, and a rules test runs Who's this? and Finish on a
+  host-less open session naming a visitor homed elsewhere: both pass, the
+  host untouched and then filled with the client's home.
 - **The trainer clause** of the design's `sessionTenancyKept` is redundant
   since `finishedHolderKept` (Oct 12), and is left out (§4).
 - **The merge** is "the caller can read both clients", not the design's
@@ -338,8 +346,8 @@ It never writes.
 | Gate | Result |
 | --- | --- |
 | Typecheck (`npx tsc --noEmit`) | **2** (the baseline: `clinical-review/charts.tsx`, `EditTrainerModal.tsx`) |
-| The suite (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`) | **14,645** pass in 887 files (14,629 in 886 on master, plus the audit's 16) |
-| Rules tests (the emulator, Java 26, on a spare port) | **586** pass (490 on master `aa846261`) |
+| The suite (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`) | **14,647** pass in 888 files (14,629 in 886 on master, plus the round's 18 in two files) |
+| Rules tests (the emulator, Java 26, on a spare port) | **587** pass (490 on master `aa846261`) |
 | The rules lint and the comment proof (`tests/firestore.rules.lint.test.ts`, `tests/rules-source.test.ts`) | 26 pass |
 | `firestore.rules` | **178,098** bytes as written (176,387 on master), **135,372** of code (134,780; the lint's limit 150,000) |
 

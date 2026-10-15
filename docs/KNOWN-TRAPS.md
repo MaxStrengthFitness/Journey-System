@@ -1163,7 +1163,7 @@ between two files you just wrote together) is this trap, not your code.
 
 The typecheck count and the test count after each round, moved here from the Commands table in `CLAUDE.md`. Compare COUNTS, never expect zero.
 
-- **Typecheck and tests on `privacy/0-strangers-out` (Oct 14 2026, privacy Round 0, strangers out, on master's `aa846261`):** typecheck **2** (the same two); **14,645** tests in 887 files (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`, a worktree on AJ's PC; master 14,629 in 886, plus the audit's 16 in one file); rules tests **586** (490 on master; the emulator on a spare port with Java 26); `firestore.rules` 178,098 bytes (code 135,372). No app change, so no build.
+- **Typecheck and tests on `privacy/0-strangers-out` (Oct 14 2026, privacy Round 0, strangers out, on master's `aa846261`):** typecheck **2** (the same two); **14,647** tests in 888 files (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`, a worktree on AJ's PC; master 14,629 in 886, plus the round's 18 in two files); rules tests **587** (490 on master; the emulator on a spare port with Java 26); `firestore.rules` 178,098 bytes (code 135,372). No app change, so no build.
 
 - **Typecheck and tests on `oct14/deep-dive` (Oct 14 2026, the Deep Dive for a client older than Journey, on master's `55a9e005`):** typecheck **2** (the same two); **14,629** tests in 886 files (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`, a worktree on AJ's PC), with the review's fixes; production build clean, 469.2 KB gzip on the first screen.
 
