@@ -53,6 +53,7 @@ import { FordMark, WhenChip, pillarPrompt } from "./ui";
 import { FordQuickCapture } from "./FordQuickCapture";
 import { fordStudioIdOf, type FordAuthor } from "./ford-write";
 import { clientFirstName } from "../../lib/client-name";
+import { pronounsFor } from "../client-codex/kit/pronouns";
 import { isRetiredClient } from "../client-life/life";
 import "./ford.css";
 
@@ -198,7 +199,7 @@ export function FordBriefingCue({ client, author = null, studioId = "" }: FordBr
         >
           <FordQuickCapture
             clientId={client.id as string}
-            clientFirstName={clientFirstName(client) || "them"}
+            clientFirstName={clientFirstName(client) || pronounsFor(client).subject}
             studioId={fordStudioIdOf(client) || studioId}
             author={author}
             origin="briefing"

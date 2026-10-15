@@ -293,7 +293,7 @@ export interface CodexData {
   /** The studio's day, yyyy-mm-dd (studioTodayKey). */
   today: string;
   access: CodexAccess;
-  /** they / them / their, for every client (`CLIENT_PRONOUNS`). */
+  /** he, she or they, from the gender on the record (`pronounsFor`). */
   pronouns: Pronouns;
   authTrainer: Trainer | null;
   /** Who writes a note or a FORD detail: the Auth uid, which the rules pin. */

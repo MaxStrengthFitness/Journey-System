@@ -244,14 +244,16 @@ function Screen({
   onEffort = vi.fn(),
   onLeave = vi.fn(),
   onFile,
+  who = client,
 }: {
   onEffort?: (v: any, d: boolean) => void;
   onLeave?: (c: any) => void;
   onFile?: (c: any) => void;
+  who?: Client;
 }) {
   return (
     <WrapUpScreen
-      client={client}
+      client={who}
       session={session}
       logs={[]}
       lines={[]}
@@ -439,6 +441,14 @@ describe("the post-session screen mounts", () => {
     expect(updates[0].path).toBe("journalEntries/raw");
     expect(updates[0].data).toMatchObject({ kind: "injury", category: null });
     expect(host.querySelector('[data-testid="sweep-raw"]')).toBeNull();
+  });
+
+  it("names the client in the To-file tray, else says him, her or them from the gender on the record (Oct 15 2026)", async () => {
+    const tray = async (who: Client) => (await mount(<Screen who={who} />)).querySelector('[data-testid="note-sweep"]')!.textContent;
+    expect(await tray(client)).toContain("about Judy saved without a category");
+    expect(await tray({ ...client, firstName: "", gender: "Male" } as Client)).toContain("about him saved without a category");
+    expect(await tray({ ...client, firstName: "", gender: "Female" } as Client)).toContain("about her saved without a category");
+    expect(await tray({ ...client, firstName: "" } as Client)).toContain("about them saved without a category");
   });
 
   it("says Update Pulse, never Assessment or priority, and opens the Pulse quick-log", async () => {

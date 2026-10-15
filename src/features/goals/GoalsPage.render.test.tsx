@@ -71,7 +71,7 @@ vi.mock("firebase/firestore", async (importOriginal) => {
 
 import { GoalsPage, type GoalsPageProps } from "./GoalsPage";
 import { useRecordForm } from "../client-codex/useRecordForm";
-import { CLIENT_PRONOUNS } from "../client-codex/kit/pronouns";
+import { CLIENT_PRONOUNS, pronounsFor, type Pronouns } from "../client-codex/kit/pronouns";
 import { assembleThreads } from "../client-notes/threads";
 import type { CodexFordStatus } from "../client-codex/codex-data";
 import type { Client, Machine, Trainer } from "../../types";
@@ -213,6 +213,7 @@ interface HostProps {
   signUpGoals?: string[];
   go?: GoalsPageProps["go"];
   onOpenThread?: (id: string) => void;
+  pronouns?: Pronouns;
 }
 
 function Host(p: HostProps) {
@@ -238,7 +239,7 @@ function Host(p: HostProps) {
     notesState,
     ford: { status: fordStatus, entries: fordStatus === "ready" ? [dream] : [] },
     coverage: p.coverage ?? "complete",
-    pronouns: CLIENT_PRONOUNS,
+    pronouns: p.pronouns ?? CLIENT_PRONOUNS,
     today: TODAY,
     go: p.go ?? (() => {}),
     onOpenThread: p.onOpenThread ?? (() => {}),
@@ -539,5 +540,22 @@ describe("Goals & Focus — training for", () => {
     const card = cardOf(host, "goals-training");
     expect(card.querySelector(".cx-lede")?.textContent).toBe("Body composition");
     expect(card.textContent).toContain("It leads their progress report, and the briefing says it.");
+  });
+
+  it("speaks of the client in the pronoun of the gender on the record: he, she, else they", async () => {
+    const cases: [string | undefined, string, string][] = [
+      ["Male", "Why he trains:", "Type his goal to choose it"],
+      ["Female", "Why she trains:", "Type her goal to choose it"],
+      [undefined, "Why they train:", "Type their goal to choose it"],
+      ["Other", "Why they train:", "Type their goal to choose it"],
+    ];
+    for (const [gender, why, hint] of cases) {
+      const host = await mount({ pronouns: pronounsFor({ gender }) });
+      const card = cardOf(host, "goals-training");
+      expect(card.textContent, String(gender)).toContain(`Not chosen yet. ${why} everyday strength`);
+      await click(buttonIn(card, "Choose it"));
+      await click(buttonIn(card, "Their own goal"));
+      expect(card.textContent, String(gender)).toContain(hint);
+    }
   });
 });

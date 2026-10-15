@@ -68,6 +68,7 @@ import { PackagesSheet } from "../features/packages/PackagesSheet";
 import { NextWeightCard, type SaveNextWeight } from "../features/next-weight/NextWeightCard";
 import { nextTimeOffer, sameTicks, tickedInOrder, type NextTimeSnapshot } from "../features/routine-plan/next-time";
 import { NextTimeCard } from "../features/routine-plan/ui/NextTimeCard";
+import { pronounsFor } from "../features/client-codex/kit/pronouns";
 /**
  * THE WRAP-UP — the post-session screen (rebuilt in the tracker round, Sep 2026).
  *
@@ -1234,7 +1235,7 @@ export function WrapUpScreen({
               <NoteSweep
                 entries={unfiledNotes}
                 machines={machines}
-                clientFirstName={clientFirstName(client, "them")}
+                clientFirstName={clientFirstName(client, pronounsFor(client).object)}
                 onFile={fileUnfiledEntry}
                 onDiscard={discardUnfiledEntry}
                 isNextTrainerNote={(entry) => isNextTrainerNote(entry, nextTrainerMark)}
@@ -1245,7 +1246,7 @@ export function WrapUpScreen({
             <div className="wu-fade mx-5" style={{ "--wu-delay": "0.24s" } as React.CSSProperties}>
               <FordSweep
                 clientId={client.id}
-                clientFirstName={clientFirstName(client, "them")}
+                clientFirstName={clientFirstName(client, pronounsFor(client).object)}
                 untagged={fordUntagged}
                 sessionId={session.id ?? null}
                 status={fordStatus}

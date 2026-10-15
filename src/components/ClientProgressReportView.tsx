@@ -112,6 +112,7 @@ import { ReportSheet } from "../features/progress-report/ReportSheet";
 import { ReportScreen } from "../features/progress-report/ReportScreen";
 import { ReportPageStep } from "../features/progress-report/ReportPageStep";
 import { FocusPicker } from "../features/progress-report/FocusPicker";
+import { pronounsFor } from "../features/client-codex/kit/pronouns";
 import { chosenFocus, planSheet } from "../features/progress-report/sheet-from-report";
 import { choiceAfter, focusOf, pageChoiceOf } from "../features/progress-report/report-page";
 import "../features/progress-report/report-sheet.css";
@@ -1353,6 +1354,7 @@ We check in again on ${shortDate(report.goals.followUpDate)}.` : "") +
                 setReport((r) => ({ ...r, focus }));
               }}
               firstName={client.firstName}
+              pronouns={pronounsFor(client)}
             />
 
             <div className="flex flex-col gap-8">

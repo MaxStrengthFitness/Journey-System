@@ -443,6 +443,18 @@ describe("the briefing cue waits for FORD, and says why when it cannot read it",
     expect(cue.querySelector("button")).toBeNull();
   });
 
+  it.each([
+    ["Judy", "Female", "Judy"],
+    ["", "Male", "he"],
+    ["", "Female", "she"],
+    ["", undefined, "they"],
+  ])("opens the capture about the client by first name, else in the pronoun of the gender on the record (%j, %s)", async (firstName, gender, word) => {
+    const { host } = await mount(<FordBriefingCue client={{ ...client, firstName, gender } as Client} author={author} />);
+    await answer(fordListener(), []);
+    await click(host.querySelector('[data-testid="ford-briefing-cue"] button.ford-upnext__row'));
+    expect(host.querySelector(".ford-capture")!.textContent).toContain(`Something ${word} just told you.`);
+  });
+
   it("on a failed read says so, and still opens the capture, stamped with the client's studio", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { host } = await mount(<FordBriefingCue client={client} author={author} studioId="elsewhere" />);

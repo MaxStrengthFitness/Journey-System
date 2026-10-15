@@ -92,7 +92,7 @@ import {
 import { studioDayKeyOf, type DateLike } from "../../lib/studio-time";
 import { firstSentences } from "../../lib/first-sentences";
 import { cap, curly, dayKeyDate, joinDots, plural } from "../client-codex/kit/text";
-import { CLIENT_PRONOUNS, agree, type Pronouns } from "../client-codex/kit/pronouns";
+import { agree, pronounsFor, type Pronouns } from "../client-codex/kit/pronouns";
 import { firstVisitOf, monthYear, type FirstVisitBasis } from "./first-visit";
 
 // Re-exported: these two were born here, and every older import of them from
@@ -212,6 +212,7 @@ export type StoryClient = Pick<
   | "mindbodyServices"
   | "mindbodyMemberships"
   | "createdAt"
+  | "gender"
 >;
 
 /**
@@ -233,7 +234,7 @@ export interface StoryInput {
   /** How much of her story Journey holds (the home studio's cutover). */
   coverage: HistoryCoverage;
   totals?: StoryTotals | null;
-  /** she / he / they, for the panel's and the line's own words. Default: they. */
+  /** she / he / they, for the panel's and the line's own words. Default: `pronounsFor(client)`. */
   pronouns?: Pronouns;
   notes: Src<readonly NoteThread[]>;
   focuses: Src<readonly ClientFocus[]>;
@@ -247,8 +248,6 @@ export interface StoryInput {
 /* ------------------------------------------------------------------ */
 /* Small helpers                                                       */
 /* ------------------------------------------------------------------ */
-
-const THEY = CLIENT_PRONOUNS;
 
 /** A gap longer than this between one package's end and the next one's start is "came back", not "renewed". */
 export const COME_BACK_GAP_DAYS = 60;
@@ -1018,7 +1017,7 @@ export function sinceLine(
   input: Pick<StoryInput, "client" | "coverage" | "totals" | "pronouns" | "tz"> & { today?: string },
 ): string | null {
   const { client, coverage, totals, tz } = input;
-  const p = input.pronouns ?? THEY;
+  const p = input.pronouns ?? pronounsFor(client);
   const prior = storyPrior(client);
   const since = storySince(client, coverage, tz, input.today);
   const parts: string[] = [];
@@ -1114,7 +1113,7 @@ function groupYears(beats: readonly StoryBeat[]): StoryYear[] {
 /** Build the story from what the tab already holds. No reads. */
 export function buildStory(input: StoryInput): Story {
   const { today, tz, client, coverage } = input;
-  const p = input.pronouns ?? THEY;
+  const p = input.pronouns ?? pronounsFor(client);
   const prior = storyPrior(client);
   const pending: StoryRead[] = [];
   const failed: StoryRead[] = [];

@@ -163,11 +163,15 @@ describe("contactFacts", () => {
   });
 
   it("goes by the nickname — the form's, staged or saved — else the first name, in the pronoun", () => {
-    expect(fact(contactFacts(linked(), {}, { now: NOW }), "goesBy")).toMatchObject({ value: "Their first name", empty: true });
+    // Carol is Female on her record: the pronoun follows it (AJ, Oct 15 2026).
+    expect(fact(contactFacts(linked(), {}, { now: NOW }), "goesBy")).toMatchObject({ value: "Her first name", empty: true });
     expect(fact(contactFacts(linked({ nickname: "Judy" }), {}, { now: NOW }), "goesBy")).toMatchObject({ value: "Judy", empty: false });
     expect(fact(contactFacts(linked({ nickname: "Judy" }), { nickname: "Jude" }, { now: NOW }), "goesBy").value).toBe("Jude");
-    expect(fact(contactFacts(linked({ gender: "Male" }), {}, { now: NOW }), "goesBy").value).toBe("Their first name");
-    expect(fact(contactFacts(linked({ gender: undefined }), {}, { now: NOW, pronouns: CLIENT_PRONOUNS }), "goesBy").value).toBe(
+    expect(fact(contactFacts(linked({ gender: "Male" }), {}, { now: NOW }), "goesBy").value).toBe("His first name");
+    expect(fact(contactFacts(linked({ gender: undefined }), {}, { now: NOW }), "goesBy").value).toBe("Their first name");
+    expect(fact(contactFacts(linked({ gender: "Other" }), {}, { now: NOW }), "goesBy").value).toBe("Their first name");
+    // Pronouns a page hands in win over the record.
+    expect(fact(contactFacts(linked({ gender: "Female" }), {}, { now: NOW, pronouns: CLIENT_PRONOUNS }), "goesBy").value).toBe(
       "Their first name",
     );
   });

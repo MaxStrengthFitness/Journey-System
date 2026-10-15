@@ -94,6 +94,7 @@ vi.mock("../client-history/SessionDetailDialog", () => ({
 
 import { ToastProvider } from "../../contexts/ToastContext";
 import { NotesPage, type NotesPageProps } from "./NotesPage";
+import { CLIENT_PRONOUNS } from "../client-codex/kit/pronouns";
 import { notesOnRecord } from "./record-selectors";
 import { assembleThreads } from "./threads";
 import type { Client, Machine, WorkoutSession } from "../../types";
@@ -718,13 +719,14 @@ describe("NotesPage — the questions at the top", () => {
     const host = await mount(propsFor(ALL, { initialAsk: "now", pageLines: lines }));
     const ask = host.querySelector('[data-testid="notes-ask"]')!;
     expect(ask).toBeTruthy();
+    // Carol is Female on her record: she, her (AJ, Oct 15 2026).
     expect(Array.from(ask.querySelectorAll(".nx-ask__question")).map((q) => q.textContent)).toEqual([
-      "What's going on with them right now?",
-      "Their health",
-      "How to train them",
-      "Are they staying with us?",
-      "Their life",
-      "Their time here",
+      "What's going on with her right now?",
+      "Her health",
+      "How to train her",
+      "Is she staying with us?",
+      "Her life",
+      "Her time here",
       "Every note",
     ]);
     // Every question is a real button, the chosen one pressed.
@@ -748,7 +750,7 @@ describe("NotesPage — the questions at the top", () => {
     expect(host.textContent).toContain("Resolved · 1");
     expect(host.textContent).not.toContain("Fan on, no music.");
     const answer = host.querySelector('[data-testid="notes-answer"]')!;
-    expect(answer.textContent).toContain("Their health");
+    expect(answer.textContent).toContain("Her health");
     await click(buttonIn(answer, "Open Body & Pulse"));
     expect(onOpenPage).toHaveBeenCalledWith("body");
 
@@ -766,9 +768,37 @@ describe("NotesPage — the questions at the top", () => {
     await click(host.querySelector('[data-testid="ask-story"]'));
     expect(host.querySelector('[data-testid="notes-catalog"]')).toBeNull();
     const answer = host.querySelector('[data-testid="notes-answer"]')!;
-    expect(answer.textContent).toContain("is their Story");
+    expect(answer.textContent).toContain("is her Story");
     await click(buttonIn(answer, "Open Story"));
     expect(onOpenPage).toHaveBeenCalledWith("story");
+  });
+
+  it("asks about the client in the pronoun of the gender on the record: he for Male, they for none or Other", async () => {
+    const questions = (host: HTMLElement) =>
+      Array.from(host.querySelectorAll(".nx-ask__question")).map((q) => q.textContent);
+    const he = await mount(propsFor(ALL, { client: { ...client, firstName: "Bill", gender: "Male" } as Client, initialAsk: "now" }));
+    expect(questions(he).slice(0, 6)).toEqual([
+      "What's going on with him right now?",
+      "His health",
+      "How to train him",
+      "Is he staying with us?",
+      "His life",
+      "His time here",
+    ]);
+    for (const gender of [undefined, "", "Other"]) {
+      const they = await mount(propsFor(ALL, { client: { ...client, gender } as Client, initialAsk: "now" }));
+      expect(questions(they).slice(0, 6), String(gender)).toEqual([
+        "What's going on with them right now?",
+        "Their health",
+        "How to train them",
+        "Are they staying with us?",
+        "Their life",
+        "Their time here",
+      ]);
+    }
+    // Pronouns a host hands in win over the record.
+    const handed = await mount(propsFor(ALL, { pronouns: CLIENT_PRONOUNS, initialAsk: "now" }));
+    expect(questions(handed)[0]).toBe("What's going on with them right now?");
   });
 
   it("keeps the way to the resolved notes under every question", async () => {

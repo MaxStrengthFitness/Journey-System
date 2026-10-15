@@ -12,7 +12,7 @@
  */
 import { Compass } from "lucide-react";
 import type { Client } from "../../types";
-import { CardHead, Chip, EditButton, EmptyLine, Lede, Meta, Pick, Source, TextInput, anchorProps, cap, cls, useReadEdit, type Pronouns } from "../client-codex/kit";
+import { CardHead, Chip, EditButton, EmptyLine, Lede, Meta, Pick, Source, TextInput, agree, anchorProps, cap, cls, useReadEdit, type Pronouns } from "../client-codex/kit";
 import type { RecordAnchor } from "../client-profile/profile-nav";
 import { FOCUS_KINDS, FOCUS_LABELS, FOCUS_LEADS, focusLine, focusOf, type FocusKind, type TrainingFocus } from "../progress-report/report-page";
 import "./goals.css";
@@ -62,7 +62,7 @@ export function TrainingForCard({ value, updateField, canEdit, dirty, revision, 
               maxLength={120}
               placeholder="e.g. Hike the Camino in May"
               onChange={(words) => set({ kind: "custom", words })}
-              hint={value.words?.trim() ? undefined : "Type their goal to choose it: with no words it is saved as not chosen."}
+              hint={value.words?.trim() ? undefined : `Type ${p.possessive} goal to choose it: with no words it is saved as not chosen.`}
             />
           )}
           <Meta>Nothing is saved until you tap Save changes on the bar at the bottom.</Meta>
@@ -78,7 +78,7 @@ export function TrainingForCard({ value, updateField, canEdit, dirty, revision, 
         </>
       ) : (
         <EmptyLine action={canEdit ? { label: "Choose it", onClick: () => setOpen(true) } : undefined}>
-          Not chosen yet. Why they train: everyday strength, pain-free movement, body composition, or a goal to hit.
+          {`Not chosen yet. Why ${p.subject} ${agree(p, "trains", "train")}: everyday strength, pain-free movement, body composition, or a goal to hit.`}
         </EmptyLine>
       )}
     </section>

@@ -93,7 +93,7 @@ describe("lastTimeLines", () => {
     expect(lastTimeLines({ lastSession: last, logs, machines })[0].text).toBe("Skipped Chest Press last time.");
   });
 
-  it("never guesses the client's gender: no pronoun at all", () => {
+  it("says it with no pronoun at all: a line that reads well without one keeps none", () => {
     const logs = [...earlierLp, log({ sessionId: "s9", machineId: "lp", reps: "5", day: 20 })];
     expect(lastTimeLines({ lastSession: last, logs, machines })[0].text).not.toMatch(/\b(she|her|he|his|him)\b/i);
   });

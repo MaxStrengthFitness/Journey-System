@@ -77,7 +77,7 @@ import {
 import { ageFromDob, masterSyncLabel } from "../client-profile/sync-label";
 import { firstVisitOf, monthYear, type FirstVisitBasis } from "../client-story/first-visit";
 import { cap, dayKeyDate, joinDots, plural } from "../client-codex/kit/text";
-import { CLIENT_PRONOUNS, agree, type Pronouns } from "../client-codex/kit/pronouns";
+import { agree, pronounsFor, type Pronouns } from "../client-codex/kit/pronouns";
 import { recordStudioIdOf } from "../client-codex/access";
 import {
   PACKAGE_NAME,
@@ -301,7 +301,7 @@ const text = (v: unknown): string => (typeof v === "string" ? v.replace(/\s+/g, 
 export function contactFacts(
   client: ContactClient,
   formData: Partial<Client>,
-  { now = new Date(), pronouns = CLIENT_PRONOUNS }: { now?: Date; pronouns?: Pronouns } = {},
+  { now = new Date(), pronouns = pronounsFor(client) }: { now?: Date; pronouns?: Pronouns } = {},
 ): ContactFact[] {
   const linked = isMindbodyLinked(client);
   const missing = missingWords(client);

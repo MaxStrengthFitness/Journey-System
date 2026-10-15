@@ -41,7 +41,7 @@ import { studioTodayKey } from "../../lib/studio-time";
 import type { HistoryCoverage } from "../../lib/prior-history";
 import type { ProgressReportsStatus } from "../client-profile/client-answer";
 import { buildStory } from "../client-story/story";
-import { CLIENT_PRONOUNS } from "./kit/pronouns";
+import { pronounsFor } from "./kit/pronouns";
 import { codexAccess } from "./access";
 import {
   codexFordStatus,
@@ -141,7 +141,8 @@ export function useCodexData({
     () => pulseFromReports(progressReports, clientId, progressReportsStatus),
     [progressReports, clientId, progressReportsStatus],
   );
-  const pronouns = CLIENT_PRONOUNS;
+  // he, she or they from the gender on the record (AJ, Oct 15 2026); one of three shared objects, so the memos below stay put.
+  const pronouns = pronounsFor(client);
   const fordStatus = codexFordStatus(access.fordReadable, ford.status);
   // Her story, built once from what the tab already holds (no read): the
   // Story page and the Overview's Story slot read the same one.

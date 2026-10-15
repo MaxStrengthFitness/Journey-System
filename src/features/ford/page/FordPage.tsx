@@ -461,7 +461,7 @@ export function FordPage({
         initial={fresh?.initial}
         openGesture={fresh?.openGesture ?? false}
         bodyPlaceholder={fresh?.openGesture && !fresh.initial ? `e.g. "Grandson graduates from Ohio State in May"` : undefined}
-        clientFirstName={clientFirstName(client) || "them"}
+        clientFirstName={clientFirstName(client) || pronouns.object}
         author={author}
         onClose={() => setDialog(null)}
         onSave={save}

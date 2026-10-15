@@ -78,7 +78,7 @@ describe("Correct the starting weight: the words", () => {
     });
   });
 
-  it("never guesses a client's gender and never coaches a progression", () => {
+  it("says no pronoun (the words read well without one) and never coaches a progression", () => {
     for (const words of all) {
       expect(words).not.toMatch(/\b(her|hers|she|him|his|he)\b/i);
       expect(words).not.toMatch(/\b(should|next weight|ready|increase to|First in Journey)\b/i);

@@ -77,6 +77,7 @@ import { studioTodayKey } from "../../lib/studio-time";
 import { PulseQuickLog } from "../../features/subjective-report";
 import type { SessionNoteDraft } from "../../features/client-notes/session-draft";
 import { floorDraftElsewhereWords, targetOf } from "../../features/machine-menu/note-target";
+import { pronounsFor } from "../../features/client-codex/kit/pronouns";
 // Its FORD notice draws with ford.css; a component imports the stylesheet it
 // draws with rather than lean on a neighbour in the same chunk (ford-css.test.ts).
 import "../../features/ford/ford.css";
@@ -341,7 +342,7 @@ export function SessionJournalSidebar({
                 ) : null}
                 <FordQuickCapture
                   clientId={clientId}
-                  clientFirstName={clientFirstName || "them"}
+                  clientFirstName={clientFirstName || pronounsFor(client).subject}
                   studioId={fordStudioId}
                   author={author}
                   sessionId={session.id ?? null}

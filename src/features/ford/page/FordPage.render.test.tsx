@@ -113,7 +113,7 @@ vi.mock("firebase/firestore", async (importOriginal) => {
 import { FordPage, type FordPageProps } from "./FordPage";
 import { ONE_LINE_BLOCKED, ONE_LINE_SAVED_MS } from "./OneLinePanel";
 import { useRecordForm } from "../../client-codex/useRecordForm";
-import { CLIENT_PRONOUNS } from "../../client-codex/kit";
+import { CLIENT_PRONOUNS, pronounsFor } from "../../client-codex/kit";
 import { groupByPillar, upcomingFord } from "../ford-rollup";
 import type { UseClientFordResult } from "../useClientFord";
 import type { FordReadStatus } from "../read-status";
@@ -233,7 +233,7 @@ const settled = (...notes: JournalEntry[]) =>
 const AUTHOR = { id: "uid-ann", initials: "AT", fullName: "Ann Trainer" };
 const go = vi.fn();
 
-interface HarnessProps extends Partial<Omit<FordPageProps, "form" | "pronouns">> {
+interface HarnessProps extends Partial<Omit<FordPageProps, "form">> {
   client?: Client;
 }
 
@@ -249,6 +249,7 @@ function Harness({
   homeStudioName = "Westlake",
   author = AUTHOR,
   today = TODAY,
+  pronouns = CLIENT_PRONOUNS,
 }: HarnessProps) {
   const form = useRecordForm({ client, canEdit, trainerId: "t-ann", homeStudioName });
   return (
@@ -264,7 +265,7 @@ function Harness({
       writeLine={writeLine}
       homeStudioName={homeStudioName}
       author={author}
-      pronouns={CLIENT_PRONOUNS}
+      pronouns={pronouns}
       today={today}
       go={go}
     />
@@ -630,6 +631,20 @@ describe("the detail dialog", () => {
     const add = fake.writes.find((w) => w.op === "add")!;
     expect(add.data).toMatchObject({ studioId: "s1", authorId: "uid-ann", pillar: null, origin: "profile", body: "Grandson graduates in May" });
     expect(dialog()).toBeNull();
+  });
+
+  it("calls a new detail Something about her first name, else about the pronoun of the gender on the record", async () => {
+    const title = async (client: Client) => {
+      const host = await mount({ client, pronouns: pronounsFor(client) });
+      await click(buttonIn(host, "Remember something"));
+      const words = dialog()!.textContent;
+      await click(buttonIn(dialog()!, "Cancel"));
+      return words;
+    };
+    expect(await title(baseClient())).toContain(`Something about ${baseClient().firstName}`);
+    expect(await title(baseClient({ firstName: "", nickname: "", gender: "Male" }))).toContain("Something about him");
+    expect(await title(baseClient({ firstName: "", nickname: "", gender: "Female" }))).toContain("Something about her");
+    expect(await title(baseClient({ firstName: "", nickname: "", gender: undefined }))).toContain("Something about them");
   });
 
   it("stays open with every word when the save is refused", async () => {

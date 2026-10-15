@@ -520,6 +520,19 @@ describe("buildStory — the other clients", () => {
     expect(story.sinceLine).toBe("In Journey since Oct 2026. 12 sessions in Journey. Their sessions before Journey aren't recorded here yet.");
   });
 
+  it("(C) with no pronouns handed in, the line says the pronoun of the gender on the record: his, her, else their", () => {
+    const line = (gender: string | undefined) =>
+      sinceLine({ client: { firstSessionDate: noon("2026-10-01"), gender }, coverage: "partial", tz: TZ, totals: { total: 12, journey: 12, before: 0 } });
+    expect(line("Male")).toBe("In Journey since Oct 2026. 12 sessions in Journey. His sessions before Journey aren't recorded here yet.");
+    expect(line("Female")).toBe("In Journey since Oct 2026. 12 sessions in Journey. Her sessions before Journey aren't recorded here yet.");
+    expect(line(undefined)).toBe("In Journey since Oct 2026. 12 sessions in Journey. Their sessions before Journey aren't recorded here yet.");
+    expect(line("Other")).toBe("In Journey since Oct 2026. 12 sessions in Journey. Their sessions before Journey aren't recorded here yet.");
+    // Pronouns a page hands in win over the record.
+    expect(sinceLine({ client: { firstSessionDate: noon("2026-10-01"), gender: "Male" }, coverage: "partial", tz: TZ, pronouns: CLIENT_PRONOUNS, totals: { total: 12, journey: 12, before: 0 } })).toContain(
+      "Their sessions before Journey",
+    );
+  });
+
   it("(D) an inferred first appointment is the earliest seen, never the first visit", () => {
     const client: StoryClient = {
       firstAppointmentDate: new Date("2026-06-03T14:00:00Z"),

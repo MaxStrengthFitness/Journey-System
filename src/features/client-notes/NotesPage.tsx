@@ -60,7 +60,7 @@ import { isNextTrainerNoteOfSessions } from "./note-catalog";
 import { NotesCatalog } from "./NotesCatalog";
 import { AskAnswer, AskBar } from "./AskBar";
 import { askLenses, type AskId, type AskPronouns } from "./ask";
-import { CLIENT_PRONOUNS } from "../client-codex/kit/pronouns";
+import { pronounsFor } from "../client-codex/kit/pronouns";
 import type { RecordPage } from "../client-profile/profile-nav";
 import type { CatalogIntent, NotesIntent } from "./notes-intent";
 import { discardUnfiledEntry, fileUnfiledEntry } from "./file-unfiled";
@@ -88,8 +88,9 @@ export interface NotesPageProps {
   coverage: HistoryCoverage;
   /**
    * The client's pronouns, for the questions at the top ("What's going on
-   * with them right now?"): they, never a guessed gender (Oct 3 2026). The
-   * page's own words never print the name and need no pronoun.
+   * with him right now?"). Left out, `pronounsFor(client)`: he, she or they
+   * from the gender on the record (Oct 15 2026). The page's own words never
+   * print the name and need no pronoun.
    */
   pronouns?: AskPronouns;
   /** The sub-toggle's line for each page, for the questions whose answer is a page (FORD, Story). */
@@ -280,7 +281,7 @@ export function NotesPage({
    * which goes back to every note when the question leaves that thread out. */
   const [askId, setAskId] = useState<AskId>(initialAsk);
   // Stable across renders, so the questions are worked out only when the notes change.
-  const said = pronouns ?? CLIENT_PRONOUNS;
+  const said = pronouns ?? pronounsFor(client);
   const criticalIdSet = useMemo(() => new Set(journal.criticalEntries.map((e) => e.id)), [journal.criticalEntries]);
   const headsUpIdSet = useMemo(
     () => new Set((journal.headsUpEntries ?? []).map((e) => e.id)),

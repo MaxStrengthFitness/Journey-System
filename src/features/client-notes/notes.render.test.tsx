@@ -887,6 +887,30 @@ describe("the Active Session notes sheet mounts", () => {
     expect(host.textContent).toContain("Remember this");
   });
 
+  it("asks Remember this about the client by first name, else in the pronoun of the gender on the record (Oct 15 2026)", async () => {
+    const capture = async (clientFirstName: string, who: Client | null) => {
+      const host = await mount(
+        <SessionJournalSidebar
+          session={{ id: "sess1" } as WorkoutSession}
+          clientId="c1"
+          clientFirstName={clientFirstName}
+          studioId="s1"
+          author={{ id: "uid-jane", initials: "JC", fullName: "Jane Coach" }}
+          machines={[]}
+          client={who}
+          onClose={() => {}}
+        />,
+      );
+      await click(choice(host.querySelector('[data-testid="note-composer"]')!, "FORD / Life"));
+      return host.querySelector(".ford-capture")!.textContent;
+    };
+    expect(await capture("Judy", client)).toContain("Something Judy just told you.");
+    expect(await capture("", { ...client, firstName: "", gender: "Male" } as Client)).toContain("Something he just told you.");
+    expect(await capture("", { ...client, firstName: "", gender: "Female" } as Client)).toContain("Something she just told you.");
+    expect(await capture("", { ...client, firstName: "" } as Client)).toContain("Something they just told you.");
+    expect(await capture("", null)).toContain("Something they just told you.");
+  });
+
   it("has a third tab, Pulse, that mounts the quick-log and comes back to the note on Done", async () => {
     const host = await mount(
       <SessionJournalSidebar
