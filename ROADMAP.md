@@ -478,16 +478,20 @@ usual week, or stands on the trainer's word like days away.
 
 ### Small items, each plan first
 
-- **The next design check (a UI visual check): the design-tokens rule, the
-  Navy Frame, and Type and depth ("Refined Lift").** On Type and depth (the
-  display face, the type scale, buttons' lift and press, panels and wells):
-  "Another one to add to the visual check" (AJ, Oct 15 2026). AJ, Oct 15 2026, on the trim's review page: "id like to
-  evaluate this rule again in another design check eventually" (the rule that
-  every colour comes from the tokens, the copied feature palettes and the tests
-  that hold them) and, on the Navy Frame, "I want to also include this in our
-  UI visual check eventually" (the frame's navy, blue for yours and every Save,
-  orange only for now and go, light and dark). Each is brought to AJ with what
-  it costs and what it protects before anything changes.
+- **The next design check (a UI visual check).** AJ, Oct 15 2026, on the
+  trim's review page, named three decisions to look at again:
+  - the design-tokens rule (every colour from the tokens, the copied feature
+    palettes and the tests that hold them): "id like to evaluate this rule
+    again in another design check eventually";
+  - the Navy Frame (the frame's navy, blue for yours and every Save, orange
+    only for now and go, light and dark): "I want to also include this in our
+    UI visual check eventually";
+  - Type and depth, "Refined Lift" (the display face, the type scale, buttons'
+    lift and press, panels and wells): "Another one to add to the visual
+    check".
+
+  Each is brought to AJ with what it costs and what it protects before
+  anything changes; until then all three stand.
 - **What Journey collects that nothing reads yet** (AJ, Oct 15 2026: "anything
   we collect we want to use"): a read-only sweep of the fields Journey writes
   against the screens, reports and jobs that read them, with each unread field
