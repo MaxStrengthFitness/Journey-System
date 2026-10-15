@@ -433,6 +433,6 @@ The web service does not touch Firestore (`docs/business/does-this-scale.md` §1
 
 ## At a glance (from CLAUDE.md, Oct 9 2026)
 
-- The cost plan's round document, `docs/rounds/2026-09-26-cost-plan.md`, holds AJ's freshness ranking (Sep 26 2026), what was built, and the invoice question for Mindbody (settled on Oct 5 2026, R29: Mindbody bills every call). The arithmetic for the two models is `docs/business/running-costs-model.py` and `docs/business/cost-plan-model.py`.
+- The cost plan's round document, `docs/rounds/2026-09-26-cost-plan.md`, holds AJ's freshness ranking (Sep 26 2026), what was built, and the invoice question for Mindbody (settled on Oct 5 2026, R29: Mindbody bills every call). The arithmetic for the two models is `docs/business/running-costs-model.py` and `docs/business/cost-plan-model.py` (`docs/business/*-model.py`).
 - `scripts/onboard-studio.ts` brings a studio's clients in before it launches. It is a dry run by default (`--commit` writes), it does one evening's share a run, and `--verify` is the proof.
 - `lib/first-booking-sync.ts` (in `src/`) is the nightly sync of anyone booked who never was synced.
