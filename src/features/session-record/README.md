@@ -27,6 +27,8 @@ It reads nothing and writes nothing.
 
 ## A finish is counted once (the sessions round, Oct 12 2026)
 
+The sessions round is `docs/rounds/2026-10-12-sessions.md` (AJ, Oct 12 2026: "Anyone can clear a session"): a finish counted once (this section), a trainer on two devices (Continue on this iPad) and a session left open, cleared by anyone at the studio (both below).
+
 `finish-once.ts`, with `firestore.rules` `finishOnceOk` / `countedOnceOk` and `match /finish/{docId}` (their notes are `docs/ops/RULES-NOTES.md#finishonceok`, `#countedonceok`, `#sessions-finish-once`):
 
 - **The marker.** Finish's session batch (`lib/sync-utils.ts` `completeWorkoutSession`) creates `sessions/{id}/finish/once` = `{ finishId, by: the sign-in uid, at, clientId }`. The rules allow it only when the same request moves the session from not Completed to Completed. The totals batch marks it `{ countedAt, countedBy: finishId }`, once, by the person who made it. A second finish of the same session from the current app is refused whole: no second count, no older sets merged over newer ones, no trainer credit flipped back, no older weights over `clientMachineSettings`.

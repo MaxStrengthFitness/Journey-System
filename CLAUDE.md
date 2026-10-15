@@ -29,6 +29,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | Architecture | `docs/ARCHITECTURE.md` — purpose and scope, the screen map, the data dictionary, the code SOP, the roadmap. **Read it before proposing anything** |
 | Orientation | `docs/START-HERE.md` — the project in fifteen minutes, for a non-programmer. `docs/ops/REPO-HYGIENE.md` is what is clutter in the working copy |
 | Round documents | `docs/rounds/` (index `README.md`, journal `CHANGELOG.md`); `ROADMAP.md` the short list; `docs/ops/TESTING-CHECKLIST.md` the iPad walkthrough; runbooks in `docs/ops/` |
+| Launch, reset and deploys | In `docs/ops/`: `LAUNCH.md` (the launch checklist), `RESET-BEFORE-LAUNCH.md`, `DEPLOYS-AND-ROLLBACK.md`, `TRAINER-QUICK-START.md` |
 | Decisions in full | `docs/DECISIONS.md` — the history, files and tests behind each decision below |
 | Training method source text | `docs/msf-academy/` |
 | What Journey costs to run | `docs/business/running-costs.md`; bringing a studio's clients in before launch is `scripts/onboard-studio.ts` |
@@ -36,7 +37,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The Hub's Schedule layer | `src/features/hub-schedule/` (the grid, its cards, the top, the peek, the Key); `components/ClientsView.tsx` is still the screen |
 | The Hub's Opportunities layer | `src/features/hub-opportunities/` (the Run-sheet: the day's moments, Get to know, All stars) |
 | The Active Session's grid and Now Bar | `src/features/journey-grid/` |
-| The session record | `src/features/session-record/` — never lose or block a session: the line under the session bar, Finish, the watching iPad |
+| The session record | `src/features/session-record/` — never lose or block a session: Finish counted once, the watching iPad, Continue on this iPad, a session left open cleared by anyone at the studio |
 | The open session | `src/features/open-session/` — a session started before its client is chosen: Start, Who's this? and Assign's one batch, the settings held until then (`heldSetup`; Oct 9 2026) |
 | A new client's first session and a routine's plan | `src/features/routine-plan/` (the plan, starting routines, B, focus, Can't do); also read both round documents it names. **Start from a routine…** in the session's corner lays one on today's list and writes no routine (`start-from.ts`, Oct 9 2026) |
 | The machine menu | `src/features/machine-menu/` — one card for a client on one machine, from the session and the profile. The Now Bar's **Set up** opens it on the first empty dial, on the number pad (`journey-grid/setup-button.ts`, Oct 9 2026) |
@@ -64,17 +65,22 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The standing week | `src/features/standing-week/` — each trainer's usual week, checked against Mindbody |
 | My Profile | `src/features/trainer-profile/` |
 | The Machine Catalog | `src/features/catalog/` (Learning → Catalog: the floor, the body, All MSF machines) |
+| The studio map and the machine's card | `src/features/studio-map/` (the floor drawn to size, a machine tapped to open) and `src/features/machine-card/` (Learn · Clean · Maintain · Set up, one card from every door) |
+| FileMaker floors | `src/features/filemaker-floors/` and `scripts/build-floors-from-filemaker.ts` — westlake's and Willoughby's floors from FileMaker's charts (Oct 12 2026) |
 | The Machine Codex and Compare | `src/features/machine-codex/`; Compare is `src/features/admin/machines/compare/` |
 | Machines: the catalog editor and a studio's own | `src/features/admin/machines/`. **`src/lib/machine-template.ts` is the template boundary**; `src/data/machine-definitions.ts` is generated from `docs/msf-academy/`. A machine becoming the standard is `src/features/admin/catalog/review.ts` |
 | Machine trends | `src/features/machine-trends/` (Learning → Catalog → a machine → How it's used) |
 | Learning, sharing machines, comments | `src/features/learning/`, `src/features/machine-db/`, `src/features/comments/` |
 | Demo Mode | `src/features/demo-mode/` — the practice studio `demo-studio`, a real studio with no second code path |
 | The front door | `src/features/front-door/` — sign in, checking you in, the greeting, the studio picker; the boot report is `src/features/boot-timing/` |
+| Switching studio | `src/features/studio-switch/` — Switch studio from every screen, and a switch lets go of the client (`let-go.ts`) |
 | Signing out | `src/features/sign-out/`; who may open Operations is `src/features/admin/operations-access.ts` |
 | Unsaved changes | `src/features/unsaved-changes/` — the one registry and the one leave question |
 | A new version after a deploy | `src/features/new-version/` |
 | The Home Screen app | `src/features/home-screen/` — the status bar, the safe areas, the icon |
 | Journey on a phone | `src/features/phone/` — the same app laid out for a phone (`usePhone()`) |
+| Rooms and the Calendar | `src/features/rooms/` (the one room bar, each room's hue) and `src/features/calendar/` (Month · Week · Day, the first room) |
+| The PC build's mark | `src/features/environment-mark/` — "PC build · live data" on every screen of a development build, never in production |
 | The perf lab | `harness/perf-lab/` — Journey on a slow iPad, measured; it never ships |
 
 ## Environments

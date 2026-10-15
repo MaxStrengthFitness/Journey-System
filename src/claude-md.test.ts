@@ -21,7 +21,11 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8").replace(/\r\
 const claude = read("CLAUDE.md");
 const decisionsDoc = read("docs/DECISIONS.md");
 
-/** The whole file. It was 41,827 characters after the trim. */
+/**
+ * The whole file. It was 41,827 characters after the trim, and 44,930 when
+ * the trim was redone on master's aa846261 (Oct 14 2026: master's own file
+ * had reached 119,539 by then, and six areas gained a row).
+ */
 const MAX_FILE = 45_000;
 /** One map row, both cells. */
 const MAX_MAP_ROW = 320;
