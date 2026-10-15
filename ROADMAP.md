@@ -393,6 +393,38 @@ suggestion is shown); gender here sits beside the starting-routine rule that
 gender is used nowhere in choosing a start (Oct 8–9 2026), so it is asked when
 the round is planned.
 
+### 7. A client's attendance in one place, on the profile
+
+AJ, Oct 15 2026 (a comment on the trim's review page, on Sessions left):
+"MindBody is a beast nobody likes dealing with because it is an extremely
+confusing. Studios need to be able to quickly understand when looking at a
+client How many sessions theyve Completed How many sessions they have left in
+their contract and if they have any extra and also how many times theyve
+rescheduled or cancelled this list needs to be auditable because sometimes
+scheduling can mess up so we dont want to mark people to hard or to loud just
+for reschedules and late cancels. but itd be nice to be able to see on the
+clients profile their attendance and how to plan for it and understand how
+they attend".
+
+- **What exists, in three places.** The total on the header ("#N", from
+  `lib/session-total.ts`); "36 left in contract · +12 extra" on Notes &
+  Profile → Account (`sessionsSplit`); and Activity Archive → Calendar, which
+  lays the bookings over the sessions: Booked, Cancelled (only those Journey
+  saw happen, from Sep 2026), Moved, Didn't come and Late cancel, a reschedule
+  only for a real rebook (`client-history/bookings.ts`, `isRealRebook`). The
+  client's usual rhythm is worked out already (`computeCadence`).
+- **What this adds.** One quiet Attendance card on the profile: completed,
+  left in the contract and extra, then late cancels, cancellations and
+  reschedules over a window, each count opening its dated list (what
+  happened, when, and where the record came from), and the usual rhythm in a
+  sentence ("Usually twice a week, Tue and Thu"). Counts are sentences, never
+  a score or a colour; nothing on the Hub or the briefing gets louder because
+  of them, and a count says "since Journey started recording" where the
+  record is short.
+
+Open: the card's place (Account beside the contract numbers is the
+recommendation; the Journey tab is the other choice).
+
 ### Small items, each plan first
 
 - **Mark the 24 role-less trainer records "waiting to sign in"** (Q14 = A):
