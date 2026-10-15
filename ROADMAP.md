@@ -281,6 +281,19 @@ step-by-step protocol. What AJ wants from it:
   (`machineModels/{id}.size`, Oct 12 2026), and a unit can carry its own size
   (`roster.unit.size`). A studio adding one would pick the model and get its
   dials and footprint.
+- **Head office adopts a studio's best work easily.** AJ, Oct 15 2026: "i
+  just dont want studios willy nilly posting information to the company wide
+  catalog ... but in the event that a studio had been a studio to be a first
+  with that machine or studios that have gone above and beyond to make a
+  awesome source of information i just want the ability to be able to adopt
+  the information into the main catalog easily". Today a studio edits its own
+  copy freely and nothing reaches the catalog until an administrator publishes
+  it, but adoption starts only when the studio offers it (Offer to all MSF
+  studios, then Admins → Standard → Waiting for review). Compare (Admins →
+  Standard → Machines → a machine → Compare) already shows every studio's
+  differences; the round adds a way for head office to bring a studio's
+  machine or a field of it into the standard from there, opened in the catalog
+  editor to read and correct before it publishes, with no offer needed.
 
 AJ's Sep 21 asks are still open too (`src/features/admin/machines/README.md` →
 "The editor round that has not happened yet"): duplicating a machine, drafts
