@@ -478,6 +478,12 @@ usual week, or stands on the trainer's word like days away.
 
 ### Small items, each plan first
 
+- **Look at the design-tokens rule again in the next design check** (AJ, Oct
+  15 2026, on the trim's review page: "id like to evaluate this rule again in
+  another design check eventually"): the rule that every colour comes from the
+  tokens (no raw hex or Tailwind palette colour in a component), the copied
+  feature palettes and the tests that hold them. Brought to AJ with what it
+  costs and what it protects before anything changes.
 - **What Journey collects that nothing reads yet** (AJ, Oct 15 2026: "anything
   we collect we want to use"): a read-only sweep of the fields Journey writes
   against the screens, reports and jobs that read them, with each unread field
