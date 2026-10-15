@@ -350,6 +350,36 @@ Open: a line of its own on the grid or a picker on one line; whether its
 settings are kept apart; who names the variations. It is a Firestore structure
 change and needs AJ's OK.
 
+### 6. Reference settings in an open session, from the body
+
+AJ, Oct 15 2026 (a comment on the CLAUDE.md trim's review page, on the open
+session): "when you run a open session you can put the gender age and height
+and it will help you select settings to reference from, they wont be perfect
+but it will be the closest we can guess and then trainers can use their
+trainer knowledge to fine tune it." It needs "the filemaker data and also
+client height", refined into averages "once we start having a large amount of
+data".
+
+- **What exists today.** Machine fit (`src/features/machine-fit/`, Sep 17
+  2026) already suggests settings from clients built alike (height, then
+  gender, wingspan, weight, age, on a tolerance ladder with a named minimum
+  sample, and a k-anonymous company tier on height and gender), on Programming
+  → Setup for a client on record. `client.height` exists.
+- **What this adds.** The same suggestion in an open session's Set up card,
+  before the client is chosen: the trainer types height, age and gender, and
+  each empty dial shows where people built alike usually sit, as a reference
+  beside the dial, never typed in for the trainer and never a weight.
+- **What it waits on.** Enough settings history with heights: the FileMaker
+  import (settings and, if the export has it, height) and Journey's own
+  sessions. Below the minimum the card says there are not enough similar
+  clients yet.
+
+Open: where the typed body facts live until Who's this? (beside `heldSetup` on
+the session, a structure change that needs AJ's OK, or nowhere once the
+suggestion is shown); gender here sits beside the starting-routine rule that
+gender is used nowhere in choosing a start (Oct 8–9 2026), so it is asked when
+the round is planned.
+
 ### Small items, each plan first
 
 - **Mark the 24 role-less trainer records "waiting to sign in"** (Q14 = A):
