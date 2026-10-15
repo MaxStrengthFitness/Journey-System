@@ -427,6 +427,10 @@ recommendation; the Journey tab is the other choice).
 
 ### Small items, each plan first
 
+- **What Journey collects that nothing reads yet** (AJ, Oct 15 2026: "anything
+  we collect we want to use"): a read-only sweep of the fields Journey writes
+  against the screens, reports and jobs that read them, with each unread field
+  named and a suggested reader, for AJ to pick from. No code.
 - **Mark the 24 role-less trainer records "waiting to sign in"** (Q14 = A):
   `pendingClaim`, by a script that runs dry first; nobody is deleted. They
   leave "works here" until they sign in (`docs/rounds/2026-10-10-prelaunch.md`
