@@ -55,6 +55,8 @@ If a question or idea touches one of these, name the rule and ask how AJ wants t
 
 ## 4. Where Journey stands (Oct 14 2026)
 
+*Since the 1-on-1 (Oct 15 2026): the four waiting rounds below went live on Oct 14 (`aa84626`); strangers out went live on Oct 15 at 10:09 ET (Q1), and the hole described under "Weak" is closed for anyone never let in; the trim is merged. Claude Code rewrites this section at the next refresh.*
+
 **The launch:** the three corporate studios (westlake, Strongsville, Willoughby) start in **November, date not set**; Solon joins **before Jan 1 2027**; franchises from **Jan 1 2027**, in small batches, about forty locations in all.
 
 **Live on the iPads** (the build of Oct 13): everything up to the studio machines round. **On GitHub but not live yet**, waiting for one Render deploy: the progress report on one printed page, "history-ready" (long histories open fast; "reps not recorded" read the same everywhere), FileMaker clients' own machine names, and the Deep Dive's fixes for clients older than Journey.
@@ -82,6 +84,8 @@ If a question or idea touches one of these, name the rule and ask how AJ wants t
 **What the Gemini design review taught us (Oct 14):** it read the roadmap, not the code, so it proposed building a studio map that is already live and "upgrading" setting tiles that were already typed. About half its ideas were built or went against AJ's decisions. Four are worth keeping (Q10). The lesson: an outside reviewer is only as good as the documents it reads, so the documents need to stay current (Q8).
 
 ## 6. The questions, in order
+
+**All seventeen were answered on Oct 14 2026** (section 7, "Decided on Oct 14 2026"); never ask them again. Claude Code replaces this section with the next week's questions when it refreshes the brief. If this copy is used before then, start from "Next 1-on-1" in section 7 instead.
 
 ### Before the November launch
 
@@ -168,6 +172,35 @@ Claude Code reads CLAUDE.md in full at every start. It is 120,000 characters and
 - The progress report: one page, white with a navy band, the client's focus picked per report (Oct 13).
 - The Deep Dive counts Journey-only measures from the cutover, "Worth asking why", one line for all stalls (Oct 14, "1a 2a 3a").
 - Mindbody: as few calls as possible without losing information (Oct 12).
+
+### Decided on Oct 14 2026 (the first weekly 1-on-1)
+
+The full ledger, with AJ's words, is `docs/rounds/2026-10-14-weekly-1on1.md`.
+
+- **Q1** Strangers out: **A**, built, live since Oct 15 ("Let's make sure that everything's strict and safe right now"). The corporate studios: "I don't really want Strongsville, Willoughby, and Westlake to share everything. I just don't want to be restrictive", so no "share everything" rule, and every later privacy round is checked against "not restrictive".
+- **Q2** Deploy the four waiting rounds: **A**, done (live Oct 14, `aa84626`).
+- **Q3** Studio leaders: **B**. AJ lets each studio's trainers in at its launch ("I don't mind just doing it myself"); until a studio has a leader, only administrators see its Operations.
+- **Q4** FileMaker on launch day: runs alongside **as the backup** "until we are fully transitioned over and have all clients on there". Follow-up **A**: each studio's FileMaker history is imported the night before its cutover; the full export and the settings audit are run-up steps per studio; FileMaker entries after a cutover are never imported.
+- **Q5** The iPad walk: **A**, this week ("yes we will 100% do a walk later this week").
+- **Q6** Target launch week: **B**, head office's date, then count back.
+- **Q7** CLAUDE.md trim: **A**, merged.
+- **Q8** Documents current: **A**, a pass now and a refresh before every 1-on-1.
+- **Q9** Next area after the launch blockers: **A**, the machine editor, "settings first", plan first.
+- **Q10** Gemini's ideas: **A**, keep four (the shorthand box on the machine card, one header search, dragging along the Staircase, the spotlight for tutorial mode); drop the rest.
+- **Q11** A visiting client nobody approved: **A**, train and save; the session readable here and at home; the notes stay with the home studio until approved.
+- **Q12** Bookings lock to their studio: **A**, refined: a trainer reads the schedule of every studio they have access to; head trainers, studio leaders and administrators see every studio in their own group (corporate leaders all corporate studios, a franchise's leaders that franchise's, administrators all).
+- **Q13** The studio map: keep the Relay tap (wiped) and Report a problem; change the rest into a "mock studio": always the map, the room roughed out with boxes, unsized machines given a guessed size, exact sizes optional.
+- **Q14** 24 role-less trainer records: **A**, mark them waiting to sign in, by a dry-run-first script; nobody deleted.
+- **Q15** The Hoist counts as a leg press: **A** (its "most like" is fixed in the machine editor round).
+- **Q16** Imported FileMaker notes: **A**, quiet on the profile, marked from FileMaker, never on the briefing or the Hub.
+- **Q17** The partition's defaults: 1, 2, 3, 5 kept; 4 (each franchise its own Mindbody account) **A**: ask head office before the first franchise signs; build the location check before a shared-account franchise goes live; Admins warns on a Mindbody account shared across owners.
+
+### Next 1-on-1 (first on the list)
+
+1. **Lock the trainer records?** (Parked on Oct 14.) Each trainer record holds its Kaizen Roster (a client's name, a reason and a note), and any account that signs in can still list every trainer record after strangers out, until a later privacy round. Recommended A: a small round right after strangers out.
+2. How the iPad walk went (Q5), and anything it found.
+3. Head office's launch date, if there is one (Q6), and their answer on franchise Mindbody accounts (Q17).
+4. The questions still waiting from earlier pages: the Oct 12 morning page's six, the Everyone's Journey walk's, and switching studio's (the header's name opens the picker and its logo goes to the Hub; a switch during a running session leaves it running). Claude Code picks the ones that matter before writing next week's section 6.
 
 ## 8. The ledger: print this at the end
 
