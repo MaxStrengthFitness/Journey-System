@@ -308,6 +308,17 @@ describe("a studio's own machine", () => {
     expect((writes[0].data.definition as any).name).toBe("Hammer Sled");
   });
 
+  it("says what the machine it is most like is used for, and nothing it isn't", async () => {
+    // Oct 15 2026 code check: the hint promised network reporting and a
+    // "leaderboard", but machine trends and machine fit group by machineId.
+    const el = await mount({ rosteredIds: new Set<string>() });
+    const hint = el.querySelector("#based-on")!.parentElement!.querySelector(".adm-hint")!.textContent ?? "";
+    expect(hint).toContain("safety watch-outs");
+    expect(hint).toContain("in the Catalog");
+    expect(hint).toContain("tips shared about it");
+    expect(hint).not.toMatch(/leaderboard|network reporting|other locations/i);
+  });
+
   it("never re-mints the id when the machine is renamed", async () => {
     // machineId is a foreign key in exerciseLogs, clientMachineSettings and
     // routines, all queried across studios. Re-minting it on a rename would

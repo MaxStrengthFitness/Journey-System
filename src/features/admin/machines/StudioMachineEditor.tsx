@@ -83,9 +83,12 @@ export function StudioMachineEditor({
     [resolved, entry],
   );
 
-  // Lineage for a brand-new custom machine. Nothing is inherited through it —
-  // it exists so a location's bespoke leg press still rolls up against every
-  // other leg press instead of becoming its own one-studio leaderboard.
+  // Lineage for a brand-new custom machine (`basedOn`, read as `basedOn ??
+  // machineId`). Nothing is copied through it; it is read: the catalog
+  // machine's clinical watch-outs, its movement and family in the Catalog
+  // (and its words where the unit's page is blank), and the key shared tips
+  // are filed under. Machine trends and machine fit group by machineId alone,
+  // so it compares nothing across studios (Oct 15 2026 code check).
   const [basedOn, setBasedOn] = useState<string>(
     entry && "basedOn" in entry ? (entry.basedOn ?? "") : "",
   );
@@ -93,7 +96,7 @@ export function StudioMachineEditor({
   // Minted once, from the name it was created with, and never again. machineId
   // is a foreign key in exerciseLogs, clientMachineSettings and routines, all
   // queried ACROSS studios — re-minting it on a rename would orphan every set
-  // ever logged on the machine and split its leaderboard in two.
+  // ever logged on the machine and split its history in two.
   const [existingId] = useState(() => entry?.machineId ?? null);
 
   // The model records, for "Which model this unit is" (Codex R2).
@@ -233,10 +236,13 @@ export function StudioMachineEditor({
                   ))}
               </select>
               <p className="adm-hint">
-                Nothing is inherited from this. It only lets network reporting
-                compare your unit against the same movement at other locations
-                — without it, your leg press becomes its own one-studio
-                leaderboard.
+                Yours keeps its own name and settings. Choosing one here gives
+                it Max Strength&rsquo;s safety watch-outs for that machine when
+                a client has a health flag, lists it under that movement and
+                family in the Catalog (any part of its page left blank shows
+                that machine&rsquo;s), and files tips shared about it with that
+                machine&rsquo;s, so both show them. Choose None for equipment
+                unlike any Max Strength machine.
               </p>
             </div>
           )}
