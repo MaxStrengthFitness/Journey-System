@@ -281,6 +281,25 @@ step-by-step protocol. What AJ wants from it:
   (`machineModels/{id}.size`, Oct 12 2026), and a unit can carry its own size
   (`roster.unit.size`). A studio adding one would pick the model and get its
   dials and footprint.
+- **One movement, many models, the standard on top.** AJ, Oct 15 2026: "rather
+  than cataloging a whole different machine just for the same exact seated dip
+  that just have a different seat size ... under the seated dip you can change
+  the variation to be Seated dip - Imagine Strength 2018 or Seated Dip -
+  Imagine Strength 2022 or Seated Dip - Hoist Model # XXXXXXX ... so we have a
+  more organized list of machines that isn't as intimidating and then Admins
+  just set what is the default or standard machines that would sit at the top
+  of the variation list". And on averages: "a large amount of clients could be
+  on the wrong settings", so studios may stray from the norm. The data for it
+  exists: the model record (`machineModels/{id}`: maker, model, the MSF
+  movement it is, its dials and size; twenty Imagine Strength models seeded
+  Oct 12 2026) and a unit naming its `modelId`. The round makes "a model of a
+  movement we already have" the easy way to add hardware (Strongsville's Hoist
+  would have been the Leg Press · Hoist, not a custom machine), lets
+  administrators mark each movement's standard model (top of the list), and
+  lets machine fit compare clients on the same model rather than blending a
+  Hoist seat 4 with an Imagine Strength seat 4 (the follow-up pile's "settings
+  numbers blended across models"). On screen, a different piece of hardware is
+  a **model**; a different way to use one unit is a **variation** (item 5).
 - **Head office adopts a studio's best work easily.** AJ, Oct 15 2026: "i
   just dont want studios willy nilly posting information to the company wide
   catalog ... but in the event that a studio had been a studio to be a first
@@ -345,6 +364,9 @@ activating, like on compound row, horizontal handles vs vertical handles. file
 maker didnt but we need to add to the road map different variations to one
 single machine".
 
+- **Not a model.** A different maker, year or part on the same movement (a
+  Seated Dip with another seat size) is a model of the movement, in item 2's
+  machine editor round (AJ, Oct 15 2026), not a variation.
 - **What a variation is.** One unit, several ways to use it: the neck
   machine's four directions, Torso Rotation's left and right, the Pulldown's
   handle angles, the Compound Row's handles. Each works different muscles, so
