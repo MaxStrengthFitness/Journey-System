@@ -6,7 +6,7 @@ This is the master reference for what Journey is, what it is not, how it is put 
 
 **How each section was produced.** Section 1 is AJ's decisions, recorded in his words on Sep 12 2026 — it is the part of this document that is *agreed*. Sections 2, 3 and 4 were **derived by reading the source** on Sep 12 2026 (the staged copy of `master`); they describe what the code actually does today, including the places where it contradicts Section 1, and they are **awaiting AJ's review** (Stages 2–4 of the State of the Union). Section 5 is the roadmap that falls out of the other four. Anything marked *proposal* is Claude's recommendation, not yet decided. Appendix C is the dated decision log — the nine questions Draft 1 left open were answered the same evening, and the eight that Draft 2 opened were answered later that night; Draft 3 records those answers and the floor round they unblocked (`docs/rounds/2026-09-12-floor-round.md`).
 
-**Where the other documents fit.** `CLAUDE.md` holds the working rules and known traps; `docs/business/` holds the business rules that cannot be read out of the source; each `src/features/<name>/README.md` holds that feature's decisions; `ROADMAP.md` becomes the short living plan (see §4.6). This document is the map that ties them together.
+**Where the other documents fit.** `CLAUDE.md` holds the working rules and known traps, each decision as a short rule whose full text is in `docs/DECISIONS.md` (since Oct 9 2026); `docs/business/` holds the business rules that cannot be read out of the source; each `src/features/<name>/README.md` holds that feature's decisions; `ROADMAP.md` becomes the short living plan (see §4.6). This document is the map that ties them together.
 
 ---
 

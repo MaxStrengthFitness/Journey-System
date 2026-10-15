@@ -78,7 +78,8 @@ dials and stacks every unit of one maker's model shares, written once.
   `ResolvedMachine` only the unit's model.
 - **Where it is edited:** Admins → Catalog → **Models** (every model, by movement),
   or a catalog machine's **Models** button (that movement's models).
-  `features/admin/machines/models/`.
+  `features/admin/machines/models/`. Since the Admins dashboard's four places
+  (Sep 28 2026), that same place is Admins → Standard → Machines → Models.
 
 ## Files
 
@@ -89,7 +90,18 @@ dials and stacks every unit of one maker's model shares, written once.
 | `change-log.ts`, `change-log-store.ts` | The standard's change log: the record and its sentence (pure), then the one writer and the read. |
 | `models-store.ts` | Its reads — `useMachineModels` (live, for the editors), `fetchMachineModels` / `useMachineModelsOnce` (once a session, for a screen that only names a model; a failed read stays failed) — and its one write, `saveMachineModel`. |
 
+## Compare
+
+Compare lives in `src/features/admin/machines/compare/`. For any catalog
+machine it shows every studio's differences from the standard, and for each
+safety line a studio took off, the reason it gave (with who and when). It is
+what keeps "a studio may change anything on its own copy, safety included"
+safe: head office can always see what changed. The round is
+`docs/rounds/2026-09-28-codex-2.md`.
+
 ## The change log (catalog wave 3, Sep 29 2026)
+
+The round for the change log is `docs/rounds/2026-09-29-catalog-3.md`.
 
 `machines/{id}/changes/{changeId}` = `{ at, by: { uid, name }, kind: "created" |
 "edited", fields: [...] }` — one document per save of the catalog editor, the

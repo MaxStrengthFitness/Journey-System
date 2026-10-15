@@ -1,6 +1,6 @@
 # features/comments — comments on Learning pages, with @tags
 
-Round: Learning + Planner, Sep 2026. AJ asked for this:
+Round: Learning + Planner, Sep 2026 (the first round; its document is `docs/rounds/LEARNING-PLANNER-ROUND.md`). AJ asked for this:
 
 > "each area can have comments and people should be able to tag people in the comments maybe?"
 

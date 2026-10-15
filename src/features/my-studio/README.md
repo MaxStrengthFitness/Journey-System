@@ -66,3 +66,10 @@ Since the voice review follow-up (Sep 27 2026, under AJ's "I trust your color ch
 - **My Studio is where you run the studio; Operations is where you look at it** (AJ, Sep 18). A studio's own settings live here, once, with one save bar; the looking (Today, Insights, the watchlists) stays on Operations.
 - **Nothing here is a second editor.** When a panel moves in (the Studio setup card, Relay's Standards, the renewal settings), it moves — the old place links here or is deleted in the same round.
 - **Adopted, not pushed** (machines) and **inherited unless overridden** (fields, settings, routines) — the two update rules for the MSF standard. See `docs/rounds/2026-09-19-my-studio.md`.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- **Studio ends with Activity**: head office's changes to this studio, shown on the studio tier only, since Sep 29 2026 (`StudioActivityPanel.tsx`).
+- **Studio is read only for everyone who works there, and changed by its leaders**, since Sep 28 2026 (AJ: "Leaders edit it; trainers can view it read-only"; `docs/rounds/2026-09-28-voice-review-notes.md`).
+- **`floor.ts` is the pure half of Machines**: the standard's gaps and offering a machine.
+- **Who is on a studio's team is `src/lib/who-works-here.ts`** (membership). `leadsHere` is who runs the studio.

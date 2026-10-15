@@ -629,9 +629,11 @@ why it matters.
 - **Add a client offers home studios the trainer can't add a client at.**
   `components/CreateClientModal.tsx` (`studiosInRealm`): the rules refuse the
   write; the assign now fails with it, but the form shouldn't offer them.
-- **CLAUDE.md has no row for `src/features/open-session/`.** The row, the
-  decision and the Tests figure are written in §6, in the trim's short form,
-  for after AJ's review of the trim (the features index has the row now).
+- ~~**CLAUDE.md has no row for `src/features/open-session/`.**~~ Done Oct 10
+  2026 on `oct9/claude-md`, the trim redone on master's `7957d1a0`
+  (`docs/rounds/2026-10-09-claude-md-trim.md` §7): §6's row, the two
+  clauses and the decision are in `CLAUDE.md`, its full text in
+  `docs/DECISIONS.md`; the Tests figure is the redo's own measurement.
 
 ## 6. For CLAUDE.md after the trim
 

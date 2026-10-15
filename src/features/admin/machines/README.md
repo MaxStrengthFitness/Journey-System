@@ -91,8 +91,26 @@ it: **read the machine, correct it, then publish** (the catalog gate round,
 - `publishPlan` refuses a machine missing anything the app would render wrong
   or the floor would coach wrong. The list is `BLOCKING_GAPS`, and a test
   pins it to what the twenty MSF machines themselves clear.
+- That test is `review.test.ts`, beside `../catalog/review.ts`: it asserts all
+  twenty MSF definitions clear `BLOCKING_GAPS`.
 - Publishing sends `definitionUnderReview()` — corporate's corrections if
   any, what arrived if none. Never read the raw document.
+
+## A machine's setting names live in two places (Oct 13 2026)
+
+Moved here from `CLAUDE.md`'s map when the trim was redone (Oct 14 2026). The
+round is `docs/rounds/2026-10-13-studio-machines.md`: Strongsville's
+studio-built Hoist leg press had its Seat on the Studio setup card alone, so
+the client's card had no dial. **The floor reads both places**:
+
+- the machine's own dials (`definition.settingFields`), and
+- the Studio setup card (`studioMachineSettings/{studio}_{machine}`).
+
+`lib/floor-machines.ts` gives a studio-built machine Studio setup's names
+first, and every machine Studio setup's standards (only for settings it still
+lists, never the gap's). A standard machine keeps the catalog's names until
+the settings audit before the FileMaker import. The trap is in
+`docs/KNOWN-TRAPS.md` → Machines and the template boundary.
 
 ## The files
 

@@ -251,3 +251,8 @@ of the sidebar when wide and in the top row when upright (`shell/OperationsNav`
   network's focus this quarter, an initiative launched at every studio
   (`network/NetworkActions.tsx`, Sep 27 2026) — has no editor on My Studio to
   duplicate, so Operations is where it is written.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- `AdminDashboardView.tsx` is wrapped in `OperationsScopeProvider` (`scope.ts` and `scope-context.tsx`): the one control, **this studio · all my studios**, that every page reads.
+- The Operations overhaul that came before the redesign's room (Sep 19 2026) is `docs/rounds/2026-09-19-operations-overhaul.md`.

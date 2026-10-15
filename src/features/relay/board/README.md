@@ -37,3 +37,8 @@ Rules for the two new collections are in `firestore.rules` (search
 "MACHINE CARE" and "THE VAULT"); their tests are in
 `tests/firestore.rules.test.ts`. The second wave's (Sep 28 2026) are the
 blocks headed "WAVE 2 RELAY:", tested under "wave 2 relay".
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- **The Board was rebuilt on Oct 3 2026** (`docs/rounds/2026-10-03-relay-board.md`; AJ: "this is replacing the laminated paper of a to-do list"): the studio's day as one kamishibai board, under a calm header. The parts of the day (Opening · Between clients · Close · This week) are tabs in the bar (`RelayContext.slots`), the cards are `cards.ts` and `BoardCardView.tsx`, and nothing is dealt ("No, the board is the plan").
+- **The Tracker's lists and the Journal's places are tabs in the same bar.** The Journal's places are Today · Notes · Day logs · On this day · Studio shelf (Today holds what to carry and the day's one line, `notes/JournalToday.tsx`). The doors, the dealt card, Tracking, Opening and Close out and the header's time button are gone.

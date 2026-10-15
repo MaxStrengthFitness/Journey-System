@@ -1,6 +1,6 @@
 # features/learning — the Learning tab
 
-Round: Learning + Planner, Sep 2026. AJ's brief:
+Round: Learning + Planner, Sep 2026. It was the first round for this tab, and its document is `docs/rounds/LEARNING-PLANNER-ROUND.md`. AJ's brief:
 
 - "Make the catalog feel a bit more organized, an expert MSF wiki feel. Or feel like I'm browsing an in-depth system catalog."
 - "The learning section just doesn't feel like it has a good header and structure to the layout."

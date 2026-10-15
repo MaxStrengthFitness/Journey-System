@@ -273,6 +273,8 @@ get this all on 1 page". Round document:
   ever losing its end. Print prints only the sheet (`body.printing-sheet`).
   `harness/report-print/check.mjs` prints the samples (`sheet-fixtures.ts`)
   through headless Chrome and counts the pages.
+- **The one plan both draw from** is `sheet-from-report.ts`: the paper and the
+  screen are two drawings of it, never two readings of the report.
 - **The screen** (`ReportScreen.tsx`, `report-screen.css`): the same modules in
   the same order from the same plan (`planSheet`), in the app's panels, light
   and dark, with what the paper had no room for (`SheetPlan.screen`: every

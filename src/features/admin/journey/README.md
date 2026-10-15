@@ -69,3 +69,8 @@ AJ: *"a client is active>MIA>inactive and studios can customize time or manually
 - **Trainers seeing their own clients' cases**: Relay's, built by the Relay room from the same documents (`where('owner.id', '==', uid)`). On the client page inside Operations, the owner of a case changes it through the same form a leader uses (wave 3).
 - **Who moved toward steady this week** needs yesterday's states (not stored), so the "this week" line claims only what can be derived: who crossed a line in the last seven days (her last visit plus the line) and who booked again.
 - **"Cadence halved" and "3 of her last 5 cancelled"** as Drifting triggers need her booking history; the snapshot's own `missed-sessions` flag is shown in the case's "What we know", never as a state on its own.
+
+## At a glance (from CLAUDE.md, Oct 9 2026)
+
+- `states.ts` is the one rule for every client's state.
+- The wave 3 round (Sep 29 2026) is `docs/rounds/2026-09-29-operations-3.md`. Besides the case form it made the Hub (one listener for the day on screen) and the client calendar (one listener over the days drawn) read a leader's "didn't come" marks too, so a marked booking is "Didn't come", never "Not logged".
