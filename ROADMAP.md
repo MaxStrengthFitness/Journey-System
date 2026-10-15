@@ -425,6 +425,35 @@ they attend".
 Open: the card's place (Account beside the contract numbers is the
 recommendation; the Journey tab is the other choice).
 
+### 8. Trainers' time in the app, and clients who could be regulars
+
+AJ, Oct 15 2026 (a comment on the trim's review page, on the standing week):
+"i just want trainers to have the ability to put their availbility directly
+on the app and be able to block off time for certain reason so the schedule
+can be clearly understood and then we can work on a way to identify how to
+optimize the schedule and work out recurring visits for clients possibly. not
+every client CAN do the same time everytime but some may be able to and just
+dont know its an option".
+
+- **What exists.** A trainer proposes their usual week on My Profile (up to
+  three blocks of client time a day) and a leader agrees it on My Studio →
+  Team; days away block out whole days with a note (`standing-week/`, at most
+  six ranges); the Hub hatches the time outside it; My Studio → Openings
+  shows the usual week, the next 7 days and **A new regular time**, which
+  offers a client a standing slot (`openings/offer.ts`). It never books:
+  "Check it in Mindbody before you promise it."
+- **What this adds.** (1) A block of part of a day with a reason ("Thursday
+  2-3, team meeting"), one-off or every week, drawn on the Hub and kept out of
+  Openings' room. (2) Clients who could be regulars: from the visits Journey
+  already holds, the clients who keep coming at about the same day and time
+  without a standing booking, each said as a sentence ("Comes most Tuesdays
+  around 9") on Openings, for the front desk to offer in Mindbody. It never
+  books (booking a Mindbody visit is never, Oct 15 2026) and never contacts
+  the client.
+
+Open: whether a block with a reason needs a leader's agreement like the
+usual week, or stands on the trainer's word like days away.
+
 ### Small items, each plan first
 
 - **What Journey collects that nothing reads yet** (AJ, Oct 15 2026: "anything
