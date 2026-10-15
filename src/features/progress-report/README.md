@@ -256,7 +256,9 @@ get this all on 1 page". Round document:
   With neither, the page follows A goal to hit's order (`reportFocus`) and
   prints no focus, and nothing saves one. Save writes the focus onto the
   client only when the trainer picked it in that sitting, so re-saving an old
-  report never puts its focus over the client's newer one.
+  report never puts its focus over the client's newer one. The picker
+  (`FocusPicker`) names the client by first name, else by the pronoun of the
+  gender on the record (`pronounsFor`, Oct 15 2026): "Why he trains".
 - **The trainer ticks** what is on the page (the sixth step, The printed page,
   `ReportPageStep`), starting from the focus's defaults where the data has
   something to say; a module it can't fill says why and can't be ticked. The
