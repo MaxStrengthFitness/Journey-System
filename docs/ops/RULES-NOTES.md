@@ -554,7 +554,9 @@ client, handed it to that studio. Now, on every update:
   The host stays as it is. A session with none (null or '') may be given
   one once: its own client's home (what Finish writes, `|| homeStudioId`,
   lib/sync-utils.ts), which adds no reader the client didn't already
-  have, or a studio the caller works at that isn't Demo Mode.
+  have, and nothing else. (The design also let a caller give it their own
+  studio; no app path does, and the branch review found it handed a guest's
+  session to the guest's home team, so it went.)
 
   The client stays as it is, or changes in one of two ways, to a client on
   record after the write whom the caller can read (an administrator can

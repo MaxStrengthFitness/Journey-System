@@ -94,6 +94,15 @@ catalog family (`{path=**}/roster`, `playbook`, `wiki`, `floorNotes` where
 `shared == true`), which are shared with every MSF studio by an
 administrator's decision and never carry a client.
 
+**One of those does carry clients (the branch review): `trainers`.** Each
+trainer record holds its Kaizen Roster (`kaizenRoster`: a client's id and
+name, a reason and a note of up to 240 characters, `types.ts`), and until
+Round 4a any signed-in account can list every trainer record. Round 0 can't
+close it alone: the sign-in's own lookup reads `trainers` by email before
+anyone is let in, so the read has to become "your own record, your email's
+record, or anyone let in", which is Round 4a's first rule and wants the
+Microsoft answer (§7) first. It is the first question for AJ (the report).
+
 Checked and already closed to strangers (each needs a record or the
 caller's own uid): `sessions`, `clients` and their `inbodyScans`,
 `sharedNotes` and `machineTotals`, FORD, every studio-scoped path
@@ -129,8 +138,7 @@ moves; otherwise:
 - **The host** stays. A session with none (`null` or `''`) may be given one
   once: its own client's home, which is what Finish writes
   (`hostedAtStudioId: currentSession.hostedAtStudioId || homeStudioId`) and
-  adds no reader the client didn't already have, or a studio the caller
-  works at, never Demo Mode.
+  adds no reader the client didn't already have, and nothing else.
 - **The client** stays, or changes to a client on record that the caller can
   read, never across the Demo Mode line (a real session never names a Demo
   client, a Demo session never names a real one): named once on an open
@@ -178,11 +186,28 @@ merge or reset sessions (`import-filemaker`, `merge-duplicate-client-records`,
 `migrate-canonical-client-ids`, `migrate-machine-id`, `reset-test-data`).
 
 **Refused now** (each a test): re-hosting a session at Demo Mode or another
-studio (an administrator too); giving a host-less session a studio that is
-neither its client's home nor the caller's, or Demo Mode; naming a client the
-caller can't read on an open session; a Demo client on a real session, a real
-client on a Demo one; re-pointing a session at an unreadable or Demo client;
-taking a session's client off it.
+studio by an update (an administrator too); giving a host-less session any
+studio but its client's home; naming a client the caller can't read on an
+open session; a Demo client on a real session, a real client on a Demo one;
+re-pointing a session at an unreadable or Demo client; taking a session's
+client off it.
+
+**Not closed here (the branch review): a delete, then a create.** The create
+rule is unchanged, and it accepts any host the caller works at, Demo Mode
+included, naming any client. So someone who may delete a session can write
+it again under the same id hosted at `demo-studio`, and every trainer then
+reads what it says (what that person could already read and copy). The
+create is Round 2's, because pinning Demo Mode on create needs the Demo
+seeder to write its clients before their sessions first (design §B.2 row
+22; today the clients come after, in later batches).
+
+**A merge that reaches `clinicalIncidents`** (the branch review): the
+provisional merge also repoints legacy incidents, whose writes are now
+administrators' only, so a leader's merge would stop at that step if a
+legacy incident named the temporary client. Nothing has written one since
+the journal replaced them, and the merge already stops a step earlier, at
+`exerciseLogs` (its update never lets a set's client change), for any
+temporary client with sets; Round 1 rebuilds the merge with its precheck.
 
 **The budget.** The new clause, added to the old "who may update" test, took
 a History edit by a trainer at the client's home, on a session hosted at
@@ -240,6 +265,10 @@ holds the four reads.
   round) is inside `sync`, locked with it; `floorPlans`, `bookingMarks`,
   `sessions/{id}/finish/once` were already scoped; `machineTrends` was the
   design's too.
+- **The host fill** is the client's home only: the design also let a caller
+  give a host-less session their own studio, which no app path does and
+  which the branch review found would hand a guest's session to the guest's
+  home team.
 - **The trainer clause** of the design's `sessionTenancyKept` is redundant
   since `finishedHolderKept` (Oct 12), and is left out (§4).
 - **The merge** is "the caller can read both clients", not the design's
@@ -278,14 +307,24 @@ single-tenant, or that Microsoft sign-in isn't switched on yet.
 ## 8. The audit (phase 0)
 
 `scripts/privacy-audit.ts` (read only, the service account, field masks; the
-pure half is `src/features/privacy/audit.ts`, 17 tests) counts:
+pure half is `src/features/privacy/audit.ts`, with its tests) counts:
 
-- **Item 0**: trainer records a sign-in would not find at
-  `trainers/{uid}`: the person has signed in (Firebase Auth knows their
-  email, or the record's `authUid`) and there is no record at their uid.
-  Must be 0. Records nobody ever signed in to (not a placeholder) are listed
-  apart: such a person is refused every write today, so Round 0 changes
-  nothing for them, and the list says to switch off anyone who left.
+- **Item 0**: every Firebase sign-in account (`listUsers`), followed the
+  way `useAuthInitialization` signs a person in: no email at all (its own or
+  a provider's) is the access request; `trainers/{uid}` first; else the
+  records whose stored email equals the email in lower case, superseded ones
+  dropped, the first by id; a placeholder is claimed only when the token's
+  own email matches (the rules' claim), else the app opens on the
+  placeholder; a switched-off record is refused at the door. An account the
+  app would open on a record not at `trainers/{uid}` is STRANDED, and must
+  be 0. That catches a Microsoft account whose email is only on its
+  provider, a second account for one email, and a refused claim (the branch
+  review's finding on the first version, which matched records by the
+  account's own email only). Records no sign-in lands on yet (not
+  placeholders) are listed apart, not a stop: nobody uses them today; a
+  first sign-in with one of those emails would be refused every write today
+  and every client read after Round 0, so the list says to switch off anyone
+  who left and ask Claude about the rest.
 - **Item 12**: real clients tied to Demo Mode: a session hosted at
   `demo-studio` naming a real client, a Demo client's session hosted at a
   real studio, a real client approved at `demo-studio`. Must be 0.
@@ -299,15 +338,19 @@ It never writes.
 | Gate | Result |
 | --- | --- |
 | Typecheck (`npx tsc --noEmit`) | **2** (the baseline: `clinical-review/charts.tsx`, `EditTrainerModal.tsx`) |
-| The suite (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`) | **14,646** pass in 887 files (14,629 in 886 on master, plus the audit's 17) |
+| The suite (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`) | **14,645** pass in 887 files (14,629 in 886 on master, plus the audit's 16) |
 | Rules tests (the emulator, Java 26, on a spare port) | **586** pass (490 on master `aa846261`) |
 | The rules lint and the comment proof (`tests/firestore.rules.lint.test.ts`, `tests/rules-source.test.ts`) | 26 pass |
-| `firestore.rules` | **178,198** bytes as written (176,387 on master), **135,464** of code (134,780; the lint's limit 150,000) |
+| `firestore.rules` | **178,098** bytes as written (176,387 on master), **135,372** of code (134,780; the lint's limit 150,000) |
 
 ## 10. How it ships
 
-`scripts/ship/ship-privacy-0.ps1`, from the project folder (it switches the
-folder to the branch) or from the branch's own folder:
+`scripts/ship/ship-privacy-0.ps1`. The script lives on the branch, so run it
+from the branch's own folder, `.claude\worktrees\privacy-0`, while that
+folder is there; otherwise, in the project folder, `git switch
+privacy/0-strangers-out` first (prepare also switches the project folder
+itself when the branch isn't open anywhere else, and stops naming the folder
+when it is):
 
 - **prepare** changes nothing in production: GitHub master must still be
   `aa846261` (or the branch must fast-forward it), the branch exactly the

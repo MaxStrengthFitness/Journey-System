@@ -10426,7 +10426,7 @@ describe("privacy Round 0: strangers out", () => {
 // ── PRIVACY ROUND 0: HONEST SESSIONS (Oct 14 2026) ──────────────────────
 // sessionIsReadable trusts a session's host and client, so an update may no
 // longer move either (sessionTenancyKept): the host stays, or a session with
-// none is given its client's home or the caller's studio once; the client
+// none is given its own client's home once; the client
 // stays, or is named once on an open session, or is moved by the merge, to a
 // client the caller can read, and never across the Demo Mode line. Every
 // write the app makes to a session is here in its own shape and passes; the
@@ -10557,8 +10557,8 @@ describe("privacy Round 0: honest sessions", () => {
       }));
     });
 
-    it("...or with a studio the caller works at", async () => {
-      await assertSucceeds(updateDoc(doc(as("trainerB"), "sessions", LEGACY), { hostedAtStudioId: "studioB" }));
+    it("...and with nothing else, the caller's own studio included (the review: no app path writes it)", async () => {
+      await assertFails(updateDoc(doc(as("trainerB"), "sessions", LEGACY), { hostedAtStudioId: "studioB" }));
     });
 
     it("History: edit a finished session hosted elsewhere, as a trainer at the client's home; and delete one", async () => {
@@ -10638,7 +10638,7 @@ describe("privacy Round 0: honest sessions", () => {
       await assertFails(updateDoc(doc(as("trainerA"), "sessions", S), { hostedAtStudioId: deleteField() }));
     });
 
-    it("giving a session with no host a studio that is neither its client's home nor the caller's, or Demo Mode", async () => {
+    it("giving a session with no host a studio that isn't its client's home, or Demo Mode", async () => {
       await testEnv.withSecurityRulesDisabled(async (context) => {
         await setDoc(doc(context.firestore(), "studios", "studioC"), { name: "Studio C" });
       });

@@ -13,7 +13,11 @@
  *           person who signs in and lands on a record kept under another id
  *           (CLAUDE.md: "the two differ on older accounts") is refused every
  *           write today, and would be refused every client read after Round
- *           0. Expected: 0.
+ *           0. Expected: 0. Every Firebase sign-in account is followed
+ *           the way useAuthInitialization signs a person in (its own record,
+ *           else the email lookup, a claim, the door), so a Microsoft account
+ *           with its email only on the provider, a second account for one
+ *           email and a refused claim are all seen.
  *   Item 12. Nothing ties a real client to Demo Mode, where every trainer has
  *           the run of everything: a session hosted at `demo-studio` naming a
  *           real client, a session naming a Demo client hosted at a real
@@ -36,29 +40,42 @@ export interface TrainerRow {
     isActive?: unknown;
     supersededByUid?: unknown;
     pendingClaim?: unknown;
-    authUid?: unknown;
     isDemo?: unknown;
   };
 }
 
-/** What Firebase Auth said, looked up by the script. */
-export interface AuthFacts {
-  /** Every sign-in uid that exists, of those asked about (the record ids and `authUid` fields). */
-  uids: ReadonlySet<string>;
-  /** The sign-in uid of each email that has an account, keyed lower-case. */
-  uidByEmail: ReadonlyMap<string, string>;
+/** One Firebase Auth account, as the script lists them (read only). */
+export interface AuthAccount {
+  uid: string;
+  /** The account's own email, as stored: what the ID token's `email` claim carries. */
+  email?: string | null;
+  /** The emails its sign-in providers carry (a Microsoft sign-in can leave the account's own empty). */
+  providerEmails?: readonly string[];
 }
+
+/** Where one account's sign-in lands, step by step as useAuthInitialization does it. */
+export type SignInOutcome =
+  /** trainers/{uid} exists: the rules find the person. */
+  | { kind: "own"; recordId: string }
+  /** No email to look up, or no record with it: the access request (or the owner's own bootstrap). */
+  | { kind: "request" }
+  /** A placeholder whose claim the rules accept: the next sign-in makes trainers/{uid}. */
+  | { kind: "claims"; recordId: string }
+  /** A switched-off record: signed straight out at the door. */
+  | { kind: "refused"; recordId: string }
+  /** OFFENDER. The app opens on a record that is not at trainers/{uid}. */
+  | { kind: "stranded"; recordId: string };
 
 export type IdentityVerdict =
   /** The record is at trainers/{its sign-in uid}. */
   | "at-uid"
-  /** The person also has trainers/{uid}; sign-in uses that one, so the rules find them. */
+  /** The record of someone whose sign-in uses another record at their own uid. */
   | "duplicate"
-  /** OFFENDER. The person has signed in, and there is no record at trainers/{uid}. */
+  /** OFFENDER. A sign-in lands on it, and it is not at that sign-in's uid. */
   | "stranded"
-  /** A placeholder nobody has signed in to yet: its owner claims it at first sign-in. */
+  /** A placeholder: its owner claims it at their next (or first) sign-in. */
   | "placeholder"
-  /** Not a placeholder, and nobody with its email has ever signed in: a first sign-in would land on it. */
+  /** Not a placeholder, and no sign-in lands on it yet: a first sign-in with its email would. */
   | "never-signed-in"
   /** No email and not a sign-in uid: nobody can sign in to it. */
   | "unreachable"
@@ -71,7 +88,7 @@ export interface IdentityRow {
   id: string;
   email: string;
   verdict: IdentityVerdict;
-  /** The sign-in uid, when one is known. */
+  /** The sign-in uid that lands on it, when one does. */
   uid: string | null;
 }
 
@@ -82,29 +99,78 @@ export function isDemoTrainer(row: TrainerRow): boolean {
   return row.id.startsWith("demo-trainer-") || row.data.isDemo === true;
 }
 
+/** The email the app looks a person up by: the account's own, else the first a provider carries. */
+export function resolvedEmailOf(account: AuthAccount): string | null {
+  const own = text(account.email);
+  if (own) return own;
+  for (const e of account.providerEmails ?? []) if (text(e)) return text(e);
+  return null;
+}
+
 /**
- * Where each live trainer record stands against the rule "your record is at
- * trainers/{your sign-in uid}". The order of the questions is the app's own
- * sign-in (useAuthInitialization): trainers/{uid} first, then the email.
+ * Where one account's sign-in lands (hooks/useAuthInitialization.ts, the
+ * resolve step): with no email, nothing is looked up (the access request);
+ * trainers/{uid} first; then the records whose stored email EQUALS the
+ * email in lower case (a Firestore equality, so a stored "Sam@X.com" is never
+ * found), superseded ones dropped, the first by id. A placeholder is claimed
+ * when the rules accept it (selfCreateIsAClaim: the token's own email, in
+ * lower case, is the placeholder's); a refused claim falls back to the
+ * placeholder itself. A switched-off record is refused at the door.
  */
-export function classifyTrainers(rows: readonly TrainerRow[], auth: AuthFacts): IdentityRow[] {
-  const ids = new Set(rows.map((r) => r.id));
+export function signInLandsOn(account: AuthAccount, rows: readonly TrainerRow[]): SignInOutcome {
+  const resolved = resolvedEmailOf(account);
+  if (!resolved) return { kind: "request" };
+  if (rows.some((r) => r.id === account.uid)) return { kind: "own", recordId: account.uid };
+  const q = resolved.toLowerCase();
+  const live = rows
+    .filter((r) => r.data.email === q && !text(r.data.supersededByUid))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const first = live[0];
+  if (!first) return { kind: "request" };
+  if (first.data.pendingClaim === true) {
+    const tokenEmail = text(account.email).toLowerCase();
+    if (tokenEmail && tokenEmail === text(first.data.email).toLowerCase()) return { kind: "claims", recordId: first.id };
+  }
+  if (first.data.isActive === false) return { kind: "refused", recordId: first.id };
+  return { kind: "stranded", recordId: first.id };
+}
+
+/** Every account's landing, the stranded ones first. */
+export function landings(accounts: readonly AuthAccount[], rows: readonly TrainerRow[]): Array<{ uid: string; outcome: SignInOutcome }> {
+  return accounts
+    .map((a) => ({ uid: a.uid, outcome: signInLandsOn(a, rows) }))
+    .sort((a, b) => (a.outcome.kind === "stranded" ? 0 : 1) - (b.outcome.kind === "stranded" ? 0 : 1) || a.uid.localeCompare(b.uid));
+}
+
+/** Where each live trainer record stands, from the same landings. */
+export function classifyTrainers(rows: readonly TrainerRow[], accounts: readonly AuthAccount[]): IdentityRow[] {
+  const uids = new Set(accounts.map((a) => a.uid));
+  const landed = landings(accounts, rows);
+  const strandedOn = new Map<string, string>();
+  const claimedOn = new Map<string, string>();
+  for (const l of landed) {
+    if (l.outcome.kind === "stranded" && !strandedOn.has(l.outcome.recordId)) strandedOn.set(l.outcome.recordId, l.uid);
+    if (l.outcome.kind === "claims") claimedOn.set(l.outcome.recordId, l.uid);
+  }
+  const emailsWithOwnRecord = new Set(
+    accounts
+      .filter((a) => rows.some((r) => r.id === a.uid))
+      .flatMap((a) => [text(a.email), ...(a.providerEmails ?? []).map(text)])
+      .filter(Boolean)
+      .map((e) => e.toLowerCase()),
+  );
   return rows.map((row) => {
-    const email = text(row.data.email).toLowerCase();
+    const email = text(row.data.email);
     const base = { id: row.id, email };
     if (text(row.data.supersededByUid)) return { ...base, verdict: "superseded", uid: null };
     if (row.data.isActive === false) return { ...base, verdict: "switched-off", uid: null };
     if (isDemoTrainer(row)) return { ...base, verdict: "demo", uid: null };
-    if (auth.uids.has(row.id)) return { ...base, verdict: "at-uid", uid: row.id };
-
-    const named = text(row.data.authUid);
-    const uid = (named && auth.uids.has(named) ? named : null) ?? (email ? auth.uidByEmail.get(email) ?? null : null);
-    if (uid) {
-      if (uid === row.id) return { ...base, verdict: "at-uid", uid };
-      return { ...base, verdict: ids.has(uid) ? "duplicate" : "stranded", uid };
-    }
-    if (row.data.pendingClaim === true) return { ...base, verdict: "placeholder", uid: null };
+    if (uids.has(row.id)) return { ...base, verdict: "at-uid", uid: row.id };
+    const stranded = strandedOn.get(row.id);
+    if (stranded) return { ...base, verdict: "stranded", uid: stranded };
+    if (row.data.pendingClaim === true) return { ...base, verdict: "placeholder", uid: claimedOn.get(row.id) ?? null };
     if (!email) return { ...base, verdict: "unreachable", uid: null };
+    if (emailsWithOwnRecord.has(email.toLowerCase())) return { ...base, verdict: "duplicate", uid: null };
     return { ...base, verdict: "never-signed-in", uid: null };
   });
 }
@@ -180,7 +246,22 @@ export function demoFindings(input: {
 
 export interface AuditReport {
   identity: IdentityRow[];
+  /** Every sign-in account's landing (landings()). */
+  accounts: Array<{ uid: string; outcome: SignInOutcome }>;
   demo: DemoFindings;
+}
+
+/** The audit's whole answer from what the script read. */
+export function auditReport(input: {
+  trainers: readonly TrainerRow[];
+  accounts: readonly AuthAccount[];
+  demo: DemoFindings;
+}): AuditReport {
+  return {
+    identity: classifyTrainers(input.trainers, input.accounts),
+    accounts: landings(input.accounts, input.trainers),
+    demo: input.demo,
+  };
 }
 
 export interface AuditGate {
@@ -190,41 +271,48 @@ export interface AuditGate {
   pass: boolean;
 }
 
-/** The two numbers the ship script stops on. */
+/** The two numbers the ship script stops on. Item 0 counts sign-in ACCOUNTS that land stranded. */
 export function gateOf(report: AuditReport): AuditGate {
-  const item0 = report.identity.filter((r) => r.verdict === "stranded").length;
+  const item0 = report.accounts.filter((a) => a.outcome.kind === "stranded").length;
   const d = report.demo;
   const item12 = d.demoHostedRealClient.length + d.realHostedDemoClient.length + d.realClientApprovedAtDemo.length;
   return { item0, item12, pass: item0 === 0 && item12 === 0 };
 }
 
 const count = (rows: readonly IdentityRow[], v: IdentityVerdict) => rows.filter((r) => r.verdict === v).length;
+const landed = (report: AuditReport, kind: SignInOutcome["kind"]) => report.accounts.filter((a) => a.outcome.kind === kind).length;
 
 /** The report, in plain words: counts, and ids and emails only for what needs a person. */
 export function reportLines(report: AuditReport): string[] {
   const rows = report.identity;
   const gate = gateOf(report);
   const lines: string[] = [];
-  const offenders = (verdict: IdentityVerdict) =>
+  const emailOf = (id: string) => rows.find((r) => r.id === id)?.email || "(no email)";
+  const listed = (verdict: IdentityVerdict) =>
     rows
       .filter((r) => r.verdict === verdict)
       .sort((a, b) => a.id.localeCompare(b.id))
-      .map((r) => `      ${r.id}  ${r.email || "(no email)"}${r.uid ? `  signs in as ${r.uid}` : ""}`);
+      .map((r) => `      ${r.id}  ${r.email || "(no email)"}`);
 
-  lines.push(`Item 0. Trainer records against trainers/{sign-in uid} (${rows.length} records read)`);
-  lines.push(`  at their sign-in uid     ${count(rows, "at-uid")}`);
-  lines.push(`  placeholders (unclaimed) ${count(rows, "placeholder")}`);
-  lines.push(`  duplicates               ${count(rows, "duplicate")}   (the person also has trainers/{uid}; sign-in uses that one)`);
-  lines.push(`  unreachable              ${count(rows, "unreachable")}   (no email, not a sign-in uid: nobody can sign in to it)`);
-  lines.push(`  left out                 ${count(rows, "switched-off")} switched off, ${count(rows, "superseded")} superseded, ${count(rows, "demo")} Demo Mode`);
-  lines.push(`  STRANDED                 ${gate.item0}   (signed in, no record at trainers/{uid}: must be 0)`);
-  lines.push(...offenders("stranded"));
+  lines.push(`Item 0. Every sign-in account, followed the way the app signs a person in (${report.accounts.length} accounts)`);
+  lines.push(`  their own record at trainers/{uid}       ${landed(report, "own")}`);
+  lines.push(`  the access request (no record by email)  ${landed(report, "request")}`);
+  lines.push(`  claim a placeholder at the next sign-in  ${landed(report, "claims")}`);
+  lines.push(`  a switched-off record (refused)          ${landed(report, "refused")}`);
+  lines.push(`  STRANDED                                 ${gate.item0}   (the app opens on a record not at trainers/{uid}: must be 0)`);
+  for (const a of report.accounts) {
+    if (a.outcome.kind === "stranded") lines.push(`      account ${a.uid} opens on trainers/${a.outcome.recordId}  ${emailOf(a.outcome.recordId)}`);
+  }
+  lines.push(`  The trainer records (${rows.length} read): ${count(rows, "at-uid")} at their sign-in uid, ${count(rows, "placeholder")} placeholders,`);
+  lines.push(`    ${count(rows, "duplicate")} duplicates (the person signs in to another record at their uid), ${count(rows, "unreachable")} with no email,`);
+  lines.push(`    ${count(rows, "switched-off")} switched off, ${count(rows, "superseded")} superseded, ${count(rows, "demo")} Demo Mode.`);
   const never = count(rows, "never-signed-in");
-  lines.push(`  never signed in          ${never}   (not a placeholder: a first sign-in lands on a record the rules can't find)`);
+  lines.push(`  never signed in                          ${never}   (not a placeholder, and no sign-in lands on it yet)`);
   if (never > 0) {
-    lines.push("      Not a stop: such a person is refused every write today, and Round 0 changes nothing for them.");
-    lines.push("      Switch off anyone who has left; ask Claude about the rest.");
-    lines.push(...offenders("never-signed-in"));
+    lines.push("      Not a stop: nobody uses these today. A first sign-in with one of these emails would open on a record");
+    lines.push("      the rules can't find: refused every write today, and every client read after Round 0.");
+    lines.push("      Switch off anyone who has left; ask Claude about the rest before they sign in.");
+    lines.push(...listed("never-signed-in"));
   }
 
   const d = report.demo;

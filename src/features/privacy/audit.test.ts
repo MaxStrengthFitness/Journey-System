@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  auditReport,
   classifyTrainers,
   clientHomeOf,
   demoFindings,
   gateOf,
   reportLines,
-  type AuthFacts,
+  resolvedEmailOf,
+  signInLandsOn,
+  type AuthAccount,
   type DemoFindings,
   type TrainerRow,
 } from "./audit";
@@ -13,12 +16,8 @@ import {
 const UID_SAM = "uidSamSamSamSamSamSamSamSam1"; // 28 characters, as Firebase Auth makes them
 const UID_JO = "uidJoJoJoJoJoJoJoJoJoJoJoJo1";
 
-const auth = (uids: string[], emails: Record<string, string> = {}): AuthFacts => ({
-  uids: new Set(uids),
-  uidByEmail: new Map(Object.entries(emails)),
-});
-
 const row = (id: string, data: TrainerRow["data"] = {}): TrainerRow => ({ id, data });
+const account = (uid: string, email: string | null, providerEmails: string[] = []): AuthAccount => ({ uid, email, providerEmails });
 
 const NO_DEMO: DemoFindings = {
   demoHostedRealClient: [],
@@ -27,78 +26,84 @@ const NO_DEMO: DemoFindings = {
   realClientApprovedAtDemo: [],
 };
 
-describe("item 0: every trainer record against trainers/{sign-in uid}", () => {
-  it("a record at the person's sign-in uid is where the rules look", () => {
-    const [r] = classifyTrainers([row(UID_SAM, { email: "sam@x.com" })], auth([UID_SAM], { "sam@x.com": UID_SAM }));
-    expect(r.verdict).toBe("at-uid");
+describe("item 0: every sign-in account, followed the way the app signs a person in", () => {
+  it("someone with a record at their uid lands on it", () => {
+    expect(signInLandsOn(account(UID_SAM, "sam@x.com"), [row(UID_SAM, { email: "sam@x.com" })])).toEqual({ kind: "own", recordId: UID_SAM });
   });
 
-  it("a person who signed in and has no record at their uid is stranded", () => {
-    const [r] = classifyTrainers(
-      [row("autoIdAutoIdAutoId01", { email: "Sam@X.com" })],
-      auth([], { "sam@x.com": UID_SAM }),
-    );
-    expect(r).toEqual({ id: "autoIdAutoIdAutoId01", email: "sam@x.com", verdict: "stranded", uid: UID_SAM });
+  it("someone found only by email, on a record kept under another id, is stranded", () => {
+    expect(signInLandsOn(account(UID_SAM, "Sam@X.com"), [row("autoIdAutoIdAutoId01", { email: "sam@x.com" })])).toEqual({
+      kind: "stranded",
+      recordId: "autoIdAutoIdAutoId01",
+    });
   });
 
-  it("an older record that names its sign-in uid in authUid is stranded when trainers/{authUid} is missing", () => {
-    const [r] = classifyTrainers([row("autoIdAutoIdAutoId01", { authUid: UID_JO })], auth([UID_JO]));
-    expect(r.verdict).toBe("stranded");
-    expect(r.uid).toBe(UID_JO);
+  it("a Microsoft account with its email only on the provider is looked up by it too", () => {
+    expect(resolvedEmailOf(account(UID_SAM, null, ["sam@maxstrengthfitness.com"]))).toBe("sam@maxstrengthfitness.com");
+    expect(
+      signInLandsOn(account(UID_SAM, null, ["sam@maxstrengthfitness.com"]), [row("autoIdAutoIdAutoId01", { email: "sam@maxstrengthfitness.com" })]).kind,
+    ).toBe("stranded");
   });
 
-  it("a second record for someone who also has trainers/{uid} is a duplicate, never stranded", () => {
-    const rows = classifyTrainers(
-      [row(UID_SAM, { email: "sam@x.com" }), row("oldRecordOldRecord01", { email: "sam@x.com" })],
-      auth([UID_SAM], { "sam@x.com": UID_SAM }),
-    );
-    expect(rows.map((r) => r.verdict)).toEqual(["at-uid", "duplicate"]);
+  it("a placeholder is claimed when the token carries its email, and stranded when the claim would be refused", () => {
+    const placeholder = row("placeholderPlace0001", { email: "new@x.com", pendingClaim: true });
+    expect(signInLandsOn(account(UID_JO, "New@x.com"), [placeholder])).toEqual({ kind: "claims", recordId: "placeholderPlace0001" });
+    // The rules' claim needs the token's own email; a provider-only email is refused, and the app opens on the placeholder.
+    expect(signInLandsOn(account(UID_JO, null, ["new@x.com"]), [placeholder])).toEqual({ kind: "stranded", recordId: "placeholderPlace0001" });
   });
 
-  it("a placeholder nobody has signed in to waits for its claim", () => {
-    const [r] = classifyTrainers([row("placeholderPlace0001", { email: "new@x.com", pendingClaim: true })], auth([]));
-    expect(r.verdict).toBe("placeholder");
+  it("a second account for an email whose record sits at the first account's uid is stranded on it", () => {
+    const rows = [row(UID_SAM, { email: "sam@x.com" })];
+    expect(signInLandsOn(account(UID_SAM, "sam@x.com"), rows).kind).toBe("own");
+    expect(signInLandsOn(account(UID_JO, null, ["sam@x.com"]), rows)).toEqual({ kind: "stranded", recordId: UID_SAM });
   });
 
-  it("a placeholder whose owner HAS signed in, with no trainers/{uid}, is stranded (the claim failed)", () => {
-    const [r] = classifyTrainers(
-      [row("placeholderPlace0001", { email: "new@x.com", pendingClaim: true })],
-      auth([], { "new@x.com": UID_JO }),
-    );
-    expect(r.verdict).toBe("stranded");
+  it("follows the app's lookup exactly: a stored mixed-case email is never found, so it is the access request", () => {
+    expect(signInLandsOn(account(UID_SAM, "sam@x.com"), [row("autoIdAutoIdAutoId01", { email: "Sam@X.com" })]).kind).toBe("request");
   });
 
-  it("a record nobody ever signed in to is counted apart, and is not a stop", () => {
-    const report = {
-      identity: classifyTrainers([row("autoIdAutoIdAutoId01", { email: "gone@x.com" })], auth([])),
-      demo: NO_DEMO,
-    };
-    expect(report.identity[0].verdict).toBe("never-signed-in");
-    expect(gateOf(report)).toEqual({ item0: 0, item12: 0, pass: true });
+  it("no email at all is the access request, even with a record at the uid (the app looks nothing up)", () => {
+    expect(signInLandsOn(account(UID_SAM, null), [row(UID_SAM, {})]).kind).toBe("request");
   });
 
-  it("a record with no email that is not a sign-in uid is unreachable", () => {
-    const [r] = classifyTrainers([row("autoIdAutoIdAutoId01", {})], auth([]));
-    expect(r.verdict).toBe("unreachable");
+  it("a switched-off record is refused at the door; a superseded one is skipped; the first by id wins", () => {
+    expect(signInLandsOn(account(UID_SAM, "sam@x.com"), [row("autoIdAutoIdAutoId01", { email: "sam@x.com", isActive: false })]).kind).toBe("refused");
+    expect(
+      signInLandsOn(account(UID_SAM, "sam@x.com"), [
+        row("aaa", { email: "sam@x.com", supersededByUid: UID_JO }),
+        row("ccc", { email: "sam@x.com", isActive: false }),
+        row("bbb", { email: "sam@x.com" }),
+      ]),
+    ).toEqual({ kind: "stranded", recordId: "bbb" });
   });
+});
 
-  it("leaves out switched-off, superseded and Demo Mode records, whatever else they say", () => {
-    const rows = classifyTrainers(
-      [
-        row("autoIdAutoIdAutoId01", { email: "left@x.com", isActive: false }),
-        row("autoIdAutoIdAutoId02", { email: "sam@x.com", supersededByUid: UID_SAM }),
-        row("demo-trainer-ana", { isDemo: true }),
-        row("autoIdAutoIdAutoId03", { email: "demo@x.com", isDemo: true }),
-      ],
-      auth([], { "left@x.com": UID_JO, "sam@x.com": UID_SAM, "demo@x.com": "uidDemoDemoDemoDemoDemoDemo1" }),
-    );
-    expect(rows.map((r) => r.verdict)).toEqual(["switched-off", "superseded", "demo", "demo"]);
-  });
-
-  it("an authUid that is not a real sign-in is ignored, and the email decides", () => {
-    const [r] = classifyTrainers([row("autoIdAutoIdAutoId01", { authUid: "nobody", email: "sam@x.com" })], auth([], { "sam@x.com": UID_SAM }));
-    expect(r.verdict).toBe("stranded");
-    expect(r.uid).toBe(UID_SAM);
+describe("item 0: the records, from the same landings", () => {
+  it("names each record's standing", () => {
+    const rows = [
+      row(UID_SAM, { email: "sam@x.com" }),
+      row("oldSam00000000000001", { email: "sam@x.com" }),
+      row("stranded000000000001", { email: "jo@x.com" }),
+      row("placeholderPlace0001", { email: "new@x.com", pendingClaim: true }),
+      row("neverneverneverne001", { email: "gone@x.com" }),
+      row("noEmailNoEmailNoE001", {}),
+      row("leftLeftLeftLeft0001", { email: "left@x.com", isActive: false }),
+      row("claimedClaimedCla001", { email: "c@x.com", supersededByUid: UID_SAM }),
+      row("demo-trainer-ana", { isDemo: true }),
+    ];
+    const accounts = [account(UID_SAM, "sam@x.com"), account(UID_JO, "jo@x.com")];
+    const verdicts = Object.fromEntries(classifyTrainers(rows, accounts).map((r) => [r.id, r.verdict]));
+    expect(verdicts).toEqual({
+      [UID_SAM]: "at-uid",
+      oldSam00000000000001: "duplicate",
+      stranded000000000001: "stranded",
+      placeholderPlace0001: "placeholder",
+      neverneverneverne001: "never-signed-in",
+      noEmailNoEmailNoE001: "unreachable",
+      leftLeftLeftLeft0001: "switched-off",
+      claimedClaimedCla001: "superseded",
+      "demo-trainer-ana": "demo",
+    });
   });
 });
 
@@ -166,32 +171,36 @@ describe("item 12: real clients tied to Demo Mode", () => {
 });
 
 describe("the gate and the report", () => {
-  it("stops on a stranded record or any real client tied to Demo Mode, and says so in one line", () => {
-    const report = {
-      identity: classifyTrainers([row("autoIdAutoIdAutoId01", { email: "sam@x.com" })], auth([], { "sam@x.com": UID_SAM })),
+  it("stops on a stranded account or any real client tied to Demo Mode, and says so in one line", () => {
+    const report = auditReport({
+      trainers: [row("autoIdAutoIdAutoId01", { email: "sam@x.com" })],
+      accounts: [account(UID_SAM, "sam@x.com")],
       demo: { ...NO_DEMO, realClientApprovedAtDemo: ["realClient"], demoHostedMissingClient: ["s9"] },
-    };
+    });
     expect(gateOf(report)).toEqual({ item0: 1, item12: 1, pass: false });
     const lines = reportLines(report);
     expect(lines[lines.length - 1]).toBe("GATE item0=1 item12=1 STOP");
-    expect(lines.join("\n")).toContain("autoIdAutoIdAutoId01  sam@x.com  signs in as " + UID_SAM);
+    expect(lines.join("\n")).toContain(`account ${UID_SAM} opens on trainers/autoIdAutoIdAutoId01  sam@x.com`);
     expect(lines.join("\n")).toContain("client realClient");
   });
 
-  it("passes when both are 0, with the missing-client Demo sessions for the record only", () => {
-    const report = {
-      identity: classifyTrainers([row(UID_SAM, { email: "sam@x.com" })], auth([UID_SAM])),
+  it("passes when both are 0; a record nobody signs in to yet is listed, not a stop", () => {
+    const report = auditReport({
+      trainers: [row(UID_SAM, { email: "sam@x.com" }), row("autoIdAutoIdAutoId01", { email: "gone@x.com" })],
+      accounts: [account(UID_SAM, "sam@x.com")],
       demo: { ...NO_DEMO, demoHostedMissingClient: ["s9"] },
-    };
+    });
     const lines = reportLines(report);
     expect(lines[lines.length - 1]).toBe("GATE item0=0 item12=0 PASS");
+    expect(lines.join("\n")).toContain("autoIdAutoIdAutoId01  gone@x.com");
   });
 
   it("names nobody it doesn't have to: an ordinary record's email never appears", () => {
-    const report = {
-      identity: classifyTrainers([row(UID_SAM, { email: "sam@x.com" })], auth([UID_SAM])),
+    const report = auditReport({
+      trainers: [row(UID_SAM, { email: "sam@x.com" })],
+      accounts: [account(UID_SAM, "sam@x.com")],
       demo: NO_DEMO,
-    };
+    });
     expect(reportLines(report).join("\n")).not.toContain("sam@x.com");
   });
 });

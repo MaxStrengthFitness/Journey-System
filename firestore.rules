@@ -859,14 +859,12 @@ service cloud.firestore {
           && (ac == bc || (ac is string && ac != '' && sessionClientMoved(b, bc, ah, ac)));
     }
 
-    /** A session with no studio given one once: its client's home (Finish), or the caller's studio, never Demo Mode. */
+    /** A session with no studio given one once: its own client's home, as Finish fills it, and nothing else. */
     function sessionHostFilled(a, ah) {
       let cid = a.get('clientId', '');
-      return ah is string
-          && ((cid is string && cid != ''
-               && existsAfter(/databases/$(database)/documents/clients/$(cid))
-               && studioIdOf(getAfter(/databases/$(database)/documents/clients/$(cid)).data) == ah)
-              || (!isDemoStudioId(ah) && coverageWriterAllowed(ah)));
+      return ah is string && cid is string && cid != ''
+          && existsAfter(/databases/$(database)/documents/clients/$(cid))
+          && studioIdOf(getAfter(/databases/$(database)/documents/clients/$(cid)).data) == ah;
     }
 
     /** Named once on an open session (Who's this?, or Finish), or moved by the merge. */

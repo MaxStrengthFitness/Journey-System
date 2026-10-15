@@ -22,8 +22,9 @@
  *
  * WHAT IT READS (the Admin SDK, field masks; one pass, a few hundred
  * documents): every trainer document (email, isActive, supersededByUid,
- * pendingClaim, authUid, isDemo); Firebase Auth's users for those emails and
- * ids (getUsers, 100 at a time); the sessions hosted at demo-studio; the
+ * pendingClaim, isDemo); every Firebase Auth account (listUsers, 1,000 a page:
+ * its uid, its own email and its providers' emails); the sessions hosted at
+ * demo-studio; the
  * clients homed at demo-studio and the sessions naming them; the clients whose
  * cross-train approvals name demo-studio; and the client documents those name.
  *
@@ -38,15 +39,16 @@
  */
 
 import dns from "dns";
-import { getAuth, type UserIdentifier } from "firebase-admin/auth";
+import { getAuth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 import { connectFirestore } from "./lib/admin.ts";
 import {
   DEMO_STUDIO,
-  classifyTrainers,
+  auditReport,
   demoFindings,
   gateOf,
   reportLines,
+  type AuthAccount,
   type ClientRow,
   type SessionRow,
   type TrainerRow,
@@ -62,23 +64,23 @@ const chunks = <T,>(list: readonly T[], size: number): T[][] => {
 
 const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
-/** Firebase Auth's answer for these emails and ids: which uids exist, and each email's uid. */
-async function lookUpAuth(emails: string[], ids: string[]) {
+/** Every Firebase Auth account: its uid, its own email and the emails its sign-in providers carry. */
+async function listAccounts(): Promise<AuthAccount[]> {
   const auth = getAuth();
-  const uids = new Set<string>();
-  const uidByEmail = new Map<string, string>();
-  const asked: UserIdentifier[] = [
-    ...[...new Set(emails)].map((email) => ({ email })),
-    ...[...new Set(ids)].map((uid) => ({ uid })),
-  ];
-  for (const part of chunks(asked, 100)) {
-    const res = await auth.getUsers(part);
-    for (const u of res.users) {
-      uids.add(u.uid);
-      if (u.email) uidByEmail.set(u.email.toLowerCase(), u.uid);
+  const out: AuthAccount[] = [];
+  let pageToken: string | undefined;
+  do {
+    const page = await auth.listUsers(1000, pageToken);
+    for (const u of page.users) {
+      out.push({
+        uid: u.uid,
+        email: u.email ?? null,
+        providerEmails: u.providerData.map((p) => p.email ?? "").filter(Boolean),
+      });
     }
-  }
-  return { uids, uidByEmail };
+    pageToken = page.pageToken;
+  } while (pageToken);
+  return out;
 }
 
 /** Client documents by id, read 100 at a time (a missing one is left out). */
@@ -97,16 +99,13 @@ async function main() {
   console.log("\nThe privacy audit (Round 0, strangers out). READ ONLY: this script writes nothing.\n");
   const db = connectFirestore();
 
-  // Item 0: every trainer document, and Firebase Auth's answer for them.
+  // Item 0: every trainer document, and every sign-in account.
   const trainerSnap = await db
     .collection("trainers")
-    .select("email", "isActive", "supersededByUid", "pendingClaim", "authUid", "isDemo")
+    .select("email", "isActive", "supersededByUid", "pendingClaim", "isDemo")
     .get();
   const trainers: TrainerRow[] = trainerSnap.docs.map((d) => ({ id: d.id, data: d.data() }));
-  const emails = trainers.map((t) => text(t.data.email).toLowerCase()).filter(Boolean);
-  const ids = [...trainers.map((t) => t.id), ...trainers.map((t) => text(t.data.authUid)).filter(Boolean)];
-  const authFacts = await lookUpAuth(emails, ids);
-  const identity = classifyTrainers(trainers, authFacts);
+  const accounts = await listAccounts();
 
   // Item 12: sessions hosted at Demo Mode, Demo clients' sessions, and approvals naming it.
   const demoHostedSnap = await db
@@ -139,9 +138,9 @@ async function main() {
   const clients = await readClients(db, named);
   for (const c of demoClientSnap.docs) if (!clients.has(c.id)) clients.set(c.id, c.data());
 
-  const report = { identity, demo: demoFindings({ demoHosted, demoClientSessions, clients, approvedAtDemo }) };
+  const report = auditReport({ trainers, accounts, demo: demoFindings({ demoHosted, demoClientSessions, clients, approvedAtDemo }) });
   console.log(
-    `Read: ${trainers.length} trainer records, ${authFacts.uids.size} sign-in accounts, ` +
+    `Read: ${trainers.length} trainer records, ${accounts.length} sign-in accounts, ` +
       `${demoHosted.length} Demo Mode sessions, ${demoClientIds.length} Demo clients and their ` +
       `${demoClientSessions.length} sessions, ${approvedAtDemo.length} clients approved at demo-studio.\n`,
   );
