@@ -200,7 +200,8 @@ The full ledger, with AJ's words, is `docs/rounds/2026-10-14-weekly-1on1.md`.
 1. **Lock the trainer records?** (Parked on Oct 14.) Each trainer record holds its Kaizen Roster (a client's name, a reason and a note), and any account that signs in can still list every trainer record after strangers out, until a later privacy round. Recommended A: a small round right after strangers out.
 2. How the iPad walk went (Q5), and anything it found.
 3. Head office's launch date, if there is one (Q6), and their answer on franchise Mindbody accounts (Q17).
-4. The questions still waiting from earlier pages: the Oct 12 morning page's six, the Everyone's Journey walk's, and switching studio's (the header's name opens the picker and its logo goes to the Hub; a switch during a running session leaves it running). Claude Code picks the ones that matter before writing next week's section 6.
+4. **A conversation about the briefing and the Wrap-up** (AJ, Oct 16 2026, on the CLAUDE.md trim's review page: "I think we should plan a conversation to bring more clarity to these screens better"). A deep conversation, not quick questions: what a trainer needs to know in the minute before a session, what they need to do in the minute after, and what each screen should stop saying. Claude Code brings a one-page picture of both screens as they are today (every card, in order, with what it is for) so the talk starts from the real screens. With it, the two rules AJ asked to discuss the same day: "Get to know" on the Hub, and the standard-machines rule.
+5. The questions still waiting from earlier pages: the Oct 12 morning page's six, the Everyone's Journey walk's, and switching studio's (the header's name opens the picker and its logo goes to the Hub; a switch during a running session leaves it running). Claude Code picks the ones that matter before writing next week's section 6.
 
 ## 8. The ledger: print this at the end
 
