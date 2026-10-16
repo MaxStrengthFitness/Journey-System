@@ -666,7 +666,14 @@ bookings and contracts for Max Strength; nothing here moves that.
   **Imported notes come in quiet** (Q16 = A): on the profile, marked from
   FileMaker, never on the briefing or the Hub, and a trainer raises one with a
   tap. Not built yet: today the importer reports the profile's standing note
-  and doesn't import it.
+  and doesn't import it. **One client, several FileMaker records** (AJ, Oct
+  16 2026: "each studio has its own database of clients on filemaker ... Some
+  clients orginally trained at westlake but eventually may be at a different
+  studio now as a different saved user in Filemaker saved under that
+  studio"): before the mass import, the clients who appear in more than one
+  studio's export are found and brought onto ONE Journey client (Mindbody's
+  id is the key), their histories in date order; a discussion first, on the
+  next 1-on-1's list.
 - The Monday-morning questions 2–4 as automatic in-app flags.
 - Mindbody's webhook already handles `staff.*`, contract, membership and sale
   events in code (`functions/src/mindbody/index.ts`); whether Mindbody sends
