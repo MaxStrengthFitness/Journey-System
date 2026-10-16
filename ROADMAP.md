@@ -506,7 +506,38 @@ studio eventually".
   2027 (AJ, Oct 16 2026: "January-March"), so this is built, shipped and
   walked by the end of December 2026. It is on Gate B's list (Next).
 
+### 10. Achievements on a client's profile (an idea, parked)
+
+AJ, Oct 16 2026 (a comment on the trim's review page, on the Hub's Critical
+mark): "there is an idea in my head where profiles not only get badges for
+critical things that show on the hub but also as the client trains they earn
+accolades and achievements that can be displayed on their profile ... some
+could be automatic like a badge for every 100 sessions that keeps upgrading or
+a consistency badge for getting 2 times a week so many times in a row ... the
+awarded badges could be like "Master one of the 4 P's Path" "Good spirited"
+"MVP of the month" ... i dont really want to build this idea out too far yet".
+
+- **Two kinds.** Automatic (every 100 sessions, upgrading; a run of weeks at
+  the client's twice a week) and awarded by a trainer (a 4 P's path mastered,
+  "Good spirited", "MVP of the month"), each kept with who and when.
+- **The rules it meets.** An automatic one counts only what Journey can
+  stand behind: a session total that is confirmed or wholly Journey's
+  (`canClaimMilestone`), a run of weeks only inside the part of the client's
+  history Journey holds. The progress report's accolades
+  (`progress-report/accolades.ts`) and the Hub's milestones already follow
+  these rules. On the profile only, never on the Hub card.
+
+Parked by AJ's word; a round of its own, plan first, when it is picked.
+
 ### Small items, each plan first
+
+- **Anniversaries on the Hub card** (AJ, Oct 16 2026: the Hub's marks are
+  "very important things that day like Renewal talks Birthdays Anniversaries
+  New clients Long Breaks"). Four are there (Renew; Celebrate's birthdays;
+  Welcome's consult and first sessions; Welcome's back after a break); an
+  anniversary shows only on Operations → Month today. It joins Celebrate on
+  the day, from a confirmed first day only (`canClaimAnniversary`), so the
+  card never says a guessed date.
 
 - **The next design check (a UI visual check).** AJ, Oct 15 2026, on the
   trim's review page, named three decisions to look at again:
