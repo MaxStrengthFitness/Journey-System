@@ -634,7 +634,11 @@ Parked by AJ's word; a round of its own, plan first, when it is picked.
 - **Teams in Journey (proposed Oct 3 2026, waiting on Jeff and AJ).** Teams
   carries the conversation, Journey keeps anything about a client. It would
   change one line of **Not building** below (Teams may notify; Journey still
-  sends nothing). `docs/rounds/2026-10-03-teams-proposal.md`.
+  sends nothing). `docs/rounds/2026-10-03-teams-proposal.md`. AJ, Oct 16
+  2026, on the trim's review page (on recognition and kudos): "we are going to
+  plan to use our app with Teams so we will be moving away from this rule and
+  how comments are made on things like this, not to be confused with notes":
+  kudos and comments move to Teams; a client's notes stay in Journey.
 - Accessibility pass. (Cold-load timing on a studio iPad is measured by the
   perf lab, `harness/perf-lab/`, and each cold open's boot report.)
 - Architected for, not built: automated retention beyond flags (in-app only),
