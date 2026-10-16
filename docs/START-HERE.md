@@ -32,6 +32,30 @@ FileMaker system. It does three things and nothing else:
 3. **Around all of that** — lets a studio leader run the studio, and lets head
    office keep the method the same everywhere.
 
+### The three modes, and the spirit of the app
+
+In AJ's words (Oct 16 2026):
+
+> "Trainer mode is where you handle clients sessions and notes. Operations
+> mode is where you handle the studio, retention and making sure everything
+> is going as planned or set too. Admin mode is to control the app and
+> control the studios in terms of things that could benefit the company or
+> allow us to tweak all studios and have full control.
+>
+> Studios are franchised, they run everything but its still our name so we
+> need to have control and be able to monitor and audit if we have to.
+> Studios do have freedom and the app needs to allow the trainer to have full
+> control of what they are working with.
+>
+> In its most basic terms the app is meant to record data and allow trainers
+> to learn from it. its not something to force trainers to do something
+> specific or a gotcha type trap meant to have tyranny over the trainers,
+> this is a tool that we the trainers can use to really help our clients."
+
+That spirit is why so many rules read the way they do: a save is never
+refused, a reason is asked and never required, an odd setting is "worth a
+look" and never "wrong", trainers are never ranked, and nothing pings anyone.
+
 ### The definition it all rests on
 
 Everything above is downstream of one sentence. AJ: *if it isn't within this
