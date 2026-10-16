@@ -252,7 +252,12 @@ only from a button, and what it covers after the session.
 
 AJ, Oct 9 2026: the editor is "so lengthy", "it's so intimidating to fill
 out"; Oct 14 2026: next, **"settings first"**, with a plan first under the
-step-by-step protocol. What AJ wants from it:
+step-by-step protocol. **It starts with a conversation about how we catalog
+machines** (AJ, Oct 16 2026: "we need to figure out how to catalog our
+machines in the best way possible, plan a conversation out for this one too";
+on the next 1-on-1's list in `docs/ops/CONVERSATION-BRIEF.md`), because the
+pieces below are AJ's ideas so far, not yet the whole picture. What AJ wants
+from it:
 
 - **The settings first.** The one change a trainer actually needs to make is
   saying which settings a machine has. FileMaker made it easy, one box of
