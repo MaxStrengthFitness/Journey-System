@@ -536,6 +536,20 @@ Parked by AJ's word; a round of its own, plan first, when it is picked.
 
 ### Small items, each plan first
 
+- **Adding a B routine: build it directly; molding it in is an option** (AJ,
+  Oct 16 2026, on the trim's review page: "Right now this is causing the B
+  routine to be extremly cluttered if im just trying to add the B routine for
+  an existing client. yes i want to work in B routines with new clients but i
+  want that to be an option you can go through not an automatic 'you have to
+  do this' it just causes so much stuff all over the screen and i dont know
+  where to act"). Today, turning B on with nothing in it always opens Plan B,
+  the swap-by-swap sheet (Oct 8 2026: "never an empty B";
+  `routine-plan/ui/useBSwitch.ts`). The fix offers a plain way to build B
+  like A, with molding as the option, and shows B's swap chrome only for a B
+  being molded in. This reverses part of the Oct 8 rule, so the decision
+  record changes with it. Planned with AJ's answer in the review page's
+  thread; it is AJ's pain today, so it comes early.
+
 - **Anniversaries on the Hub card** (AJ, Oct 16 2026: the Hub's marks are
   "very important things that day like Renewal talks Birthdays Anniversaries
   New clients Long Breaks"). Four are there (Renew; Celebrate's birthdays;
