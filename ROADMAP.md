@@ -542,6 +542,30 @@ awarded badges could be like "Master one of the 4 P's Path" "Good spirited"
 
 Parked by AJ's word; a round of its own, plan first, when it is picked.
 
+### 11. Journey that still works without Mindbody
+
+AJ, Oct 16 2026 (a comment on the trim's review page): "our goal is to take
+over the recording portion of the workouts. the data tracking ... The main
+thing is i dont want the app to be useless WITHOUT mindbody ... if we ever did
+part ways i dont want this app to be completely useless and who knows maybe i
+would demo this app to someone who doesnt use mindbody for their clients and i
+want them to be able to use this app." Mindbody stays the owner of people,
+bookings and contracts for Max Strength; nothing here moves that.
+
+- **What already works with no Mindbody.** Demo Mode is a whole studio with no
+  Mindbody link; a client can be added in Journey (Add Client's walk-in, the
+  open session's Who's this?); sessions, sets, routines, settings, notes, the
+  machine card, the Staircase, the progress report and the Deep Dive are all
+  Journey's own.
+- **What goes blank.** The Hub's schedule (bookings come from Mindbody),
+  sessions left and renewals, packages, Openings, the before-Journey totals,
+  staff photos.
+- **First step: a read-only check** of a studio with no Mindbody link, screen
+  by screen: what works, what goes blank, and what says something wrong
+  instead of "not connected". Then AJ picks what a Mindbody-less studio needs
+  (most likely a simple schedule of its own and clients added in Journey).
+
+
 ### Small items, each plan first
 
 - **Adding a B routine: build it directly; molding it in is an option** (AJ,
