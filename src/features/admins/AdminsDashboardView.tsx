@@ -72,6 +72,7 @@ import {
   Search,
   SlidersHorizontal,
   BookOpenCheck,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Client, FranchiseNetwork, Machine, Studio, Trainer } from "../../types";
@@ -92,6 +93,9 @@ import { buildSearchIndex, type SearchEntry } from "./search";
 import { StudiosRoom } from "./studios/StudiosRoom";
 import { StudioPage, type StudioTab } from "./studios/StudioPage";
 import { FranchisesPage } from "./studios/FranchisesPage";
+import { WaitingPage } from "./studios/WaitingPage";
+import { waitingPeople } from "./studios/waiting";
+import { buildStaffRoster } from "../admin/staff/roster";
 import { SyncCheck } from "./machinery/SyncCheck";
 import { useStudioLeases } from "./machinery/useStudioLeases";
 import { syncRowOf, syncRows } from "./machinery/sync-check";
@@ -147,6 +151,7 @@ export interface AdminsDashboardViewProps {
 const PAGE_ICON: Record<AdminsNavPage, ReactNode> = {
   home: <House aria-hidden="true" />,
   studios: <Building2 aria-hidden="true" />,
+  waiting: <UserPlus aria-hidden="true" />,
   launches: <Rocket aria-hidden="true" />,
   franchises: <Network aria-hidden="true" />,
   machines: <Dumbbell aria-hidden="true" />,
@@ -251,7 +256,26 @@ function AdminsShell({
     setCheckSeq((n) => n + 1);
     setSignalsSeq((n) => n + 1);
   }, []);
+  // Who is waiting to be let in, every studio (Oct 16 2026): Home's one read
+  // of the pending requests, filtered by the staff roster's own rule so a
+  // stale request (the account exists already) never counts.
+  const waiting = useMemo(
+    () =>
+      waitingPeople(
+        buildStaffRoster({
+          trainers,
+          mindbodyStaff: [],
+          requests: signals.access.requests,
+          studioId: null,
+          studioIds: null,
+          mindbodyChecked: false,
+        }),
+        studios,
+      ),
+    [trainers, signals.access.requests, studios],
+  );
   const counts: Partial<Record<AdminsNavPage, number>> = {
+    ...(signals.access.state === "ok" && waiting.length ? { waiting: waiting.length } : {}),
     ...(signals.limbo.state === "ok" && signals.limbo.entries.length ? { limbo: signals.limbo.entries.length } : {}),
     ...(signals.bugs.state === "ok" ? { bugs: signals.bugs.reports.filter((r) => r.status === "open").length || undefined } : {}),
     // Waiting for review (Oct 2 2026): what studios offered every MSF studio.
@@ -339,10 +363,11 @@ function AdminsShell({
         offers: signals.offers,
         shares: signals.shares,
         openSessions: signals.openSessions,
+        waiting: { state: signals.access.state, people: waiting },
         launches,
         now,
       }),
-    [studios, networks, allSync, signals, launches, now],
+    [studios, networks, allSync, signals, waiting, launches, now],
   );
   const openDoor = (door: NeedDoor) => {
     if ("action" in door) checkAgain();
@@ -367,6 +392,7 @@ function AdminsShell({
     if (signals.shares.state === "ok") kinds.add("shares");
     if (signals.bugs.state === "ok") kinds.add("bugs");
     if (signals.openSessions.state === "ok") kinds.add("left-open");
+    if (signals.access.state === "ok") kinds.add("waiting");
     if (launches.state === "ok") kinds.add("launch-overdue");
     return kinds;
   }, [allSync, signals, launches]);
@@ -557,6 +583,16 @@ function AdminsShell({
                   </div>
                 </AdminScreen>
               ))}
+            {page === "waiting" && (
+              <WaitingPage
+                authTrainer={authTrainer}
+                trainers={trainers}
+                studios={studios}
+                onRefresh={onRefresh}
+                onChanged={recount}
+                onOpenStudioTeam={(studioId) => go({ page: "studio", studioId, tab: "team" })}
+              />
+            )}
             {page === "launches" && (
               <LaunchesPage
                 studios={studios}

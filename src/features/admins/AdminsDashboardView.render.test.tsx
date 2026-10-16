@@ -159,6 +159,7 @@ describe("the Admins dashboard", () => {
     expect(texts(el, ".hq-side .hq-nav__item")).toEqual([
       "Home",
       "All studios",
+      "Waiting to be let in",
       "Launches",
       "Franchises",
       "Machines",
@@ -178,6 +179,10 @@ describe("the Admins dashboard", () => {
     expect(el.textContent).toContain("2 machines in the standard set, of 2 in the MSF catalog.");
     await click(byText(el, ".hq-side .hq-nav__item", "All studios"));
     expect(el.textContent).toContain("grouped by what Journey knows today");
+    // Every studio's pending sign-ups on one list (Oct 16 2026): nobody in this empty Firestore.
+    await click(byText(el, ".hq-side .hq-nav__item", "Waiting to be let in"));
+    expect(el.textContent).toContain("Everyone who signed in and asked to join, at every studio.");
+    expect(el.textContent).toContain("Nobody is waiting");
     await click(byText(el, ".hq-side .hq-nav__item", "Launches"));
     // No studio has a stage recorded here: nothing is opening.
     expect(el.textContent).toContain("No studio is opening right now");
@@ -228,7 +233,7 @@ describe("the Admins dashboard", () => {
     // Home is one page: no chips.
     expect(el.querySelector(".hq-bar .hq-chips")).toBeNull();
     await click(byText(el, ".hq-bar .hq-place", "Studios"));
-    expect(texts(el, ".hq-bar .hq-chip")).toEqual(["All studios", "Launches", "Franchises"]);
+    expect(texts(el, ".hq-bar .hq-chip")).toEqual(["All studios", "Waiting to be let in", "Launches", "Franchises"]);
     await click(byText(el, ".hq-bar .hq-place", "Machinery"));
     expect(texts(el, ".hq-bar .hq-chip")).toEqual(["Limbo", "Mindbody sync", "Bug reports", "Data", "System tools", "Activity"]);
     expect(el.querySelector(".hq-bar .hq-place--on")?.textContent).toBe("Machinery");
