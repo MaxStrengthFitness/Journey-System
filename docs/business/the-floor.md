@@ -81,6 +81,16 @@ and anything a previous trainer flagged on that machine ("holds her breath
 here"). Then it takes what happened. The catalog and the analytics are for off
 hours.
 
+> "The app is allowing us to do things filemaker cant but at the heart they
+> are both just recording the session. Yes we have lots of bells and whistles
+> on the car now but the car still hast to be a car. our recording app needs
+> to be just as quick and simple to use while also allowing us to actually use
+> all the data we are collecting." (AJ, Oct 16 2026)
+
+So the test for anything added to a session is FileMaker's speed: logging a
+set must stay as quick and simple as it was there, and everything else Journey
+does with the data comes after the session, never in the way of it.
+
 **The app never decides a progression.** Failure inside **6–10 reps** is the
 range the protocol advises (AJ, Sep 22 2026); over it the weight goes up, under
 it it may be too heavy. It is a heuristic a trainer applies with judgement, and
