@@ -34,7 +34,14 @@ not finished.
 | Post-session | The sweep. Unfiled captures come back as cards with four big buttons (`FordSweep`) |
 | Client profile → Notes & Profile → FORD | The page: what is coming up (the Mindbody birthday included), what is unfiled, the four pillars with their bands, and going above and beyond (`page/FordPage`) — see "The FORD page" below |
 | Operations → Delight queue | Every gesture the studio owes, across every client, in date order (`DelightQueue`) — with row actions since the Operations round (Sep 19): Take it, Hand it to… (the studio's people, by Auth uid), Done with what happened, Pass; a passed one-off files under "Passed — still open"; a switch shows what is done. Every write is `setGestureStatus`, the client record's own writer |
-| The Hub → Get to know | The ✎ "Ask about" beside the day's booked clients (wave 2 hub, Sep 28 2026): a detail whose day comes round within the week, or noted in the last two weeks, one per client, from ONE read of the studio's FORD per studio visit (`hub-read.ts`; the rule and the screens are `hub-opportunities/`). The glyph alone on the grid; the words in the peek and the Opportunities list. Read only, never a write |
+| The Hub → Get to know | The "Ask about" mark (a speech bubble today; a filled heart in the logo blue once the icon round lands, AJ Oct 16 2026: "1a") beside the day's booked clients (wave 2 hub, Sep 28 2026): a detail whose day comes round within the week, or noted in the last two weeks, one per client, from ONE read of the studio's FORD per studio visit (`hub-read.ts`; the rule and the screens are `hub-opportunities/`). The glyph alone on the grid; the words in the peek and the Opportunities list. Read only, never a write |
+
+**Why it catches before, during and after the session** (AJ, Oct 16 2026):
+"when the client gets there we just need to be able to record anything they
+say so thats why it has a spot in pre session, during the session and post
+session. Because they might say something when they come in, mid work out or
+just as they leave". Three doors into one Life section is the design, not a
+duplication to tidy away.
 
 ## Where the data sits, and why
 

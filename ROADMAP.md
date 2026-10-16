@@ -565,6 +565,73 @@ bookings and contracts for Max Strength; nothing here moves that.
   instead of "not connected". Then AJ picks what a Mindbody-less studio needs
   (most likely a simple schedule of its own and clients added in Journey).
 
+### 12. Consistency: the Consistency Club and a client's streaks
+
+AJ, Oct 16 2026: "I just want to be able to track clients consistency on a
+studio leader level, so being able to see all my clients at a studio and
+knowing who has had 2 times a week currently the most amount? who has the
+longest 2 times a week streak? This is something a studio leader may want to
+reward so being able to read it in a easy way(like on somewhere in operations
+and also somewhere on that clients profile) Allstars could use a better
+name". His picks the same day, "2c" and "3a": the name is **Consistency
+Club**, "i want to also add the ability to see who has consistently gotten 1
+once a week also because some client do just come once a week", and a streak
+can be paused: "we do want to allow clients to go on vacations or if they have
+a surgery studios should be able to pause the streak ... so clients still live
+their life and dont lose out on their consistency when its outside of their
+control ... we would never advise skipping a surgery just to keep a streak
+going so thats why we can pause it".
+
+- **What exists.** All stars (`hub-opportunities/all-stars.ts`): the nightly
+  renewals job finds the clients with a visit in at least 24 of the last 26
+  weeks at about twice a week, only where Journey holds every visit in that
+  window, and writes them to `studios/{s}/watch/hubMarks`; the Hub shows them
+  as a Sessions sort section and a line in the peek.
+- **What this adds.** For each client, two streaks at each of two paces,
+  **twice a week** and **once a week**: the current one (weeks in a row at that
+  pace, still running) and the longest on record. All stars is renamed
+  **Consistency Club**. Leaders read the studio's list on Operations → Clients
+  → Moments (where they already go to do something for a client), sorted by
+  the current streak with the longest beside it, twice a week and once a week
+  each its own list. The profile says it in one line on the attendance card
+  (Planned 7), e.g. "Twice a week for 14 weeks in a row · longest 22".
+- **Pauses, never breaks** (3a). A week under the pace breaks a streak,
+  except a week the studio was closed or the client was away for a reason
+  outside their control (a vacation, a surgery): those weeks pause it. The
+  reason and the dates come from a person (the Away record the renewals
+  already keep, or a leader's pause with a reason), never guessed from an
+  empty week.
+- **The rules it meets.** A streak counts only weeks Journey holds and says
+  where it starts counting ("since Journey started at Strongsville") until the
+  FileMaker import reaches further back; late cancels are never visits; a
+  count, never a score or a colour; recognition, the client's own, and the
+  leaders' list is a list to act on, never shown to clients. A new summary
+  document per studio, written by the nightly job beside `hubMarks` (a small
+  Firestore structure addition, AJ's OK asked at plan time); no Mindbody
+  call, no new timer. Achievements (Planned 10) would read these streaks
+  rather than count again.
+
+Open, at plan time: how long a pause may run, and who may pause (the
+recommendation: anyone at the studio records it, a leader may undo it, like
+late cancels).
+
+### 13. Icons: one audit, one set
+
+AJ, Oct 16 2026: "i would love a round where we gather all our icons together
+and do a overhaul audit to make them all consistent". The app draws from
+lucide-react everywhere, with no single list of which icon means what: a heart
+is kudos on Relay and the client's Why on Goals, a heart with a pulse line is
+Pulse and also the studio map's AED, and the Hub's marks have their own map
+(`hub-schedule/HubCard.tsx` `GLYPH`, shared with the Next 30 minutes strip).
+The round gathers every icon on one page (where it is used and what it means
+there), finds the ones that mean two things or two icons for one thing, and
+proposes one set: one icon per meaning, one size and stroke per place, held by
+a test the way colours are. Its first decided change: Get to know's mark
+becomes a **filled heart in the logo blue** (AJ, Oct 16 2026, "1a"; blue keeps
+it Get to know's own family, orange would read as Celebrate beside the
+birthday cake, and three colours run together at 13px). The heart can ship
+alone before the round if wanted.
+
 
 ### Small items, each plan first
 
