@@ -174,6 +174,8 @@ The bottom-bar tab is **My Studio** (My Studio round, Sep 18–19): Relay · Ope
 
 Sharing between studios is the studio's offer and an administrator's decision, per machine and per tip or note (AJ, Sep 28 2026: it "should submit to admins first for review, we can review in admin dashboard"). The switch reads "Offer to all MSF studios"; nothing reaches another studio until an administrator shares it from Admins → Waiting for review, and the rules let only an administrator set `shared` (`shareDecisionOk`; `src/features/machine-db/README.md`). A studio's own machine knowledge — its roster, its Studio notes, its set-up — is readable only by the people who work there, and its set-up changed only by its leaders ("Studio-local machine notes stay with that studio. Only the official standard flows company-wide"). Comments stay within the studio; a tag rings the tagged person's bell and nothing else.
 
+**Kaizen: studios help improve the standard** (AJ, Oct 16 2026, on the CLAUDE.md trim's review page): "Admins should be able to adopt information if they choose to but studios should also be able to offer to help. The studios motto is Kaizen, we are always improving. Our trainers should be able to help out and improve the company and this is an opportunity where they can. Questioning authority isnt bad, if a studio disagrees with information in the catalog and wants to try to change it they should be able to. Knowledge is power, allow us to build it." So offers go both ways: an administrator may adopt a studio's work unasked, and a studio may offer a change to the standard itself, with its reason (ROADMAP Planned 2).
+
 ## Data
 
 ### Mindbody owns people

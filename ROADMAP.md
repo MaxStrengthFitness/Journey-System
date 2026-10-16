@@ -326,7 +326,15 @@ from it:
   Standard → Machines → a machine → Compare) already shows every studio's
   differences; the round adds a way for head office to bring a studio's
   machine or a field of it into the standard from there, opened in the catalog
-  editor to read and correct before it publishes, with no offer needed.
+  editor to read and correct before it publishes, with no offer needed. And
+  the other way (AJ, Oct 16 2026: "Admins should be able to adopt information
+  if they choose to but studios should also be able to offer to help ... if a
+  studio disagrees with information in the catalog and wants to try to change
+  it they should be able to"): a studio that changed a standard machine's
+  words on its own copy can offer that change, with its reason, as a
+  suggestion for the standard; it lands in Admins → Standard → Waiting for
+  review beside the other offers, and an administrator adopts it, edits it,
+  or answers why not.
 
 AJ's Sep 21 asks are still open too (`src/features/admin/machines/README.md` →
 "The editor round that has not happened yet"): duplicating a machine, drafts
