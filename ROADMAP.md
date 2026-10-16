@@ -172,6 +172,9 @@ This is **Gate B** (`docs/ARCHITECTURE.md` §5.3): the list that separates
 - ~~**The franchise partition in the rules.**~~ Built Oct 10 2026 and live
   (the app on Oct 11, the rules by the Oct 12 release at the latest).
 - ~~**Strangers out**, privacy Round 0.~~ Live Oct 15 2026; its check is Now 1.
+- **A studio's own time zone** (Planned 9). The first studio outside Eastern
+  is expected **January to March 2027** (AJ, Oct 16 2026: "January-March"),
+  so it is built, shipped and walked by the end of December 2026.
 - **The rest of the privacy lock, Rounds 1 to 4.** Before the first
   franchise, Jan 1 2027 (AJ, Oct 2 2026). The design was written on Oct 12
   2026; Round 0 re-derived its rules from the current file, and each later
@@ -499,9 +502,9 @@ studio eventually".
   that studio, and the Calendar's parked day shift for iPads east of Eastern
   settled with it. Tested across zones, the way the suite is held to Eastern
   today.
-- **When.** Before the first studio outside Eastern opens on Journey.
-
-Open: when that first studio is expected.
+- **When.** The first studio outside Eastern is expected January to March
+  2027 (AJ, Oct 16 2026: "January-March"), so this is built, shipped and
+  walked by the end of December 2026. It is on Gate B's list (Next).
 
 ### Small items, each plan first
 
