@@ -221,6 +221,16 @@ export default defineConfig(({ command }) => {
         if (appPort !== 3000) return overlay ? { port: appPort + 1 } : { port: appPort + 1, overlay: false };
         return overlay ? true : { overlay: false };
       })(),
+      // The dev server watches the app, not the old worktrees (Oct 16 2026).
+      // The working copy keeps every round's worktree under .claude/worktrees,
+      // about 290,000 files; crawling them made the first start take about
+      // 15 minutes and stalled every page while it ran. Vite already skips
+      // node_modules and .git.
+      watch: { ignored: ['**/.claude/**'] },
     },
+    // Find the app's dependencies from its one page. Left to itself Vite scans
+    // every .html file in the folder, and harness/ holds dozens of mock pages
+    // and built copies of the app (Oct 16 2026).
+    optimizeDeps: { entries: ['index.html'] },
   };
 });
