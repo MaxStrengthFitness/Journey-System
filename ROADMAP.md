@@ -612,6 +612,15 @@ bookings and contracts for Max Strength; nothing here moves that.
   standard machines, head office's starting routines and defaults), each
   marked "company-wide, keep with head office" or "the studio's own, hand it
   over", for AJ to pick from. No code.
+- **Indexes no query uses** (Claude's review of the index rule, which AJ
+  handed over on Oct 16 2026: "this was your call so feel free to review
+  this idea"). The rule stays: on the Enterprise edition a query without its
+  index silently scans the whole collection, billed by the byte. The other
+  half is missing: `firestore-indexes.test.ts` fails on a query with no index,
+  but not on an index no query uses any more (98 composites today), and each
+  one costs a little on every write. The test learns to name them, so they
+  are deleted with the next index deploy; the first known one is
+  `taskInstances (status, localDate)`, still live in the console.
 - **What Journey collects that nothing reads yet** (AJ, Oct 15 2026: "anything
   we collect we want to use"): a read-only sweep of the fields Journey writes
   against the screens, reports and jobs that read them, with each unread field
