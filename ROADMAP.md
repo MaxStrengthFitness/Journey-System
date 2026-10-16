@@ -581,6 +581,11 @@ Parked by AJ's word; a round of its own, plan first, when it is picked.
 
 ## Later — Gate C and beyond
 
+- **A final round on how a client's profile is organised.** AJ, Oct 16 2026,
+  on the trim's review page, of the four tabs ordered by depth (Journey ·
+  Programming · Notes & Profile · Activity Archive): "I want to revisit how we
+  have everything organized but save that for a final round". The order stands
+  until then (`PROFILE_TABS`, held by `profile-nav.test.ts`).
 - Lock the remaining write holes right before the first franchisee goes live.
 - The new-studio runbook; the tracker and routine builder reading the studio's
   own floor only.
