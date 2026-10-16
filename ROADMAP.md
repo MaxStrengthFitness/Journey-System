@@ -572,6 +572,14 @@ Parked by AJ's word; a round of its own, plan first, when it is picked.
 
   Each is brought to AJ with what it costs and what it protects before
   anything changes; until then all three stand.
+- **What a studio has to ask head office for** (AJ, Oct 16 2026: "it
+  shouldnt have to be something where the studios are needing to reach out
+  to admins to change basic things that they should have control over"): a
+  read-only list of every control only administrators hold today (for
+  example a studio's Mindbody link and how often its schedule is pulled, the
+  standard machines, head office's starting routines and defaults), each
+  marked "company-wide, keep with head office" or "the studio's own, hand it
+  over", for AJ to pick from. No code.
 - **What Journey collects that nothing reads yet** (AJ, Oct 15 2026: "anything
   we collect we want to use"): a read-only sweep of the fields Journey writes
   against the screens, reports and jobs that read them, with each unread field
