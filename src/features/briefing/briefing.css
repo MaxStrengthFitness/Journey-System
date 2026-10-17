@@ -317,10 +317,17 @@
 
 /* --- 3. routine picker -------------------------------------------------- */
 
+/* A, B, and Other routine (the briefing round, Oct 17 2026): the third is a
+   door to Start from a routine, so it is narrower and never "picked". */
 .br__routines {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 10px;
+}
+.br__routine--other {
+  align-items: center;
+  text-align: center;
+  color: var(--br-live-text);
 }
 
 /* Routine A and Routine B are WELLS (type and depth, phase 9, Oct 4 2026):
@@ -1125,34 +1132,9 @@
 .br-cap__tap { width: 150px; }
 .br-cap__tap svg path { cursor: pointer; }
 
-/* --- 6. the routine as one line ---------------------------------------- */
+/* --- 6. the routine: its section, and the limits line ------------------ */
 
 .br-routine { display: flex; flex-direction: column; gap: 10px; }
-.br-routine__line {
-  width: 100%;
-  min-height: 56px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 12px;
-  align-items: center;
-  padding: 10px 14px;
-  text-align: left;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius);
-  background: var(--br-surface-2);
-  color: var(--br-ink);
-  font: inherit;
-  cursor: pointer;
-}
-.br-routine__what { font-size: 15px; font-weight: 600; }
-.br-routine__what b { font-weight: 800; }
-.br-routine__codes {
-  grid-column: 1;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--br-ink-2);
-}
 .br-routine__touch {
   grid-column: 1;
   display: inline-flex;
@@ -1164,22 +1146,10 @@
   /* Machine names, whole: a long one breaks rather than runs off (names-wrap.test.ts). */
   overflow-wrap: anywhere;
 }
-/* On the plan card it is its own line under the Road, not a cell of the routine line. */
+/* Its own line: under the plan card's Road, and under today's list. */
 p.br-routine__touch { margin: 0; }
 .br-routine__touch svg { flex: none; }
-.br-routine__edit {
-  grid-column: 2;
-  grid-row: 1 / span 3;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--br-live-text);
-}
-.br-routine__edit svg { transition: transform 150ms ease; }
+
 
 /* --- 7. also today ----------------------------------------------------- */
 
@@ -1209,3 +1179,271 @@ p.br-routine__touch { margin: 0; }
 }
 
 .br-also:empty { display: none; }
+
+/* --- 6. today's list (the briefing round, Oct 17 2026) ------------------- */
+
+/* TodayList.tsx: today's machines as one list a trainer acts on. A row is
+   the position, the machine's name (whole, wrapping), last time, Swap and ×,
+   every control 44px. Show it, don't label it: the one word is "Last time",
+   once, over the numbers. */
+.br-today { display: flex; flex-direction: column; gap: 8px; }
+
+.br-today__head,
+.br-today__row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 7.5rem 4.75rem 44px;
+  align-items: center;
+  gap: 8px;
+}
+.br-today__head {
+  padding: 0 4px 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--br-ink-muted);
+}
+.br-today__head span { grid-column: 3; text-align: right; }
+
+.br-today__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.br-today__row {
+  min-height: 54px;
+  padding: 4px 4px 4px 10px;
+  border: 1px solid var(--br-border);
+  border-radius: 12px;
+  background: var(--br-surface-2);
+}
+/* The machine that just went in: the picked blue edge, so the eye finds it. */
+.br-today__row[data-fresh] { border-color: var(--br-live); }
+.br-today__row[data-dragging] { position: relative; z-index: 1; box-shadow: var(--br-elev-3); }
+
+.br-today__pos {
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--br-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.br-today__grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  color: var(--br-ink-muted);
+  cursor: grab;
+  touch-action: none;
+}
+.br-today__name {
+  font-family: var(--font-display, inherit);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--br-ink);
+  overflow-wrap: anywhere;
+}
+.br-today__last {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  color: var(--br-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.br-today__btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--br-border-strong);
+  background: var(--br-surface);
+  color: var(--br-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.br-today__x { width: 44px; padding: 0; color: var(--br-ink-2); }
+.br-today__btn:focus-visible,
+.br-today__add:focus-visible,
+.br-today__quiet:focus-visible,
+.br-today__undo button:focus-visible,
+.br-today__warning button:focus-visible,
+.br-pick:focus-visible { outline: 2px solid var(--br-focus-ring); outline-offset: 2px; }
+
+/* A phone: last time goes under the name, and says what it is there. */
+@media (max-width: 520px) {
+  .br-today__head { display: none; }
+  .br-today__row { grid-template-columns: 24px minmax(0, 1fr) auto 44px; }
+  .br-today__pos,
+  .br-today__grip { grid-column: 1; grid-row: 1 / span 2; }
+  .br-today__name { grid-column: 2; grid-row: 1; }
+  .br-today__last { grid-column: 2; grid-row: 2; text-align: left; }
+  .br-today__last::before { content: "Last time · "; }
+  .br-today__btn { grid-column: 3; grid-row: 1 / span 2; }
+  .br-today__x { grid-column: 4; }
+}
+
+.br-today__empty { margin: 0; padding: 8px 4px; font-size: 14px; color: var(--br-ink-2); }
+
+.br-today__undo {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 4px 2px 12px;
+  border-radius: 10px;
+  background: var(--br-surface-2);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--br-ink-2);
+  overflow-wrap: anywhere;
+}
+.br-today__undo button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--br-live-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* The Academy's order rules, said without a tap, each with its fix. */
+.br-today__warnings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.br-today__warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 10px;
+  background: var(--br-warn-fill);
+  color: var(--br-warn);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.br-today__warning > span { flex: 1 1 12rem; min-width: 0; }
+.br-today__warning button {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--br-border-strong);
+  background: var(--br-surface);
+  color: var(--br-live-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.br-today__notes { display: flex; flex-direction: column; gap: 4px; padding: 0 4px; }
+.br-today__focus { margin: 0; font-size: 13px; font-weight: 700; color: var(--br-ink-2); }
+
+.br-today__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.br-today__add {
+  flex: 1 1 14rem;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--br-live);
+  background: var(--br-live-fill);
+  color: var(--br-live-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--br-elev-1);
+}
+.br-today__add:active { transform: translateY(1px); box-shadow: var(--br-press); }
+.br-today__quiet {
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--br-border-strong);
+  background: var(--br-surface);
+  color: var(--br-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.br-today__rebuild { display: flex; flex-direction: column; gap: 8px; }
+.br-today__rebuild-bar { display: flex; justify-content: flex-end; }
+
+/* + Add a machine and Swap's sheets (a PlanSheet, so they render outside
+   .br): one tap picks and closes. */
+.br-picks { display: flex; flex-direction: column; gap: 14px; }
+.br-picks__group { display: flex; flex-direction: column; gap: 6px; }
+.br-picks__label { margin: 0; font-size: 13px; font-weight: 700; color: var(--br-ink-muted); }
+.br-picks__none { margin: 0; font-size: 14px; color: var(--br-ink-2); }
+.br-pick {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px;
+  text-align: left;
+  border: 1px solid var(--br-border-strong);
+  border-radius: 12px;
+  background: var(--br-surface-2);
+  color: var(--br-ink);
+  font: inherit;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .br-pick:hover { border-color: var(--br-live); }
+}
+.br-pick__name {
+  font-family: var(--font-display, inherit);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.br-pick__last {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--br-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.br-pick__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--br-border-strong);
+  border-radius: 12px;
+  background: var(--br-surface);
+  color: var(--br-ink-muted);
+}
+.br-pick__search:focus-within { outline: 2px solid var(--br-focus-ring); outline-offset: 2px; }
+.br-pick__search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  border: 0;
+  background: transparent;
+  color: var(--br-ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}

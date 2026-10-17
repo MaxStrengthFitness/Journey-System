@@ -469,10 +469,11 @@ describe("the pre-session briefing mounts", () => {
     const a = buttonByText(host, "Routine A")!;
     const b = buttonByText(host, "Routine B")!;
     expect(a.textContent).toContain("Last run Aug 30");
-    expect(a.textContent).toContain("2 machines");
+    // No count: today's list shows the machines (show it, don't label it, Oct 16 2026).
+    expect(a.textContent).not.toContain("machines");
     expect(b.textContent).toContain("Last run");
     expect(b.textContent).not.toContain("Aug 30");
-    expect(b.textContent).toContain("1 machines");
+    expect(b.textContent).not.toContain("machines");
   });
 
   it("the FORD cue is a button that opens the capture with its pillar chosen, and files under the client", async () => {
@@ -771,14 +772,115 @@ describe("the Stack (AJ's walk, Oct 3 2026)", () => {
     expect(host.querySelector(".br-safe--clear")).toBeTruthy();
   });
 
-  it("reads the routine as one line, and opens the builder only on Edit", async () => {
-    const host = await mount(<Screen />);
-    const line = host.querySelector('[data-testid="briefing-routine-line"]')!;
-    expect(line.textContent).toContain("Routine A · 2 machines");
-    expect(line.textContent).toContain("Leg Press · Chest Press");
-    expect(host.querySelector('[data-testid="routine-builder"]')).toBeNull();
-    await click(line);
-    expect(host.querySelector('[data-testid="routine-builder"]')?.getAttribute("data-count")).toBe("2");
+  /* The briefing round (Oct 17 2026). AJ, Oct 16: adding one machine took
+     "five or six clicks ... maybe two at max, three. But definitely not more
+     than four." Today's machines are one list: add two taps, swap two, take
+     out one; the Routine Builder only behind Rebuild. */
+  describe("today's list", () => {
+    const rowNames = (host: HTMLElement) =>
+      Array.from(host.querySelectorAll('[data-testid="briefing-today"] .br-today__name')).map((n) => n.textContent);
+    const sheet = (id: string) => document.body.querySelector(`[data-testid="${id}"]`);
+
+    it("shows today's machines as rows, with no count, no codes and no 'suggested'; the builder only on Rebuild", async () => {
+      const host = await mount(<Screen />);
+      expect(rowNames(host)).toEqual(["Leg Press", "Chest Press"]);
+      const routine = host.querySelector('[aria-label="Today\'s routine"]')!;
+      expect(routine.textContent).not.toContain("2 machines");
+      expect(routine.textContent).not.toContain("suggested");
+      expect(host.querySelector('[data-testid="briefing-routine-line"]')).toBeNull();
+      expect(host.querySelector('[data-testid="routine-builder"]')).toBeNull();
+      await click(buttonByText(routine, "Rebuild"));
+      expect(host.querySelector('[data-testid="routine-builder"]')?.getAttribute("data-count")).toBe("2");
+      await click(buttonByText(host.querySelector('[data-testid="briefing-rebuild"]')!, "Done"));
+      expect(rowNames(host)).toEqual(["Leg Press", "Chest Press"]);
+    });
+
+    it("adds a machine in two taps, and Start runs the routine with it, for today only", async () => {
+      const onStart = vi.fn();
+      const host = await mount(<Screen onStart={onStart} />);
+      await click(buttonByText(host, "Add a machine"));
+      await click(sheet("add-m3"));
+      // The sheet closed itself: two taps.
+      expect(sheet("briefing-add-sheet")).toBeNull();
+      expect(rowNames(host)).toEqual(["Leg Press", "Chest Press", "Pulldown"]);
+      await click(buttonByText(host, "Start session"));
+      expect(onStart.mock.calls[0][0]).toBe("A");
+      expect(onStart.mock.calls[0][1]).toEqual(["m1", "m2", "m3"]);
+      expect(writes).toEqual([]);
+    });
+
+    it("swaps a machine in two taps, in its place", async () => {
+      const onStart = vi.fn();
+      const host = await mount(<Screen onStart={onStart} />);
+      await click(host.querySelector('[aria-label="Swap Leg Press"]'));
+      expect(sheet("briefing-swap-sheet")).toBeTruthy();
+      await click(sheet("swap-m3"));
+      expect(sheet("briefing-swap-sheet")).toBeNull();
+      expect(rowNames(host)).toEqual(["Pulldown", "Chest Press"]);
+      await click(buttonByText(host, "Start session"));
+      expect(onStart.mock.calls[0][1]).toEqual(["m3", "m2"]);
+    });
+
+    it("takes a machine out in one tap, and Undo puts it back where it was", async () => {
+      const onStart = vi.fn();
+      const host = await mount(<Screen onStart={onStart} />);
+      await click(host.querySelector('[aria-label="Take Leg Press out of today"]'));
+      expect(rowNames(host)).toEqual(["Chest Press"]);
+      expect(host.textContent).toContain("Leg Press out");
+      await click(buttonByText(host, "Undo"));
+      expect(rowNames(host)).toEqual(["Leg Press", "Chest Press"]);
+      await click(buttonByText(host, "Start session"));
+      expect(onStart.mock.calls[0][1]).toEqual(["m1", "m2"]);
+    });
+
+    it("says an order rule today trips without a tap", async () => {
+      const floor = [
+        { id: "m-lumbar", name: "Lumbar" },
+        { id: "m-leg-press", name: "Leg Press" },
+      ] as Machine[];
+      const a = { id: "rA", clientId: "c1", name: "Routine A", machineIds: ["m-lumbar", "m-leg-press"] } as Routine;
+      const host = await mount(
+        <BriefingScreen
+          authTrainer={trainer}
+          client={client}
+          targetRoutine={a}
+          lastSession={null}
+          sessions={[]}
+          onStart={() => {}}
+          onClose={() => {}}
+          machines={floor}
+          routines={[a]}
+          trainers={[trainer]}
+        />,
+      );
+      expect(host.querySelector('[data-testid="briefing-order-warnings"]')?.textContent).toContain("Lumbar");
+    });
+
+    it("a Routine B not set up says so, and + Add builds today's list", async () => {
+      const onStart = vi.fn();
+      const noB = routines[0];
+      const host2 = await mount(
+        <BriefingScreen
+          authTrainer={trainer}
+          client={client}
+          targetRoutine={noB}
+          lastSession={null}
+          sessions={[]}
+          onStart={onStart}
+          onClose={() => {}}
+          machines={machines}
+          routines={[noB]}
+          trainers={[trainer]}
+        />,
+      );
+      await click(buttonByText(host2.querySelector(".br__routines")!, "Routine B"));
+      expect(host2.querySelector('[data-testid="briefing-today"]')?.textContent).toContain("Routine B isn't set up yet.");
+      await click(buttonByText(host2, "Add a machine"));
+      await click(sheet("add-m3"));
+      await click(buttonByText(host2, "Start session"));
+      expect(onStart.mock.calls[0][0]).toBe("B");
+      expect(onStart.mock.calls[0][1]).toEqual(["m3"]);
+    });
   });
 
   // AJ, Oct 9 2026, the floor round's 2a: the Dials are optional and Start is the job, so every
@@ -874,6 +976,11 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
   const section = (host: HTMLElement) => host.querySelector('[aria-label="Today\'s routine"]')!;
   const todayNames = (host: HTMLElement) =>
     Array.from(section(host).querySelectorAll('.rpl-road__stop[data-kind="in"] .rpl-road__name')).map((n) => n.textContent);
+  /* Today's list (the briefing round, Oct 17 2026), for a client with a routine. */
+  const listNames = (host: HTMLElement) =>
+    Array.from(section(host).querySelectorAll('[data-testid="briefing-today"] .br-today__name')).map((n) => n.textContent);
+  const sheetNames = (id: string) =>
+    Array.from(document.body.querySelectorAll(`[data-testid="${id}"] .br-pick__name`)).map((n) => n.textContent);
 
   it("starting out: the plan card replaces the A and B buttons, today being the starting routine's day one", async () => {
     const host = await mount(<Fresh />);
@@ -947,7 +1054,7 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
     const a = { id: "rA", clientId: "c-new", name: "A", machineIds: ["m-leg-press", "m-lumbar"] } as unknown as Routine;
     const host = await mount(<Fresh rs={[a]} coverage="partial" />);
     expect(section(host).querySelector('[data-testid="briefing-plan-journey"]')).toBeNull();
-    expect(host.querySelector('[data-testid="briefing-routine-line"]')!.textContent).toContain("Routine A · 2 machines");
+    expect(listNames(host)).toEqual(["m-leg-press", "m-lumbar"].map(nameOfId));
   });
 
   it("never holds Start: while the starting routines are read, Start opens an empty session with no plan", async () => {
@@ -1140,7 +1247,10 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
     expect(onStart.mock.calls[0][5]).toBeNull();
   });
 
-  it("a plan in progress: the routine line as before, with the Road and how far along under it", async () => {
+  /* A plan in progress (the briefing round, Oct 17 2026): no Road, no meter,
+     no "1 of 3" on the briefing; the plan's next machine is first in + Add,
+     where a trainer acts on it. */
+  it("a plan in progress: today's list, and the plan's next machine first in + Add", async () => {
     const plan = {
       purpose: "The core",
       intended: ["m-leg-press", "m-compound-row", "m-lumbar"],
@@ -1150,18 +1260,24 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
     const a = { id: "rA", clientId: "c-new", name: "Routine A", machineIds: ["m-leg-press"], plan } as unknown as Routine;
     const onStart = vi.fn();
     const host = await mount(<Fresh rs={[a]} onStart={onStart} />);
-    expect(host.querySelector('[data-testid="briefing-routine-line"]')!.textContent).toContain("Routine A · 1 machine");
-    const road = host.querySelector('[data-testid="briefing-plan-road"]')!;
-    expect(road.textContent).toContain(`1 of 3 · next: ${nameOfId("m-compound-row")}`);
-    expect(road.textContent).toContain("Next stop");
+    expect(listNames(host)).toEqual([nameOfId("m-leg-press")]);
+    expect(host.querySelector('[data-testid="briefing-plan-road"]')).toBeNull();
+    expect(section(host).textContent).not.toContain("1 of 3");
     expect(startingReads.count).toBe(0);
+    await click(buttonByText(section(host), "Add a machine"));
+    const sheet = document.body.querySelector('[data-testid="briefing-add-sheet"]')!;
+    expect(sheet.textContent).toContain("Next in the plan");
+    expect(sheetNames("briefing-add-sheet")[0]).toBe(nameOfId("m-compound-row"));
+    await click(sheet.querySelector('[data-testid="add-m-compound-row"]'));
+    expect(listNames(host)).toEqual(["m-leg-press", "m-compound-row"].map(nameOfId));
     await click(buttonByText(host, "Start session"));
+    expect(onStart.mock.calls[0][1]).toEqual(["m-leg-press", "m-compound-row"]);
     expect(onStart.mock.calls[0][5]).toBeUndefined();
   });
 
   /* A weak area (Round 2 of the design round, item 7): the plan's focus is
-     said on the glance line, so the next trainer sees it before Start. */
-  it("a plan in progress with a weak area: 'Focus: Delts' on the Road's line", async () => {
+     said once under today's list, so the next trainer sees it before Start. */
+  it("a plan in progress with a weak area: 'Focus: Delts' under today's list", async () => {
     const plan = {
       purpose: "The core",
       intended: ["m-leg-press", "m-compound-row", "m-lumbar"],
@@ -1171,14 +1287,13 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
     };
     const a = { id: "rA", clientId: "c-new", name: "Routine A", machineIds: ["m-leg-press"], plan } as unknown as Routine;
     const host = await mount(<Fresh rs={[a]} onStart={vi.fn()} />);
-    const road = host.querySelector('[data-testid="briefing-plan-road"]')!;
-    expect(road.textContent).toContain(`1 of 3 · next: ${nameOfId("m-compound-row")} · Focus: Delts`);
+    expect(host.querySelector('[data-testid="briefing-focus"]')?.textContent).toContain("Focus: Delts");
   });
 
-  /* B, molded in (Round 2 of the design round, item 6): a client on Routine
-     B sees the Road for B as the glance, "B · 1 of 2 swaps", and nothing
-     else on the briefing changes. */
-  it("a session on Routine B with its plan: the Road for B, the swaps still to come, and how far B is", async () => {
+  /* B, built over time (Round 2 of the design round, item 6; F7's words): a
+     client on Routine B sees B's machines as today's list, and B's next swap
+     is first in Swap for the machine it replaces. */
+  it("a session on Routine B with its plan: B's machines, and B's next swap first in Swap", async () => {
     const a = { id: "rA", clientId: "c-new", name: "Routine A", machineIds: ["m-leg-press", "m-compound-row", "m-lumbar"] } as unknown as Routine;
     const bPlan = {
       purpose: "Variety: the same regions, different machines",
@@ -1211,18 +1326,18 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
         trainers={[trainer]}
       />,
     );
-    expect(host.querySelector('[data-testid="briefing-routine-line"]')!.textContent).toContain("Routine B · 3 machines");
-    const road = host.querySelector('[data-testid="briefing-b-road"]')!;
-    expect(road.textContent).toContain(`B · 1 of 2 swaps · next: ${nameOfId("m-pulldown")} for ${nameOfId("m-compound-row")}`);
-    expect(road.textContent).toContain("Swaps to come");
-    expect(road.textContent).toContain("Next stop");
-    expect(Array.from(road.querySelectorAll('.rpl-road__stop[data-kind="in"] .rpl-road__name')).map((n) => n.textContent)).toEqual(
-      ["m-ext", "m-compound-row", "m-lumbar"].map(nameOfId),
-    );
-    // A's Road is not drawn over a session on B.
-    expect(host.querySelector('[data-testid="briefing-plan-road"]')).toBeNull();
+    expect(listNames(host)).toEqual(["m-ext", "m-compound-row", "m-lumbar"].map(nameOfId));
+    expect(host.querySelector('[data-testid="briefing-b-road"]')).toBeNull();
+    // B's next swap (Pulldown for Compound Row) is first in Compound Row's Swap.
+    await click(host.querySelector(`[aria-label="Swap ${nameOfId("m-compound-row")}"]`));
+    const sheet = document.body.querySelector('[data-testid="briefing-swap-sheet"]')!;
+    expect(sheet.textContent).toContain("Next in B's plan");
+    expect(sheetNames("briefing-swap-sheet")[0]).toBe(nameOfId("m-pulldown"));
+    await click(sheet.querySelector('[data-testid="swap-m-pulldown"]'));
+    expect(listNames(host)).toEqual(["m-ext", "m-pulldown", "m-lumbar"].map(nameOfId));
     await click(buttonByText(host, "Start session"));
     expect(onStart.mock.calls[0][0]).toBe("B");
+    expect(onStart.mock.calls[0][1]).toEqual(["m-ext", "m-pulldown", "m-lumbar"]);
   });
 
   /* A weak area (Round 2 of the design round, item 7): the focus kept on
@@ -1250,7 +1365,7 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
       />
     );
 
-    it("with B's plan: 'Focus: Delts' on B's Road line, and B's own on deck on the Road", async () => {
+    it("with B's plan: 'Focus: Delts' under today's list", async () => {
       const bPlan = {
         purpose: "Variety: the same regions, different machines",
         purposeKinds: ["variety"],
@@ -1264,17 +1379,14 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
       };
       const b = { id: "rB", clientId: "c-new", name: "Routine B", machineIds: ["m-ext", "m-compound-row", "m-lumbar"], plan: bPlan } as unknown as Routine;
       const host = await mount(briefing(b));
-      const road = host.querySelector('[data-testid="briefing-b-road"]')!;
-      expect(road.textContent).toContain(`B · 1 of 2 swaps · next: ${nameOfId("m-pulldown")} for ${nameOfId("m-compound-row")} · Focus: Delts`);
-      expect(road.textContent).toContain("On deck in B");
-      expect(road.textContent).toContain(nameOfId("m-lateral-raise"));
+      expect(host.querySelector('[data-testid="briefing-b-road"]')).toBeNull();
+      expect(host.querySelector('[data-testid="briefing-focus"]')?.textContent).toContain("Focus: Delts");
     });
 
-    it("with a Routine B of its own (no Road): 'Focus: Delts' on the routine line", async () => {
+    it("with a Routine B of its own: 'Focus: Delts' under today's list", async () => {
       const b = { id: "rB", clientId: "c-new", name: "Routine B", machineIds: ["m-ext", "m-pulldown", "m-lumbar"] } as unknown as Routine;
       const host = await mount(briefing(b));
-      expect(host.querySelector('[data-testid="briefing-b-road"]')).toBeNull();
-      expect(host.querySelector('[data-testid="briefing-routine-line"]')!.textContent).toMatch(/Routine B · 3 machines.* · Focus: Delts/);
+      expect(host.querySelector('[data-testid="briefing-focus"]')?.textContent).toContain("Focus: Delts");
     });
   });
 
@@ -1292,7 +1404,7 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
     const handBuilt = { id: "rA", clientId: "c-new", name: "Routine A", machineIds: ["m-leg-press", "m-lumbar", "m-dip"] } as unknown as Routine;
     const establishedOf = async (el: React.ReactElement) => {
       const host = await mount(el);
-      await click(host.querySelector('[data-testid="briefing-routine-line"]')!);
+      await click(buttonByText(host.querySelector('[data-testid="briefing-today"]')!, "Rebuild"));
       return host.querySelector('[data-testid="routine-builder"]')!.getAttribute("data-established");
     };
 

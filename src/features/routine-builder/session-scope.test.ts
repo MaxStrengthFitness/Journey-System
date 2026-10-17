@@ -125,13 +125,17 @@ describe("the pre-session briefing hands its sequence upward", () => {
      routine-plan (the first-session design round, Oct 8 2026, §4.5), in a
      folder whose neighbours DO write (store.ts, usePlanActions.ts). The
      briefing stays write-free only if its card does too: it hands the plan
-     up, and the tracker writes it in the Start batch. */
+     up, and the tracker writes it in the Start batch. Today's list (the
+     briefing round, Oct 17 2026) is held to the same: it hands the list up
+     through onChange, and Start hands it to the session. */
   for (const file of [
     "src/features/routine-plan/ui/BriefingPlanCard.tsx",
     "src/features/routine-plan/ui/useBriefingPlan.ts",
     "src/features/routine-plan/briefing-plan.ts",
+    "src/features/briefing/TodayList.tsx",
+    "src/features/briefing/today-list.ts",
   ]) {
-    it(`${file} (the briefing's plan card) contains no Firestore write`, () => {
+    it(`${file} (the briefing's routine section) contains no Firestore write`, () => {
       const src = code(read(file));
       const found = MUTATORS.filter((m) => new RegExp(`\\b${m}\\s*\\(`).test(src));
       expect(found).toEqual([]);

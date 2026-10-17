@@ -58,7 +58,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Activity,
-  ChevronDown,
   Compass,
   Crosshair,
   HeartPulse,
@@ -125,7 +124,6 @@ import {
   lastTimeLines,
   machinesTouchingLimits,
   regionWords,
-  routineCodes,
   safetyRegions,
   tagOfSlug,
   viewsToDraw,
@@ -146,10 +144,9 @@ import { openProfileAt } from "../client-profile/profile-nav";
 import { isProvisionalNewClient, learningCurveInputOf, pastLearningCurve, startingKindOf } from "../routine-plan/client-kind";
 import { openHealthWords, planIntakeText } from "../routine-plan/intake";
 import { focusLine } from "../routine-plan/focus";
-import { planProgress, progressLine, todayFor } from "../routine-plan/plan";
-import { runnableToday } from "../routine-plan/cant-do";
-import { roadGroups } from "../routine-plan/lineup";
-import { bProgressOf, bRoadGroups, bStatus, bStatusLine, isBPlan, plannedBTarget, swapsOf } from "../routine-plan/b-routine";
+import { planProgress, todayFor } from "../routine-plan/plan";
+import { activeCantDo, runnableToday } from "../routine-plan/cant-do";
+import { bStatus, isBPlan, plannedBTarget, swapsOf } from "../routine-plan/b-routine";
 import {
   briefingPlanView,
   type BriefingDoor,
@@ -157,8 +154,9 @@ import {
 } from "../routine-plan/briefing-plan";
 import { useBriefingPlan } from "../routine-plan/ui/useBriefingPlan";
 import { BriefingDoors, BriefingJourneyLine, BriefingPlanCard } from "../routine-plan/ui/BriefingPlanCard";
-import { RoadStrip } from "../routine-plan/ui/RoadStrip";
-import { machineNamer } from "../routine-plan/ui/host";
+import { StartFromRoutineSheet } from "../routine-plan/ui/StartFromRoutineSheet";
+import { floorMachinesOf, machineNamer } from "../routine-plan/ui/host";
+import { TodayList } from "./TodayList";
 
 /** Her limits on the figure: the briefing's caution tone, never the kaizen red. */
 const SAFETY_LIT: [string, string] = ["var(--br-warn)", "var(--br-warn)"];
@@ -666,11 +664,13 @@ export function BriefingScreen({
     [bodyStates],
   );
 
-  /* The routine, as one line until it is opened. */
-  const [routineOpen, setRoutineOpen] = useState(false);
+  /* Today's machines are one list a trainer acts on (the briefing round, Oct
+     17 2026: TodayList). Rebuild swaps it for the Routine Builder, for a
+     bigger change; Other routine opens Start from a routine. */
+  const [rebuilding, setRebuilding] = useState(false);
+  const [startFromOpen, setStartFromOpen] = useState(false);
   const routineLetter =
     selectedRoutineType === "B" || selectedRoutineType === "TodayOnly_B" ? "B" : "A";
-  const codes = routineCodes(selectedRoutineIds, machines);
   const touching = machinesTouchingLimits(selectedRoutineIds, machines, flagIds);
 
   /* ---------------------------------------------------------------- *
@@ -745,44 +745,29 @@ export function BriefingScreen({
     aAndBTogether: planView === "starting" ? planNewClients : false,
     bPlannable: plannedBTarget(routines) !== null,
   });
-  /* A plan in progress: the routine line, and the Road under it as the
-     glance ("3 of 6 · next: …"). */
-  const inProgress =
-    planView === "in-progress" && routineLetter === "A" && routineA?.plan
-      ? {
-          groups: roadGroups({ plan: routineA.plan, today: selectedRoutineIds, todayYmd: todayKey, firstName }),
-          progress: planProgress(routineA.plan, routineA.machineIds ?? []),
-        }
+  /* The plan speaks only when it has news (the briefing round, Oct 17 2026;
+     AJ, Oct 16: "show it, don't label it"). The Road, the meter and "3 of 6"
+     left the briefing for Programming and the session's plan sheet; what
+     stays is the plan's NEXT step, where a trainer acts on it: Routine A's
+     plan's next machine first in + Add, Routine B's next swap first in Swap
+     for the machine it replaces (Round 2, B built over time). */
+  const onRoutine = planView === "routine" || planView === "in-progress";
+  const nextInPlan =
+    onRoutine && routineLetter === "A" && routineA?.plan ? planProgress(routineA.plan, routineA.machineIds ?? []).next : null;
+  const nextSwap =
+    onRoutine && routineLetter === "B" && routineB && isBPlan(routineB.plan)
+      ? bStatus(swapsOf(routineB.plan), routineB.machineIds ?? []).next
       : null;
-  /* A session on Routine B with a plan of swaps (Round 2, B molded in):
-     the Road for B as the glance, today under its bracket, the swaps still
-     to come, "B · 2 of 5 swaps" under it. Nothing else here changes. */
-  const bRoad =
-    (planView === "routine" || planView === "in-progress") && routineLetter === "B" && routineB && isBPlan(routineB.plan)
-      ? (() => {
-          const status = bStatus(swapsOf(routineB.plan), routineB.machineIds ?? []);
-          return {
-            groups: bRoadGroups({
-              bPlan: routineB.plan,
-              // With Routine A's machines, B's own on deck (a weak area's addition for B) is on the Road too.
-              aRoutine: routineA?.machineIds ?? [],
-              today: selectedRoutineIds,
-              bRoutine: routineB.machineIds ?? [],
-              cantDo: routineA?.plan?.cantDo,
-              todayYmd: todayKey,
-              nameOf: planNameOf,
-              firstName,
-            }),
-            // The client's weak area, from Routine A's plan, read by A and B (Round 2, item 7).
-            line: [bStatusLine(status, planNameOf), focusLine(routineA?.plan)].filter(Boolean).join(" · "),
-            progress: bProgressOf(status),
-          };
-        })()
-      : null;
-  /* A session on a Routine B of its own (no plan of swaps, so no Road): the
-     weak area still reaches the next trainer, on the routine line. */
-  const routineFocus =
-    (planView === "routine" || planView === "in-progress") && routineLetter === "B" && !bRoad ? focusLine(routineA?.plan) : null;
+  /* The client's weak area, from Routine A's plan, read by A and B (Round 2,
+     item 7): one quiet line under today's list. */
+  const planFocus = onRoutine ? focusLine(routineA?.plan) : null;
+  /* What the client can't do today (Routine A's plan's marks, read by A and
+     B): never offered in + Add or Swap. */
+  const held = useMemo(
+    () => activeCantDo(routineA?.plan, todayKey).map((c) => c.machineId),
+    [routineA, todayKey],
+  );
+  const startFromFloor = useMemo(() => floorMachinesOf(machines), [machines]);
   /* The plan card's safety line: today's machines against the client's
      limits, as the routine line says it for a routine (the routine line is
      not drawn for a plan card). */
@@ -1347,67 +1332,27 @@ export function BriefingScreen({
                       className="br__routine"
                     >
                       <span className="br__routine-name">Routine {type}</span>
+                      {/* When THAT routine last ran (Sep 16); no count, the list shows it. */}
                       <span className="br__routine-sub">
-                        {routine
-                          ? `${lastRunLabel(lastRun, sessionsAreAll)} · ${routine.machineIds?.length || 0} machines`
-                          : "Not set up yet · today only"}
+                        {routine ? lastRunLabel(lastRun, sessionsAreAll) : "Not set up"}
                       </span>
                     </button>
                   );
                 })}
+                {/* Any other routine (AJ's handoff, Oct 17 2026: "choose A or
+                    B, or any other routine"): Start from a routine, laid on
+                    today's list only. */}
+                <button type="button" className="br__routine br__routine--other" onClick={() => setStartFromOpen(true)}>
+                  <span className="br__routine-name">Other routine</span>
+                </button>
               </div>
-              <button
-                type="button"
-                className="br-routine__line"
-                aria-expanded={routineOpen}
-                onClick={() => setRoutineOpen((v) => !v)}
-                data-testid="briefing-routine-line"
-              >
-                <span className="br-routine__what">
-                  <b>Routine {routineLetter}</b>
-                  {" · "}
-                  {selectedRoutineIds.length} {selectedRoutineIds.length === 1 ? "machine" : "machines"}
-                  {routinePickedByTrainer ? "" : " · suggested"}
-                  {isAdjusting ? " · changed for today" : ""}
-                  {routineFocus ? ` · ${routineFocus}` : ""}
-                </span>
-                {codes.length > 0 && <span className="br-routine__codes">{codes.join(" · ")}</span>}
-                {touching.length > 0 && (
-                  <span className="br-routine__touch">
-                    <ShieldAlert className="w-3.5 h-3.5" aria-hidden />
-                    Mind the limits on {touching.join(", ")}
-                  </span>
-                )}
-                <span className="br-routine__edit">
-                  {routineOpen ? "Done" : "Edit"}
-                  <ChevronDown className={cn("w-4 h-4", routineOpen && "rotate-180")} aria-hidden />
-                </span>
-              </button>
-              {/* A plan in progress: the Road as the glance, today under
-                  its bracket, the next stop, and how far along. */}
-              {inProgress && routineA?.plan && (
-                <div data-testid="briefing-plan-road">
-                  <RoadStrip
-                    groups={inProgress.groups}
-                    nameOf={planNameOf}
-                    label="Routine A's plan"
-                    progressLine={[progressLine(inProgress.progress, planNameOf, routineA.plan.dayOne), focusLine(routineA.plan)].filter(Boolean).join(" · ")}
-                    progress={inProgress.progress}
-                  />
-                </div>
-              )}
-              {bRoad && (
-                <div data-testid="briefing-b-road">
-                  <RoadStrip
-                    groups={bRoad.groups}
-                    nameOf={planNameOf}
-                    label="Routine B's plan"
-                    progressLine={bRoad.line}
-                    progress={bRoad.progress}
-                  />
-                </div>
-              )}
-              {routineOpen && (
+              {rebuilding ? (
+                <div className="br-today__rebuild" data-testid="briefing-rebuild">
+                  <div className="br-today__rebuild-bar">
+                    <button type="button" className="br-today__quiet" onClick={() => setRebuilding(false)}>
+                      Done
+                    </button>
+                  </div>
                 <div className="br__builder">
                   <RoutineBuilder
                     mode="briefing"
@@ -1438,6 +1383,61 @@ export function BriefingScreen({
                     established={pastLearningCurve(learningCurveInputOf({ routinesKnown, coverage, client, routineA }))}
                   />
                 </div>
+                </div>
+              ) : (
+                <TodayList
+                  ids={selectedRoutineIds}
+                  onChange={handleSequenceChange}
+                  floor={machines}
+                  nameOf={planNameOf}
+                  history={machineHistory}
+                  nextInPlan={nextInPlan}
+                  nextSwap={nextSwap}
+                  held={held}
+                  emptyWords={
+                    (routineLetter === "A" ? routineA : routineB)
+                      ? "Nothing on today's list yet."
+                      : `Routine ${routineLetter} isn't set up yet.`
+                  }
+                  onRebuild={() => setRebuilding(true)}
+                  footnotes={
+                    touching.length > 0 || planFocus ? (
+                      <div className="br-today__notes">
+                        {touching.length > 0 && (
+                          <p className="br-routine__touch" data-testid="briefing-limits">
+                            <ShieldAlert className="w-3.5 h-3.5" aria-hidden />
+                            Mind the limits on {touching.join(", ")}
+                          </p>
+                        )}
+                        {planFocus && (
+                          <p className="br-today__focus" data-testid="briefing-focus">
+                            {planFocus}
+                          </p>
+                        )}
+                      </div>
+                    ) : null
+                  }
+                />
+              )}
+              {startFromOpen && (
+                <StartFromRoutineSheet
+                  onClose={() => setStartFromOpen(false)}
+                  studioId={planStudioId}
+                  studioName={studioName ?? null}
+                  floor={startFromFloor}
+                  nameOf={planNameOf}
+                  todayYmd={todayKey}
+                  clientRoutines={routinesKnown ? routines : "reading"}
+                  firstName={firstName}
+                  onLay={(ids, choice) => {
+                    // The client's own A or B is the routine itself; anything else is today's list.
+                    if (choice.key === "client:A" || choice.key === "client:B") {
+                      handlePickRoutine(choice.key === "client:A" ? "A" : "B");
+                      return;
+                    }
+                    handleSequenceChange(ids);
+                  }}
+                />
               )}
               </>
               )}

@@ -10,6 +10,8 @@ briefing.css                   layout, one file, class names in the markup
 BriefingScreen.tsx             the screen
 BriefingScreen.render.test.tsx mounts it (jsdom, fake Firestore)
 briefing-facts.ts              the pure parts: carried-over regions, "last run"
+TodayList.tsx                  today's machines, one list: Swap, ×, + Add, Reorder, Rebuild
+today-list.ts                  its pure half (today-list.test.ts beside it)
 heads-up.test.ts               pins `isHeadsUpLive` (hooks/useClientJournal.ts)
 index.ts                       barrel — import from "../features/briefing"
 ```
@@ -53,12 +55,11 @@ Top to bottom (`stack.ts` is the pure half, `stack.test.ts` beside it):
    prop) and NOTHING is written until it is rated. Hand her the iPad opens
    Pulse's client mode (ClientCheckInPanel `startInClientMode`, as the
    codex's PulseCard does). Every write at Start is unchanged.
-6. **Today's routine** — A or B, then ONE line ("Routine A · 6 machines ·
-   suggested", the short names, and "Mind her limits on …" when one of her
-   flags names a machine in it); Edit opens the Routine Builder (AJ: "One
-   line, tap to edit"). A client with no routine sees how they start instead
-   (the first-session design round, Oct 8 2026: see "How the client starts"
-   below).
+6. **Today's routine** — A, B or Other routine, then today's machines as
+   one list a trainer acts on (the briefing round, Oct 17 2026: see "Today's
+   list" below; it replaced the Oct 3 one line and Edit). A client with no
+   routine sees how they start instead (the first-session design round, Oct
+   8 2026: see "How the client starts" below).
 7. **Also today** — the InBody line and the renewal line, quiet, never in the
    safety band; hidden when empty.
 8. **Start session** — a solid bar pinned to the bottom of the page; nothing
@@ -66,6 +67,43 @@ Top to bottom (`stack.ts` is the pure half, `stack.test.ts` beside it):
 
 She may see the screen (AJ: "Everything — it's about her"), so nothing on it
 is hidden for privacy. The sections below are the history that led here.
+
+## Today's list (Oct 17 2026)
+
+The briefing round (`docs/rounds/2026-10-17-briefing.md`; AJ's handoff,
+question 2, "What are we doing today?"). AJ, Oct 16: adding one machine took
+"five or six clicks ... maybe two at max, three. But definitely not more than
+four." `TodayList.tsx` draws it, `today-list.ts` is the pure half.
+
+- **Today's machines are one list**: the position, the name (whole), last
+  time ("154 lb · 8 reps", under ONE "Last time" so the numbers never read as
+  a target), Swap and ×. + Add a machine opens the floor in its walking order
+  and one tap adds and closes (2 taps); Swap offers the Academy's substitutes
+  ("The same work"), then the floor, and keeps the place (2 taps); × takes it
+  out with Undo (1 tap). Reorder is a mode (drag, then Done), so nothing drags
+  by accident; Rebuild opens the Routine Builder for a bigger change.
+- **Show it, don't label it** (AJ, Oct 16): no count, no "suggested", no codes,
+  no Road and no meter here. The plan speaks only where a trainer acts on it:
+  Routine A's plan's next machine is first in + Add ("Next in the plan"), and
+  Routine B's next swap is first in Swap for the machine it replaces ("Next in
+  B's plan"). The weak area is one quiet line under the list ("Focus: Delts").
+  B's Road (what is on deck in B, a swap the client can't do) is on
+  Programming and the session's plan sheet, no longer here.
+- **The Academy's order rules show without a tap** (they hid behind Edit as
+  "⚠ 1"), each with its first fix, in this floor's ids; a fix that would bring
+  in a machine this floor lacks is not offered.
+- **Never offered**: a machine already on today's list, or one the client
+  can't do (Routine A's plan's marks, `activeCantDo`).
+- **Other routine** opens Start from a routine (`routine-plan/ui/
+  StartFromRoutineSheet`); the client's own A or B there is the same as its
+  button, anything else becomes today's list.
+- **Ids.** Today's ids are kept as they came; what the list adds is the
+  floor's own id, the one the session uses. Only the Academy's tables are
+  asked in canonical ids, and answered back in this floor's.
+- **Nothing written.** Every change goes up through `handleSequenceChange`,
+  exactly as the builder's did, and Start hands the list up as before.
+- **The preview**: `harness/briefing` (`node harness/briefing/shots.mjs`
+  photographs it at 820 x 1180, light and dark, and at 390 wide).
 
 ## How the client starts (Oct 8 2026)
 
