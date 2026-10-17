@@ -87,6 +87,10 @@ try {
   }
   await open("&flags=1", { theme: "light" });
   await shootTall("full-flags-light");
+  // Question 3 open: the last sessions on today's machines, then all of them.
+  await open("", { theme: "dark" });
+  await tap("The last 8 sessions");
+  await shootTall("full-perf-dark");
   await open("", { width: 390, height: 844, theme: "dark" });
   await shootTall("full-phone-dark", { width: 390 });
 

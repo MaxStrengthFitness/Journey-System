@@ -124,3 +124,21 @@ export function PREVIEW_DOCS(path: string): Record<string, unknown>[] {
   }
   return [];
 }
+
+/* Eight sessions on Routine A, every three or four days, the weights edging
+   up: what the grid under "How they've been doing" draws. Made up. */
+const START_WEIGHT: Record<string, number> = { "m-hip-add": 140, "m-hip-abd": 44, "m-leg-press": 128, "m-compound-row": 62, "m-dip": 52, "m-lumbar": 38 };
+export const LOGS = Array.from({ length: 8 }, (_, i) => {
+  const days = 2 + i * 3.5;
+  const sid = `h${i}`;
+  return Object.entries(START_WEIGHT).map(([machineId, w], j) => ({
+    id: `${sid}-${j}`,
+    sessionId: sid,
+    clientId: "c-sample",
+    machineId,
+    outcome: "performed",
+    weight: String(w + (7 - i) * 2),
+    reps: String(8 + ((i + j) % 3)),
+    createdAt: ago(days),
+  }));
+}).flat() as unknown as import("../../src/types").ExerciseLog[];

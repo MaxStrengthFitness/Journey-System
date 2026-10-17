@@ -20,7 +20,7 @@ import { UnsavedChangesProvider } from "../../src/features/unsaved-changes";
 import { BriefingScreen } from "../../src/features/briefing/BriefingScreen";
 import { TodayList } from "../../src/features/briefing/TodayList";
 import type { MachineHistoryEntry } from "../../src/features/routine-builder/types";
-import { CLIENT, FLOOR, ROUTINES, SESSIONS, TRAINER } from "./sample";
+import { CLIENT, FLOOR, LOGS, ROUTINES, SESSIONS, TRAINER } from "./sample";
 
 const params = new URLSearchParams(location.search);
 const theme = params.get("theme") === "dark" ? "dark" : "light";
@@ -85,6 +85,7 @@ function Full() {
           targetRoutine={ROUTINES[0]}
           lastSession={SESSIONS[0]}
           sessions={SESSIONS}
+          logs={LOGS}
           routinesKnown
           onStart={(...args) => setStarted(args)}
           onClose={() => {}}

@@ -149,6 +149,30 @@ The briefing round, phase 2 (AJ's handoff, question 1; his answers "2a" and
 - **The last session names its routine** ("Last session · Oct 9, 2026 ·
   Routine A"), never the session type ("Standard").
 
+## How have they been doing? (Oct 17 2026)
+
+The briefing round, phase 3 (AJ's handoff, question 3: "the last five to ten
+sessions on today's machines only. The most important data is the most recent
+session ... Keep the density low"). `PerformanceCard.tsx`, its pure half
+`performance.ts`.
+
+- **Brief by default**: how last time went, in sentences (`lastTimeLines`: a
+  machine short of the client's usual, a skip and why), moved here from
+  Since last time.
+- **Behind one tap, the last 8 sessions** (`PERFORMANCE_SESSIONS`) on today's
+  machines: FileMaker's grid of numbers, one column per session, newest
+  first, each cell the weight and the reps (or seconds). Only performed sets;
+  one per machine per session, the newest; a session is a column only when
+  one of the shown machines was done in it. **View all machines** adds every
+  other machine done in those sessions.
+- **The placeholder the handoff asked for** ("design the visualization in its
+  own round"): plain numbers, the newest column in the ink, nothing coloured
+  as good or bad, nothing that suggests a weight. A client with nothing in
+  Journey and nothing to say gets no card; an empty grid says "Nothing
+  recorded in Journey on today's machines yet", never "never done".
+- The handoff's "collapsed box below question 1" for a refresher is this
+  card: the performance history is in one place, question 3.
+
 ## How the client starts (Oct 8 2026)
 
 The first-session design round (`docs/rounds/2026-10-08-first-session-screens.md`,

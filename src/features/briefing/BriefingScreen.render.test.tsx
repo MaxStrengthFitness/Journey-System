@@ -509,6 +509,56 @@ describe("the pre-session briefing mounts", () => {
     expect(writes[0].data.pillar).not.toBeNull();
   });
 
+  /* The briefing round, phase 3 (Oct 17 2026; AJ's handoff, question 3). */
+  describe("how they've been doing", () => {
+    const performed = (id: string, sessionId: string, machineId: string, weight: string, daysAgo: number) =>
+      ({ id, sessionId, machineId, clientId: "c1", outcome: "performed", weight, reps: "9", createdAt: new Date(Date.now() - daysAgo * DAY) }) as never;
+    const logs = [
+      performed("l1", "s-a", "m1", "130", 9),
+      performed("l2", "s-last", "m1", "142", 2),
+      performed("l3", "s-last", "m2", "70", 2),
+      performed("l4", "s-last", "m3", "55", 2),
+    ];
+    const withLogs = (onStart = vi.fn()) => (
+      <BriefingScreen
+        authTrainer={trainer}
+        client={client}
+        targetRoutine={routines[0]}
+        lastSession={lastSession}
+        sessions={sessions}
+        logs={logs}
+        onStart={onStart}
+        onClose={() => {}}
+        machines={machines}
+        routines={routines}
+        trainers={[trainer]}
+      />
+    );
+
+    it("is brief by default; one tap opens the last sessions on today's machines, newest first", async () => {
+      const host = await mount(withLogs());
+      const card = host.querySelector('[aria-label="How they\'ve been doing"]')!;
+      expect(card).toBeTruthy();
+      expect(card.querySelector('[data-testid="briefing-perf-grid"]')).toBeNull();
+      await click(card.querySelector('[data-testid="briefing-perf-toggle"]'));
+      const grid = card.querySelector('[data-testid="briefing-perf-grid"]')!;
+      const rows = Array.from(grid.querySelectorAll("tbody tr"));
+      // Today's machines only: Leg Press and Chest Press, not the Pulldown.
+      expect(rows.map((r) => r.querySelector("th")!.textContent)).toEqual(["Leg Press", "Chest Press"]);
+      // The newest session first.
+      expect(rows[0].querySelectorAll("td")[0].textContent).toContain("142");
+      expect(rows[0].querySelectorAll("td")[1].textContent).toContain("130");
+      await click(card.querySelector('[data-testid="briefing-perf-all"]'));
+      const all = Array.from(card.querySelectorAll('[data-testid="briefing-perf-grid"] tbody th')).map((th) => th.textContent);
+      expect(all).toContain("Pulldown");
+    });
+
+    it("draws nothing for a client with nothing recorded in Journey and nothing to say", async () => {
+      const host = await mount(<Screen last={null} />);
+      expect(host.querySelector('[aria-label="How they\'ve been doing"]')).toBeNull();
+    });
+  });
+
   /* The briefing round, phase 2 (Oct 17 2026). */
   describe("what's different about this person", () => {
     it("says a Follow up next time question the Hub's way, and 'Nothing new' clears it (AJ's F13, 2a)", async () => {

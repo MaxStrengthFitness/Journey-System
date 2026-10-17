@@ -156,6 +156,7 @@ import { BriefingDoors, BriefingJourneyLine, BriefingPlanCard } from "../routine
 import { StartFromRoutineSheet } from "../routine-plan/ui/StartFromRoutineSheet";
 import { floorMachinesOf, machineNamer } from "../routine-plan/ui/host";
 import { TodayList } from "./TodayList";
+import { PerformanceCard } from "./PerformanceCard";
 
 /** Her limits on the figure: the briefing's caution tone, never the kaizen red. */
 const SAFETY_LIT: [string, string] = ["var(--br-warn)", "var(--br-warn)"];
@@ -645,8 +646,8 @@ export function BriefingScreen({
   const myTrainerIds = [authTrainer?.id ?? null, uid];
   const headsUpQuiet = notes.headsUp.filter((t) => seenSince(t, sessions, myTrainerIds));
   const headsUpLoud = notes.headsUp.filter((t) => !headsUpQuiet.includes(t));
-  const sinceCount =
-    lastTime.length + notes.headsUp.length + markers.length + activeJournalFocuses.length;
+  /* How last time went is question 3's now (PerformanceCard), not news. */
+  const sinceCount = notes.headsUp.length + markers.length + activeJournalFocuses.length;
 
   /* On the way in: every drawer folded until a trainer opens it, the Dials
      too (AJ, Oct 9 2026, the floor round's 2a: they're optional, and Start
@@ -1107,16 +1108,6 @@ export function BriefingScreen({
                 </div>
               )}
 
-              {lastTime.length > 0 && (
-                <ul className="br-since__lines" data-testid="briefing-last-time">
-                  {lastTime.map((line) => (
-                    <li key={line.key} className="br-since__line" data-kind={line.kind}>
-                      {line.text}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
               {headsUpLoud.length > 0 && (
                 <div className="br__headsup" data-testid="briefing-headsup">
                   <span className="br__label">Heads up</span>
@@ -1488,6 +1479,19 @@ export function BriefingScreen({
               </>
               )}
             </section>
+
+            {/* 7. HOW HAVE THEY BEEN DOING? (the briefing round, Oct 17 2026;
+                AJ's handoff, question 3): how last time went, and behind a
+                tap the last sessions on today's machines, FileMaker's grid
+                of numbers as the placeholder for its own design round. */}
+            <PerformanceCard
+              lines={lastTime}
+              today={planView === "starting" || planView === "kept" ? briefingPlan.today : selectedRoutineIds}
+              logs={logs}
+              sessions={sessions}
+              machines={machines}
+              nameOf={planNameOf}
+            />
 
             {/* 8. One loud action, a solid bar pinned to the bottom of the
                 page: nothing scrolls under it any more. */}

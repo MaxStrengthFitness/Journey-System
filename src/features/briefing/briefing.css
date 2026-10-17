@@ -1455,3 +1455,59 @@
 /* Pulse's two doors under its chip (the briefing round, phase 2b): You ask,
    or Hand over the iPad. */
 .br-cap__pulse { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* --- 7. how have they been doing (the briefing round, phase 3) ---------- */
+
+/* PerformanceCard: a few lines, then FileMaker's grid of numbers behind one
+   tap, the newest session first. Plain numbers, nothing coloured as good or
+   bad: the visual has its own round. */
+.br-perf { display: flex; flex-direction: column; gap: 10px; }
+.br-perf__toggle {
+  align-self: flex-start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--br-border-strong);
+  background: var(--br-surface);
+  color: var(--br-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.br-perf__toggle:focus-visible { outline: 2px solid var(--br-focus-ring); outline-offset: 2px; }
+.br-perf__none { margin: 0; font-size: 14px; color: var(--br-ink-2); }
+/* A table may be wider than the card: it scrolls in its own box, the page never does. */
+.br-perf__scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+.br-perf__table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--br-ink-2);
+}
+.br-perf__table th,
+.br-perf__table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--br-border);
+  text-align: center;
+  vertical-align: middle;
+}
+.br-perf__table thead th { font-size: 12px; font-weight: 700; color: var(--br-ink-muted); }
+.br-perf__table .br-perf__machine {
+  min-width: 7.5rem;
+  text-align: left;
+  font-family: var(--font-display, inherit);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--br-ink);
+  overflow-wrap: anywhere;
+}
+.br-perf__table td b { display: block; font-size: 15px; font-weight: 800; color: var(--br-ink-2); }
+.br-perf__table td span { display: block; font-size: 12px; }
+/* The most recent session is what matters most (the handoff): the ink, not a colour. */
+.br-perf__table [data-newest] { color: var(--br-ink); }
+.br-perf__table td[data-newest] b { color: var(--br-ink); }
+.br-perf__gap { color: var(--br-ink-faint); }
