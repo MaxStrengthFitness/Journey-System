@@ -58,9 +58,11 @@ Run in the worktree `.claude\worktrees\colour-build` on AJ's PC, on the tip `e1e
 | The colour tests, after each phase | Light 1: 66 files, 3,223 passed (the same files on master: 3,215). Light 3: 68 files (adding the two frame tests), 3,252. D3: 3,256. D4: 3,257. D6: 70 files, 3,293. None failed |
 | Production build, `NODE_ENV=production npx vite build`, then `npm run check:bundle` | Clean. The first screen is 469.2 KB gzip in 8 files (budget 480) |
 | The case check, `git ls-files \| tr A-Z a-z \| sort \| uniq -d` | Prints nothing |
-| `git status` | Clean; `master..HEAD` is the five phase commits and this document |
+| `git status` | Clean; `master..HEAD` is the five phase commits, this document and the review's fix |
 
 Line ends are LF in every file the branch touches.
+
+**The review** (Oct 17 2026) checked every phase 1 value against the plan's list (143 of 143), every copy of an `--eq-` value, each `.dark` block against its fallback, the hex case, the shadows, the Hub stylesheets (untouched) and each phase's colour tests on its own commit, and re-ran the full suite on the tip (14,704 in 891 files). One fix, `dc52de40`, comments only: the light ramp's comment in `index.css` still named n-200 as `--border` and gave the Oct 4 ratios; n-200 is the tab tray now (`#DADADA`, the hairline split off at `#E2E2E2`), and the ratios are today's. Reverting it is never needed to revert a phase.
 
 ## How to undo a phase
 
