@@ -144,6 +144,17 @@ and offers them as one-tap links. Points are matched to last time by
 region + side so the dashboard shows "knee (L): 7, up 3 since June" and
 which points resolved.
 
+**Not rated until touched** (the briefing round, Oct 17 2026; AJ's F20,
+"a"): a spot tapped on the map starts with `severity: null`, not 5. It used
+to be saved as "Moderate" with its Dial untouched, and the client saw that
+on the on-screen report's "Where things hurt" and the profile's Body page.
+An unrated spot shows as "Not rated" (`painWord`), after the rated ones; it
+is counted as active, but never compared (`severityChange` null), never
+the worst (`worstSeverity` from rated spots only), never a severe flag, and
+the pain lane reads it as unknown, never 0. A second tap on the same word
+clears it back to not rated. "Carry forward" still copies last time's
+spots with their numbers, because that is the trainer saying they hold.
+
 ### 2.5 Stress anchors (new)
 
 `StressAnchor[]`: a category picked for a 40–95 client base (caring for a

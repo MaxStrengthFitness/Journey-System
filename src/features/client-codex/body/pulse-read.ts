@@ -261,9 +261,12 @@ export interface PainReading {
   source: ReadingSource;
 }
 
-const intensityWord = (severity: number) => dialWord(INTENSITY_SCALE, tenToAbsolute(severity, INTENSITY_SCALE));
+/** A spot's word: its intensity, or "Not rated" while its Dial is untouched (AJ's F20 "a"). */
+const intensityWord = (severity: number | null) =>
+  severity === null ? "Not rated" : dialWord(INTENSITY_SCALE, tenToAbsolute(severity, INTENSITY_SCALE));
+/** Open spots, a rated or an unrated one; a spot whose number can't be read is left out. */
 const livePoints = (points: readonly PainPoint[] | null | undefined) =>
-  (points ?? []).filter((p) => p && p.status !== "resolved" && Number.isFinite(p.severity));
+  (points ?? []).filter((p) => p && p.status !== "resolved" && (p.severity === null || Number.isFinite(p.severity)));
 
 /**
  * The pain map as she last told it: the open draft's when the draft has
@@ -306,8 +309,8 @@ export function latestPain(source: PulseSource): PainReading | null {
     }
     return { point, word, prev };
   });
-  // Most severe first.
-  spots.sort((a, b) => b.point.severity - a.point.severity);
+  // Most severe first; an unrated spot last.
+  spots.sort((a, b) => (b.point.severity ?? -1) - (a.point.severity ?? -1));
   return { spots, reviewedNone: spots.length === 0, day, source: from };
 }
 

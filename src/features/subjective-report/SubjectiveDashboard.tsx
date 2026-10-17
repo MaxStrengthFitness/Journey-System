@@ -28,7 +28,7 @@ import {
   TRAINING_IMPACT_LABELS,
 } from "./questions";
 import { scoreAllCategories, scoreOverall, summarize, type PreviousAssessmentRef } from "./scoring";
-import { Delta, RAG_LABEL, RagPill, fmtDate, intensityWord } from "./ui";
+import { Delta, RAG_LABEL, RagPill, fmtDate, intensityWord, painWord } from "./ui";
 import "./subjective-report.css";
 
 export interface HistoryPoint {
@@ -237,7 +237,7 @@ export function SubjectiveDashboard({
               status={
                 s.pain.worstSeverity === null ? "green" : s.pain.worstSeverity >= 7 ? "red" : s.pain.worstSeverity >= 4 ? "yellow" : "green"
               }
-              label={s.pain.activeCount ? `${s.pain.activeCount} active · worst ${intensityWord(s.pain.worstSeverity).toLowerCase()}` : "None active"}
+              label={s.pain.activeCount ? s.pain.worstSeverity === null ? `${s.pain.activeCount} active · not rated` : `${s.pain.activeCount} active · worst ${intensityWord(s.pain.worstSeverity).toLowerCase()}` : "None active"}
             />
           </div>
           {s.pain.trends.length === 0 && s.pain.resolvedSinceLast.length === 0 ? (
@@ -264,7 +264,7 @@ export function SubjectiveDashboard({
                         </div>
                       )}
                     </td>
-                    <td className="num">{intensityWord(t.point.severity)}</td>
+                    <td className="num">{painWord(t.point.severity)}</td>
                     <td className="num">
                       {t.isNew ? <span className="sr-hint">new</span> : <SeverityChange change={t.severityChange} />}
                     </td>
@@ -280,7 +280,7 @@ export function SubjectiveDashboard({
                   <tr key={`res-${p.id}`}>
                     <td>
                       <div className="sr-table__title" style={{ opacity: 0.7 }}>
-                        {painName(p)} <span className="sr-hint">was {intensityWord(p.severity).toLowerCase()} last time</span>
+                        {painName(p)} <span className="sr-hint">was {painWord(p.severity).toLowerCase()} last time</span>
                       </div>
                     </td>
                     <td className="num">—</td>
@@ -530,7 +530,7 @@ export function SubjectiveClientCopy({
                       <div className="sr-hint">we're watching this on {t.point.aggravatingMachineIds.map(machineName).join(", ")}</div>
                     )}
                   </td>
-                  <td className="num">{intensityWord(t.point.severity)}</td>
+                  <td className="num">{painWord(t.point.severity)}</td>
                   <td className="num">{t.isNew ? <span className="sr-hint">new</span> : <SeverityChange change={t.severityChange} />}</td>
                 </tr>
               ))}

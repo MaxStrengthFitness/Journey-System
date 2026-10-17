@@ -168,6 +168,15 @@ describe("the pain map as she last told it", () => {
     expect(p.spots.find((s) => s.point.region === "neck")!.prev).toBeNull();
   });
 
+  it("shows a spot nobody rated as 'Not rated', after the rated ones (AJ's F20, a)", () => {
+    const src: PulseSource = {
+      draft: draft({ painMap: [pain({ id: "u", severity: null }), pain({ id: "r", region: "neck", side: "center", severity: 3 })] }),
+      history: history(),
+    };
+    const p = latestPain(src)!;
+    expect(p.spots.map((s) => s.word)).toEqual(["Mild", "Not rated"]);
+  });
+
   it("reads the intensity scale reversed: 3 is Mild, 10 is Worst", () => {
     const src: PulseSource = { draft: draft({ painMap: [pain({ severity: 10 })] }), history: history() };
     expect(latestPain(src)!.spots[0].word).toBe("Worst");
