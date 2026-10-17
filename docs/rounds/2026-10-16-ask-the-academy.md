@@ -27,7 +27,7 @@ Two plan pages followed, both private artifacts:
 1. **The pages.** Claude reads the same Academy a trainer can open in Learning → Academy. That is the content `scripts/build-academy-content.ts` builds from `docs/msf-academy`: 98 topics in 13 modules, 19 machine overviews, 20 scripts, 18 quick-reference cards, the cue moments and 52 glossary terms, about 180,000 words. `src/features/ask-academy/pages.ts` turns them into one list of pages. Where the same file sits under two modules, it is kept once.
 2. **Picking.** Haiku 5.5 gets the question and the list of page titles. It returns up to five page ids, as JSON checked against a schema.
 3. **Answering.** The chosen pages are sent whole, as plain-text documents with citations on. The answer is read into points: Claude's line, then the quoted sentences and their pages. Uncited lines are dropped. If the pages don't answer the question, the reply is exactly `NOT_COVERED`.
-4. **Refusals.** The answering request uses the server-side fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`). If a safety check ever declines an ordinary health question, another model answers instead of the trainer getting nothing.
+4. **Refusals.** There is no fallback model (Oct 17 2026). The API can pass a declined request to another model (`fallbacks: "default"`). Phase 0 shipped with that on, then it was taken out, because it would put an answer from a model AJ didn't choose in front of a trainer. Until AJ decides, a declined question comes back as "refused" with its category, and the trial counts how often that happens.
 
 **Rules it keeps:**
 - It reads no client record, so it can't speak about one client.

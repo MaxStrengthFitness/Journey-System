@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { answerRequest, documentTitle, NOT_COVERED, readAnswer } from "./answer";
-import { ANSWER_MODELS, PICK_MODEL } from "./models";
+import { ANSWER_MODELS } from "./models";
 import type { AcademyPage } from "./pages";
 
 const pain: AcademyPage = {
@@ -36,11 +36,13 @@ describe("answerRequest", () => {
     expect(content[2].text).toBe("A trainer asks: knee arthritis, where do I start?");
   });
 
-  it("offers the server-side fallback to Opus and Sonnet, never to Haiku", () => {
-    expect(answerRequest("q", [pain], ANSWER_MODELS.sonnet)).toMatchObject({ fallbacks: "default", betas: ["server-side-fallback-2026-07-01"] });
-    const haiku = answerRequest("q", [pain], PICK_MODEL);
-    expect("fallbacks" in haiku).toBe(false);
-    expect("betas" in haiku).toBe(false);
+  it("asks for no fallback model: the model that answers is the one chosen", () => {
+    for (const model of [ANSWER_MODELS.opus, ANSWER_MODELS.sonnet]) {
+      const req = answerRequest("q", [pain], model);
+      expect(req.model).toBe(model);
+      expect("fallbacks" in req).toBe(false);
+      expect("betas" in req).toBe(false);
+    }
   });
 
   it("tells the model the rules it keeps", () => {

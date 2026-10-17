@@ -13,21 +13,19 @@
  * citation behind it. If the pages don't answer the question the reply is the
  * single word NOT_COVERED.
  *
- * The request opts into the server-side fallback (`fallbacks: "default"`): if a
- * safety check ever declines an ordinary question about pain or an injury,
- * another model answers instead of the trainer getting nothing.
+ * No fallback model (Oct 17 2026). The API can hand a declined request to
+ * another model; that would put an answer from a model AJ didn't choose in
+ * front of a trainer, so it is his call. Until he makes it, a declined
+ * question comes back as `refused`, with its category, and the trial counts
+ * how often that happens.
  */
 import type Anthropic from "@anthropic-ai/sdk";
-import { ANSWER_MODELS } from "./models";
 import type { AcademyPage } from "./pages";
 
 type CreateParams = Anthropic.Beta.Messages.MessageCreateParamsNonStreaming;
 type Message = Anthropic.Beta.Messages.BetaMessage;
 
 export const NOT_COVERED = "NOT_COVERED";
-
-/** The models the server-side fallback is offered for. Haiku has none. */
-const FALLBACK_MODELS: readonly string[] = [ANSWER_MODELS.opus, ANSWER_MODELS.sonnet];
 
 const ANSWER_INSTRUCTIONS = [
   "You answer questions from trainers at Max Strength Fitness (MSF), using only the attached pages of the MSF Academy, the company's training manual.",
@@ -46,13 +44,9 @@ export function documentTitle(page: AcademyPage): string {
 
 /** The answering request: the pages in the order picked, then the question. */
 export function answerRequest(question: string, pages: readonly AcademyPage[], model: string): CreateParams {
-  const fallback = FALLBACK_MODELS.includes(model)
-    ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }
-    : {};
   return {
     model,
     max_tokens: 8000,
-    ...fallback,
     system: ANSWER_INSTRUCTIONS,
     output_config: { effort: "medium" },
     messages: [

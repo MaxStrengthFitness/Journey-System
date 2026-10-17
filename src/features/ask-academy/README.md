@@ -15,8 +15,8 @@ It reads no client record, so it can't speak about one client. It never gives a 
    - Cards titled with an abbreviation take the Academy's name for the machine, from its script.
    - The glossary is read term by term.
 2. **Picking** (`pick.ts`). Haiku 5.5 reads the question and one line per page, then names up to five pages as JSON checked against a schema. Ids are then checked against the real pages, so a made-up one is dropped.
-3. **Answering** (`answer.ts`). The picked pages go in whole, as plain-text documents with citations on. `readAnswer` turns each cited line into a point: Claude's line, then the quoted sentences (`cited_text`, which the API copies from the page) and their pages. Uncited lines are dropped. `NOT_COVERED` means the pages don't answer the question. A refusal says so, with its category.
-4. **Refusals.** Opus and Sonnet requests opt into the server-side fallback (`fallbacks: "default"`), so a declined question about pain is answered by another model rather than not at all. Haiku has no fallback.
+3. **Answering** (`answer.ts`). The picked pages go in whole, as plain-text documents with citations on. `readAnswer` turns each cited line into a point: Claude's line, then the quoted sentences (`cited_text`, which the API copies from the page) and their pages. Uncited lines are dropped. `NOT_COVERED` means the pages don't answer the question.
+4. **Refusals.** There is no fallback model (Oct 17 2026). The API can pass a declined request to another model, but that would put an answer from a model AJ didn't choose in front of a trainer, so it is his call. Until he decides, a declined question comes back as `refused` with its category, and the trial counts how often that happens.
 
 `models.ts` has the model ids and list prices. `costOf` prices a request by the model that actually served it, and returns null, never zero, for a model it doesn't know.
 
@@ -37,7 +37,6 @@ Everything here is pure: no React, no Firebase, no network. The calls are made b
 
 - **`academy/academy-machines.ts` can't be imported here.** It reaches the machine database and its photos, which neither `tsx` nor the server bundle can load. So `pages.ts` copies its two naming rules (`scriptTitle`, `cardTitle`), and `pages.test.ts` holds the copies to the originals.
 - **Citations and JSON output don't mix.** A request with `output_config.format` is refused when it also has citations on. So picking asks for JSON, and answering asks for cited text.
-- **Haiku 5.5 takes no server-side fallback.** `answerRequest` sends `fallbacks` only for Opus and Sonnet.
 
 ## Phases
 
