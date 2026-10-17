@@ -65,12 +65,12 @@
   --wk-font-display: var(--font-display, "Saira Condensed", system-ui, sans-serif);
 
   /* ── surfaces ─────────────────────────────────────────────────────── */
-  --wk-bg:            #dee6ee;
-  --wk-surface:       #f3f6f9;
-  --wk-surface-2:     #e4ebf3;
-  --wk-surface-3:     #d4dee8;
-  --wk-border:        #d1dae4;   /* 1.3:1 hairline                    */
-  --wk-border-strong: #7a8694;   /* 3.4:1 divider / control boundary  */
+  --wk-bg:            #eeeeee;
+  --wk-surface:       #fcfcfc;
+  --wk-surface-2:     #f2f2f2;
+  --wk-surface-3:     #e6e6e6;
+  --wk-border:        #e2e2e2;   /* 1.3:1 hairline                    */
+  --wk-border-strong: #808386;   /* 3.4:1 divider / control boundary  */
 
   /* ── ink ──────────────────────────────────────────────────────────── */
   --wk-ink:       #192d41;   /* 13.0:1 */
@@ -118,8 +118,8 @@
      then; they are the app's now, by name, with the hero's (--wk-elev-3)
      beside them. Two shadows, never one: a tight contact shadow anchors the
      card and a short ambient one lifts it. */
-  --wk-raised:          #f8fafc;
-  --wk-tray:            #d1dae4;
+  --wk-raised:          #fdfdfd;
+  --wk-tray:            #dadada;
   --wk-edge:            rgba(25, 45, 65, 0.13);
   --wk-edge-control:    rgba(25, 45, 65, 0.26);
   --wk-divider:         rgba(25, 45, 65, 0.10);

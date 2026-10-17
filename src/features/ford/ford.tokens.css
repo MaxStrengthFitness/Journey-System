@@ -33,12 +33,12 @@
 
 :root {
   /* ---- surfaces ------------------------------------------------------- */
-  --ford-bg:            #dee6ee;   /* matches --eq-bg; the section sits on it */
-  --ford-surface:       #f3f6f9;   /* pillar cards, detail rows               */
-  --ford-surface-2:     #e4ebf3;   /* pillar headers, the sweep tray          */
-  --ford-surface-3:     #d4dee8;   /* hover / pressed                         */
-  --ford-border:        #d1dae4;   /* hairlines                       1.3:1   */
-  --ford-border-strong: #7a8694;   /* card edges, focused input       3.4:1   */
+  --ford-bg:            #eeeeee;   /* matches --eq-bg; the section sits on it */
+  --ford-surface:       #fcfcfc;   /* pillar cards, detail rows               */
+  --ford-surface-2:     #f2f2f2;   /* pillar headers, the sweep tray          */
+  --ford-surface-3:     #e6e6e6;   /* hover / pressed                         */
+  --ford-border:        #e2e2e2;   /* hairlines                       1.3:1   */
+  --ford-border-strong: #808386;   /* card edges, focused input       3.4:1   */
 
   --ford-ink:           #192d41;   /* the detail itself              13.0:1   */
   --ford-ink-2:         #3f4f60;   /* attribution, dates              7.8:1   */
@@ -67,7 +67,7 @@
   --ford-soon:          #064f89;   /* 7.8:1; 7.1:1 on its fill — live text   */
   --ford-soon-fill:     #dbeefe;
   --ford-later:         #546271;   /* 5.8:1 — deliberately quiet              */
-  --ford-later-fill:    #e4ebf3;
+  --ford-later-fill:    #f2f2f2;
 
   /* ---- the unfiled tray ----------------------------------------------
      Captures waiting to be filed. Amber-free and alarm-free: an untagged
@@ -86,8 +86,8 @@
 
   /* Depth (type and depth, phase 3, Oct 4 2026), value for value as
      equipment.tokens.css. */
-  --ford-raised:          #f8fafc;
-  --ford-tray:            #d1dae4;
+  --ford-raised:          #fdfdfd;
+  --ford-tray:            #dadada;
   --ford-edge:            rgba(25, 45, 65, 0.13);
   --ford-edge-control:    rgba(25, 45, 65, 0.26);
   --ford-divider:         rgba(25, 45, 65, 0.10);

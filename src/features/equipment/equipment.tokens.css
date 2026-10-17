@@ -21,12 +21,12 @@
    ========================================================================== */
 
 :root {
-  --eq-bg:              #dee6ee;   /* page behind both panes, the grid      */
-  --eq-surface:         #f3f6f9;   /* rail items, cards; never pure white   */
-  --eq-surface-2:       #e4ebf3;   /* section headers, read-only chips      */
-  --eq-surface-3:       #d4dee8;   /* hover / pressed                       */
-  --eq-border:          #d1dae4;   /* hairlines                     1.3:1   */
-  --eq-border-strong:   #7a8694;   /* pane divider, control edge    3.4:1   */
+  --eq-bg:              #eeeeee;   /* page behind both panes, the grid      */
+  --eq-surface:         #fcfcfc;   /* rail items, cards; never pure white   */
+  --eq-surface-2:       #f2f2f2;   /* section headers, read-only chips      */
+  --eq-surface-3:       #e6e6e6;   /* hover / pressed                       */
+  --eq-border:          #e2e2e2;   /* hairlines                     1.3:1   */
+  --eq-border-strong:   #808386;   /* pane divider, control edge    3.4:1   */
 
   --eq-ink:             #192d41;   /* names, values (deep navy)    13.0:1   */
   --eq-ink-2:           #3f4f60;   /* secondary                     7.8:1   */
@@ -60,9 +60,9 @@
      your head, and the quiet blue edge of a client card still to come (AJ's
      answer 2A, Oct 4 2026). The now line keeps 3:1 over your lane, so a
      retune of the lane has to keep it too. */
-  --eq-mine:            #d3e2f1;
-  --eq-mine-head:       #cbe1f7;
-  --eq-rail-booked:     #668fba;   /* a coming-up card's edge       3.1:1   */
+  --eq-mine:            #d9e3ef;
+  --eq-mine-head:       #d4e1ef;
+  --eq-rail-booked:     #6e93b9;   /* a coming-up card's edge       3.1:1   */
 
   /* Green: a machine that is set up and in use. */
   --eq-ok:              #17714b;   /* 5.5:1, 5.2:1 on its fill              */
@@ -92,8 +92,8 @@
      (equipment-tokens.test.ts holds the names), so every copy of this
      palette carries the same strings. A raised fill keeps the control's own
      3:1 edge, --eq-border-strong. */
-  --eq-raised:          #f8fafc;
-  --eq-tray:            #d1dae4;
+  --eq-raised:          #fdfdfd;
+  --eq-tray:            #dadada;
   --eq-edge:            rgba(25, 45, 65, 0.13);
   --eq-edge-control:    rgba(25, 45, 65, 0.26);
   --eq-divider:         rgba(25, 45, 65, 0.10);

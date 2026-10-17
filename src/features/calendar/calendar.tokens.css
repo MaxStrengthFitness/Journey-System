@@ -35,12 +35,12 @@
    ========================================================================== */
 
 :root {
-  --cal-bg:            #dee6ee;
-  --cal-surface:       #f3f6f9;   /* never pure white                      */
-  --cal-surface-2:     #e4ebf3;
-  --cal-surface-3:     #d4dee8;
-  --cal-border:        #d1dae4;   /* 1.3:1 hairline                        */
-  --cal-border-strong: #7a8694;   /* 3.4:1 structural                      */
+  --cal-bg:            #eeeeee;
+  --cal-surface:       #fcfcfc;   /* never pure white                      */
+  --cal-surface-2:     #f2f2f2;
+  --cal-surface-3:     #e6e6e6;
+  --cal-border:        #e2e2e2;   /* 1.3:1 hairline                        */
+  --cal-border-strong: #808386;   /* 3.4:1 structural                      */
 
   --cal-ink:           #192d41;   /* 13.0:1                                */
   --cal-ink-2:         #3f4f60;   /*  7.8:1                                */
@@ -57,14 +57,14 @@
   --cal-live-on:       #ffffff;
   /* Yours and caution, the Hub's (the rooms round, Oct 10 2026): the blue
      cast under your bookings on the Week, and the plum of a day not read. */
-  --cal-mine:          #d3e2f1;
+  --cal-mine:          #d9e3ef;
   --cal-warn:          #a2457e;
 
   /* Heatmap ramp. Single hue, ascending lightness -> saturation, so it reads
      as one scale rather than a rainbow. Step 0 is the empty surface. Step 4
      is deepened just enough for white words (4.6:1), so the ink changes at
      step 4 in both modes; the dark ink on step 3 is 5.1:1. */
-  --cal-heat-0:        #eef2f5;
+  --cal-heat-0:        #f1f1f1;
   --cal-heat-1:        #cfe0ec;
   --cal-heat-2:        #a3c7de;
   --cal-heat-3:        #6ba5cb;
@@ -92,8 +92,8 @@
 
   /* Depth (type and depth, phase 3, Oct 4 2026), value for value as
      equipment.tokens.css. */
-  --cal-raised:          #f8fafc;
-  --cal-tray:            #d1dae4;
+  --cal-raised:          #fdfdfd;
+  --cal-tray:            #dadada;
   --cal-edge:            rgba(25, 45, 65, 0.13);
   --cal-edge-control:    rgba(25, 45, 65, 0.26);
   --cal-divider:         rgba(25, 45, 65, 0.10);
