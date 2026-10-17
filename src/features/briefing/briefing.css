@@ -1132,35 +1132,9 @@
 .br-cap__tap { width: 150px; }
 .br-cap__tap svg path { cursor: pointer; }
 
-/* --- 6. the routine: its section, and the limits line ------------------ */
+/* --- 6. the routine's section ------------------------------------------- */
 
 .br-routine { display: flex; flex-direction: column; gap: 10px; }
-.br-routine__touch {
-  grid-column: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--br-warn);
-  /* Machine names, whole: a long one breaks rather than runs off (names-wrap.test.ts). */
-  overflow-wrap: anywhere;
-}
-/* Its own line: under the plan card's Road, and under today's list. */
-p.br-routine__touch { margin: 0; }
-.br-routine__touch svg { flex: none; }
-
-
-/* --- 7. also today ----------------------------------------------------- */
-
-.br-also {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 4px;
-}
-.br-also .br__quote { margin: 0; font-size: 13px; }
-
 /* Now the same as .br__meta (it was its quiet version when that one
    spoke in capitals). */
 .br__meta--quiet { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 600; }
@@ -1178,7 +1152,6 @@ p.br-routine__touch { margin: 0; }
   .br__cta-bar { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
 }
 
-.br-also:empty { display: none; }
 
 /* --- 6. today's list (the briefing round, Oct 17 2026) ------------------- */
 
@@ -1447,3 +1420,52 @@ p.br-routine__touch { margin: 0; }
   font-size: 15px;
   outline: none;
 }
+
+/* --- the briefing round, phase 2 (Oct 17 2026) ---------------------------- */
+
+/* Back where Start was tapped, saying where (AJ's F4 "a"): the close's raised
+   firm edge, with words. */
+.br__back {
+  flex: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid var(--br-border-strong);
+  border-radius: 999px;
+  background: var(--br-raised);
+  box-shadow: var(--br-elev-1), inset 0 1px 0 var(--br-highlight);
+  color: var(--br-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.br__back:not(:disabled):active { transform: translateY(1px); box-shadow: var(--br-press); }
+@media (hover: hover) {
+  .br__back:hover { background: var(--br-surface-3); color: var(--br-ink); }
+}
+.br__back:focus-visible { outline: 2px solid var(--br-focus-ring); outline-offset: 2px; }
+
+/* The one Since last time card: gone when nothing in it has anything to say
+   (the FORD row and the renewal line decide for themselves). */
+.br-since:empty { display: none; }
+.br-since .br__inbody { margin: 0; }
+
+/* A Heads up this trainer has trained the client since: one quiet line,
+   never invisible (AJ's "2a"). */
+.br__headsup-quiet {
+  margin: 0;
+  padding: 0 2px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--br-ink-2);
+  overflow-wrap: anywhere;
+}
+.br__headsup-quiet b { font-weight: 700; color: var(--br-warn); }

@@ -1,40 +1,35 @@
 /**
- * The briefing's list for today (TodayList, the briefing round, Oct 17 2026)
- * on a page of its own: the app's real component, tokens and fonts, made-up
- * machines shaped like a long-standing client's Routine A, no Firestore.
+ * The pre-session briefing on a page of its own (the briefing round, Oct 17
+ * 2026): the app's real BriefingScreen, tokens and fonts, from a made-up
+ * client (sample.ts), with every database call answered by stubs/ instead.
  *
  *   ?theme=dark       the dark theme
+ *   &seen=1           the signed-in trainer trained the client since the Heads up
+ *   &flags=1          a low-back flag in Before you start
+ *   &view=list        today's list alone (TodayList), with:
  *   &order=1          Lumbar straight into Leg Press, to show an order warning
  *
  * shots.mjs photographs it. It never ships.
  */
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import "../../src/index.css";
+import "./preview.css";
 import "../../src/features/briefing/briefing.css";
+import { ThemeProvider } from "../../src/components/ThemeProvider";
+import { UnsavedChangesProvider } from "../../src/features/unsaved-changes";
+import { BriefingScreen } from "../../src/features/briefing/BriefingScreen";
 import { TodayList } from "../../src/features/briefing/TodayList";
-import type { Machine } from "../../src/types";
 import type { MachineHistoryEntry } from "../../src/features/routine-builder/types";
+import { CLIENT, FLOOR, ROUTINES, SESSIONS, TRAINER } from "./sample";
 
 const params = new URLSearchParams(location.search);
-document.documentElement.classList.add(params.get("theme") === "dark" ? "dark" : "light");
-
-/* A floor in walking order. */
-const FLOOR: Machine[] = [
-  ["m-hip-add", "Hip Adduction"],
-  ["m-hip-abd", "Hip Abduction"],
-  ["m-leg-press", "Leg Press"],
-  ["m-ext", "Leg Extension"],
-  ["m-leg-curl", "Leg Curl"],
-  ["m-compound-row", "Compound Row"],
-  ["m-pullover", "Seated Pullover"],
-  ["m-pulldown", "Pulldown"],
-  ["m-chest-press", "Chest Press"],
-  ["m-dip", "Seated Dip"],
-  ["m-lateral-raise", "Lateral Raise"],
-  ["m-lumbar", "Lumbar"],
-  ["m-neck", "Neck Extension"],
-].map(([id, name]) => ({ id, name }) as Machine);
+const theme = params.get("theme") === "dark" ? "dark" : "light";
+document.documentElement.classList.add(theme);
+try {
+  localStorage.setItem("briefing-preview-theme", theme);
+} catch {
+  /* a private window: the class above still sets the theme */
+}
 
 const HISTORY: Record<string, MachineHistoryEntry> = {
   "m-hip-add": { lastWeight: 154, lastReps: 8, lastUnit: "reps", lastDate: null },
@@ -45,14 +40,13 @@ const HISTORY: Record<string, MachineHistoryEntry> = {
   "m-lumbar": { lastWeight: 44, lastReps: 8, lastUnit: "reps", lastDate: null },
   "m-pullover": { lastWeight: 140, lastReps: 90, lastUnit: "sec", lastDate: null },
 };
-
 const START =
   params.get("order") === "1"
     ? ["m-hip-add", "m-hip-abd", "m-lumbar", "m-leg-press", "m-compound-row", "m-dip"]
     : ["m-hip-add", "m-hip-abd", "m-leg-press", "m-compound-row", "m-dip", "m-lumbar"];
 const nameOf = (id: string) => FLOOR.find((m) => m.id === id)?.name ?? id;
 
-function Preview() {
+function ListOnly() {
   const [ids, setIds] = useState<string[]>(START);
   (window as unknown as { __ids: string[] }).__ids = ids;
   return (
@@ -76,5 +70,33 @@ function Preview() {
   );
 }
 
+function Full() {
+  const [started, setStarted] = useState<unknown[] | null>(null);
+  (window as unknown as { __started: unknown[] | null }).__started = started;
+  return (
+    <ThemeProvider defaultTheme={theme} storageKey="briefing-preview-theme">
+      <UnsavedChangesProvider>
+        <BriefingScreen
+          studioName="Practice Studio"
+          studioId="s-sample"
+          authTrainer={TRAINER}
+          client={CLIENT}
+          coverage="complete"
+          targetRoutine={ROUTINES[0]}
+          lastSession={SESSIONS[0]}
+          sessions={SESSIONS}
+          routinesKnown
+          onStart={(...args) => setStarted(args)}
+          onClose={() => {}}
+          closeWords="Back to the Hub"
+          machines={FLOOR}
+          routines={ROUTINES}
+          trainers={[TRAINER]}
+        />
+      </UnsavedChangesProvider>
+    </ThemeProvider>
+  );
+}
+
 (window as unknown as { __ready: boolean }).__ready = true;
-createRoot(document.getElementById("root")!).render(<Preview />);
+createRoot(document.getElementById("root")!).render(params.get("view") === "list" ? <ListOnly /> : <Full />);

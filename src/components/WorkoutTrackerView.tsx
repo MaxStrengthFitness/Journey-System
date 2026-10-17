@@ -344,6 +344,7 @@ import { LoadBoundary } from "../features/new-version/LoadBoundary";
 const ClientCheckInPanel = React.lazy(loadClientCheckInPanel);
 import { SessionJournalSidebar } from "./journal/SessionJournalSidebar";
 import { BriefingScreen } from "../features/briefing";
+import { closeTargetOf } from "../features/briefing/close-target";
 import { WrapUpScreen } from "./WrapUpScreen";
 import { studioTodayKey } from "../lib/studio-time";
 import { sessionLinkOf } from "../features/client-notes/session-link";
@@ -429,6 +430,7 @@ export function WorkoutTrackerView({
   clientsStatus = "ready",
   onStartOpenSession,
   onReturn,
+  sessionFrom = null,
 }: {
   clientId: string | null;
   clients: Client[];
@@ -453,6 +455,12 @@ export function WorkoutTrackerView({
    * (`rememberLiveSession`'s `returnTo`). Without it, the Hub.
    */
   onReturn?: (to: LiveSessionReturn) => void;
+  /**
+   * The screen this session was opened from (AppContent's `sessionFrom`):
+   * where the briefing's close goes, in its words ("Back to the Hub"; AJ's
+   * F4 "a", the briefing round, Oct 17 2026). Without it, the profile.
+   */
+  sessionFrom?: View | null;
   machines: Machine[];
   schedules: any[];
   trainers: Trainer[];
@@ -5670,9 +5678,12 @@ export function WorkoutTrackerView({
               startPlan,
             )
           }
+          /* Back where Start was tapped, and says so (AJ's F4 "a", the
+             briefing round, Oct 17 2026; features/briefing/close-target.ts). */
+          closeWords={closeTargetOf(sessionFrom, clientFirstName(selectedClient, "")).words}
           onClose={() => {
             setIsPreSessionMode(false);
-            setView("profile");
+            setView(closeTargetOf(sessionFrom).view);
           }}
           machines={floorMachines}
           routines={routines}

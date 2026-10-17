@@ -448,6 +448,16 @@ export default function AppContent({
   });
   const { currentView, appMode, setAppMode } = place;
   /*
+   * WHERE A SESSION WAS OPENED FROM (the briefing round, Oct 17 2026; AJ's
+   * F4 "a": the briefing's close returns to where Start was tapped, and says
+   * so). The screen before the Active Session, remembered as state set
+   * during render, React's way to keep the previous value.
+   */
+  const [viewTrail, setViewTrail] = useState<{ at: View; sessionFrom: View | null }>({ at: currentView, sessionFrom: null });
+  if (viewTrail.at !== currentView) {
+    setViewTrail({ at: currentView, sessionFrom: currentView === "workouts" ? viewTrail.at : viewTrail.sessionFrom });
+  }
+  /*
    * UNSAVED CHANGES (Sep 24 2026). There is no router, so a screen leaves
    * the tree when `currentView` (or the client, or the studio) changes — and
    * everything typed into it goes with it. The screen and the client are
@@ -1977,6 +1987,7 @@ export default function AppContent({
                     // Not now on a session opened from a door, and a finished
                     // Discard, go back to that door (Oct 12 2026).
                     onReturn={returnToDoor}
+                    sessionFrom={viewTrail.sessionFrom}
                   />
                 )}
                 {currentView === "profile" && (

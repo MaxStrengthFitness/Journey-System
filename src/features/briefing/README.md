@@ -45,7 +45,8 @@ Top to bottom (`stack.ts` is the pure half, `stack.test.ts` beside it):
    skip and its reason, a blood-flow set, a machine short of HER usual —
    the median of her last five performed sets, said only with at least
    three), the markers (a break, a milestone), heads ups, coaching focuses.
-4. **Something to ask about** — the FORD cue, unchanged.
+4. **Something to ask about** — the FORD cue; since Oct 17 2026 inside Since
+   last time's card, by the Hub's rule (see "What's different" below).
 5. **On the way in** — Dials (folded until tapped since the floor round, Oct
    9 2026, AJ's "2a": they're optional and Start is the job; they were open
    by default until then, and the chip counts what was tapped while folded) · Sore spot · Note · Update
@@ -61,7 +62,7 @@ Top to bottom (`stack.ts` is the pure half, `stack.test.ts` beside it):
    routine sees how they start instead (the first-session design round, Oct
    8 2026: see "How the client starts" below).
 7. **Also today** — the InBody line and the renewal line, quiet, never in the
-   safety band; hidden when empty.
+   safety band; since Oct 17 2026 the foot of Since last time's card.
 8. **Start session** — a solid bar pinned to the bottom of the page; nothing
    scrolls under a see-through gradient any more.
 
@@ -104,6 +105,39 @@ four." `TodayList.tsx` draws it, `today-list.ts` is the pure half.
   exactly as the builder's did, and Start hands the list up as before.
 - **The preview**: `harness/briefing` (`node harness/briefing/shots.mjs`
   photographs it at 820 x 1180, light and dark, and at 390 wide).
+
+## What's different about this person (Oct 17 2026)
+
+The briefing round, phase 2 (AJ's handoff, question 1; his answers "2a" and
+"3a", F4 "a" and F13 "2a").
+
+- **One card for what's new.** Since last time, the Heads ups, the team's
+  focuses, then the one thing to ask (FORD) and the InBody and renewal lines,
+  quiet, at its foot: it was four cards (Since last time, Something to ask,
+  Also today, and the routine's labels). No count beside its label. Gone when
+  nothing in it has anything to say (`.br-since:empty`).
+- **Quieter once seen** (`seenSince`, `briefing-notes.ts`): a Heads up is a
+  full card for a trainer who hasn't trained the client since its newest
+  word, and one quiet line ("Heads up · …") for one who has, still inside its
+  four sessions. Only a finished session this trainer ran counts (a session
+  stores the trainer record's id); a note or a session with no readable date
+  is never "seen". Critical notes are never quieter.
+- **The FORD line, the Hub's way** (`FordBriefingCue`, `askAboutFor` from
+  `hub-opportunities/get-to-know.ts`): what the Hub card's Get to know mark
+  is about, in the same words: a day coming up this week, then a Follow up
+  next time question, then one that just happened, then news; else the
+  soonest dated detail, a pinned fact, or a stock question. A follow-up is
+  cleared when its answer is saved here, or by "Nothing new, clear the
+  question" (`clearFollowUp`, never waited on). No "tap to note" lines.
+- **No "Mind the limits on …"** under the routine or the plan card (AJ's
+  "3a": no warning linking a note to today's routine). The flag's own
+  instructions in Before you start still name the machines.
+- **Back where Start was tapped** (`close-target.ts`; AppContent's
+  `sessionFrom`): "Back to the Hub", "Back to Calendar", "Back to Clients",
+  "Back to Robbin's profile"; an unknown screen goes to the profile, as the
+  close always did. Without words (a test, a host that doesn't say), the X.
+- **The last session names its routine** ("Last session · Oct 9, 2026 ·
+  Routine A"), never the session type ("Standard").
 
 ## How the client starts (Oct 8 2026)
 

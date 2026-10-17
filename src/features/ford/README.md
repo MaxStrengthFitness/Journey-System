@@ -29,7 +29,7 @@ not finished.
 
 | Where | What happens |
 | --- | --- |
-| Pre-session briefing | One quiet row: the soonest dated detail, or a question to ask when nothing is on file yet (`FordBriefingCue`) |
+| Pre-session briefing | One quiet row inside Since last time's card: what the Hub's Get to know mark is about (`askAboutFor`, a Follow up next time question among it), else the soonest dated detail, a pinned fact, or a question to ask when nothing is on file yet (`FordBriefingCue`; the briefing round, Oct 17 2026) |
 | Mid-session | **Remember this** — the second mode of the Notes sheet. One box, one button, no category required (`FordQuickCapture`) |
 | Post-session | The sweep. Unfiled captures come back as cards with four big buttons (`FordSweep`) |
 | Client profile → Notes & Profile → FORD | The page: what is coming up (the Mindbody birthday included), what is unfiled, the four pillars with their bands, and going above and beyond (`page/FordPage`) — see "The FORD page" below |
@@ -211,8 +211,10 @@ with the question — "follow up next time: “Still Tuesdays?”" — and an
 unfiled capture shows its question in the tray, so no question waits unseen,
 even for a reader who cannot open the dialog. One pair of quotes typed around
 the whole question is taken off (`normaliseFollowUp`): Ask next adds its own.
-No rules change: the ford block has no allowed-keys list. The briefing does
-not read follow-ups yet (a floor change, for AJ).
+No rules change: the ford block has no allowed-keys list. The briefing reads
+follow-ups since the briefing round (Oct 17 2026, AJ's F13 "2a"): its row
+says the Hub's sentence, saving the answer there clears the question, and
+"Nothing new, clear the question" clears it without one (`clearFollowUp`).
 
 **One load.** The page opens no listener: FORD, the journal and the Pulse
 history are the tab's (`useCodexData`). **Who may write** follows FORD's own

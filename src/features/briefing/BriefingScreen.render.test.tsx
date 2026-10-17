@@ -24,6 +24,9 @@ vi.mock("../../lib/firestore-errors", () => ({
 
 const writes: { path: string; data: any }[] = [];
 const sets: { path: string; data: any }[] = [];
+/* FORD on file for the client (the briefing round's follow-up test), and the
+   updates a test can see. Empty unless a test fills it. */
+const ford = vi.hoisted(() => ({ docs: [] as Record<string, unknown>[], updates: [] as { path: string; data: any }[] }));
 
 vi.mock("firebase/firestore", async (importOriginal) => {
   const real = await importOriginal<typeof import("firebase/firestore")>();
@@ -41,7 +44,8 @@ vi.mock("firebase/firestore", async (importOriginal) => {
     // rather than guessing while it loads. Every other stream stays silent.
     onSnapshot: (q: any, next?: unknown) => {
       if (typeof q?.__path === "string" && q.__path.endsWith("/ford") && typeof next === "function") {
-        next({ docs: [], size: 0, empty: true });
+        const docs = ford.docs.map((d) => ({ id: String(d.id), data: () => d }));
+        next({ docs, size: docs.length, empty: docs.length === 0 });
       }
       return () => {};
     },
@@ -51,7 +55,9 @@ vi.mock("firebase/firestore", async (importOriginal) => {
       writes.push({ path: ref.__path, data });
       return { id: `new-${writes.length}` };
     },
-    updateDoc: async () => {},
+    updateDoc: async (ref: any, data: any) => {
+      ford.updates.push({ path: ref.__path, data });
+    },
     setDoc: async (ref: any, data: any) => {
       sets.push({ path: ref.__path, data });
     },
@@ -188,6 +194,8 @@ beforeEach(() => {
   startingReads.now = { ...startingReads.answered };
   startingReads.count = 0;
   opened.calls.length = 0;
+  ford.docs = [];
+  ford.updates.length = 0;
 });
 
 afterEach(async () => {
@@ -409,7 +417,9 @@ describe("the pre-session briefing mounts", () => {
     // the heads up is news and sits under Since last time.
     expect(before.textContent).toContain("Before you start · 1");
     const since = host2.querySelector('[aria-label="Since last time"]')!;
-    expect(since.textContent).toContain("Since last time · 1");
+    // No count beside the label (show it, don't label it, Oct 16 2026).
+    expect(since.textContent).toContain("Since last time");
+    expect(since.textContent).not.toContain("Since last time · 1");
     const headsUp = since.querySelector('[data-testid="briefing-headsup"]')!;
     expect(headsUp.textContent).toContain("Heads up");
     expect(headsUp.textContent).toContain("Right shoulder twinge");
@@ -496,6 +506,92 @@ describe("the pre-session briefing mounts", () => {
     expect(writes.map((w) => w.path)).toEqual(["clients/c1/ford"]);
     expect(writes[0].data).toMatchObject({ clientId: "c1", studioId: "s1", origin: "briefing", authorId: "uid-aj" });
     expect(writes[0].data.pillar).not.toBeNull();
+  });
+
+  /* The briefing round, phase 2 (Oct 17 2026). */
+  describe("what's different about this person", () => {
+    it("says a Follow up next time question the Hub's way, and 'Nothing new' clears it (AJ's F13, 2a)", async () => {
+      ford.docs = [
+        {
+          id: "f1",
+          clientId: "c1",
+          studioId: "s1",
+          pillar: "family",
+          body: "Daughter's wedding in Napa",
+          followUp: "How was the wedding?",
+          followUpBy: "Jess Moreno",
+          followUpAt: new Date(Date.now() - 2 * DAY),
+          occurredAt: new Date(Date.now() - 30 * DAY),
+          isArchived: false,
+        },
+      ];
+      const host = await mount(<Screen />);
+      const cue = host.querySelector('[data-testid="ford-briefing-cue"]')!;
+      expect(cue.textContent).toContain("Follow up: How was the wedding?");
+      expect(cue.textContent).not.toContain("tap to note");
+      await click(cue.querySelector("button.ford-upnext__row"));
+      await click(cue.querySelector('[data-testid="ford-briefing-clear"]'));
+      expect(ford.updates).toEqual([
+        expect.objectContaining({ path: "clients/c1/ford/f1", data: expect.objectContaining({ followUp: null, followUpAt: null, followUpBy: null }) }),
+      ]);
+    });
+
+    it("a Heads up is a card until this trainer has trained the client since, then one quiet line (AJ's 2a)", async () => {
+      journalMock.headsUpEntries = [entry({ id: "hu", importance: "elevated", body: "Right shoulder twinge since Tuesday", occurredAt: new Date(Date.now() - 6 * DAY) })];
+      const loud = await mount(<Screen last={null} />);
+      expect(loud.querySelector('[data-testid="briefing-headsup"]')?.textContent).toContain("Right shoulder twinge");
+      expect(loud.querySelector('[data-testid="briefing-headsup-quiet"]')).toBeNull();
+
+      const mine = session({ id: "s-mine", trainerId: "t-aj", date: dayKey(-1), startTime: new Date(Date.now() - DAY) } as Partial<WorkoutSession>);
+      const quiet = await mount(
+        <BriefingScreen
+          authTrainer={trainer}
+          client={client}
+          targetRoutine={routines[0]}
+          lastSession={null}
+          sessions={[mine]}
+          onStart={() => {}}
+          onClose={() => {}}
+          machines={machines}
+          routines={routines}
+          trainers={[trainer]}
+        />,
+      );
+      expect(quiet.querySelector('[data-testid="briefing-headsup"]')).toBeNull();
+      expect(quiet.querySelector('[data-testid="briefing-headsup-quiet"]')?.textContent).toContain("Right shoulder twinge");
+    });
+
+    it("the close says where it goes and goes there (AJ's F4, a)", async () => {
+      const onClose = vi.fn();
+      const host = await mount(
+        <BriefingScreen
+          authTrainer={trainer}
+          client={client}
+          targetRoutine={routines[0]}
+          lastSession={lastSession}
+          sessions={sessions}
+          onStart={() => {}}
+          onClose={onClose}
+          closeWords="Back to the Hub"
+          machines={machines}
+          routines={routines}
+          trainers={[trainer]}
+        />,
+      );
+      const back = host.querySelector('[data-testid="briefing-close"]')!;
+      expect(back.textContent).toBe("Back to the Hub");
+      await click(back);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("the last session names its routine, never the session type", async () => {
+      const host = await mount(<Screen />);
+      const meta = host.querySelector(".br__meta")!.textContent;
+      expect(meta).toContain("Routine B");
+      expect(meta).not.toContain("Standard");
+      const typeOnly = await mount(<Screen last={session({ id: "s-old", routineId: "gone", date: dayKey(-3), endTime: new Date(Date.now() - 3 * DAY) })} />);
+      expect(typeOnly.querySelector(".br__meta")!.textContent).not.toContain("Standard");
+    });
   });
 
   it("a body region is rated on the Dial and can carry a matters-until day", async () => {
@@ -590,8 +686,8 @@ describe("the briefing's renewal line follows the auto-renewal mark", () => {
     />
   );
   const before = (host: HTMLElement) => host.querySelector<HTMLElement>('[aria-label="Before you start"]')!;
-  /** Admin lines live in the quiet footer since the Stack (Oct 3 2026). */
-  const also = (host: HTMLElement) => host.querySelector<HTMLElement>('[aria-label="Also today"]')!;
+  /** Admin lines: the quiet foot of the one Since last time card since the briefing round (Oct 17 2026). */
+  const also = (host: HTMLElement) => host.querySelector<HTMLElement>('[aria-label="Since last time"]')!;
 
   it("warns before the charge while the package renews", async () => {
     const host = await mount(renewalScreen({}));
@@ -658,7 +754,7 @@ describe("Due an InBody (FileMaker parity, Oct 1 2026)", () => {
     const host = await mount(<DueScreen who={scanned()} list={after(51)} onStart={onStart} />);
     const line = host.querySelector('[data-testid="briefing-inbody"]');
     expect(line?.textContent).toBe("Due an InBody: 51 sessions since the last scan");
-    expect(host.querySelector('[aria-label="Also today"]')?.contains(line!)).toBe(true);
+    expect(host.querySelector('[aria-label="Since last time"]')?.contains(line!)).toBe(true);
     expect(host.querySelector('[aria-label="Before you start"]')?.contains(line!)).toBe(false);
     // Information, never a gate.
     expect(line!.querySelector("button")).toBeNull();
@@ -1035,19 +1131,16 @@ describe("how the client starts (the first-session design round, Oct 8 2026)", (
     expect(startPlan.plan.dayOne.map(nameOfId)).toEqual(before.slice(1));
   });
 
-  it("keeps the briefing's safety line on the plan card: today's machines against the client's limits", async () => {
+  /* AJ's "3a" (the briefing round, Oct 17 2026): no warning linking a
+     client's limits to today's machines, on the plan card or the list. The
+     flag's own instructions in Before you start still name the machines. */
+  it("says no 'Mind the limits' under the plan card or today's list", async () => {
     const host = await mount(<Fresh who={{ ...fresh, clinicalFlags: ["gen-low-back"] } as Client} />);
-    const card = section(host).querySelector('[data-testid="briefing-plan"]')!;
-    const line = card.querySelector('[data-testid="briefing-plan-limits"]');
-    expect(line?.textContent).toContain("Mind the limits on");
-    expect(line?.textContent).toContain(nameOfId("m-lumbar"));
-    // Only today's machines: one later on the road is not named.
-    expect(line?.textContent).not.toContain(nameOfId("m-pulldown"));
-  });
-
-  it("says nothing about limits when today touches none", async () => {
-    const host = await mount(<Fresh />);
-    expect(section(host).querySelector('[data-testid="briefing-plan-limits"]')).toBeNull();
+    expect(section(host).textContent).not.toContain("Mind the limits");
+    expect(host.querySelector('[aria-label="Before you start"] .br-safe__limit')).toBeTruthy();
+    const a = { id: "rA", clientId: "c-new", name: "Routine A", machineIds: ["m-leg-press", "m-lumbar"] } as unknown as Routine;
+    const withRoutine = await mount(<Fresh who={{ ...fresh, sessionCount: 9, clinicalFlags: ["gen-low-back"] } as Client} rs={[a]} />);
+    expect(section(withRoutine).textContent).not.toContain("Mind the limits");
   });
 
   it("reads either spelling of a routine's name: an older seeder's 'A' is the client's routine, never 'no routine'", async () => {

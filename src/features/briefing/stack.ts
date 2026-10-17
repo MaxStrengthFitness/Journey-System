@@ -12,12 +12,13 @@
  *   4. On the way in: Dials · Sore spot · Note · Hand her the iPad, all
  *      optional, all one tap away and folded until tapped (the Dials too,
  *      since the floor round, Oct 9 2026).
- *   5. The routine as ONE line, tap to edit.
- *   6. Admin (InBody, renewal) as a quiet footer.
+ *   5. The routine as ONE line, tap to edit (until the briefing round, Oct 17
+ *      2026: today's machines are one list now, TodayList.tsx).
+ *   6. Admin (InBody, renewal) as a quiet footer (since Oct 17, the foot of
+ *      the one Since last time card).
  *
  * This file answers the questions that need no React: which regions to light,
- * which views to draw, what "last time" says, and how the routine reads as a
- * line. stack.test.ts beside it.
+ * which views to draw, and what "last time" says. stack.test.ts beside it.
  *
  * Every sentence here is a fact Journey holds. "Usual" needs three earlier
  * performed sets on that machine (a named minimum sample) and is the median
@@ -28,7 +29,6 @@ import type { ExerciseLog, Machine, WorkoutSession } from "../../types";
 import { flagRegions, regionSpot, regionLabel, type FigureRegion, type FigureView } from "../client-codex/body/figure-map";
 import { SESSION_REGION_TO_FIGURE } from "../client-codex/body/arrivals";
 import { isBloodFlow, outcomeOf, skipReasonOf, SKIP_REASON_LABEL } from "../../lib/set-outcome";
-import { machineWatchOuts } from "../../lib/clinical-watchouts";
 import { safeToDate } from "../../lib/utils";
 
 /* ------------------------------------------------------------------ *
@@ -216,38 +216,4 @@ export function lastTimeLines({
     }
   }
   return out.slice(0, limit);
-}
-
-/* ------------------------------------------------------------------ *
- * The routine as one line
- * ------------------------------------------------------------------ */
-
-type LineMachine = Pick<Machine, "id" | "name"> & { shortName?: string; comparisonKey?: string; fullName?: string };
-
-/** "ADD · ABD · LP": each machine's short name, else its name, in order. */
-export function routineCodes(machineIds: readonly string[], machines: readonly LineMachine[]): string[] {
-  return machineIds
-    .map((id) => machines.find((m) => m.id === id))
-    .filter((m): m is LineMachine => !!m)
-    .map((m) => (m.shortName?.trim() || m.name || "").trim())
-    .filter(Boolean);
-}
-
-/**
- * The machines in this routine that one of her clinical flags names, as the
- * floor names them: the routine line says so without opening the list.
- */
-export function machinesTouchingLimits(
-  machineIds: readonly string[],
-  machines: readonly LineMachine[],
-  flagIds: readonly string[],
-): string[] {
-  if (flagIds.length === 0) return [];
-  const out: string[] = [];
-  for (const id of machineIds) {
-    const m = machines.find((x) => x.id === id);
-    if (!m) continue;
-    if (machineWatchOuts(flagIds, m).length > 0) out.push(m.name || id);
-  }
-  return out;
 }

@@ -58,6 +58,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Activity,
+  ArrowLeft,
   Compass,
   Crosshair,
   HeartPulse,
@@ -107,7 +108,7 @@ import type { HistoryCoverage } from "../../lib/prior-history";
 import { JournalEntryCard } from "../../components/journal/JournalEntryCard";
 import { CriticalStrip } from "../../components/journal/CriticalStrip";
 import { BriefingNoteFooter } from "./BriefingNoteFooter";
-import { briefingNotes, latestUpdateLine, standingHealth } from "./briefing-notes";
+import { briefingNotes, latestUpdateLine, seenSince, standingHealth } from "./briefing-notes";
 import { useNoteDismissals, dismissThread } from "../client-notes/dismissal-store";
 import type { NoteThread } from "../client-notes/threads";
 import { FOCUS_VISUALS, relativeDay, toDate } from "../../types/journal";
@@ -122,7 +123,6 @@ import { carriedRegions, lastRunLabel, lastRunOfRoutine } from "./briefing-facts
 import {
   figureRegionOfTag,
   lastTimeLines,
-  machinesTouchingLimits,
   regionWords,
   safetyRegions,
   tagOfSlug,
@@ -207,6 +207,12 @@ export interface BriefingScreenProps {
     startPlan?: StartPlanAtStart | null,
   ) => void;
   onClose: () => void;
+  /**
+   * Where the close button goes, in words: "Back to the Hub", "Back to
+   * Calendar" (AJ's F4 "a", Oct 16 2026: the briefing's X returns to where
+   * Start was tapped, and says so). Without it, an X.
+   */
+  closeWords?: string | null;
   machines: Machine[];
   routines: Routine[];
   /** Used to resolve initials on legacy journal rows. */
@@ -238,6 +244,7 @@ export function BriefingScreen({
   routinesKnown = false,
   onStart,
   onClose,
+  closeWords = null,
   machines,
   routines,
   trainers = [],
@@ -581,12 +588,15 @@ export function BriefingScreen({
     ? { id: uid, initials: (authTrainer?.initials || "TR").toUpperCase(), fullName: authTrainer?.fullName || "Coach" }
     : null;
 
+  /* Which routine the last session ran, by its name (the briefing round, Oct
+     17 2026): the routine it named, else the name it recorded, else "Open
+     session". Never the session TYPE ("Standard", which nobody picks, was
+     what Robbin's briefing said); nothing when none of them reads. */
   const lastRoutineName = lastSession
     ? routines.find((r) => r.id === lastSession.routineId)?.name ||
-      ((lastSession.sessionType as string) === "Free"
-        ? "Open Session"
-        : lastSession.sessionType)
-    : "None";
+      lastSession.routineName?.trim() ||
+      ((lastSession.sessionType as string) === "Free" ? "Open session" : null)
+    : null;
 
   const lastSessionDate = safeToDate(lastSession?.endTime)
     ? safeToDate(lastSession.endTime)!.toLocaleDateString("en-US", {
@@ -630,6 +640,12 @@ export function BriefingScreen({
     [lastSession, logs, machines],
   );
   const safetyCount = clientFlags.length + notes.critical.length + carried.length;
+  /* Quieter once seen (AJ's "2a", Oct 17 2026): a Heads up this trainer
+     has trained the client since is one quiet line, not a card. The trainer
+     record's id is what a session stores; the Auth uid is asked too. */
+  const myTrainerIds = [authTrainer?.id ?? null, uid];
+  const headsUpQuiet = notes.headsUp.filter((t) => seenSince(t, sessions, myTrainerIds));
+  const headsUpLoud = notes.headsUp.filter((t) => !headsUpQuiet.includes(t));
   const sinceCount =
     lastTime.length + notes.headsUp.length + markers.length + activeJournalFocuses.length;
 
@@ -671,7 +687,6 @@ export function BriefingScreen({
   const [startFromOpen, setStartFromOpen] = useState(false);
   const routineLetter =
     selectedRoutineType === "B" || selectedRoutineType === "TodayOnly_B" ? "B" : "A";
-  const touching = machinesTouchingLimits(selectedRoutineIds, machines, flagIds);
 
   /* ---------------------------------------------------------------- *
    * HOW THE CLIENT STARTS (the first-session design round, Oct 8 2026,
@@ -768,11 +783,6 @@ export function BriefingScreen({
     [routineA, todayKey],
   );
   const startFromFloor = useMemo(() => floorMachinesOf(machines), [machines]);
-  /* The plan card's safety line: today's machines against the client's
-     limits, as the routine line says it for a routine (the routine line is
-     not drawn for a plan card). */
-  const planTouching =
-    planView === "starting" || planView === "kept" ? machinesTouchingLimits(briefingPlan.today, machines, flagIds) : [];
 
   /* What the briefing holds that a navigation would lose: the arrival note,
      the Dials and body states tapped, and today changed on the plan card.
@@ -863,7 +873,8 @@ export function BriefingScreen({
                     {clientDisplayName(client)}
                   </h1>
                   <p className="br__meta">
-                    Last session · {lastSessionDate} · {lastRoutineName}
+                    Last session · {lastSessionDate}
+                    {lastRoutineName ? ` · ${lastRoutineName}` : ""}
                   </p>
                   {guessLine && (
                     <p className="br__meta br__meta--quiet" data-testid="briefing-session-guess">
@@ -871,14 +882,22 @@ export function BriefingScreen({
                     </p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={closeBriefing}
-                  className="br__close"
-                  aria-label="Close briefing"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                {closeWords ? (
+                  <button type="button" onClick={closeBriefing} className="br__back" data-testid="briefing-close">
+                    <ArrowLeft className="w-4 h-4" aria-hidden />
+                    {closeWords}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={closeBriefing}
+                    className="br__close"
+                    aria-label="Close briefing"
+                    data-testid="briefing-close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
               </div>
 
               {/* Why they train (Oct 13 2026): the client's own focus, set on
@@ -1062,88 +1081,116 @@ export function BriefingScreen({
               )}
             </section>
 
-            {/* 3. SINCE LAST TIME — what is different, in a few lines: how the
-                last session went, notes since, time away and milestones, and
-                what the team is working on with her. */}
-            {sinceCount > 0 && (
-              <section className="br-card br-since" aria-label="Since last time">
+            {/* 3. WHAT'S DIFFERENT, AND WHAT'S NEW — one card (the briefing
+                round, Oct 17 2026; AJ's handoff, question 1, "What's different
+                about this person?"; "information that's kind of spread out all
+                over"). How the last session went, the markers, the Heads ups
+                (a full card until this trainer has trained the client since,
+                then one quiet line: AJ's "2a"), the team's focuses, then the
+                one thing to ask (FORD, by the Hub's rule) and the InBody and
+                renewal lines, quiet, at the foot. Gone when it has nothing. */}
+            <section className="br-card br-since" aria-label="Since last time">
+              {sinceCount > 0 && (
                 <span className="br__label">
                   <History className="w-3.5 h-3.5" aria-hidden />
-                  Since last time · {sinceCount}
+                  Since last time
                 </span>
+              )}
 
-                {markers.length > 0 && (
-                  <div className="br__markers">
-                    {markers.map((m) => (
-                      <span key={m.kind} className={cn("br__marker", `br__marker--${m.kind}`)}>
-                        {m.label}
-                      </span>
-                    ))}
-                  </div>
-                )}
+              {markers.length > 0 && (
+                <div className="br__markers">
+                  {markers.map((m) => (
+                    <span key={m.kind} className={cn("br__marker", `br__marker--${m.kind}`)}>
+                      {m.label}
+                    </span>
+                  ))}
+                </div>
+              )}
 
-                {lastTime.length > 0 && (
-                  <ul className="br-since__lines" data-testid="briefing-last-time">
-                    {lastTime.map((line) => (
-                      <li key={line.key} className="br-since__line" data-kind={line.kind}>
-                        {line.text}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              {lastTime.length > 0 && (
+                <ul className="br-since__lines" data-testid="briefing-last-time">
+                  {lastTime.map((line) => (
+                    <li key={line.key} className="br-since__line" data-kind={line.kind}>
+                      {line.text}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-                {notes.headsUp.length > 0 && (
-                  <div className="br__headsup" data-testid="briefing-headsup">
-                    <span className="br__label">Heads up</span>
-                    {(showAllHeadsUp ? notes.headsUp : notes.headsUp.slice(0, 3)).map((thread) => (
-                      <div key={thread.id}>
-                        <JournalEntryCard entry={thread.root} machines={machines} dense />
-                        <BriefingNoteFooter thread={thread} onDismiss={hush} />
-                      </div>
-                    ))}
-                    {notes.headsUp.length > 3 && (
-                      <button
-                        type="button"
-                        className="br__more"
-                        onClick={() => setShowAllHeadsUp((v) => !v)}
-                      >
-                        {showAllHeadsUp ? "Show fewer" : `${notes.headsUp.length - 3} more`}
-                      </button>
-                    )}
-                  </div>
-                )}
+              {headsUpLoud.length > 0 && (
+                <div className="br__headsup" data-testid="briefing-headsup">
+                  <span className="br__label">Heads up</span>
+                  {(showAllHeadsUp ? headsUpLoud : headsUpLoud.slice(0, 3)).map((thread) => (
+                    <div key={thread.id}>
+                      <JournalEntryCard entry={thread.root} machines={machines} dense />
+                      <BriefingNoteFooter thread={thread} onDismiss={hush} />
+                    </div>
+                  ))}
+                  {headsUpLoud.length > 3 && (
+                    <button
+                      type="button"
+                      className="br__more"
+                      onClick={() => setShowAllHeadsUp((v) => !v)}
+                    >
+                      {showAllHeadsUp ? "Show fewer" : `${headsUpLoud.length - 3} more`}
+                    </button>
+                  )}
+                </div>
+              )}
 
-                {activeJournalFocuses.map((f) => {
-                  const visual = FOCUS_VISUALS[f.category] || FOCUS_VISUALS.Posture;
-                  return (
-                    <article key={f.id} className="br__focus br__focus--line">
-                      <span aria-hidden className={cn("br__focus-edge", visual.edge)} />
-                      <span className="br__label">
-                        <Target className="w-3.5 h-3.5" />
-                        {f.category} · {f.trainerInitials}
-                        <span className="br__focus-when">{relativeDay(toDate(f.startedAt))}</span>
-                      </span>
-                      <p className="br__quote">
-                        {f.intent}
-                        {f.targetMachineId && (
-                          <span className="br__focus-target">
-                            {" "}· {machines.find((m) => m.id === f.targetMachineId)?.name || "Unknown machine"}
-                          </span>
-                        )}
-                      </p>
-                    </article>
-                  );
-                })}
-              </section>
-            )}
+              {/* Quieter once seen: this trainer has trained the client since
+                  its newest word. Quieter, never invisible. */}
+              {headsUpQuiet.length > 0 && (
+                <ul className="br__headsup-quiet" data-testid="briefing-headsup-quiet">
+                  {headsUpQuiet.map((thread) => (
+                    <li key={thread.id}>
+                      <b>Heads up</b> · {thread.root.body}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-            {/* 4. Something to ask about. One quiet row; gone when there is
-                nothing worth saying. FORD round, Sep 2026. */}
-            <FordBriefingCue
-              client={client ?? null}
-              author={fordAuthor}
-              studioId={client.homeStudioId || ""}
-            />
+              {activeJournalFocuses.map((f) => {
+                const visual = FOCUS_VISUALS[f.category] || FOCUS_VISUALS.Posture;
+                return (
+                  <article key={f.id} className="br__focus br__focus--line">
+                    <span aria-hidden className={cn("br__focus-edge", visual.edge)} />
+                    <span className="br__label">
+                      <Target className="w-3.5 h-3.5" />
+                      {f.category} · {f.trainerInitials}
+                      <span className="br__focus-when">{relativeDay(toDate(f.startedAt))}</span>
+                    </span>
+                    <p className="br__quote">
+                      {f.intent}
+                      {f.targetMachineId && (
+                        <span className="br__focus-target">
+                          {" "}· {machines.find((m) => m.id === f.targetMachineId)?.name || "Unknown machine"}
+                        </span>
+                      )}
+                    </p>
+                  </article>
+                );
+              })}
+
+              {/* Something to ask about: one row, by the Hub's rule; gone when
+                  there is nothing worth saying. */}
+              <FordBriefingCue
+                client={client ?? null}
+                author={fordAuthor}
+                studioId={client.homeStudioId || ""}
+              />
+
+              {/* Also today: the admin lines, quiet, never in the safety band
+                  and never a gate on Start. The renewal line decides for
+                  itself whether it has anything to say. */}
+              {inbodyLine && (
+                <p className="br__inbody" data-testid="briefing-inbody">
+                  <Scale className="w-3.5 h-3.5" aria-hidden />
+                  <span>{inbodyLine}</span>
+                </p>
+              )}
+              <BriefingRenewalLine client={client} />
+            </section>
 
             {/* 5. ON THE WAY IN — filled in walking to the first machine.
                 AJ: "sometimes is everything, sometimes its one thing,
@@ -1291,14 +1338,6 @@ export function BriefingScreen({
                   floor={machines}
                   todayYmd={todayKey}
                   onBack={door ? () => setDoor(null) : undefined}
-                  limits={
-                    planTouching.length > 0 ? (
-                      <p className="br-routine__touch" data-testid="briefing-plan-limits">
-                        <ShieldAlert className="w-3.5 h-3.5" aria-hidden />
-                        Mind the limits on {planTouching.join(", ")}
-                      </p>
-                    ) : null
-                  }
                 />
               ) : planView === "journey" ? (
                 <BriefingJourneyLine
@@ -1400,20 +1439,15 @@ export function BriefingScreen({
                       : `Routine ${routineLetter} isn't set up yet.`
                   }
                   onRebuild={() => setRebuilding(true)}
+                  /* No "Mind the limits on …" here (AJ's "3a", Oct 17 2026: no
+                     warning linking a note to today's routine; the flag's own
+                     instructions in Before you start name the machines). */
                   footnotes={
-                    touching.length > 0 || planFocus ? (
+                    planFocus ? (
                       <div className="br-today__notes">
-                        {touching.length > 0 && (
-                          <p className="br-routine__touch" data-testid="briefing-limits">
-                            <ShieldAlert className="w-3.5 h-3.5" aria-hidden />
-                            Mind the limits on {touching.join(", ")}
-                          </p>
-                        )}
-                        {planFocus && (
-                          <p className="br-today__focus" data-testid="briefing-focus">
-                            {planFocus}
-                          </p>
-                        )}
+                        <p className="br-today__focus" data-testid="briefing-focus">
+                          {planFocus}
+                        </p>
                       </div>
                     ) : null
                   }
@@ -1442,20 +1476,6 @@ export function BriefingScreen({
               </>
               )}
             </section>
-
-            {/* 7. Also today — the admin lines, quiet, never in the safety
-                band and never a gate on Start. */}
-            {/* Always mounted: the renewal line decides for itself whether it
-                has anything to say, and the footer hides when it is empty. */}
-              <section className="br-also" aria-label="Also today">
-                {inbodyLine && (
-                  <p className="br__inbody" data-testid="briefing-inbody">
-                    <Scale className="w-3.5 h-3.5" aria-hidden />
-                    <span>{inbodyLine}</span>
-                  </p>
-                )}
-                <BriefingRenewalLine client={client} />
-              </section>
 
             {/* 8. One loud action, a solid bar pinned to the bottom of the
                 page: nothing scrolls under it any more. */}

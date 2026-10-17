@@ -83,7 +83,6 @@ function Harness({
   kept = null,
   who = WHO,
   firstName = "Dana",
-  limits = null,
   aAndBTogether = false,
   bPlannable = true,
   floor = FLOOR,
@@ -94,7 +93,6 @@ function Harness({
   kept?: RoutinePlan | null;
   who?: typeof WHO | null;
   firstName?: string;
-  limits?: React.ReactNode;
   aAndBTogether?: NewClientsStartRead;
   bPlannable?: boolean;
 }) {
@@ -113,7 +111,7 @@ function Harness({
   latest = state;
   if (view !== "starting" && view !== "kept") return null;
   return (
-    <BriefingPlanCard state={state} view={view} firstName={firstName} nameOf={nameOf} floor={floor} todayYmd={TODAY} limits={limits} />
+    <BriefingPlanCard state={state} view={view} firstName={firstName} nameOf={nameOf} floor={floor} todayYmd={TODAY} />
   );
 }
 
@@ -380,15 +378,6 @@ describe("what the card holds once the trainer has touched it", () => {
 });
 
 describe("the card's own words", () => {
-  it("draws the host's safety line under the Road", async () => {
-    await mount(<Harness view="starting" limits={<p data-testid="limits">Mind the limits on Lumbar Extension</p>} />);
-    const road = page().querySelector('[data-testid="briefing-plan"] .rpl-road');
-    const limits = page().querySelector('[data-testid="limits"]');
-    expect(limits?.textContent).toBe("Mind the limits on Lumbar Extension");
-    // After the Road, inside the card.
-    expect(road!.compareDocumentPosition(limits!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
   it("starts its title with a capital when there is no first name", async () => {
     await mount(<Harness view="starting" firstName="" />);
     expect(page().querySelector(".rpl-brief__title")?.textContent).toBe("The client's starting lineup");

@@ -3,8 +3,6 @@ import type { ExerciseLog } from "../../types";
 import {
   USUAL_MIN_SETS,
   lastTimeLines,
-  machinesTouchingLimits,
-  routineCodes,
   safetyRegions,
   tagOfSlug,
   viewsToDraw,
@@ -100,15 +98,5 @@ describe("lastTimeLines", () => {
 
   it("is empty with no last session", () => {
     expect(lastTimeLines({ lastSession: null, logs: earlierLp, machines })).toEqual([]);
-  });
-});
-
-describe("the routine line", () => {
-  it("reads each machine's short name, else its name, in order", () => {
-    expect(routineCodes(["cp", "lx", "missing", "lp"], machines)).toEqual(["CP", "Lumbar Extension", "LP"]);
-  });
-  it("names the machines one of her flags touches", () => {
-    expect(machinesTouchingLimits(["lp", "lx"], machines, ["gen-low-back"])).toContain("Lumbar Extension");
-    expect(machinesTouchingLimits(["lp", "lx"], machines, [])).toEqual([]);
   });
 });
