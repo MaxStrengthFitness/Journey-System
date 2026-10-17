@@ -133,7 +133,7 @@
   --eq-surface-2:       #0d2235;
   --eq-surface-3:       #203549;
   --eq-border:          #2b3e50;   /* 1.4:1 on surface                      */
-  --eq-border-strong:   #6e8397;   /* 3.8:1                                 */
+  --eq-border-strong:   #8393a3;   /* 4.7:1                                 */
 
   --eq-ink:             #dfe7ef;   /* 11.9:1 on surface; never pure white   */
   --eq-ink-2:           #b8c6d3;   /* 8.5:1                                 */
@@ -161,7 +161,7 @@
 
   --eq-mine:            #0e243a;
   --eq-mine-head:       #133555;
-  --eq-rail-booked:     #4675a4;   /* 3.1:1                                 */
+  --eq-rail-booked:     #5581b0;   /* 3.6:1                                 */
 
   --eq-ok:              #52d7c1;   /* 8.4:1, 6.7:1 on its fill              */
   --eq-ok-fill:         #113e36;
@@ -187,7 +187,7 @@
   --eq-popover-rim:     rgba(255, 255, 255, 0.055);
   --eq-popover-light:   rgba(255, 255, 255, 0.07);
   --eq-popover-raised:  #283e54;
-  --eq-popover-edge:    #7d92a6;
+  --eq-popover-edge:    #8da0b3;
   --eq-elev-0:          var(--elev-0);
   --eq-elev-1:          var(--elev-1);
   --eq-elev-2:          var(--elev-2);
@@ -211,7 +211,7 @@
     --eq-surface-2:       #0d2235;
     --eq-surface-3:       #203549;
     --eq-border:          #2b3e50;
-    --eq-border-strong:   #6e8397;
+    --eq-border-strong:   #8393a3;
     --eq-ink:             #dfe7ef;
     --eq-ink-2:           #b8c6d3;
     --eq-ink-muted:       #9dadbe;
@@ -228,7 +228,7 @@
     --eq-live-on:         #071727;
     --eq-mine:            #0e243a;
     --eq-mine-head:       #133555;
-    --eq-rail-booked:     #4675a4;
+    --eq-rail-booked:     #5581b0;
     --eq-ok:              #52d7c1;
     --eq-ok-fill:         #113e36;
     --eq-warn:            #d98cbd;
@@ -246,7 +246,7 @@
     --eq-popover-rim:     rgba(255, 255, 255, 0.055);
     --eq-popover-light:   rgba(255, 255, 255, 0.07);
     --eq-popover-raised:  #283e54;
-    --eq-popover-edge:    #7d92a6;
+    --eq-popover-edge:    #8da0b3;
     --eq-elev-0:          var(--elev-0);
     --eq-elev-1:          var(--elev-1);
     --eq-elev-2:          var(--elev-2);

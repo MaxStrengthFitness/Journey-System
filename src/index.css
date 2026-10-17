@@ -711,7 +711,7 @@
     --destructive: #FF8C8C;
     --destructive-foreground: #071727;
     --border: #2B3E50;
-    --input: #6E8397;               /* 3.8:1; 4.4:1 on the ground */
+    --input: #8393A3;               /* 4.7:1; 5.5:1 on the ground */
     --ring: #65ABE9;
     --chart-1: #65ABE9;
     --chart-2: #F36D21;
@@ -756,7 +756,7 @@
     --go-light: inset 0 1px 0 rgba(255,255,255,0.28);
     --panel-highlight: inset 0 1px 0 rgba(255,255,255,0.045);
 
-    --raised: #203549;              /* lighter is higher; 3.2:1 under --input */
+    --raised: #203549;              /* lighter is higher; 4.0:1 under --input */
     --well: #0D2235;
     --tray: #081725;                /* below the page */
     --edge: rgba(150,180,210,0.11);
@@ -766,10 +766,10 @@
     --scrim: rgba(0,6,14,0.60);     /* no blur behind it (the iPad round): .55 with a 4px blur */
     /* The popover (#22374B) is a step above the card, lighter than the
        raised fill, so a raised control on it steps up again: 1.11:1 above
-       the popover, its edge 3.43:1 on the fill and 3.81:1 on the popover,
+       the popover, its edge 4.10:1 on the fill and 4.55:1 on the popover,
        the words 8.8:1 (muted 4.8:1). */
     --popover-raised: #283E54;
-    --popover-input: #7D92A6;
+    --popover-input: #8DA0B3;
     --raised-lift: var(--elev-1), inset 0 1px 0 var(--highlight);
     --solid-lift: var(--glow-live), var(--solid-light);
     --go-lift: var(--glow-go), var(--go-light);

@@ -62,8 +62,8 @@
 }
 
 /* Coming up (AJ's answer 2A, Oct 4 2026): a client card still to come
-   carries a quiet logo-blue edge instead of the grey one (3.12:1 on the
-   card light, 3.07 dark), so the Hub has colour before the first session.
+   carries a quiet logo-blue edge instead of the grey one (3.13:1 on the
+   card light, 3.64 dark), so the Hub has colour before the first session.
    In session keeps the full blue edge and its fill; over, left open,
    staff and unlinked keep theirs, so the edge still says the state.
    HubCard always sets data-kind, data-state and data-recede, and "live" is

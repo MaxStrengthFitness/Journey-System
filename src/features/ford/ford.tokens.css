@@ -115,7 +115,7 @@
   --ford-surface-2:     #0d2235;
   --ford-surface-3:     #203549;
   --ford-border:        #2b3e50;   /* 1.4:1 on surface                        */
-  --ford-border-strong: #6e8397;   /* 3.8:1                                   */
+  --ford-border-strong: #8393a3;   /* 4.7:1                                   */
 
   --ford-ink:           #dfe7ef;   /* 11.9:1 on surface                       */
   --ford-ink-2:         #b8c6d3;   /* 8.5:1                                   */
@@ -172,7 +172,7 @@
     --ford-surface-2:     #0d2235;
     --ford-surface-3:     #203549;
     --ford-border:        #2b3e50;
-    --ford-border-strong: #6e8397;
+    --ford-border-strong: #8393a3;
 
     --ford-ink:           #dfe7ef;
     --ford-ink-2:         #b8c6d3;

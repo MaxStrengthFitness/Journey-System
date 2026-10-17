@@ -121,7 +121,7 @@
   --cal-surface-2:     #0d2235;
   --cal-surface-3:     #203549;
   --cal-border:        #2b3e50;
-  --cal-border-strong: #6e8397;
+  --cal-border-strong: #8393a3;
 
   --cal-ink:           #dfe7ef;   /* 11.9:1 on surface                     */
   --cal-ink-2:         #b8c6d3;   /*  8.5:1                                */
@@ -189,7 +189,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not(.light):not([data-theme="light"]) {
     --cal-bg: #0a1c2c; --cal-surface: #14293d; --cal-surface-2: #0d2235;
-    --cal-surface-3: #203549; --cal-border: #2b3e50; --cal-border-strong: #6e8397;
+    --cal-surface-3: #203549; --cal-border: #2b3e50; --cal-border-strong: #8393a3;
     --cal-ink: #dfe7ef; --cal-ink-2: #b8c6d3; --cal-ink-muted: #9dadbe; --cal-ink-faint: #697b8d;
     --cal-hero: #f36d21; --cal-hero-text: #ff9455; --cal-hero-fill: #4b2915;
     --cal-live: #65abe9; --cal-live-text: #98caf9; --cal-live-fill: #23405c;

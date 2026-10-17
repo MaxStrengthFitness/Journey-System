@@ -246,7 +246,7 @@
   --jg-surface-3:      #203549;
   --jg-border:         #2b3e50;
   --jg-border-strong:  #4a5f73;
-  --jg-control-edge:   #6e8397;   /* 3.8:1 on surface, 3.5:1 on the bar    */
+  --jg-control-edge:   #8393a3;   /* 4.7:1 on surface, 4.3:1 on the bar    */
 
   --jg-ink:            #dfe7ef;   /* 11.9:1 on surface                     */
   --jg-ink-2:          #b8c6d3;   /* 8.5:1                                 */
@@ -340,7 +340,7 @@
     --jg-surface-3:      #203549;
     --jg-border:         #2b3e50;
     --jg-border-strong:  #4a5f73;
-    --jg-control-edge:   #6e8397;
+    --jg-control-edge:   #8393a3;
     --jg-ink:            #dfe7ef;
     --jg-ink-2:          #b8c6d3;
     --jg-ink-muted:      #9dadbe;
