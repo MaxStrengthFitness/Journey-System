@@ -82,9 +82,12 @@ export function viewsToDraw(regions: readonly FigureRegion[]): FigureView[] {
 /**
  * The model's region slug → the briefing's body region tag, for a tap on the
  * Sore spot figure. Only the regions BodyStateTracker offers; a slug with no
- * tag (the head, the hands' fingers) is null and the tap does nothing.
+ * tag (the hands' fingers) is null and the tap does nothing. The head is the
+ * briefing's Sore spot's since the briefing round (Oct 17 2026): a headache.
  */
 const SLUG_TO_TAG: Readonly<Record<string, string>> = {
+  head: "Head",
+  hair: "Head",
   neck: "Neck",
   trapezius: "Upper Back",
   deltoids: "Shoulders",
@@ -104,6 +107,14 @@ const SLUG_TO_TAG: Readonly<Record<string, string>> = {
   forearm: "Wrists / Forearms",
   hands: "Wrists / Forearms",
 };
+
+/**
+ * What the Sore spot figure lights for a region on the list: its figure
+ * region, or the head (which the codex's figure regions don't name).
+ */
+export function soreAreaOfTag(tag: string): string | null {
+  return tag === "Head" ? "head" : figureRegionOfTag(tag);
+}
 
 export function tagOfSlug(slug: string): string | null {
   return SLUG_TO_TAG[slug] ?? null;

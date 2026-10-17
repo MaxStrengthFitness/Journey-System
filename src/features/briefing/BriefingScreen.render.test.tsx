@@ -319,8 +319,9 @@ describe("the pre-session briefing mounts", () => {
     expect(text).not.toContain("Neutral");
     expect(text).not.toContain("Stress level (1-5)");
     expect(text).not.toContain("Mood");
-    expect(text).toContain("On the way in");
-    expect(buttonByText(host, "Update Pulse")).toBeTruthy();
+    // No heading over the chips since the briefing round (show it, don't label it).
+    expect(text).not.toContain("On the way in");
+    expect(buttonByText(host, "Pulse")).toBeTruthy();
     expect(buttonByText(host, "Assessment")).toBeUndefined();
   });
 
@@ -609,12 +610,14 @@ describe("the pre-session briefing mounts", () => {
     // Save is disabled until something is tapped.
     expect((buttonByText(dialog, "Tap how it is today") as HTMLButtonElement).disabled).toBe(true);
 
+    // The Dial tap is the save (the briefing round, Oct 17 2026): three taps.
     await click(region.querySelector('[data-pos="-1"]'));
+    expect(host.querySelector('[data-testid="briefing-sore"]')!.textContent).toContain("Stiff");
     const until = dialog.querySelector('[data-testid="body-until"]')!;
     expect(until).toBeTruthy();
     expect(until.textContent).toContain("Keeps showing on the briefing until then");
     await typeInto(until.querySelector("input"), dayKey(3));
-    await click(buttonByText(dialog, "Save · Stiff"));
+    await click(buttonByText(dialog, "Done · saved as Stiff"));
 
     // The chip reads the Dial's word and the until day.
     expect(host.textContent).toContain("Lower Back");
@@ -626,6 +629,29 @@ describe("the pre-session briefing mounts", () => {
     expect("until" in checkIn.bodyStates[0]).toBe(true);
   });
 
+  /* The briefing round, phase 2b (Oct 17 2026): AJ's F20 note, "a pain point
+     on the head where trainers can select head ache". Recorded like any spot;
+     nothing reads it as a reason to change a machine. */
+  it("a headache is a spot: Head is on the list, rated on the Dial, saved by the tap", async () => {
+    const onStart = vi.fn();
+    const host = await mount(<Screen onStart={onStart} />);
+    await click(buttonByText(host, "Sore spot"));
+    await click(buttonByText(host, "Tag body region"));
+    const dialog = document.querySelector('[role="dialog"][aria-label="Body region picker"]')!;
+    await click(buttonByText(dialog, "Head"));
+    await click(dialog.querySelector('[data-scale="region"] [data-pos="-2"]'));
+    await click(buttonByText(host, "Start session"));
+    expect(onStart.mock.calls[0][3].bodyStates).toEqual([{ region: "Head", state: "stiff", dial: -2 }]);
+  });
+
+  it("Pulse holds both its doors: You ask, and Hand over the iPad", async () => {
+    const host = await mount(<Screen />);
+    expect(host.querySelector('[data-testid="briefing-pulse"]')).toBeNull();
+    await click(buttonByText(host.querySelector('[aria-label="What to fill in"]')!, "Pulse"));
+    const doors = host.querySelector('[data-testid="briefing-pulse"]')!;
+    expect(Array.from(doors.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["You ask", "Hand over the iPad"]);
+  });
+
   it("a region above the centre never writes an until key", async () => {
     const onStart = vi.fn();
     const host = await mount(<Screen onStart={onStart} />);
@@ -635,7 +661,7 @@ describe("the pre-session briefing mounts", () => {
     await click(buttonByText(dialog, "Hips"));
     await click(dialog.querySelector('[data-scale="region"] [data-pos="1"]'));
     expect(dialog.querySelector('[data-testid="body-until"]')).toBeNull();
-    await click(buttonByText(dialog, "Save · Better"));
+    await click(buttonByText(dialog, "Done · saved as Better"));
     await click(buttonByText(host, "Start session"));
     const tag = onStart.mock.calls[0][3].bodyStates[0];
     expect(tag).toEqual({ region: "Hips", state: "prime", dial: 1 });
@@ -985,9 +1011,8 @@ describe("the Stack (AJ's walk, Oct 3 2026)", () => {
     const host = await mount(<Screen />);
     const chips = host.querySelector('[aria-label="What to fill in"]')!;
     const words = Array.from(chips.querySelectorAll("button")).map((b) => b.textContent);
-    expect(words.slice(0, 4)).toEqual(["Dials", "Sore spot", "Note", "Update Pulse"]);
-    // In her own pronoun (this client has none on file).
-    expect(words[4]).toBe("Hand over the iPad");
+    // Four chips since the briefing round (Oct 17 2026): Pulse holds both its doors.
+    expect(words).toEqual(["Dials", "Sore spot", "Note", "Pulse"]);
     expect(host.querySelector('[data-testid="briefing-dials"]')).toBeNull();
     expect(host.querySelector(".br__textarea")).toBeNull();
     expect(host.querySelector('[data-testid="briefing-sore"]')).toBeNull();

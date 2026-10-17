@@ -451,7 +451,6 @@ describe("a head over a list speaks the label voice: 14/700 in ink-2, its own ca
   it("the meta beside a title leaves the small capitals", () => {
     for (const [file, sel, size] of [
       ["features/studio-tasks/studio-tasks.css", ".stm__hint", "12px"],
-      ["features/briefing/briefing.css", ".br__optional", "12px"],
       ["features/calendar/calendar.css", ".cal-card__note", "12px"],
       ["features/learning/learning.css", ".lh__tile-count", "12px"],
       ["features/admin/shell/ops.css", ".ops-fact__k", "12px"],

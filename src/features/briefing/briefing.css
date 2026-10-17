@@ -546,24 +546,6 @@
 
 .br__checkin { display: flex; flex-direction: column; gap: 12px; }
 
-.br__checkin-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-/* "Optional" beside a card's title: the meta voice, 12/500 in the muted
-   ink and its own capitalisation (it was 10px capitals). */
-.br__optional {
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--br-ink-muted);
-}
-
 .br__field { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .br__field legend { padding: 0; }
 
@@ -1469,3 +1451,7 @@
   overflow-wrap: anywhere;
 }
 .br__headsup-quiet b { font-weight: 700; color: var(--br-warn); }
+
+/* Pulse's two doors under its chip (the briefing round, phase 2b): You ask,
+   or Hand over the iPad. */
+.br-cap__pulse { display: flex; flex-wrap: wrap; gap: 8px; }

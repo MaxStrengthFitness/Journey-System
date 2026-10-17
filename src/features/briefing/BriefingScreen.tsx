@@ -57,7 +57,6 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  Activity,
   ArrowLeft,
   Compass,
   Crosshair,
@@ -121,7 +120,7 @@ import { auth } from "../../firebase";
 import { Dial, READINESS_KEYS, READINESS_SCALES, compactReadiness, type Readiness } from "../rating";
 import { carriedRegions, lastRunLabel, lastRunOfRoutine } from "./briefing-facts";
 import {
-  figureRegionOfTag,
+  soreAreaOfTag,
   lastTimeLines,
   regionWords,
   safetyRegions,
@@ -655,12 +654,13 @@ export function BriefingScreen({
      the briefing's words). The Dials chip counts what was tapped while
      folded. Hand over the iPad opens Pulse's client mode. Untouched = not
      asked, exactly as before. */
-  const [drawer, setDrawer] = useState<{ dials: boolean; sore: boolean; note: boolean }>({
+  const [drawer, setDrawer] = useState<{ dials: boolean; sore: boolean; note: boolean; pulse: boolean }>({
     dials: false,
     sore: false,
     note: false,
+    pulse: false,
   });
-  const toggleDrawer = (key: "dials" | "sore" | "note") =>
+  const toggleDrawer = (key: "dials" | "sore" | "note" | "pulse") =>
     setDrawer((d) => ({ ...d, [key]: !d[key] }));
   const [handing, setHanding] = useState(false);
   const [soreView, setSoreView] = useState<"front" | "back">("front");
@@ -675,7 +675,7 @@ export function BriefingScreen({
   const soreRegions = useMemo(
     () =>
       bodyStates
-        .map((b) => figureRegionOfTag(b.region))
+        .map((b) => soreAreaOfTag(b.region))
         .filter((r): r is NonNullable<typeof r> => r !== null),
     [bodyStates],
   );
@@ -1196,14 +1196,9 @@ export function BriefingScreen({
                 AJ: "sometimes is everything, sometimes its one thing,
                 sometimes its nothing maybe they came in extra early and you
                 have time to hand them the pulse client view". */}
+            {/* No heading (the briefing round, Oct 17 2026; AJ: show it, don't
+                label it): four chips, Pulse holding both its doors. */}
             <section className="br-card br__checkin" aria-label="On the way in">
-              <div className="br__checkin-head">
-                <h2 className="br-section__title">
-                  <Activity className="w-4 h-4" />
-                  On the way in
-                  <span className="br__optional">Optional</span>
-                </h2>
-              </div>
               <div className="br-cap__chips" role="group" aria-label="What to fill in">
                 <button
                   type="button"
@@ -1232,15 +1227,32 @@ export function BriefingScreen({
                   <PenLine className="w-4 h-4" aria-hidden />
                   Note{adjustmentNote.trim() ? " · 1" : ""}
                 </button>
-                <button type="button" className="br-cap__chip" onClick={() => setShowPulse(true)}>
+                <button
+                  type="button"
+                  className="br-cap__chip"
+                  aria-pressed={drawer.pulse}
+                  onClick={() => toggleDrawer("pulse")}
+                >
                   <HeartPulse className="w-4 h-4" aria-hidden />
-                  Update Pulse
-                </button>
-                <button type="button" className="br-cap__chip" onClick={() => setHanding(true)}>
-                  <Tablet className="w-4 h-4" aria-hidden />
-                  Hand over the iPad
+                  Pulse
                 </button>
               </div>
+
+              {/* Pulse's two doors (the briefing round, Oct 17 2026): the
+                  trainer asks, or the client answers on the iPad. One more
+                  tap for the rarer job, two fewer chips on every briefing. */}
+              {drawer.pulse && (
+                <div className="br-cap__pulse" role="group" aria-label="Pulse" data-testid="briefing-pulse">
+                  <button type="button" className="br-cap__chip" onClick={() => setShowPulse(true)}>
+                    <HeartPulse className="w-4 h-4" aria-hidden />
+                    You ask
+                  </button>
+                  <button type="button" className="br-cap__chip" onClick={() => setHanding(true)}>
+                    <Tablet className="w-4 h-4" aria-hidden />
+                    Hand over the iPad
+                  </button>
+                </div>
+              )}
 
               {/* Sleep · Energy · Recovery · Stress. Untouched = not asked. */}
               {drawer.dials && (

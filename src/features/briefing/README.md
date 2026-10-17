@@ -56,6 +56,16 @@ Top to bottom (`stack.ts` is the pure half, `stack.test.ts` beside it):
    prop) and NOTHING is written until it is rated. Hand her the iPad opens
    Pulse's client mode (ClientCheckInPanel `startInClientMode`, as the
    codex's PulseCard does). Every write at Start is unchanged.
+   **Since the briefing round (Oct 17 2026, phase 2b):** no heading over the
+   chips, and four of them, Dials · Sore spot · Note · Pulse, Pulse holding
+   both its doors (You ask, Hand over the iPad: one more tap for the rarer
+   job, two fewer chips every day). A sore spot is saved by its Dial tap
+   (Sore spot → the body → how it is: three taps), a "Matters until" day
+   picked after is kept on it, and Done closes. **Head** is a spot (AJ's F20
+   note: a headache), tapped on the figure or picked from the list, lit on
+   the Sore spot figure (`soreAreaOfTag`), recorded like any other and read
+   by nothing that changes a machine; the codex's Body figure doesn't pin it
+   yet. "Under the weather" stays on the "How are you feeling?" dial.
 6. **Today's routine** — A, B or Other routine, then today's machines as
    one list a trainer acts on (the briefing round, Oct 17 2026: see "Today's
    list" below; it replaced the Oct 3 one line and Edit). A client with no
