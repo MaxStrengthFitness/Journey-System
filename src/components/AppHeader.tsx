@@ -11,12 +11,13 @@ import { cn } from "@/lib/utils";
  * white) and a host that guessed the theme wrong drew white on white.
  * `theme-color.ts` copies the same --chrome into the status bar.
  *
- * Its edge is a CAST, not a hairline (type and depth, Oct 4 2026; AJ:
- * "borders and headers just needs a little bit of weight and depth"): the
- * frame's --frame-down, a line in the deepest navy and a short navy shadow on
- * the page in light, a faint rim and the deepest navy in dark. z-20 keeps it
- * over every room's shelf (9 to 11) and the Hub's names row (8), so the cast
- * falls on them; `relative` makes the number hold whatever the parent is.
+ * Its edge is the frame's --frame-down, not a border (type and depth, Oct 4
+ * 2026; AJ: "borders and headers just needs a little bit of weight and
+ * depth"): in light one 1px line in the deepest navy (the light round, Oct 17
+ * 2026: the short navy shadow it had read as navy bleeding onto the grey
+ * page), in dark a faint rim and the deepest navy. z-20 keeps it over every
+ * room's shelf (9 to 11) and the Hub's names row (8), so its edge falls on
+ * them; `relative` makes the number hold whatever the parent is.
  */
 interface AppHeaderProps {
   trainerInitials?: string;

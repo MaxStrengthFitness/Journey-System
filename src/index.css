@@ -406,6 +406,11 @@
          --shelf       a bar over scrolling content (a room's toolbar)
          --frame-down, --frame-up   under the navy header, over the navy
                        bottom bar
+                       These three are ONE layer, a 1px line with no blur
+                       (the light round, phase 3, Oct 17 2026; AJ's 1A):
+                       on the plain grey page the navy casts under them
+                       read as navy bleeding onto it. Buttons and panels
+                       keep their two layers; elevation.test.ts holds it
          --press       a raised control pressed in, with translateY(1px)
          --glow-live, --glow-go     a solid blue or orange fill's drop;
                        --solid-light and --go-light are its top light.
@@ -446,9 +451,9 @@
     --elev-4-up: 0 -2px 6px rgba(25,45,65,0.10), 0 -24px 48px -16px rgba(25,45,65,0.34);
     --elev-5: 0 4px 10px rgba(25,45,65,0.10), 0 32px 64px -20px rgba(25,45,65,0.42);
     --elev-list: 0 1px 3px rgba(25,45,65,0.16);
-    --shelf: 0 1px 0 rgba(25,45,65,0.10), 0 6px 14px -10px rgba(25,45,65,0.45);
-    --frame-down: 0 1px 0 rgba(0,18,36,0.22), 0 4px 12px -2px rgba(0,35,65,0.35);
-    --frame-up: 0 -1px 0 rgba(0,18,36,0.22), 0 -10px 26px -12px rgba(0,35,65,0.45);
+    --shelf: 0 1px 0 rgba(25,45,65,0.10);
+    --frame-down: 0 1px 0 rgba(0,18,36,0.22);
+    --frame-up: 0 -1px 0 rgba(0,18,36,0.22);
     --press: inset 0 1px 3px rgba(25,45,65,0.18);
     --glow-live: 0 1px 2px rgba(25,45,65,0.18), 0 6px 14px -6px color-mix(in srgb, var(--primary) 65%, transparent);
     --glow-go: 0 1px 2px rgba(25,45,65,0.16), 0 10px 22px -10px color-mix(in srgb, var(--cta) 80%, transparent);

@@ -238,6 +238,30 @@ describe("a resting shadow is short", () => {
   });
 });
 
+/**
+ * The frame's edge and a room's shelf are one 1px line, never a cast (the
+ * light round, phase 3, Oct 17 2026; AJ's 1A). On the plain grey page the
+ * navy casts under the header, over the bottom bar and under a room's bar
+ * read as navy bleeding onto it; buttons and panels keep their lift.
+ */
+const LINES: Theme[] = ["light"];
+describe("the frame and the shelf are one 1px line, not a cast", () => {
+  for (const theme of LINES) {
+    it.each([
+      ["--frame-down", 1],
+      ["--frame-up", -1],
+      ["--shelf", 1],
+    ] as const)(`${theme}: %s is one layer, %ipx, no blur`, (token, y) => {
+      const all = layers(CORE[theme][token]);
+      expect(all, `${theme} ${token}`).toHaveLength(1);
+      const l = layer(all[0]);
+      const [dx, dy] = all[0].slice(0, all[0].search(/rgba?\(/)).trim().split(/\s+/).map((v) => parseFloat(v));
+      expect(l.inset, token).toBe(false);
+      expect([dx, dy, l.blur, l.spread], token).toEqual([0, y, 0, 0]);
+    });
+  }
+});
+
 /* ---------------------------------------------------------------------------
    4. Lighter is higher
    --------------------------------------------------------------------------- */
