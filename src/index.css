@@ -406,11 +406,12 @@
          --shelf       a bar over scrolling content (a room's toolbar)
          --frame-down, --frame-up   under the navy header, over the navy
                        bottom bar
-                       These three are ONE layer, a 1px line with no blur
-                       (the light round, phase 3, Oct 17 2026; AJ's 1A):
-                       on the plain grey page the navy casts under them
-                       read as navy bleeding onto it. Buttons and panels
-                       keep their two layers; elevation.test.ts holds it
+                       These three are ONE layer, a 1px line with no blur,
+                       in both modes (the light round, phase 3, Oct 17
+                       2026; AJ's 1A; dark since phase D3, below): on the
+                       plain grey page the navy casts under them read as
+                       navy bleeding onto it. Buttons and panels keep
+                       their two layers; elevation.test.ts holds it
          --press       a raised control pressed in, with translateY(1px)
          --glow-live, --glow-go     a solid blue or orange fill's drop;
                        --solid-light and --go-light are its top light.
@@ -730,7 +731,11 @@
        tray sit below it. Edges are soft rims of a pale navy, never a dark
        line, and a panel gets a faint top light. The shadows are short and
        in the deepest navy (2,10,20), stronger than light's because a navy
-       shadow on a navy ground shows less, but never a black smudge. */
+       shadow on a navy ground shows less, but never a black smudge.
+       The frame's edge and a room's shelf are one pale rim line with no
+       cast (the dark round, phase D3, Oct 17 2026): the frame's cast
+       darkened the first 10-14px under the header into a groove, and on
+       the navy the line is what tells the frame from the page. */
     --elev-0: inset 0 1px 2px rgba(2,10,20,0.45);
     --elev-1: 0 1px 2px rgba(2,10,20,0.50);
     --elev-2: 0 1px 2px rgba(2,10,20,0.40), 0 6px 16px -8px rgba(2,10,20,0.60);
@@ -739,9 +744,9 @@
     --elev-4-up: 0 -2px 6px rgba(2,10,20,0.50), 0 -20px 44px -16px rgba(2,10,20,0.80);
     --elev-5: 0 4px 10px rgba(2,10,20,0.55), 0 28px 56px -20px rgba(2,10,20,0.85);
     --elev-list: 0 1px 3px rgba(2,10,20,0.55);
-    --shelf: 0 1px 0 rgba(150,180,210,0.10), 0 6px 14px -10px rgba(2,10,20,0.85);
-    --frame-down: 0 1px 0 rgba(255,255,255,0.05), 0 4px 12px -2px rgba(2,10,20,0.60);
-    --frame-up: 0 -1px 0 rgba(255,255,255,0.05), 0 -10px 24px -12px rgba(2,10,20,0.60);
+    --shelf: 0 1px 0 rgba(150,180,210,0.12);
+    --frame-down: 0 1px 0 rgba(150,180,210,0.16);
+    --frame-up: 0 -1px 0 rgba(150,180,210,0.16);
     --press: inset 0 1px 3px rgba(2,10,20,0.55);
     --glow-live: 0 1px 2px rgba(2,10,20,0.45), 0 6px 14px -8px rgba(2,10,20,0.80);
     --glow-go: 0 1px 2px rgba(2,10,20,0.40), 0 10px 22px -12px color-mix(in srgb, var(--cta) 55%, transparent);

@@ -20,9 +20,9 @@
  * a black 5% shadow was invisible on the navy and a white hairline drew a
  * second edge: in light one 1px line in the deepest navy (the light round,
  * Oct 17 2026: the navy shadow it cast up onto the grey page is gone), in
- * dark a faint rim and the deepest navy. The Operations bar keeps its orange
- * hairline: it says which mode you are in. z-30 keeps the bar over
- * everything a room pins near its foot, so its edge falls on it.
+ * dark one 1px pale rim. The Operations bar keeps its orange hairline: it
+ * says which mode you are in. z-30 keeps the bar over everything a room pins
+ * near its foot, so its edge falls on it.
  */
 import {
   Building2,

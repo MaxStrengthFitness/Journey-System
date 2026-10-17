@@ -188,8 +188,9 @@ describe("every shadow is navy, never black", () => {
         expect(c, `${token}: ${l.colour} is an rgba()`).not.toBeNull();
         const ink = c!.slice(0, 3);
         expect(INKS[theme].some((k) => k.every((v, i) => v === ink[i])), `${token}: ${l.colour}`).toBe(true);
-        // White is a top light (inset), or the 1px hairline the frame draws
-        // on its edge in dark; never a glow.
+        // White is a top light (inset), or a 1px hairline with no blur (the
+        // frame's dark edge was one until phase D3 drew it in the pale rim);
+        // never a glow.
         if (ink.every((v) => v === 255)) expect(l.inset || l.blur === 0, `${token}: white is only a light or a hairline`).toBe(true);
       }
     });
@@ -242,9 +243,12 @@ describe("a resting shadow is short", () => {
  * The frame's edge and a room's shelf are one 1px line, never a cast (the
  * light round, phase 3, Oct 17 2026; AJ's 1A). On the plain grey page the
  * navy casts under the header, over the bottom bar and under a room's bar
- * read as navy bleeding onto it; buttons and panels keep their lift.
+ * read as navy bleeding onto it; buttons and panels keep their lift. Dark
+ * takes the line too (the dark round, phase D3), in the pale rim: there the
+ * frame's cast dug a groove under the header, and the line is what tells the
+ * frame from the page.
  */
-const LINES: Theme[] = ["light"];
+const LINES: Theme[] = BOTH;
 describe("the frame and the shelf are one 1px line, not a cast", () => {
   for (const theme of LINES) {
     it.each([
@@ -260,6 +264,16 @@ describe("the frame and the shelf are one 1px line, not a cast", () => {
       expect([dx, dy, l.blur, l.spread], token).toEqual([0, y, 0, 0]);
     });
   }
+
+  it("draws the line in the frame's deepest navy and the logo navy in light, the pale rim in dark", () => {
+    for (const token of ["--frame-down", "--frame-up"]) {
+      expect(rgba(layer(CORE.light[token]).colour)!.slice(0, 3), `light ${token}`).toEqual([0, 18, 36]);
+    }
+    expect(rgba(layer(CORE.light["--shelf"]).colour)!.slice(0, 3), "light --shelf").toEqual([25, 45, 65]);
+    for (const token of ["--frame-down", "--frame-up", "--shelf"]) {
+      expect(rgba(layer(CORE.dark[token]).colour)!.slice(0, 3), `dark ${token}`).toEqual([150, 180, 210]);
+    }
+  });
 });
 
 /* ---------------------------------------------------------------------------

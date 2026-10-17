@@ -15,9 +15,10 @@ import { cn } from "@/lib/utils";
  * 2026; AJ: "borders and headers just needs a little bit of weight and
  * depth"): in light one 1px line in the deepest navy (the light round, Oct 17
  * 2026: the short navy shadow it had read as navy bleeding onto the grey
- * page), in dark a faint rim and the deepest navy. z-20 keeps it over every
- * room's shelf (9 to 11) and the Hub's names row (8), so its edge falls on
- * them; `relative` makes the number hold whatever the parent is.
+ * page), in dark one 1px pale rim (the dark round: its cast dug a groove
+ * under the header). z-20 keeps it over every room's shelf (9 to 11) and the
+ * Hub's names row (8), so its edge falls on them; `relative` makes the number
+ * hold whatever the parent is.
  */
 interface AppHeaderProps {
   trainerInitials?: string;
