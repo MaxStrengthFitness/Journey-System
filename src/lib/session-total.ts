@@ -169,9 +169,9 @@ export function thisSessionWords(
   if (t.basis === "whole-story") return sessionNumberWords(n, t.basis);
   // Once the profile's reconciler has folded a confirmed record into her
   // count, Start's number already holds it: read the same way as
-  // sessionTotalOf (a count below the record has not been folded yet).
-  const count = whole(client?.sessionCount);
-  const folded = t.basis === "confirmed" && count !== null && count >= t.before;
+  // sessionTotalOf (a count below the record has not been folded yet), from
+  // the count Start saw (its number less one), never a count folded since.
+  const folded = t.basis === "confirmed" && n - 1 >= t.before;
   return sessionNumberWords(folded ? n : t.before + n, t.basis);
 }
 

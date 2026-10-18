@@ -501,6 +501,7 @@ describe("the post-session screen mounts", () => {
       category: "health",
       justForMe: false,
       fromDraft: false,
+      keepsDraftMarks: false,
       soreSpots: [],
     });
     // Leaving twice does nothing.
@@ -549,6 +550,7 @@ describe("the post-session screen mounts", () => {
       category: null,
       justForMe: false,
       fromDraft: false,
+      keepsDraftMarks: false,
       soreSpots: [],
     });
   });
@@ -1073,7 +1075,36 @@ describe("a carried draft for the studio's floor notes", () => {
     expect(host.querySelector('[role="radiogroup"][aria-label="Goes to"] [aria-checked="true"]')!.textContent).toBe("Next time");
     expect(buttonByText(host.querySelector('[role="group"][aria-label="What it\'s for"]')!, "Health")!.getAttribute("aria-pressed")).toBe("true");
     await click(buttonByText(host, "Back to Hub"));
-    expect(onLeave.mock.calls[0][0]).toMatchObject({ noteContent: "Knee clicked on the way down", category: "health", importance: "elevated", fromDraft: true });
+    expect(onLeave.mock.calls[0][0]).toMatchObject({
+      noteContent: "Knee clicked on the way down",
+      category: "health",
+      importance: "elevated",
+      fromDraft: true,
+      keepsDraftMarks: true,
+    });
+  });
+
+  it("drops the draft's marks once its words are cleared, and the new words are a note of their own (the round's review)", async () => {
+    const onLeave = vi.fn();
+    const host = await mount(
+      <WrapUpScreen
+        client={client}
+        session={session}
+        lines={[]}
+        journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
+        schedules={[]}
+        authTrainer={trainer}
+        onEffort={vi.fn()}
+        onLeave={onLeave}
+        unsavedDraft={{ body: "Knee clicked on the way down", category: "health", flavour: null, bodyParts: [], importance: "elevated", machineId: "m1", aboutMachine: true } as any}
+        machines={[{ id: "m1", name: "Leg Press" } as any]}
+      />,
+    );
+    const box = host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement;
+    await typeInto(box, "");
+    await typeInto(box, "Asked about Saturday times");
+    await click(buttonByText(host, "Back to Hub"));
+    expect(onLeave.mock.calls[0][0]).toMatchObject({ noteContent: "Asked about Saturday times", fromDraft: true, keepsDraftMarks: false });
   });
 });
 

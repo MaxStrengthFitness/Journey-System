@@ -127,6 +127,10 @@ describe("thisSessionWords: the Wrap-up says the number the briefing promised (F
   it("a confirmed record already folded into the count: Start's number holds it", () => {
     expect(thisSessionWords({ sessionCount: 311, priorHistory: prior(306) }, "partial", 312)).toBe("#312");
   });
+  it("a record folded into the count between Start and Finish: still added, from Start's own number", () => {
+    // Start saw 5 sessions (its number 6); the reconciler folded 306 in before Finish.
+    expect(thisSessionWords({ sessionCount: 311, priorHistory: prior(306) }, "partial", 6)).toBe("#312");
+  });
   it("the whole story in Journey: Start's number is the total", () => {
     expect(thisSessionWords({ sessionCount: 3 }, "complete", 4)).toBe("#4");
   });

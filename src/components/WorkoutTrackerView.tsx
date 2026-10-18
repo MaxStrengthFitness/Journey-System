@@ -348,7 +348,7 @@ const ClientCheckInPanel = React.lazy(loadClientCheckInPanel);
 import { SessionJournalSidebar } from "./journal/SessionJournalSidebar";
 import { BriefingScreen } from "../features/briefing";
 import { closeTargetOf } from "../features/briefing/close-target";
-import { jotAbout } from "../features/relay/notes/client-jots";
+import { jotAbout, useMyNotesAbout } from "../features/relay/notes/client-jots";
 import { WrapUpScreen, type WrapUpNote } from "./WrapUpScreen";
 import { REGION_SCALE, dialFromRegionState, dialWord } from "../features/rating";
 import { studioTodayKey } from "../lib/studio-time";
@@ -1407,6 +1407,14 @@ export function WorkoutTrackerView({
   const [showEndConfirmation, setShowEndConfirmation] = useState(false);
   const [isPostSessionMode, setIsPostSessionMode] = useState(false);
   const [postSession, setPostSession] = useState<PostSessionSnapshot | null>(null);
+  /* The trainer's own notes about this client (Just for me), read while a
+     box that can file one is open (End Session, the Wrap-up), so the write
+     is issued at once, even on a sign-out, rather than after a read (the
+     round's review, Oct 18 2026). Unread: jotAbout reads them itself; a read
+     that failed starts a new working note rather than lose the words. */
+  const jotsFor = isPostSessionMode ? (postSession?.client.id ?? null) : showEndConfirmation ? (selectedClient?.id ?? null) : null;
+  const myJots = useMyNotesAbout(jotsFor ? (user?.uid ?? null) : null, jotsFor);
+  const jotsKnown = myJots.state === "ready" ? myJots.notes : myJots.state === "failed" ? [] : undefined;
 
   /*
    * THE NOTE DRAFT BELONGS TO THE SESSION (fluidity round, Sep 18 2026).
@@ -3681,7 +3689,7 @@ export function WorkoutTrackerView({
       const nextTrainerNote = journalBodyOf(currentSessionNotes);
       const nextTrainerOnBriefing = !!nextTrainerNote && !nextTrainerJustForMe && nextTrainerImportance !== "standard";
       if (nextTrainerNote && nextTrainerJustForMe) {
-        jotAbout({ uid: user.uid, clientId: selectedClient.id, name: clientDisplayName(selectedClient), text: nextTrainerNote }).catch(() =>
+        jotAbout({ uid: user.uid, clientId: selectedClient.id, name: clientDisplayName(selectedClient), text: nextTrainerNote, notes: jotsKnown }).catch(() =>
           toastError("Session saved. Your just-for-me note didn't save — add it again from the profile's working notes."),
         );
       } else if (nextTrainerNote) {
@@ -3790,8 +3798,18 @@ export function WorkoutTrackerView({
           coverage: clientCoverage,
         });
         if (!fig?.up || fig.gain === null) return null;
+        /* The month it counts from, only when Journey saw the start lifted:
+           the first counted set's session, or, for a start on file, the
+           first session that lifted exactly that load. A start corrected
+           from a paper chart was never lifted here, so it says "+N%" with no
+           month rather than a wrong one (the round's review, Oct 18 2026). */
         const since =
-          fig.source === "on-file" ? (row.startingWeightDate ?? null) : (computeRowStats(row, gridHistory).first?.session.date ?? null);
+          fig.source === "first-counted"
+            ? (computeRowStats(row, gridHistory).first?.session.date ?? null)
+            : (gridHistory.find((sess) => {
+                const set = row.sets[sess.id];
+                return !!set && set.outcome === "performed" && set.weight === fig.start;
+              })?.date ?? null);
         return { pct: fig.gain, since };
       };
       const lines = todayLines({ order: activeMachineIds, logs: finalLogs, nameOf: machineName, priorOf, priorKnown }).map((l) =>
@@ -4187,7 +4205,8 @@ export function WorkoutTrackerView({
     const filing: Promise<void>[] = [];
     const draftKey = snap?.session.id ?? null;
     // The box carried the draft: it is filed from the box, or not at all when its words were cleared.
-    const carried = !!note?.fromDraft && !!snap?.draft;
+    // Its marks (the machine, the flavour, the body parts) only while the box still holds the draft's words.
+    const carried = !!note?.fromDraft && !!note?.keepsDraftMarks && !!snap?.draft;
     if (note?.fromDraft) draftFiledForRef.current = draftKey;
     if (snap?.draft && hasDraftText(snap.draft) && draftFiledForRef.current !== draftKey) {
       draftFiledForRef.current = draftKey;
@@ -4204,7 +4223,7 @@ export function WorkoutTrackerView({
     if (body && note?.justForMe) {
       filing.push(
         noteOrSay(
-          jotAbout({ uid: user.uid, clientId: snap.client.id, name: clientDisplayName(snap.client), text: body }).then(() => "notebook"),
+          jotAbout({ uid: user.uid, clientId: snap.client.id, name: clientDisplayName(snap.client), text: body, notes: jotsKnown }).then(() => "notebook"),
           "Session saved. Your just-for-me note didn't save — add it again from the profile's working notes.",
         ),
       );
@@ -4232,7 +4251,10 @@ export function WorkoutTrackerView({
       );
     }
     for (const spot of note?.soreSpots ?? []) {
-      const word = dialWord(REGION_SCALE, spot.dial ?? dialFromRegionState(spot.state));
+      const dial = spot.dial ?? dialFromRegionState(spot.state);
+      const word = dialWord(REGION_SCALE, dial);
+      // Pain or Stiff is read out at Next time; As usual, Better or Recovered stays on the profile (the round's review).
+      const sore = dial !== null && dial < 0;
       const stored = storedNoteOf("health", null, bodyMarksFromWords(spot.region));
       filing.push(
         noteOrSay(
@@ -4241,10 +4263,10 @@ export function WorkoutTrackerView({
             category: stored.category,
             bodyParts: stored.bodyParts,
             body: `${spot.region} · ${word}`,
-            importance: "elevated",
+            importance: sore ? "elevated" : "standard",
             // End of the studio day, as the composer writes it — never a raw
             // date-only string, which would be UTC midnight (CLAUDE.md).
-            effectiveUntil: spot.until ? new Date(`${spot.until}T23:59:59`) : null,
+            effectiveUntil: sore && spot.until ? new Date(`${spot.until}T23:59:59`) : null,
             machineId: null,
             focusId: null,
             ...link,
@@ -5258,8 +5280,11 @@ export function WorkoutTrackerView({
       journal: machineJournalRead.entries,
       journalState: machineJournalRead.state,
       session: { id: menuLink.sessionId, number: menuLink.sessionNumber, day: menuLink.sessionDay },
-      noteDraft,
-      onNoteDraftChange: handleDraftChange,
+      /* On the Wrap-up the session's draft is gone (Finish filed or handed it
+         on), so the card keeps its own words and registers them with the one
+         leave question, as on the profile (the round's review, Oct 18 2026). */
+      noteDraft: isPostSessionMode ? null : noteDraft,
+      onNoteDraftChange: isPostSessionMode ? undefined : handleDraftChange,
       watching: menuWatching,
     }),
     [
@@ -5289,6 +5314,7 @@ export function WorkoutTrackerView({
       menuLink,
       noteDraft,
       handleDraftChange,
+      isPostSessionMode,
       menuWatching,
     ],
   );

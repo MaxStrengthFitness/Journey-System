@@ -36,6 +36,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, act, useState } from "react";
+import { UnsavedChangesProvider } from "../features/unsaved-changes";
 import { createRoot, type Root } from "react-dom/client";
 
 /* ------------------------------------------------------------------ *
@@ -1009,6 +1010,33 @@ describe("Finish never hangs and never counts a session twice (session record, S
     const buttons = Array.from(card.querySelectorAll("button")).map((b) => b.textContent?.trim());
     expect(buttons).toContain("Preference");
     expect(buttons.some((t) => t?.includes("Discard"))).toBe(false);
+  });
+
+  it("opens a machine's card from the Wrap-up, and words typed in it ask before they are lost (the round's review, Oct 18 2026)", async () => {
+    const host = await mount(
+      <UnsavedChangesProvider>
+        <Tracker />
+      </UnsavedChangesProvider>,
+    );
+    await act(async () => (host.querySelector(".jg-sbar__finish") as HTMLButtonElement).click());
+    await act(async () => finishButton()!.click());
+    await settle();
+    await settle();
+    const door = document.querySelector<HTMLButtonElement>('[data-testid="wrapup-machine-door"]');
+    expect(door).not.toBeNull();
+    await act(async () => door!.click());
+    await settle();
+    expect(document.querySelector(".mm-dialog .mm-card")).not.toBeNull();
+    const words = document.querySelector<HTMLTextAreaElement>('.mm-dialog [data-block="notes"] textarea');
+    expect(words).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(words!, "Seat felt low today");
+      words!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    // The card keeps its own words on the Wrap-up (the session's draft is gone), so Close asks first.
+    await act(async () => document.querySelector<HTMLButtonElement>(".mm-dialog .mm-close")!.click());
+    await settle();
+    expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
   });
 
   it("keeps a just-for-me note at Finish to the trainer's own notebook: never the journal, never the session's copy (n2 a)", async () => {
@@ -2830,6 +2858,7 @@ describe("session writes never wait on the network (speed round, Oct 5 2026; R9)
     await act(async () => back.click());
     const spot = journalDocs.find((d) => d.data().body === "Knees · Stiff")!.data();
     expect(spot).toMatchObject({ importance: "elevated", origin: "post_session", bodyParts: [{ part: "knee", side: "both" }] });
+    // Only Pain and Stiff are read out at Next time: a spot rated better stays on the profile (the round's review).
     expect(["injury", "health"]).toContain(spot.kind);
   });
 

@@ -312,6 +312,13 @@ export interface WrapUpNote {
    * never files the draft again, even when the words were cleared.
    */
   fromDraft?: boolean;
+  /**
+   * The box still holds the draft's words (never emptied since it opened):
+   * only then does the host file the draft's machine, flavour and body parts
+   * with them. Words written after clearing it are a new note (the round's
+   * review, Oct 18 2026).
+   */
+  keepsDraftMarks?: boolean;
   /** Sore spots rated here (AJ's N3 a): each a Health note with its spot, at Next time. */
   soreSpots?: BodyStateTag[];
 }
@@ -700,6 +707,8 @@ export function WrapUpScreen({
   const clientDraft = unsavedDraft && !floorCarry && unsavedDraft.body.trim() ? unsavedDraft : null;
   const [box, setBox] = useState<NoteBoxValue>(() => (clientDraft ? boxFromDraft(clientDraft) : emptyNoteBox("standard")));
   const [draftInBox, setDraftInBox] = useState(!!clientDraft);
+  // Its words still in the box: emptied once, the draft's marks no longer belong to what is written.
+  const [draftMarks, setDraftMarks] = useState(!!clientDraft);
   const [after, setAfter] = useState<AfterPanel | null>(clientDraft ? "note" : null);
   const toggleAfter = (panel: AfterPanel) => setAfter((cur) => (cur === panel ? null : panel));
   /* SORE SPOT (AJ's N3 a): the briefing's figure, head included. A tap on
@@ -798,8 +807,8 @@ export function WrapUpScreen({
   /* The note box and the sore spots are filed when the trainer leaves — by
      the button, or by closing the tab. Keep the latest in a ref so an unload
      can read it. */
-  const outRef = useRef({ box, spots, draftInBox });
-  outRef.current = { box, spots, draftInBox };
+  const outRef = useRef({ box, spots, draftInBox, draftMarks });
+  outRef.current = { box, spots, draftInBox, draftMarks };
   const draftWaitingRef = useRef(false);
   draftWaitingRef.current = floorDraft && draftText.trim() !== "";
   const onFileRef = useRef(onFile);
@@ -808,7 +817,7 @@ export function WrapUpScreen({
 
   /** What the host files, from what is here right now. */
   const noteNow = (): WrapUpNote => {
-    const { box: b, spots: sp, draftInBox: fromDraft } = outRef.current;
+    const { box: b, spots: sp, draftInBox: fromDraft, draftMarks: keepsDraftMarks } = outRef.current;
     return {
       noteContent: b.text,
       importance: b.importance,
@@ -816,12 +825,13 @@ export function WrapUpScreen({
       category: b.category,
       justForMe: b.justForMe,
       fromDraft,
+      keepsDraftMarks: fromDraft && keepsDraftMarks,
       soreSpots: sp,
     };
   };
   /** Handed over: the box empties (where it goes and what it is for stay), the spots go. */
   const handedOver = () => {
-    outRef.current = { box: { ...outRef.current.box, text: "" }, spots: [], draftInBox: false };
+    outRef.current = { box: { ...outRef.current.box, text: "" }, spots: [], draftInBox: false, draftMarks: false };
   };
 
   /**
@@ -844,6 +854,7 @@ export function WrapUpScreen({
     setBox((b) => ({ ...b, text: "" }));
     setSpots([]);
     setDraftInBox(false);
+    setDraftMarks(false);
     setNoteFiledHere(true);
   };
 
@@ -1217,6 +1228,7 @@ export function WrapUpScreen({
                 value={box}
                 onChange={(v) => {
                   setBox(v);
+                  if (v.text.trim() === "") setDraftMarks(false);
                   setNoteFiledHere(false);
                 }}
                 firstName={clientFirstName(client)}
