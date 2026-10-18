@@ -566,12 +566,13 @@
 }
 
 /* Not synced yet and Unassigned: dashed all round in the hairline, no
-   outline, as the unlinked card is. */
+   outline, as the unlinked card is. The fill runs under the dashes
+   (no padding-box clip): on the Key's sheet a clipped fill left the gaps
+   showing the sheet, and in dark the dashes vanished (1.11:1). */
 .hd-swatch[data-state="unlinked"] {
   outline: 0;
   border: 1px dashed var(--eq-border);
   background: var(--eq-surface-2);
-  background-clip: padding-box;
 }
 
 .hd-swatch[data-state="staff"] {
