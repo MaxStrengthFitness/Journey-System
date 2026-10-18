@@ -30,12 +30,12 @@ describe("pickRequest", () => {
 
 describe("readPicks", () => {
   it("keeps real pages, best first", () => {
-    expect(readPicks(reply('{"pages":["topic:c","topic:a"],"covered":true}'), pages)).toEqual({ ok: true, pageIds: ["topic:c", "topic:a"], covered: true });
+    expect(readPicks(reply('{"pages":["topic:c","topic:a"],"covered":true}'), pages)).toEqual({ ok: true, pageIds: ["topic:c", "topic:a"], covered: true, health: false });
   });
 
   it("drops a made-up id and turns a second name into its page, once", () => {
     const r = readPicks(reply('{"pages":["topic:nope","topic:b-again","topic:b"],"covered":true}'), pages);
-    expect(r).toEqual({ ok: true, pageIds: ["topic:b"], covered: true });
+    expect(r).toEqual({ ok: true, pageIds: ["topic:b"], covered: true, health: false });
   });
 
   it(`stops at ${MAX_PAGES} pages`, () => {
@@ -44,8 +44,13 @@ describe("readPicks", () => {
   });
 
   it("is not covered when no real page is left", () => {
-    expect(readPicks(reply('{"pages":["topic:nope"],"covered":true}'), pages)).toEqual({ ok: true, pageIds: [], covered: false });
-    expect(readPicks(reply('{"pages":[],"covered":false}'), pages)).toEqual({ ok: true, pageIds: [], covered: false });
+    expect(readPicks(reply('{"pages":["topic:nope"],"covered":true}'), pages)).toEqual({ ok: true, pageIds: [], covered: false, health: false });
+    expect(readPicks(reply('{"pages":[],"covered":false}'), pages)).toEqual({ ok: true, pageIds: [], covered: false, health: false });
+  });
+
+  it("carries a health question through, and reads a missing flag as not one", () => {
+    expect(readPicks(reply('{"pages":["topic:a"],"covered":true,"health":true}'), pages)).toEqual({ ok: true, pageIds: ["topic:a"], covered: true, health: true });
+    expect(readPicks(reply('{"pages":["topic:a"],"covered":true}'), pages)).toMatchObject({ health: false });
   });
 
   it("says why when the reply can't be read", () => {

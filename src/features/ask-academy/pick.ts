@@ -27,8 +27,9 @@ export const PICK_SCHEMA = {
   properties: {
     pages: { type: "array", items: { type: "string" } },
     covered: { type: "boolean" },
+    health: { type: "boolean" },
   },
-  required: ["pages", "covered"],
+  required: ["pages", "covered", "health"],
   additionalProperties: false,
 } as const;
 
@@ -38,6 +39,8 @@ const PICK_INSTRUCTIONS = [
   `Choose the pages most likely to answer the question, best first, at most ${MAX_PAGES}. Choose fewer when fewer fit. Use the ids exactly as written.`,
   "A question about one machine usually needs that machine's overview, quick reference card or script; a question about the method usually needs a topic.",
   "If no page could answer it (it is not about the training method, the machines, or working with a client in a session), return no pages and covered false.",
+  "The Academy is the method only. A question about using the Journey app or Mindbody, a studio's prices, fees or policies, marketing, or fixing a machine is not covered.",
+  "Set health true when the question is about a client's injury, surgery, pain or medical condition; otherwise false.",
 ].join("\n");
 
 /** The picking request for one question. */
@@ -55,7 +58,7 @@ export function pickRequest(question: string, pages: readonly AcademyPage[]): Cr
 }
 
 export type PickResult =
-  | { ok: true; pageIds: string[]; covered: boolean }
+  | { ok: true; pageIds: string[]; covered: boolean; /** About an injury, surgery, pain or a condition: the answer leads with clearance. */ health: boolean }
   | { ok: false; reason: string };
 
 /**
@@ -75,7 +78,7 @@ export function readPicks(message: Pick<Message, "content" | "stop_reason">, pag
     return { ok: false, reason: "the pick was not JSON" };
   }
   if (!parsed || typeof parsed !== "object") return { ok: false, reason: "the pick was not an object" };
-  const { pages: named, covered } = parsed as { pages?: unknown; covered?: unknown };
+  const { pages: named, covered, health } = parsed as { pages?: unknown; covered?: unknown; health?: unknown };
   if (!Array.isArray(named) || typeof covered !== "boolean") return { ok: false, reason: "the pick had the wrong shape" };
 
   const pageIds: string[] = [];
@@ -85,5 +88,5 @@ export function readPicks(message: Pick<Message, "content" | "stop_reason">, pag
     if (page && !pageIds.includes(page.id)) pageIds.push(page.id);
     if (pageIds.length === MAX_PAGES) break;
   }
-  return { ok: true, pageIds, covered: covered && pageIds.length > 0 };
+  return { ok: true, pageIds, covered: covered && pageIds.length > 0, health: health === true };
 }

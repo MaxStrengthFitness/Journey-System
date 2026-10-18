@@ -12,7 +12,7 @@
  *
  * Usage (PowerShell, from the project folder):
  *   npx tsx scripts/ask-academy-trial.ts               dry run: calls nothing, prints what it would send
- *   npx tsx scripts/ask-academy-trial.ts --run         asks every question (under $5 for thirty)
+ *   npx tsx scripts/ask-academy-trial.ts --run         asks every question (about $8 for all 57)
  *   npx tsx scripts/ask-academy-trial.ts --run --only q03,q09
  *
  * The key is ANTHROPIC_API_KEY in .env (read here as server.ts reads it); it is
@@ -25,7 +25,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { academyFiles } from "../src/features/ask-academy/academy-files";
 import { academyPages, pageById, pageListText, type AcademyPage } from "../src/features/ask-academy/pages";
 import { pickRequest, readPicks } from "../src/features/ask-academy/pick";
-import { answerRequest, documentTitle, readAnswer, type AskAnswer } from "../src/features/ask-academy/answer";
+import { answerRequest, documentTitle, pagesToSend, readAnswer, type AskAnswer } from "../src/features/ask-academy/answer";
 import { ANSWER_MODELS, PICK_MODEL, PRICES, costOf, type AnswerModelKey } from "../src/features/ask-academy/models";
 import { TRIAL_QUESTIONS, type TrialQuestion } from "../src/features/ask-academy/trial-questions";
 
@@ -47,7 +47,12 @@ interface QuestionRecord {
   from: TrialQuestion["from"];
   question: string;
   expect: TrialQuestion["expect"];
-  pick: { pageIds: string[]; titles: string[]; covered: boolean; hit: boolean | null; ms: number; cost: number | null } | { error: string };
+  reason: TrialQuestion["reason"] | null;
+  pick:
+    | { pageIds: string[]; titles: string[]; covered: boolean; health: boolean; hit: boolean | null; ms: number; cost: number | null }
+    | { error: string };
+  /** Pages sent to answer from: the pick's, plus the clearance page for a health question. */
+  sentIds: string[];
   /** Which model is A and which is B, for the blind reading. */
   blind: { A: AnswerModelKey; B: AnswerModelKey };
   answers: Partial<Record<AnswerModelKey, AnswerRecord>>;
@@ -61,12 +66,18 @@ function pickHit(q: TrialQuestion, pageIds: string[], covered: boolean, pages: r
   return pageIds.some((id) => expected.has(id));
 }
 
-async function askOne(client: Anthropic, model: string, q: TrialQuestion, sent: AcademyPage[]): Promise<AnswerRecord> {
+/** Did an answer quote a page the question must avoid (the trap)? */
+function trapped(q: TrialQuestion, a: AnswerRecord | undefined): boolean {
+  if (!q.avoid || !a || a.kind !== "answered") return false;
+  return a.points.some((p) => p.quotes.some((x) => q.avoid!.includes(x.pageId)));
+}
+
+async function askOne(client: Anthropic, model: string, q: TrialQuestion, sent: AcademyPage[], health: boolean): Promise<AnswerRecord> {
   const started = Date.now();
   try {
-    const message = await client.beta.messages.create(answerRequest(q.question, sent, model));
+    const message = await client.beta.messages.create(answerRequest(q.question, sent, model, health));
     return {
-      ...readAnswer(message, sent),
+      ...readAnswer(message, sent, health),
       requestedModel: model,
       servedBy: message.model,
       ms: Date.now() - started,
@@ -82,7 +93,7 @@ async function askOne(client: Anthropic, model: string, q: TrialQuestion, sent: 
 
 async function runQuestion(client: Anthropic, q: TrialQuestion, pages: readonly AcademyPage[]): Promise<QuestionRecord> {
   const blind = Math.random() < 0.5 ? { A: "opus" as const, B: "sonnet" as const } : { A: "sonnet" as const, B: "opus" as const };
-  const record: QuestionRecord = { id: q.id, from: q.from, question: q.question, expect: q.expect, pick: { error: "not run" }, blind, answers: {} };
+  const record: QuestionRecord = { id: q.id, from: q.from, reason: q.reason ?? null, question: q.question, expect: q.expect, pick: { error: "not run" }, sentIds: [], blind, answers: {} };
 
   const started = Date.now();
   let picked: ReturnType<typeof readPicks>;
@@ -100,11 +111,14 @@ async function runQuestion(client: Anthropic, q: TrialQuestion, pages: readonly 
     record.pick = { error: picked.reason };
     return record;
   }
-  const sent = picked.pageIds.map((id) => pageById(pages, id)).filter((p): p is AcademyPage => p !== null);
+  const chosen = picked.pageIds.map((id) => pageById(pages, id)).filter((p): p is AcademyPage => p !== null);
+  const sent = pagesToSend(chosen, picked.health, pages);
+  record.sentIds = sent.map((p) => p.id);
   record.pick = {
     pageIds: picked.pageIds,
-    titles: sent.map(documentTitle),
+    titles: chosen.map(documentTitle),
     covered: picked.covered,
+    health: picked.health,
     hit: pickHit(q, picked.pageIds, picked.covered, pages),
     ms: Date.now() - started,
     cost: pickCost,
@@ -112,7 +126,7 @@ async function runQuestion(client: Anthropic, q: TrialQuestion, pages: readonly 
   if (!picked.covered) return record;
 
   const keys = Object.keys(ANSWER_MODELS) as AnswerModelKey[];
-  const answers = await Promise.all(keys.map((k) => askOne(client, ANSWER_MODELS[k], q, sent)));
+  const answers = await Promise.all(keys.map((k) => askOne(client, ANSWER_MODELS[k], q, sent, picked.health)));
   keys.forEach((k, i) => (record.answers[k] = answers[i]));
   return record;
 }
@@ -179,6 +193,8 @@ async function main() {
   const scored = records.filter((r) => !("error" in r.pick) && r.pick.hit !== null);
   const hits = scored.filter((r) => !("error" in r.pick) && r.pick.hit).length;
   console.log(`\nPicks that named an expected page: ${hits} of ${scored.length}.`);
+  const healthMissed = records.filter((r) => TRIAL_QUESTIONS.find((q) => q.id === r.id)?.health && !("error" in r.pick) && !r.pick.health).map((r) => r.id);
+  if (healthMissed.length) console.log(`Health questions the pick didn't flag: ${healthMissed.join(", ")}.`);
   const misses = scored.filter((r) => !("error" in r.pick) && !r.pick.hit);
   for (const r of misses) if (!("error" in r.pick)) console.log(`  ${r.id} picked: ${r.pick.titles.join(" · ") || "nothing"}`);
 
@@ -192,7 +208,11 @@ async function main() {
     const seconds = priced.length ? priced.reduce((n, a) => n + a.ms, 0) / priced.length / 1000 : 0;
     const fellBack = priced.filter((a) => a.servedBy !== a.requestedModel).length;
     total += cost;
-    console.log(`${ANSWER_MODELS[key]}: ${count("answered")} answered, ${count("not_covered")} not covered, ${count("refused")} refused, ${count("unusable")} unusable, ${count("error")} errors; ${dollars(cost)}; ${seconds.toFixed(1)} s on average${fellBack ? `; ${fellBack} served by a fallback model` : ""}.`);
+    const healthRows = records.filter((r) => TRIAL_QUESTIONS.find((q) => q.id === r.id)?.health).map((r) => r.answers[key]).filter((a) => a?.kind === "answered");
+    const led = healthRows.filter((a) => a?.kind === "answered" && a.clearanceLed).length;
+    const traps = records.filter((r) => trapped(TRIAL_QUESTIONS.find((q) => q.id === r.id)!, r.answers[key])).map((r) => r.id);
+    console.log(`${ANSWER_MODELS[key]}: clearance led ${led} of ${healthRows.length} health answers${traps.length ? `; fell for the trap on ${traps.join(", ")}` : ""}.`);
+    console.log(`${ANSWER_MODELS[key]}: ${count("answered")} answered, ${count("not_covered")} not covered, ${count("conflicting")} conflicting, ${count("refused")} refused, ${count("unusable")} unusable, ${count("error")} errors; ${dollars(cost)}; ${seconds.toFixed(1)} s on average${fellBack ? `; ${fellBack} served by a fallback model` : ""}.`);
   }
   console.log(`Total ${dollars(total)} in ${((Date.now() - started) / 1000).toFixed(0)} s. Results: ${outFile}`);
 }

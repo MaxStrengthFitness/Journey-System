@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerRequest, documentTitle, NOT_COVERED, readAnswer } from "./answer";
+import { answerRequest, CLEARANCE_PAGE_ID, CONFLICTING, documentTitle, NOT_COVERED, pagesToSend, readAnswer } from "./answer";
 import { ANSWER_MODELS } from "./models";
 import type { AcademyPage } from "./pages";
 
@@ -49,6 +49,24 @@ describe("answerRequest", () => {
     const system = answerRequest("q", [pain], ANSWER_MODELS.opus).system as string;
     expect(system).toContain("Never give a weight, a rep count or a next step for a particular client");
     expect(system).toContain(NOT_COVERED);
+    expect(system).toContain(CONFLICTING);
+    expect(system).toContain("Never describe the app's screens or features");
+    expect(system).not.toContain("medical clearance");
+    expect(answerRequest("q", [pain], ANSWER_MODELS.opus, true).system).toContain("medical clearance");
+  });
+});
+
+describe("pagesToSend", () => {
+  const clearance: AcademyPage = { ...pain, id: CLEARANCE_PAGE_ID, title: "TSC" };
+  const all = [pain, lp, clearance];
+
+  it("adds the clearance page to a health question, once", () => {
+    expect(pagesToSend([lp], true, all).map((p) => p.id)).toEqual([lp.id, CLEARANCE_PAGE_ID]);
+    expect(pagesToSend([clearance, lp], true, all).map((p) => p.id)).toEqual([CLEARANCE_PAGE_ID, lp.id]);
+  });
+
+  it("leaves any other question as picked", () => {
+    expect(pagesToSend([lp], false, all)).toEqual([lp]);
   });
 });
 
@@ -79,6 +97,19 @@ describe("readAnswer", () => {
   it("never shows an answer with nothing behind it", () => {
     expect(readAnswer(reply([text("Use about 40 pounds.")]), [pain])).toEqual({ kind: "unusable", reason: "no line was backed by the Academy" });
     expect(readAnswer(reply([text("Start")], "max_tokens"), [pain])).toEqual({ kind: "unusable", reason: "the answer ran out of room" });
+  });
+
+  it("reads CONFLICTING as a question for the admins, never a side picked", () => {
+    expect(readAnswer(reply([text(CONFLICTING)]), [pain])).toEqual({ kind: "conflicting" });
+  });
+
+  it("on a health question, reads the clearance point first and says whether there was one", () => {
+    const clear = "If the client has not yet finished their physical therapy and therefore does not have medical clearance, we WILL NOT TRAIN OR INVOLVE THE AFFECTED AREA.";
+    const answer = readAnswer(reply([text("Tolerance first.", [cite(0, "assess tolerance")]), text("Not before clearance.", [cite(1, clear)])]), [pain, lp], true);
+    expect(answer.kind === "answered" && answer.points.map((p) => p.says)).toEqual(["Not before clearance.", "Tolerance first."]);
+    expect(answer.kind === "answered" && answer.clearanceLed).toBe(true);
+    const none = readAnswer(reply([text("Tolerance first.", [cite(0, "assess tolerance")])]), [pain], true);
+    expect(none.kind === "answered" && none.clearanceLed).toBe(false);
   });
 
   it("says when the whole chain refused, with its category", () => {

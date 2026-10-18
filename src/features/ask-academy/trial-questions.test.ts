@@ -13,13 +13,18 @@ describe("the trial's questions", () => {
 
   it("name only pages that exist", () => {
     for (const q of TRIAL_QUESTIONS) {
-      if (!Array.isArray(q.expect)) continue;
-      for (const id of q.expect) expect(pageById(pages, id), `${q.id}: ${id}`).not.toBeNull();
+      for (const id of [...(Array.isArray(q.expect) ? q.expect : []), ...(q.avoid ?? [])]) expect(pageById(pages, id), `${q.id}: ${id}`).not.toBeNull();
     }
   });
 
   it("are twenty of Claude's, one of them the control", () => {
-    expect(TRIAL_QUESTIONS.filter((q) => q.from === "claude")).toHaveLength(20);
-    expect(TRIAL_QUESTIONS.filter((q) => q.expect === "not_covered")).toHaveLength(1);
+    const claude = TRIAL_QUESTIONS.filter((q) => q.from === "claude");
+    expect(claude).toHaveLength(20);
+    expect(claude.filter((q) => q.expect === "not_covered")).toHaveLength(1);
+  });
+
+  it("cover all ten of AJ's reasons", () => {
+    const reasons = new Set(TRIAL_QUESTIONS.filter((q) => q.from === "aj").map((q) => q.reason));
+    expect([...reasons].sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 });
