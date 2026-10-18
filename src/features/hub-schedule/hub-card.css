@@ -227,7 +227,7 @@
 
 /* BEFORE THE STUDIO'S JOURNEY CUTOVER (data-logging="not-yet" on the grid
    or the phone's list while the day shown is before the studio's Journey
-   cutover date, or none is set; the cards round's C4 sets it). Nobody logs
+   cutover date, or none is set: `loggingFrom`, hub-day.ts). Nobody logs
    in Journey yet, so Not logged is the normal state: it lies down with the
    recorded past and KEEPS its words (AJ, Sep 24: a grey card with no word
    reads as done). Left open still stands out: it is a Journey session

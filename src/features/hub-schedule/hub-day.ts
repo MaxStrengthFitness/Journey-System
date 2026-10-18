@@ -43,6 +43,43 @@ export function pickDay(key: string, todayKey: string): string | null {
   return key === todayKey ? null : key;
 }
 
+/**
+ * DOES THE STUDIO LOG THIS DAY IN JOURNEY? (the cards round, Oct 17 2026;
+ * AJ's 1A on "Now, Next, Done": a session nobody recorded stands out "from
+ * the studio's Journey cutover date, in every column").
+ *
+ * "live" when `cutover` is a real yyyy-mm-dd day and the day shown is that
+ * day or later; "not-yet" otherwise, a studio with no date set included. That
+ * is the safe side: before a studio logs in Journey, every booking that is
+ * over says Not logged (FileMaker still holds the record), and drawn as a
+ * whole card with the plum mark they would be a wall of marks. The Hub, the
+ * Calendar's Day and the phone's list set the answer as `data-logging` on
+ * the day they draw, and `hub-card.css` lays Not logged down as a recorded
+ * tile before the date, keeping its words (AJ, Sep 24 2026: a grey card with
+ * no word would read as done). Left open is never gated: it is a Journey
+ * session really left open, so it can't happen before the studio logs.
+ *
+ * The date is the studio's `journeyCutoverDate` (My Studio → Studio, "From
+ * this day every session here must be logged in Journey"), the same day that
+ * stops an unlogged booking counting as a visit (`renewals/attendance.ts`).
+ * Never `studioIsLive` (`renewals/job-plan.ts`): that is the nightly job's
+ * gate, and it turns a studio live a day early on purpose.
+ */
+export type LoggingFrom = "live" | "not-yet";
+
+export function loggingFrom(dayKey: string | null | undefined, cutover: unknown): LoggingFrom {
+  if (!isCalendarDay(dayKey) || !isCalendarDay(cutover)) return "not-yet";
+  return dayKey >= cutover ? "live" : "not-yet";
+}
+
+/** A yyyy-mm-dd key that names a real day ("2026-02-30" does not). */
+function isCalendarDay(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const at = new Date(Date.UTC(y, m - 1, d));
+  return at.getUTCFullYear() === y && at.getUTCMonth() === m - 1 && at.getUTCDate() === d;
+}
+
 /** "Thursday, Oct 1" for a studio day key, never shifted by the iPad's zone. */
 export function dayTitle(key: string): string {
   const [y, m, d] = key.split("-").map(Number);

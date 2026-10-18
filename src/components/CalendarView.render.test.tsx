@@ -563,6 +563,27 @@ describe("CalendarView — the Day's cards say what the Hub's say, only where th
     expect(held.marksAsked.at(-1)).toEqual(["solon", todayKey(), todayKey()]);
   });
 
+  it("before the studio's Journey cutover date (or with none set), says not yet on the Day, as the Hub does; Not logged keeps its words (the cards round, Oct 17 2026)", () => {
+    const logging = () => host!.querySelector<HTMLElement>(".hs-scroll")!.getAttribute("data-logging");
+    const again = (extra: Partial<ComponentProps<typeof CalendarView>>) => {
+      act(() => root!.unmount());
+      host!.remove();
+      openDay(extra);
+    };
+    // Today is Oct 14; the studio starts logging tomorrow.
+    openDay({ journeyCutoverDate: "2026-10-15" });
+    expect(logging()).toBe("not-yet");
+    expect(cardOf("C0 Client").getAttribute("data-state")).toBe("not-logged");
+    expect(cardOf("C0 Client").textContent).toContain("Not logged");
+    // The day after is the cutover: the Day follows the day on screen.
+    act(() => host!.querySelector<HTMLButtonElement>('button[aria-label="Next day"]')!.click());
+    expect(logging()).toBe("live");
+    again({ journeyCutoverDate: "2026-10-14" });
+    expect(logging()).toBe("live");
+    again({});
+    expect(logging()).toBe("not-yet");
+  });
+
   it("while the stream hasn't answered, today's cards are unread: no fade, no word, never done", () => {
     openDay({ sessionsKnown: false });
     for (const name of ["C0 Client", "C1 Client", "C4 Client"]) {

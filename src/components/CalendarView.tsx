@@ -163,6 +163,7 @@ export function CalendarView({
   clients,
   scheduleWindow,
   mindbodySiteId = null,
+  journeyCutoverDate = null,
   rosterStatus,
   sessions: workoutSessions = NO_SESSIONS,
   sessionsKnown = false,
@@ -181,6 +182,12 @@ export function CalendarView({
   scheduleWindow?: ScheduleWindowControls;
   /** This studio's Mindbody site: staff ids are numbered per site (the Hub's column rule). */
   mindbodySiteId?: string | number | null;
+  /**
+   * This studio's Journey cutover date (yyyy-mm-dd), or null when none is
+   * set: the Day's cards step Not logged back before it, as the Hub's do
+   * (`loggingFrom`, hub-schedule/hub-day.ts; the cards round, Oct 17 2026).
+   */
+  journeyCutoverDate?: string | null;
   /** The studio's client list ("loading", "ready", "error"): a card says nothing about sync off a list nobody read. */
   rosterStatus?: string;
   /**
@@ -671,6 +678,7 @@ export function CalendarView({
             frameOf={readsWeeks ? frameOf : undefined}
             phone={isPhone}
             onOpenClient={openClient}
+            journeyCutoverDate={journeyCutoverDate}
           />
         </div>
       ) : (

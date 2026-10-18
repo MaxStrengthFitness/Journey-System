@@ -38,7 +38,7 @@ const BLOCKS: B[] = [
   block("lunch", "Unavailable", "sam", 12 * 60, true),
 ];
 
-function mount(mineOnly: string | null, nowMin: number | null, blocks = BLOCKS) {
+function mount(mineOnly: string | null, nowMin: number | null, blocks = BLOCKS, extra: { logging?: "live" | "not-yet" } = {}) {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -53,6 +53,7 @@ function mount(mineOnly: string | null, nowMin: number | null, blocks = BLOCKS) 
           renderCard={(b) => <div className="card">{b.name}</div>}
           withWords={(b) => (mineOnly ? null : b.columnId === "aj" ? "with you" : "with Sam")}
           emptyWords="Nobody booked."
+          {...extra}
         />
       </StrictMode>,
     ),
@@ -79,5 +80,21 @@ describe("PhoneDayList", () => {
     host!.remove();
     mount("aj", null, [block("m", "Meriadoc Brandybuck", "sam", 400)]);
     expect(host!.textContent).toBe("Nobody booked with you on this day.");
+  });
+
+  it("says on the list whether the studio logs the day in Journey, as the grid does (the cards round, Oct 17 2026)", () => {
+    const day = () => host!.querySelector<HTMLElement>(".ph-day")!;
+    mount(null, null, BLOCKS, { logging: "not-yet" });
+    expect(day().dataset.logging).toBe("not-yet");
+    // The gate changes how a Not logged card looks (hub-card.css), never what is listed.
+    expect(rows()).toEqual(["6AMFrodo Bagginswith you", "6:30AMMeriadoc Brandybuckwith Sam", "7AMPeregrin Tookwith you"]);
+    act(() => root!.unmount());
+    host!.remove();
+    mount(null, null, BLOCKS, { logging: "live" });
+    expect(day().dataset.logging).toBe("live");
+    act(() => root!.unmount());
+    host!.remove();
+    mount(null, null);
+    expect(day().hasAttribute("data-logging")).toBe(false);
   });
 });
