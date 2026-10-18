@@ -9,6 +9,8 @@ describe("sendsAtOnce", () => {
     expect(sendsAtOnce({ seconds: 45 })).toBe(false);
     expect(sendsAtOnce({ weight: 150 })).toBe(false);
     expect(sendsAtOnce({ weight: null })).toBe(false);
+    // The pain skip's "Where?" words, typed after the skip was sent (F22).
+    expect(sendsAtOnce({ skipNote: "left kn" })).toBe(false);
   });
 
   it("sends a quality mark at once, on either side, including taking one off", () => {

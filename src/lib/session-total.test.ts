@@ -5,6 +5,7 @@ import {
   canClaimMilestone,
   sessionNumberWords,
   sessionTotalOf,
+  thisSessionWords,
   totalIsSayable,
 } from "./session-total";
 import { numberWords } from "../features/hub-schedule/peek-model";
@@ -112,5 +113,32 @@ describe("the words", () => {
     expect(numberWords(1, "whole-story")).toBe("first session");
     expect(numberWords(null, "journey-only", 6)).toBe("#6 in Journey");
     expect(numberWords(null, "confirmed")).toBeNull();
+  });
+});
+
+describe("thisSessionWords: the Wrap-up says the number the briefing promised (F6 = c, Oct 18 2026)", () => {
+  it("Mindbody's guess: the sessions before Journey plus Start's number", () => {
+    // 312 visits, 5 in Journey before today: 307 before Journey, and today is Journey's 6th.
+    expect(thisSessionWords({ sessionCount: 5, clientsNumberOfVisitsAtSite: 312 }, "partial", 6)).toBe("#313");
+  });
+  it("a confirmed record not folded into the count yet: added", () => {
+    expect(thisSessionWords({ sessionCount: 5, priorHistory: prior(306) }, "partial", 6)).toBe("#312");
+  });
+  it("a confirmed record already folded into the count: Start's number holds it", () => {
+    expect(thisSessionWords({ sessionCount: 311, priorHistory: prior(306) }, "partial", 312)).toBe("#312");
+  });
+  it("a record folded into the count between Start and Finish: still added, from Start's own number", () => {
+    // Start saw 5 sessions (its number 6); the reconciler folded 306 in before Finish.
+    expect(thisSessionWords({ sessionCount: 311, priorHistory: prior(306) }, "partial", 6)).toBe("#312");
+  });
+  it("the whole story in Journey: Start's number is the total", () => {
+    expect(thisSessionWords({ sessionCount: 3 }, "complete", 4)).toBe("#4");
+  });
+  it("nothing before Journey known: no number, never Journey's own to a client who may have years", () => {
+    expect(thisSessionWords({ sessionCount: 5 }, "partial", 6)).toBeNull();
+  });
+  it("no session number: nothing", () => {
+    expect(thisSessionWords({ sessionCount: 5, clientsNumberOfVisitsAtSite: 312 }, "partial", null)).toBeNull();
+    expect(thisSessionWords({ sessionCount: 5, clientsNumberOfVisitsAtSite: 312 }, "partial", 0)).toBeNull();
   });
 });

@@ -168,9 +168,9 @@ describe("whoStartedIt", () => {
     });
   });
 
-  it("never guesses a starter the roster cannot name", () => {
+  it("never guesses a starter the list cannot name: a trainer from another studio (the trainer lock)", () => {
     expect(whoStartedIt({ trainerId: "t-aj", trainerInitials: "AJ", startedByTrainerId: "t-gone" }, trainers)).toEqual({
-      starter: null,
+      starter: "a trainer from another studio",
       runner: "AJ",
       changedHands: true,
     });

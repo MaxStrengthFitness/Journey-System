@@ -3,9 +3,8 @@ import type { ExerciseLog } from "../../types";
 import {
   USUAL_MIN_SETS,
   lastTimeLines,
-  machinesTouchingLimits,
-  routineCodes,
   safetyRegions,
+  soreAreaOfTag,
   tagOfSlug,
   viewsToDraw,
 } from "./stack";
@@ -49,7 +48,15 @@ describe("tagOfSlug", () => {
   it("turns a tap on the model into the tracker's region", () => {
     expect(tagOfSlug("deltoids")).toBe("Shoulders");
     expect(tagOfSlug("lower-back")).toBe("Lower Back");
-    expect(tagOfSlug("head")).toBeNull();
+    // The head is a sore spot since the briefing round (Oct 17 2026): a headache.
+    expect(tagOfSlug("head")).toBe("Head");
+    expect(tagOfSlug("hands-fingers")).toBeNull();
+  });
+
+  it("lights the head on the Sore spot figure, and every other region by its figure region", () => {
+    expect(soreAreaOfTag("Head")).toBe("head");
+    expect(soreAreaOfTag("Knees")).toBe("knee");
+    expect(soreAreaOfTag("Nowhere")).toBeNull();
   });
 });
 
@@ -100,15 +107,5 @@ describe("lastTimeLines", () => {
 
   it("is empty with no last session", () => {
     expect(lastTimeLines({ lastSession: null, logs: earlierLp, machines })).toEqual([]);
-  });
-});
-
-describe("the routine line", () => {
-  it("reads each machine's short name, else its name, in order", () => {
-    expect(routineCodes(["cp", "lx", "missing", "lp"], machines)).toEqual(["CP", "Lumbar Extension", "LP"]);
-  });
-  it("names the machines one of her flags touches", () => {
-    expect(machinesTouchingLimits(["lp", "lx"], machines, ["gen-low-back"])).toContain("Lumbar Extension");
-    expect(machinesTouchingLimits(["lp", "lx"], machines, [])).toEqual([]);
   });
 });

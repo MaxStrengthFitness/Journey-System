@@ -142,7 +142,8 @@ describe("the line never reaches a reader of details — even an old one that ne
     const summary = summariseFord(all);
     expect(summary.untagged).toBe(0);
     expect(summary.counts).toEqual({ family: 1, occupation: 0, recreation: 0, dreams: 0 });
-    expect(JSON.stringify(summary.pinned)).not.toContain("hygienist");
+    expect(summary).not.toHaveProperty("pinned"); // no FORD text in the rollup at all since Oct 18 2026
+    expect(JSON.stringify(summary)).not.toContain("hygienist");
     expect(summary.nextDate).toBeNull();
   });
 

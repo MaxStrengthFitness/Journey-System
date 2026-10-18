@@ -57,11 +57,11 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  Activity,
-  ChevronDown,
+  ArrowLeft,
   Compass,
   Crosshair,
   HeartPulse,
+  Lock,
   History,
   Lightbulb,
   PenLine,
@@ -108,7 +108,7 @@ import type { HistoryCoverage } from "../../lib/prior-history";
 import { JournalEntryCard } from "../../components/journal/JournalEntryCard";
 import { CriticalStrip } from "../../components/journal/CriticalStrip";
 import { BriefingNoteFooter } from "./BriefingNoteFooter";
-import { briefingNotes, latestUpdateLine, standingHealth } from "./briefing-notes";
+import { briefingNotes, latestUpdateLine, seenSince, standingHealth } from "./briefing-notes";
 import { useNoteDismissals, dismissThread } from "../client-notes/dismissal-store";
 import type { NoteThread } from "../client-notes/threads";
 import { FOCUS_VISUALS, relativeDay, toDate } from "../../types/journal";
@@ -121,11 +121,9 @@ import { auth } from "../../firebase";
 import { Dial, READINESS_KEYS, READINESS_SCALES, compactReadiness, type Readiness } from "../rating";
 import { carriedRegions, lastRunLabel, lastRunOfRoutine } from "./briefing-facts";
 import {
-  figureRegionOfTag,
+  soreAreaOfTag,
   lastTimeLines,
-  machinesTouchingLimits,
   regionWords,
-  routineCodes,
   safetyRegions,
   tagOfSlug,
   viewsToDraw,
@@ -146,10 +144,9 @@ import { openProfileAt } from "../client-profile/profile-nav";
 import { isProvisionalNewClient, learningCurveInputOf, pastLearningCurve, startingKindOf } from "../routine-plan/client-kind";
 import { openHealthWords, planIntakeText } from "../routine-plan/intake";
 import { focusLine } from "../routine-plan/focus";
-import { planProgress, progressLine, todayFor } from "../routine-plan/plan";
-import { runnableToday } from "../routine-plan/cant-do";
-import { roadGroups } from "../routine-plan/lineup";
-import { bProgressOf, bRoadGroups, bStatus, bStatusLine, isBPlan, plannedBTarget, swapsOf } from "../routine-plan/b-routine";
+import { planProgress, todayFor } from "../routine-plan/plan";
+import { activeCantDo, runnableToday } from "../routine-plan/cant-do";
+import { bStatus, isBPlan, plannedBTarget, swapsOf } from "../routine-plan/b-routine";
 import {
   briefingPlanView,
   type BriefingDoor,
@@ -157,8 +154,12 @@ import {
 } from "../routine-plan/briefing-plan";
 import { useBriefingPlan } from "../routine-plan/ui/useBriefingPlan";
 import { BriefingDoors, BriefingJourneyLine, BriefingPlanCard } from "../routine-plan/ui/BriefingPlanCard";
-import { RoadStrip } from "../routine-plan/ui/RoadStrip";
-import { machineNamer } from "../routine-plan/ui/host";
+import { StartFromRoutineSheet } from "../routine-plan/ui/StartFromRoutineSheet";
+import { floorMachinesOf, machineNamer } from "../routine-plan/ui/host";
+import { TodayList } from "./TodayList";
+import { recentJots, useMyNotesAbout } from "../relay/notes/client-jots";
+import { whenLabel } from "../relay/notes/notes";
+import { PerformanceCard } from "./PerformanceCard";
 
 /** Her limits on the figure: the briefing's caution tone, never the kaizen red. */
 const SAFETY_LIT: [string, string] = ["var(--br-warn)", "var(--br-warn)"];
@@ -207,8 +208,20 @@ export interface BriefingScreenProps {
      * an EMPTY Routine A.
      */
     startPlan?: StartPlanAtStart | null,
+    /**
+     * The note marked "Just for me" (the briefing round, phase 4): never the
+     * arrival note and never on the client's record. The tracker files it in
+     * the trainer's own notebook (relay/notes/client-jots.ts), never waited on.
+     */
+    privateNote?: string | null,
   ) => void;
   onClose: () => void;
+  /**
+   * Where the close button goes, in words: "Back to the Hub", "Back to
+   * Calendar" (AJ's F4 "a", Oct 16 2026: the briefing's X returns to where
+   * Start was tapped, and says so). Without it, an X.
+   */
+  closeWords?: string | null;
   machines: Machine[];
   routines: Routine[];
   /** Used to resolve initials on legacy journal rows. */
@@ -240,6 +253,7 @@ export function BriefingScreen({
   routinesKnown = false,
   onStart,
   onClose,
+  closeWords = null,
   machines,
   routines,
   trainers = [],
@@ -268,6 +282,11 @@ export function BriefingScreen({
   // acts on it (Health, Incident and Retention reach the studio's leaders);
   // left alone, it waits in the To-file tray as before.
   const [arrivalCategory, setArrivalCategory] = useState<FilingCategory | null>(null);
+  /* "Just for me" (AJ's handoff, Oct 17 2026: "Personal notes show only to
+     the trainer who wrote them ... They carry a privacy toggle: 'this is
+     just for me.'"). On, the note goes to the trainer's own notebook at
+     Start instead of the client's record. */
+  const [justForMe, setJustForMe] = useState(false);
   const [isAdjusting, setIsAdjusting] = useState(false);
   /** Update Pulse — the living assessment, one area at a time, from here. */
   const [showPulse, setShowPulse] = useState(false);
@@ -502,6 +521,13 @@ export function BriefingScreen({
     () => briefingNotes(journal.threads, criticalEntries, headsUpEntries, dismissals, showHushed),
     [journal.threads, criticalEntries, headsUpEntries, dismissals, showHushed],
   );
+  /* Your own notes about this client (the briefing round, phase 4; AJ's
+     handoff: "Personal relationship notes: the trainer's own memories with
+     this client"). trainers/{uid}/notes, read with the Auth uid the rules
+     pin it to: only ever the signed-in trainer's, never anyone else's. */
+  const myAuthUid = auth.currentUser?.uid ?? null;
+  const mine = useMyNotesAbout(myAuthUid, client.id ?? null);
+  const myJots = useMemo(() => recentJots(mine.notes, client.id ?? null, 3), [mine.notes, client.id]);
   const hush = uid
     ? (thread: NoteThread) => {
         void dismissThread(uid, thread.id);
@@ -583,12 +609,15 @@ export function BriefingScreen({
     ? { id: uid, initials: (authTrainer?.initials || "TR").toUpperCase(), fullName: authTrainer?.fullName || "Coach" }
     : null;
 
+  /* Which routine the last session ran, by its name (the briefing round, Oct
+     17 2026): the routine it named, else the name it recorded, else "Open
+     session". Never the session TYPE ("Standard", which nobody picks, was
+     what Robbin's briefing said); nothing when none of them reads. */
   const lastRoutineName = lastSession
     ? routines.find((r) => r.id === lastSession.routineId)?.name ||
-      ((lastSession.sessionType as string) === "Free"
-        ? "Open Session"
-        : lastSession.sessionType)
-    : "None";
+      lastSession.routineName?.trim() ||
+      ((lastSession.sessionType as string) === "Free" ? "Open session" : null)
+    : null;
 
   const lastSessionDate = safeToDate(lastSession?.endTime)
     ? safeToDate(lastSession.endTime)!.toLocaleDateString("en-US", {
@@ -632,8 +661,14 @@ export function BriefingScreen({
     [lastSession, logs, machines],
   );
   const safetyCount = clientFlags.length + notes.critical.length + carried.length;
-  const sinceCount =
-    lastTime.length + notes.headsUp.length + markers.length + activeJournalFocuses.length;
+  /* Quieter once seen (AJ's "2a", Oct 17 2026): a Heads up this trainer
+     has trained the client since is one quiet line, not a card. The trainer
+     record's id is what a session stores; the Auth uid is asked too. */
+  const myTrainerIds = [authTrainer?.id ?? null, uid];
+  const headsUpQuiet = notes.headsUp.filter((t) => seenSince(t, sessions, myTrainerIds));
+  const headsUpLoud = notes.headsUp.filter((t) => !headsUpQuiet.includes(t));
+  /* How last time went is question 3's now (PerformanceCard), not news. */
+  const sinceCount = notes.headsUp.length + markers.length + activeJournalFocuses.length + myJots.length;
 
   /* On the way in: every drawer folded until a trainer opens it, the Dials
      too (AJ, Oct 9 2026, the floor round's 2a: they're optional, and Start
@@ -641,12 +676,13 @@ export function BriefingScreen({
      the briefing's words). The Dials chip counts what was tapped while
      folded. Hand over the iPad opens Pulse's client mode. Untouched = not
      asked, exactly as before. */
-  const [drawer, setDrawer] = useState<{ dials: boolean; sore: boolean; note: boolean }>({
+  const [drawer, setDrawer] = useState<{ dials: boolean; sore: boolean; note: boolean; pulse: boolean }>({
     dials: false,
     sore: false,
     note: false,
+    pulse: false,
   });
-  const toggleDrawer = (key: "dials" | "sore" | "note") =>
+  const toggleDrawer = (key: "dials" | "sore" | "note" | "pulse") =>
     setDrawer((d) => ({ ...d, [key]: !d[key] }));
   const [handing, setHanding] = useState(false);
   const [soreView, setSoreView] = useState<"front" | "back">("front");
@@ -661,17 +697,18 @@ export function BriefingScreen({
   const soreRegions = useMemo(
     () =>
       bodyStates
-        .map((b) => figureRegionOfTag(b.region))
+        .map((b) => soreAreaOfTag(b.region))
         .filter((r): r is NonNullable<typeof r> => r !== null),
     [bodyStates],
   );
 
-  /* The routine, as one line until it is opened. */
-  const [routineOpen, setRoutineOpen] = useState(false);
+  /* Today's machines are one list a trainer acts on (the briefing round, Oct
+     17 2026: TodayList). Rebuild swaps it for the Routine Builder, for a
+     bigger change; Other routine opens Start from a routine. */
+  const [rebuilding, setRebuilding] = useState(false);
+  const [startFromOpen, setStartFromOpen] = useState(false);
   const routineLetter =
     selectedRoutineType === "B" || selectedRoutineType === "TodayOnly_B" ? "B" : "A";
-  const codes = routineCodes(selectedRoutineIds, machines);
-  const touching = machinesTouchingLimits(selectedRoutineIds, machines, flagIds);
 
   /* ---------------------------------------------------------------- *
    * HOW THE CLIENT STARTS (the first-session design round, Oct 8 2026,
@@ -745,49 +782,29 @@ export function BriefingScreen({
     aAndBTogether: planView === "starting" ? planNewClients : false,
     bPlannable: plannedBTarget(routines) !== null,
   });
-  /* A plan in progress: the routine line, and the Road under it as the
-     glance ("3 of 6 · next: …"). */
-  const inProgress =
-    planView === "in-progress" && routineLetter === "A" && routineA?.plan
-      ? {
-          groups: roadGroups({ plan: routineA.plan, today: selectedRoutineIds, todayYmd: todayKey, firstName }),
-          progress: planProgress(routineA.plan, routineA.machineIds ?? []),
-        }
+  /* The plan speaks only when it has news (the briefing round, Oct 17 2026;
+     AJ, Oct 16: "show it, don't label it"). The Road, the meter and "3 of 6"
+     left the briefing for Programming and the session's plan sheet; what
+     stays is the plan's NEXT step, where a trainer acts on it: Routine A's
+     plan's next machine first in + Add, Routine B's next swap first in Swap
+     for the machine it replaces (Round 2, B built over time). */
+  const onRoutine = planView === "routine" || planView === "in-progress";
+  const nextInPlan =
+    onRoutine && routineLetter === "A" && routineA?.plan ? planProgress(routineA.plan, routineA.machineIds ?? []).next : null;
+  const nextSwap =
+    onRoutine && routineLetter === "B" && routineB && isBPlan(routineB.plan)
+      ? bStatus(swapsOf(routineB.plan), routineB.machineIds ?? []).next
       : null;
-  /* A session on Routine B with a plan of swaps (Round 2, B molded in):
-     the Road for B as the glance, today under its bracket, the swaps still
-     to come, "B · 2 of 5 swaps" under it. Nothing else here changes. */
-  const bRoad =
-    (planView === "routine" || planView === "in-progress") && routineLetter === "B" && routineB && isBPlan(routineB.plan)
-      ? (() => {
-          const status = bStatus(swapsOf(routineB.plan), routineB.machineIds ?? []);
-          return {
-            groups: bRoadGroups({
-              bPlan: routineB.plan,
-              // With Routine A's machines, B's own on deck (a weak area's addition for B) is on the Road too.
-              aRoutine: routineA?.machineIds ?? [],
-              today: selectedRoutineIds,
-              bRoutine: routineB.machineIds ?? [],
-              cantDo: routineA?.plan?.cantDo,
-              todayYmd: todayKey,
-              nameOf: planNameOf,
-              firstName,
-            }),
-            // The client's weak area, from Routine A's plan, read by A and B (Round 2, item 7).
-            line: [bStatusLine(status, planNameOf), focusLine(routineA?.plan)].filter(Boolean).join(" · "),
-            progress: bProgressOf(status),
-          };
-        })()
-      : null;
-  /* A session on a Routine B of its own (no plan of swaps, so no Road): the
-     weak area still reaches the next trainer, on the routine line. */
-  const routineFocus =
-    (planView === "routine" || planView === "in-progress") && routineLetter === "B" && !bRoad ? focusLine(routineA?.plan) : null;
-  /* The plan card's safety line: today's machines against the client's
-     limits, as the routine line says it for a routine (the routine line is
-     not drawn for a plan card). */
-  const planTouching =
-    planView === "starting" || planView === "kept" ? machinesTouchingLimits(briefingPlan.today, machines, flagIds) : [];
+  /* The client's weak area, from Routine A's plan, read by A and B (Round 2,
+     item 7): one quiet line under today's list. */
+  const planFocus = onRoutine ? focusLine(routineA?.plan) : null;
+  /* What the client can't do today (Routine A's plan's marks, read by A and
+     B): never offered in + Add or Swap. */
+  const held = useMemo(
+    () => activeCantDo(routineA?.plan, todayKey).map((c) => c.machineId),
+    [routineA, todayKey],
+  );
+  const startFromFloor = useMemo(() => floorMachinesOf(machines), [machines]);
 
   /* What the briefing holds that a navigation would lose: the arrival note,
      the Dials and body states tapped, and today changed on the plan card.
@@ -825,7 +842,10 @@ export function BriefingScreen({
     const tapped = compactReadiness(readiness);
     if (tapped) checkIn.readiness = tapped;
     if (bodyStates.length > 0) checkIn.bodyStates = bodyStates;
-    const category = adjustmentNote.trim() ? arrivalCategory : null;
+    // A note "just for me" is never the arrival note, and is never filed on the record.
+    const privateNote = justForMe && adjustmentNote.trim() ? adjustmentNote : null;
+    const arrivalNote = privateNote ? "" : adjustmentNote;
+    const category = arrivalNote.trim() ? arrivalCategory : null;
 
     if (planView === "starting" || planView === "kept") {
       /* Today as the card has it. A starting plan goes up with today's
@@ -835,12 +855,12 @@ export function BriefingScreen({
       const { plan, today, changed, startPlan } = briefingPlan;
       const sendStartPlan = planView === "starting" ? startPlan : null;
       const custom = sendStartPlan || planView === "kept" ? (changed ? today : undefined) : plan ? today : undefined;
-      onStart("A", custom, adjustmentNote, checkIn, category, sendStartPlan);
+      onStart("A", custom, arrivalNote, checkIn, category, sendStartPlan, privateNote);
       return;
     }
     if (planView === "journey" || planView === "doors") {
       // Start and add machines as you go: an empty session, never the floor.
-      onStart("A", undefined, adjustmentNote, checkIn, category, null);
+      onStart("A", undefined, arrivalNote, checkIn, category, null, privateNote);
       return;
     }
     onStart(
@@ -853,9 +873,11 @@ export function BriefingScreen({
         ["Free", "TodayOnly_A", "TodayOnly_B"].includes(selectedRoutineType)
         ? adjustedMachineIds
         : undefined,
-      adjustmentNote,
+      arrivalNote,
       checkIn,
       category,
+      undefined,
+      privateNote,
     );
   };
 
@@ -878,7 +900,8 @@ export function BriefingScreen({
                     {clientDisplayName(client)}
                   </h1>
                   <p className="br__meta">
-                    Last session · {lastSessionDate} · {lastRoutineName}
+                    Last session · {lastSessionDate}
+                    {lastRoutineName ? ` · ${lastRoutineName}` : ""}
                   </p>
                   {guessLine && (
                     <p className="br__meta br__meta--quiet" data-testid="briefing-session-guess">
@@ -886,14 +909,22 @@ export function BriefingScreen({
                     </p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={closeBriefing}
-                  className="br__close"
-                  aria-label="Close briefing"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                {closeWords ? (
+                  <button type="button" onClick={closeBriefing} className="br__back" data-testid="briefing-close">
+                    <ArrowLeft className="w-4 h-4" aria-hidden />
+                    {closeWords}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={closeBriefing}
+                    className="br__close"
+                    aria-label="Close briefing"
+                    data-testid="briefing-close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
               </div>
 
               {/* Why they train (Oct 13 2026): the client's own focus, set on
@@ -1077,101 +1108,130 @@ export function BriefingScreen({
               )}
             </section>
 
-            {/* 3. SINCE LAST TIME — what is different, in a few lines: how the
-                last session went, notes since, time away and milestones, and
-                what the team is working on with her. */}
-            {sinceCount > 0 && (
-              <section className="br-card br-since" aria-label="Since last time">
+            {/* 3. WHAT'S DIFFERENT, AND WHAT'S NEW — one card (the briefing
+                round, Oct 17 2026; AJ's handoff, question 1, "What's different
+                about this person?"; "information that's kind of spread out all
+                over"). How the last session went, the markers, the Heads ups
+                (a full card until this trainer has trained the client since,
+                then one quiet line: AJ's "2a"), the team's focuses, then the
+                one thing to ask (FORD, by the Hub's rule) and the InBody and
+                renewal lines, quiet, at the foot. Gone when it has nothing. */}
+            <section className="br-card br-since" aria-label="Since last time">
+              {sinceCount > 0 && (
                 <span className="br__label">
                   <History className="w-3.5 h-3.5" aria-hidden />
-                  Since last time · {sinceCount}
+                  Since last time
                 </span>
+              )}
 
-                {markers.length > 0 && (
-                  <div className="br__markers">
-                    {markers.map((m) => (
-                      <span key={m.kind} className={cn("br__marker", `br__marker--${m.kind}`)}>
-                        {m.label}
-                      </span>
-                    ))}
-                  </div>
-                )}
+              {markers.length > 0 && (
+                <div className="br__markers">
+                  {markers.map((m) => (
+                    <span key={m.kind} className={cn("br__marker", `br__marker--${m.kind}`)}>
+                      {m.label}
+                    </span>
+                  ))}
+                </div>
+              )}
 
-                {lastTime.length > 0 && (
-                  <ul className="br-since__lines" data-testid="briefing-last-time">
-                    {lastTime.map((line) => (
-                      <li key={line.key} className="br-since__line" data-kind={line.kind}>
-                        {line.text}
+              {headsUpLoud.length > 0 && (
+                <div className="br__headsup" data-testid="briefing-headsup">
+                  <span className="br__label">Heads up</span>
+                  {(showAllHeadsUp ? headsUpLoud : headsUpLoud.slice(0, 3)).map((thread) => (
+                    <div key={thread.id}>
+                      <JournalEntryCard entry={thread.root} machines={machines} dense />
+                      <BriefingNoteFooter thread={thread} onDismiss={hush} />
+                    </div>
+                  ))}
+                  {headsUpLoud.length > 3 && (
+                    <button
+                      type="button"
+                      className="br__more"
+                      onClick={() => setShowAllHeadsUp((v) => !v)}
+                    >
+                      {showAllHeadsUp ? "Show fewer" : `${headsUpLoud.length - 3} more`}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Quieter once seen: this trainer has trained the client since
+                  its newest word. Quieter, never invisible. */}
+              {headsUpQuiet.length > 0 && (
+                <ul className="br__headsup-quiet" data-testid="briefing-headsup-quiet">
+                  {headsUpQuiet.map((thread) => (
+                    <li key={thread.id}>
+                      <b>Heads up</b> · {thread.root.body}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Only you: your own notes about this client (phase 4). A read
+                  that failed says so; it is never "nothing". */}
+              {(myJots.length > 0 || mine.state === "failed") && (
+                <ul className="br__mine" data-testid="briefing-mine">
+                  {mine.state === "failed" ? (
+                    <li className="br__mine-unread">Couldn't load your own notes about {sentenceName}.</li>
+                  ) : (
+                    myJots.map(({ entry }) => (
+                      <li key={entry.id}>
+                        <b>Only you</b> · {entry.text} <span className="br__mine-when">{whenLabel(new Date(entry.at))}</span>
                       </li>
-                    ))}
-                  </ul>
-                )}
+                    ))
+                  )}
+                </ul>
+              )}
 
-                {notes.headsUp.length > 0 && (
-                  <div className="br__headsup" data-testid="briefing-headsup">
-                    <span className="br__label">Heads up</span>
-                    {(showAllHeadsUp ? notes.headsUp : notes.headsUp.slice(0, 3)).map((thread) => (
-                      <div key={thread.id}>
-                        <JournalEntryCard entry={thread.root} machines={machines} dense />
-                        <BriefingNoteFooter thread={thread} onDismiss={hush} />
-                      </div>
-                    ))}
-                    {notes.headsUp.length > 3 && (
-                      <button
-                        type="button"
-                        className="br__more"
-                        onClick={() => setShowAllHeadsUp((v) => !v)}
-                      >
-                        {showAllHeadsUp ? "Show fewer" : `${notes.headsUp.length - 3} more`}
-                      </button>
-                    )}
-                  </div>
-                )}
+              {activeJournalFocuses.map((f) => {
+                const visual = FOCUS_VISUALS[f.category] || FOCUS_VISUALS.Posture;
+                return (
+                  <article key={f.id} className="br__focus br__focus--line">
+                    <span aria-hidden className={cn("br__focus-edge", visual.edge)} />
+                    <span className="br__label">
+                      <Target className="w-3.5 h-3.5" />
+                      {f.category} · {f.trainerInitials}
+                      <span className="br__focus-when">{relativeDay(toDate(f.startedAt))}</span>
+                    </span>
+                    <p className="br__quote">
+                      {f.intent}
+                      {f.targetMachineId && (
+                        <span className="br__focus-target">
+                          {" "}· {machines.find((m) => m.id === f.targetMachineId)?.name || "Unknown machine"}
+                        </span>
+                      )}
+                    </p>
+                  </article>
+                );
+              })}
 
-                {activeJournalFocuses.map((f) => {
-                  const visual = FOCUS_VISUALS[f.category] || FOCUS_VISUALS.Posture;
-                  return (
-                    <article key={f.id} className="br__focus br__focus--line">
-                      <span aria-hidden className={cn("br__focus-edge", visual.edge)} />
-                      <span className="br__label">
-                        <Target className="w-3.5 h-3.5" />
-                        {f.category} · {f.trainerInitials}
-                        <span className="br__focus-when">{relativeDay(toDate(f.startedAt))}</span>
-                      </span>
-                      <p className="br__quote">
-                        {f.intent}
-                        {f.targetMachineId && (
-                          <span className="br__focus-target">
-                            {" "}· {machines.find((m) => m.id === f.targetMachineId)?.name || "Unknown machine"}
-                          </span>
-                        )}
-                      </p>
-                    </article>
-                  );
-                })}
-              </section>
-            )}
+              {/* Something to ask about: one row, by the Hub's rule; gone when
+                  there is nothing worth saying. */}
+              <FordBriefingCue
+                client={client ?? null}
+                author={fordAuthor}
+                studioId={client.homeStudioId || ""}
+              />
 
-            {/* 4. Something to ask about. One quiet row; gone when there is
-                nothing worth saying. FORD round, Sep 2026. */}
-            <FordBriefingCue
-              client={client ?? null}
-              author={fordAuthor}
-              studioId={client.homeStudioId || ""}
-            />
+              {/* Also today: the admin lines, quiet, never in the safety band
+                  and never a gate on Start. The renewal line decides for
+                  itself whether it has anything to say. */}
+              {inbodyLine && (
+                <p className="br__inbody" data-testid="briefing-inbody">
+                  <Scale className="w-3.5 h-3.5" aria-hidden />
+                  <span>{inbodyLine}</span>
+                </p>
+              )}
+              <BriefingRenewalLine client={client} />
+            </section>
 
             {/* 5. ON THE WAY IN — filled in walking to the first machine.
                 AJ: "sometimes is everything, sometimes its one thing,
                 sometimes its nothing maybe they came in extra early and you
                 have time to hand them the pulse client view". */}
+            {/* No heading (the briefing round, Oct 17 2026; AJ: show it, don't
+                label it): four chips, Pulse holding both its doors. */}
             <section className="br-card br__checkin" aria-label="On the way in">
-              <div className="br__checkin-head">
-                <h2 className="br-section__title">
-                  <Activity className="w-4 h-4" />
-                  On the way in
-                  <span className="br__optional">Optional</span>
-                </h2>
-              </div>
               <div className="br-cap__chips" role="group" aria-label="What to fill in">
                 <button
                   type="button"
@@ -1200,15 +1260,32 @@ export function BriefingScreen({
                   <PenLine className="w-4 h-4" aria-hidden />
                   Note{adjustmentNote.trim() ? " · 1" : ""}
                 </button>
-                <button type="button" className="br-cap__chip" onClick={() => setShowPulse(true)}>
+                <button
+                  type="button"
+                  className="br-cap__chip"
+                  aria-pressed={drawer.pulse}
+                  onClick={() => toggleDrawer("pulse")}
+                >
                   <HeartPulse className="w-4 h-4" aria-hidden />
-                  Update Pulse
-                </button>
-                <button type="button" className="br-cap__chip" onClick={() => setHanding(true)}>
-                  <Tablet className="w-4 h-4" aria-hidden />
-                  Hand over the iPad
+                  Pulse
                 </button>
               </div>
+
+              {/* Pulse's two doors (the briefing round, Oct 17 2026): the
+                  trainer asks, or the client answers on the iPad. One more
+                  tap for the rarer job, two fewer chips on every briefing. */}
+              {drawer.pulse && (
+                <div className="br-cap__pulse" role="group" aria-label="Pulse" data-testid="briefing-pulse">
+                  <button type="button" className="br-cap__chip" onClick={() => setShowPulse(true)}>
+                    <HeartPulse className="w-4 h-4" aria-hidden />
+                    You ask
+                  </button>
+                  <button type="button" className="br-cap__chip" onClick={() => setHanding(true)}>
+                    <Tablet className="w-4 h-4" aria-hidden />
+                    Hand over the iPad
+                  </button>
+                </div>
+              )}
 
               {/* Sleep · Energy · Recovery · Stress. Untouched = not asked. */}
               {drawer.dials && (
@@ -1274,7 +1351,19 @@ export function BriefingScreen({
                     placeholder="Anything they mentioned — how they slept, an ache, a trip coming up, a new diet, the grandkids are in town…"
                     className="br__textarea"
                   />
-                  {adjustmentNote.trim() ? (
+                  {/* Just for me: the trainer's own notebook, shown to nobody
+                      else in any form (the handoff's privacy rule). */}
+                  <button
+                    type="button"
+                    className="br-cap__chip br__mine-toggle"
+                    aria-pressed={justForMe}
+                    onClick={() => setJustForMe((v) => !v)}
+                    data-testid="briefing-just-for-me"
+                  >
+                    <Lock className="w-4 h-4" aria-hidden />
+                    Just for me
+                  </button>
+                  {adjustmentNote.trim() && !justForMe ? (
                     <div className="br__file-as" data-testid="arrival-file-as">
                       <span className="nc-kicker">File it as (optional)</span>
                       <NoteCategoryChips
@@ -1306,14 +1395,6 @@ export function BriefingScreen({
                   floor={machines}
                   todayYmd={todayKey}
                   onBack={door ? () => setDoor(null) : undefined}
-                  limits={
-                    planTouching.length > 0 ? (
-                      <p className="br-routine__touch" data-testid="briefing-plan-limits">
-                        <ShieldAlert className="w-3.5 h-3.5" aria-hidden />
-                        Mind the limits on {planTouching.join(", ")}
-                      </p>
-                    ) : null
-                  }
                 />
               ) : planView === "journey" ? (
                 <BriefingJourneyLine
@@ -1347,67 +1428,27 @@ export function BriefingScreen({
                       className="br__routine"
                     >
                       <span className="br__routine-name">Routine {type}</span>
+                      {/* When THAT routine last ran (Sep 16); no count, the list shows it. */}
                       <span className="br__routine-sub">
-                        {routine
-                          ? `${lastRunLabel(lastRun, sessionsAreAll)} · ${routine.machineIds?.length || 0} machines`
-                          : "Not set up yet · today only"}
+                        {routine ? lastRunLabel(lastRun, sessionsAreAll) : "Not set up"}
                       </span>
                     </button>
                   );
                 })}
+                {/* Any other routine (AJ's handoff, Oct 17 2026: "choose A or
+                    B, or any other routine"): Start from a routine, laid on
+                    today's list only. */}
+                <button type="button" className="br__routine br__routine--other" onClick={() => setStartFromOpen(true)}>
+                  <span className="br__routine-name">Other routine</span>
+                </button>
               </div>
-              <button
-                type="button"
-                className="br-routine__line"
-                aria-expanded={routineOpen}
-                onClick={() => setRoutineOpen((v) => !v)}
-                data-testid="briefing-routine-line"
-              >
-                <span className="br-routine__what">
-                  <b>Routine {routineLetter}</b>
-                  {" · "}
-                  {selectedRoutineIds.length} {selectedRoutineIds.length === 1 ? "machine" : "machines"}
-                  {routinePickedByTrainer ? "" : " · suggested"}
-                  {isAdjusting ? " · changed for today" : ""}
-                  {routineFocus ? ` · ${routineFocus}` : ""}
-                </span>
-                {codes.length > 0 && <span className="br-routine__codes">{codes.join(" · ")}</span>}
-                {touching.length > 0 && (
-                  <span className="br-routine__touch">
-                    <ShieldAlert className="w-3.5 h-3.5" aria-hidden />
-                    Mind the limits on {touching.join(", ")}
-                  </span>
-                )}
-                <span className="br-routine__edit">
-                  {routineOpen ? "Done" : "Edit"}
-                  <ChevronDown className={cn("w-4 h-4", routineOpen && "rotate-180")} aria-hidden />
-                </span>
-              </button>
-              {/* A plan in progress: the Road as the glance, today under
-                  its bracket, the next stop, and how far along. */}
-              {inProgress && routineA?.plan && (
-                <div data-testid="briefing-plan-road">
-                  <RoadStrip
-                    groups={inProgress.groups}
-                    nameOf={planNameOf}
-                    label="Routine A's plan"
-                    progressLine={[progressLine(inProgress.progress, planNameOf, routineA.plan.dayOne), focusLine(routineA.plan)].filter(Boolean).join(" · ")}
-                    progress={inProgress.progress}
-                  />
-                </div>
-              )}
-              {bRoad && (
-                <div data-testid="briefing-b-road">
-                  <RoadStrip
-                    groups={bRoad.groups}
-                    nameOf={planNameOf}
-                    label="Routine B's plan"
-                    progressLine={bRoad.line}
-                    progress={bRoad.progress}
-                  />
-                </div>
-              )}
-              {routineOpen && (
+              {rebuilding ? (
+                <div className="br-today__rebuild" data-testid="briefing-rebuild">
+                  <div className="br-today__rebuild-bar">
+                    <button type="button" className="br-today__quiet" onClick={() => setRebuilding(false)}>
+                      Done
+                    </button>
+                  </div>
                 <div className="br__builder">
                   <RoutineBuilder
                     mode="briefing"
@@ -1438,24 +1479,73 @@ export function BriefingScreen({
                     established={pastLearningCurve(learningCurveInputOf({ routinesKnown, coverage, client, routineA }))}
                   />
                 </div>
+                </div>
+              ) : (
+                <TodayList
+                  ids={selectedRoutineIds}
+                  onChange={handleSequenceChange}
+                  floor={machines}
+                  nameOf={planNameOf}
+                  history={machineHistory}
+                  nextInPlan={nextInPlan}
+                  nextSwap={nextSwap}
+                  held={held}
+                  emptyWords={
+                    (routineLetter === "A" ? routineA : routineB)
+                      ? "Nothing on today's list yet."
+                      : `Routine ${routineLetter} isn't set up yet.`
+                  }
+                  onRebuild={() => setRebuilding(true)}
+                  /* No "Mind the limits on …" here (AJ's "3a", Oct 17 2026: no
+                     warning linking a note to today's routine; the flag's own
+                     instructions in Before you start name the machines). */
+                  footnotes={
+                    planFocus ? (
+                      <div className="br-today__notes">
+                        <p className="br-today__focus" data-testid="briefing-focus">
+                          {planFocus}
+                        </p>
+                      </div>
+                    ) : null
+                  }
+                />
+              )}
+              {startFromOpen && (
+                <StartFromRoutineSheet
+                  onClose={() => setStartFromOpen(false)}
+                  studioId={planStudioId}
+                  studioName={studioName ?? null}
+                  floor={startFromFloor}
+                  nameOf={planNameOf}
+                  todayYmd={todayKey}
+                  clientRoutines={routinesKnown ? routines : "reading"}
+                  firstName={firstName}
+                  onLay={(ids, choice) => {
+                    // The client's own A or B is the routine itself; anything else is today's list.
+                    if (choice.key === "client:A" || choice.key === "client:B") {
+                      handlePickRoutine(choice.key === "client:A" ? "A" : "B");
+                      return;
+                    }
+                    handleSequenceChange(ids);
+                  }}
+                />
               )}
               </>
               )}
             </section>
 
-            {/* 7. Also today — the admin lines, quiet, never in the safety
-                band and never a gate on Start. */}
-            {/* Always mounted: the renewal line decides for itself whether it
-                has anything to say, and the footer hides when it is empty. */}
-              <section className="br-also" aria-label="Also today">
-                {inbodyLine && (
-                  <p className="br__inbody" data-testid="briefing-inbody">
-                    <Scale className="w-3.5 h-3.5" aria-hidden />
-                    <span>{inbodyLine}</span>
-                  </p>
-                )}
-                <BriefingRenewalLine client={client} />
-              </section>
+            {/* 7. HOW HAVE THEY BEEN DOING? (the briefing round, Oct 17 2026;
+                AJ's handoff, question 3): how last time went, and behind a
+                tap the last sessions on today's machines, FileMaker's grid
+                of numbers as the placeholder for its own design round. */}
+            <PerformanceCard
+              lines={lastTime}
+              today={planView === "starting" || planView === "kept" ? briefingPlan.today : selectedRoutineIds}
+              logs={logs}
+              sessions={sessions}
+              machines={machines}
+              nameOf={planNameOf}
+            />
 
             {/* 8. One loud action, a solid bar pinned to the bottom of the
                 page: nothing scrolls under it any more. */}

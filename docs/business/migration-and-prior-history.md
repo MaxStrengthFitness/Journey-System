@@ -157,9 +157,11 @@ the client would recognise.
 
 ## The cutover date, and the two things a screen may say
 
-Machine-level prior history will not be imported — a client may have used a
-machine four hundred times in FileMaker and Journey's `machineStats` will say
-zero. So the app never claims they have not, for anyone whose history predates
+Machine-level prior history is not imported yet (since Oct 12 2026 the
+FileMaker import can write it as finished sessions, but its production writes
+stay off until the reset, the full export and AJ's go; until it has run for a
+studio, everything below holds there) — a client may have used a machine four
+hundred times in FileMaker and Journey's `machineStats` will say zero. So the app never claims they have not, for anyone whose history predates
 their studio moving onto Journey. AJ, Sep 2026:
 
 | The client | What a screen says about a machine |

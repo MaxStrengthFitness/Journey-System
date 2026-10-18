@@ -11,6 +11,7 @@ import { db } from "../firebase";
 import { Client, Trainer } from "../types";
 import { studioTodayKey } from "../lib/studio-time";
 import { thisDeviceId } from "../features/session-record/device";
+import { markRecordedHere } from "../features/session-record/recorded-here";
 import {
   forgetLiveSession,
   myTrainerIds,
@@ -178,6 +179,8 @@ export function useClientMutations({
     startingTimer.current = setTimeout(() => setStartingOpenSession(false), OPEN_SESSION_GUARD_MS);
     // The device remembers it, so the Session tab can bring the trainer back.
     rememberLiveSession(sessionRef.id);
+    // Every set of it is typed here, so a Finish offline may stamp from this iPad's copy (F22).
+    markRecordedHere(sessionRef.id);
     goToSession();
   };
 

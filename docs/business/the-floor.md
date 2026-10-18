@@ -24,7 +24,7 @@ breaks rather than describing the symptom.
 | *work of a demanding nature* | One set to failure; and why **performed** is the only outcome that counts toward an average (`src/lib/set-outcome.ts`) |
 | *in accordance with muscle and joint function* | The musculature, movement pattern and kinematics on every machine — the method tier head office owns (`src/lib/machine-template.ts`) |
 | *in a clinically-controlled environment* | Sentences, not scores. No hype, no celebration, and never a confident wrong number |
-| *within the constraints of safety* | Safety is add-only: a studio may add a warning, never remove one. A never-to-failure machine must carry the reason why — an unexplained prohibition gets ignored |
+| *within the constraints of safety* | Safety is add-first: a studio may add a warning freely, and one of the catalog's safety lines comes off a studio's own copy only with a reason recorded with who and when, which head office sees (AJ, Sep 21 2026: studios "are trusted"; built Sep 28; this page said "add-only" until Oct 18 2026). A never-to-failure machine must carry the reason why — an unexplained prohibition gets ignored |
 | *meaningfully loading the muscular structures* | The weight and the settings on the Now Bar. The machine is almost never already right when the trainer walks up, so the load is stated, never assumed |
 | *to inroad their strength* | Rep **quality** as the measure, not rep count — how many *good* reps it took. The red kaizen mark is reserved for exactly this |
 | *to stimulate a growth mechanism* | Why a **practice** set is recorded in full and never averaged: it is movement, and by this definition not exercise, so it must not move a number that claims to measure exercise |

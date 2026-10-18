@@ -77,6 +77,11 @@ export function scaleWord(value: number | null): string {
   ).label;
 }
 
+/** A pain spot's word: its intensity, or "Not rated" while its Dial is untouched (F20 "a"). */
+export function painWord(severity: number | null | undefined): string {
+  return severity === null || severity === undefined ? "Not rated" : intensityWord(severity);
+}
+
 /** Nearest intensity word for a stored 0–10 severity (10 = worst): 7 → "Severe". */
 export function intensityWord(value: number | null | undefined): string {
   if (value === null || value === undefined) return "";

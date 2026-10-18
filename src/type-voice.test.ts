@@ -269,7 +269,8 @@ const TSX_DISPLAY_SLANT: Record<string, { count: number; why: string }> = {
 const TSX_QUIET_SLANT: Record<string, { count: number; why: string }> = {
   "components/ClientProgressReportView.tsx": { count: 1, why: "the window's hint in the editor (the client view's quotes went with the old view, Oct 13 2026)" },
   "components/EditRoutineDrawer.tsx": { count: 1, why: EMPTY },
-  "components/WrapUpScreen.tsx": { count: 1, why: PLACEHOLDER },
+  // The note box (the Wrap-up round, Oct 18 2026) took the Wrap-up's Profile note box and its placeholder.
+  "features/client-notes/NoteBox.tsx": { count: 1, why: PLACEHOLDER },
   "features/admin/import/LegacyChartImporter.tsx": { count: 1, why: EMPTY },
   "features/client-profile/ProfileHeader.tsx": { count: 1, why: '"Not scheduled": the next session tile with nothing booked' },
 };

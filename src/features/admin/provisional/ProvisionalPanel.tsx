@@ -316,6 +316,7 @@ export function ProvisionalPanel({
         <ReconcileDialog
           temp={reconciling}
           clients={clients}
+          authTrainer={authTrainer}
           onClose={() => setReconciling(null)}
           onMerged={onCreated}
         />

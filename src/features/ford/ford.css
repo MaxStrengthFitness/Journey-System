@@ -497,3 +497,7 @@
   .ford-btn,
   .ford-letter { transition: none; }
 }
+
+/* The briefing's Follow up next time: clear the question with nothing new
+   to file (the briefing round, Oct 17 2026), a .ford-btn under the capture. */
+.ford-upnext__clear { margin-top: 0.6rem; }

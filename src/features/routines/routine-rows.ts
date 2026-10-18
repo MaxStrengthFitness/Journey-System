@@ -8,6 +8,7 @@
  */
 
 import type { Client, ClientMachineSetting, ExerciseLog, Machine, Routine, RoutineAdjustment, Trainer, WorkoutSession } from "../../types";
+import { findTrainerRecord, trainerInitialsFor, trainerNameFor } from "../trainer-scope/names";
 import { orderMachineSettings, parseSessionDate } from "../../lib/utils";
 import { matchesRoutineLetter } from "../../lib/routine-utils";
 import { isPerformedLog, isRepsNotRecorded } from "../../lib/set-outcome";
@@ -215,7 +216,8 @@ export function buildRoutineChanges(
     return "?";
   };
   return adjustments.map((adj) => {
-    const trainer = trainers.find((t) => t.id === adj.trainerId);
+    // An id the list doesn't hold is a trainer from another studio (the trainer lock): said so, never shown raw.
+    const trainer = findTrainerRecord(trainers, adj.trainerId);
     const kind: RoutineChange["kind"] =
       adj.changeType === "enabled" || adj.changeType === "disabled" || adj.changeType === "created" ? adj.changeType : "machines";
     const prev = adj.previousMachineIds || [];
@@ -225,8 +227,8 @@ export function buildRoutineChanges(
       routineId: adj.routineId,
       routineLabel: labelFor(adj.routineId),
       when: toMs(adj.createdAt),
-      trainerInitials: trainer?.initials || (adj.trainerId || "TR").slice(0, 2).toUpperCase(),
-      trainerName: trainer?.fullName || adj.trainerId || "Unknown trainer",
+      trainerInitials: trainerInitialsFor(trainer),
+      trainerName: trainerNameFor(trainer),
       kind,
       added: kind === "machines" || kind === "created" ? next.filter((id) => !prev.includes(id)).map(nameOf) : [],
       removed: kind === "machines" ? prev.filter((id) => !next.includes(id)).map(nameOf) : [],

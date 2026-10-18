@@ -521,11 +521,25 @@ export const FOCUS_CATEGORIES: FocusCategory[] = [
 
 export const IMPORTANCE_META: Record<
   JournalImportance,
-  { label: string; short: string; chip: string; ring: string; hint: string }
+  {
+    label: string;
+    short: string;
+    /**
+     * Where the note goes, as the one Loudness control says it everywhere a
+     * note is written (the Wrap-up round, AJ, Oct 18 2026, "n1 a"): Profile
+     * only · Next time · Critical. A note's badge, read later, keeps `short`
+     * ("Heads up"): "Next time" on a note months old would read wrong.
+     */
+    where: string;
+    chip: string;
+    ring: string;
+    hint: string;
+  }
 > = {
   standard: {
     label: "Note",
     short: "Note",
+    where: "Profile only",
     chip: "bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/20",
     ring: "",
     hint: "Filed in the record, found by its category",
@@ -533,6 +547,7 @@ export const IMPORTANCE_META: Record<
   elevated: {
     label: "Heads up",
     short: "Heads up",
+    where: "Next time",
     chip: "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30",
     ring: "ring-1 ring-amber-500/30",
     hint: "Top of the record, and on the briefing while it still matters",
@@ -540,6 +555,7 @@ export const IMPORTANCE_META: Record<
   critical: {
     label: "Critical",
     short: "Critical",
+    where: "Critical",
     chip: "bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/40",
     ring: "ring-1 ring-rose-500/45",
     hint: "Pinned, first on the briefing, and a red triangle on the Hub card",

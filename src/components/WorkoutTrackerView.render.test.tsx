@@ -36,6 +36,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, act, useState } from "react";
+import { UnsavedChangesProvider } from "../features/unsaved-changes";
 import { createRoot, type Root } from "react-dom/client";
 
 /* ------------------------------------------------------------------ *
@@ -118,11 +119,20 @@ const SESSION_DOCS = [
 ];
 
 /**
- * Sep 24 2026 — the abandoned session. Yesterday's, never finished: its
- * heartbeat is 22 hours old, which the staleness rule calls abandoned.
+ * Sep 24 2026 — the abandoned session. Yesterday's, never finished: its last
+ * heartbeat is at 11:40 AM on the studio's Sep 23, 22 hours before the
+ * reported morning, which the staleness rule calls abandoned.
+ *
+ * Yesterday's by the CALENDAR, and the abandoned-session tests pin their
+ * clock to the day after (Oct 17 2026). It used to be "22 hours before the
+ * clock", and from 10 PM to midnight 22 hours ago is still today: a
+ * colleague's session left open today can't be discarded until tomorrow
+ * (session-record/discard.ts `discardWaitsToday`, Oct 12 2026), so "a
+ * colleague's" Discard test failed every night after 10 PM. The tests that
+ * use it on the real clock only need it quiet for over an hour.
  */
 const STALE_ID = "sess-yesterday";
-const TWENTY_TWO_HOURS_AGO = new Date(Date.now() - 22 * 60 * 60_000);
+const LEFT_OPEN_YESTERDAY = new Date("2026-09-23T11:40:00-04:00");
 const STALE_SESSION_DOCS = [
   {
     id: STALE_ID,
@@ -136,9 +146,9 @@ const STALE_SESSION_DOCS = [
       hostedAtStudioId: STUDIO_ID,
       clientHomeStudioId: STUDIO_ID,
       sessionMachineIds: ["m-leg-press"],
-      startTime: TWENTY_TWO_HOURS_AGO,
-      createdAt: TWENTY_TWO_HOURS_AGO,
-      lastHeartbeatAt: TWENTY_TWO_HOURS_AGO,
+      startTime: LEFT_OPEN_YESTERDAY,
+      createdAt: LEFT_OPEN_YESTERDAY,
+      lastHeartbeatAt: LEFT_OPEN_YESTERDAY,
     }),
   },
 ];
@@ -395,6 +405,14 @@ const studioCtx = vi.hoisted(() => ({
  * while the menu is open), so counting the calls counts the tracker's
  * renders; toJourneyRows is what rebuilds every row of the grid.
  */
+/* The trainer's own notebook (Just for me), caught here: what it was handed. */
+const jotted = vi.hoisted(() => [] as { clientId: string; text: string }[]);
+vi.mock("../features/relay/notes/client-jots", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../features/relay/notes/client-jots")>()),
+  jotAbout: async (input: { clientId: string; text: string }) => {
+    jotted.push(input);
+  },
+}));
 const renders = vi.hoisted(() => ({ tracker: 0, rows: 0 }));
 vi.mock("../features/session-record/useSendState", async (importOriginal) => {
   const realMod = await importOriginal<typeof import("../features/session-record/useSendState")>();
@@ -470,6 +488,7 @@ vi.mock("../contexts/ActiveStudioContext", async (importOriginal) => {
 import { WorkoutTrackerView } from "./WorkoutTrackerView";
 import { announceOpenSessionRefused, declinedStaleOpenSessions } from "../features/open-session/start";
 import { ToastProvider } from "../contexts/ToastContext";
+import { markRecordedHere, wasRecordedHere } from "../features/session-record/recorded-here";
 import type { Client, Machine, Trainer } from "../types";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -663,114 +682,179 @@ describe("an abandoned session is asked about, never adopted (Sep 24 2026)", () 
       (b) => (b.textContent ?? "").trim().toLowerCase() === label.toLowerCase(),
     );
 
-  it("the reported bug: yesterday's session is not reopened — the question is asked over the briefing", async () => {
-    sessionDocs = STALE_SESSION_DOCS;
-    const host = await mount(<Tracker />);
-    // Not the tracker: that was the bug — today's sets landing in yesterday's session.
-    expect(host.querySelector(".jg-sbar")).toBeNull();
-    const body = document.body.textContent ?? "";
-    expect(body).toContain("has an unfinished session");
-    // One line: when it started and by whom (the sessions round, Oct 12 2026).
-    expect(body).toMatch(/Started .+ by JC\./);
-    // This trainer's own: resuming is not a take-over, and does not say it is.
-    expect(body).not.toContain("yours to finish");
-    expect(body).toContain("Carry on where you left off.");
-    expect(button("Resume it")).toBeTruthy();
-    expect(button("Start a new session")).toBeTruthy();
-    // Asking writes nothing.
-    expect(writes.filter((w) => w.path === `sessions/${STALE_ID}`)).toEqual([]);
+  /*
+   * A pinned clock (Oct 17 2026): every test here runs at a set studio time,
+   * the questions below on Sep 24 both the morning after the session was left
+   * open and late that night, so none of them depends on when the suite runs.
+   */
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  /* The sessions round (Oct 12 2026; AJ: "Anyone can clear a session"):
-     Discard on the question, after a second tap, as ONE batch. */
-  it("Discard on the trainer's own abandoned session: a second tap, then the session and its sets in one batch", async () => {
-    sessionDocs = STALE_SESSION_DOCS;
-    await mount(<Tracker />);
-    await act(async () => button("Discard it")!.click());
-    expect(netCtl.deletes).toEqual([]);
-    expect(document.body.textContent).toContain("Discard this session?");
-    await act(async () => button("Discard")!.click());
-    expect(netCtl.deletes).toContain(`sessions/${STALE_ID}`);
-    expect(netCtl.deletes.some((p) => p.startsWith("exerciseLogs/"))).toBe(true);
-    expect(netCtl.deletes.some((p) => p.startsWith("sessionNotes/"))).toBe(false);
-    expect(document.body.textContent).toContain("Session discarded.");
-  });
-
-  it("a colleague's: the server is asked first, and a session already gone is never deleted again", async () => {
-    sessionDocs = [{ id: STALE_ID, data: () => ({ ...STALE_SESSION_DOCS[0].data(), trainerId: "t-aj", trainerInitials: "AJ" }) }];
-    finishCtl.serverStatus = undefined; // the server has no such session
-    await mount(<Tracker />);
-    await act(async () => button("Discard it")!.click());
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 0));
+  describe.each([
+    { when: "the morning after (9:40 AM)", now: "2026-09-24T09:40:00-04:00" },
+    { when: "late the day after (10:30 PM)", now: "2026-09-24T22:30:00-04:00" },
+  ])("$when", ({ now }) => {
+    beforeEach(() => {
+      vi.setSystemTime(new Date(now));
     });
-    expect(document.body.textContent).toContain("That session was already discarded.");
-    const held = button("Discard")!;
-    expect(held.disabled).toBe(true);
-    await act(async () => held.click());
-    expect(netCtl.deletes).toEqual([]);
-  });
 
-  it("Resume carries on in that session and marks it running again", async () => {
-    sessionDocs = STALE_SESSION_DOCS;
-    const host = await mount(<Tracker />);
-    await act(async () => {
-      button("Resume it")!.click();
+    it("the reported bug: yesterday's session is not reopened — the question is asked over the briefing", async () => {
+      sessionDocs = STALE_SESSION_DOCS;
+      const host = await mount(<Tracker />);
+      // Not the tracker: that was the bug — today's sets landing in yesterday's session.
+      expect(host.querySelector(".jg-sbar")).toBeNull();
+      const body = document.body.textContent ?? "";
+      expect(body).toContain("has an unfinished session");
+      // One line: when it started and by whom (the sessions round, Oct 12 2026).
+      expect(body).toMatch(/Started .+ by JC\./);
+      // This trainer's own: resuming is not a take-over, and does not say it is.
+      expect(body).not.toContain("yours to finish");
+      expect(body).toContain("Carry on where you left off.");
+      expect(button("Resume it")).toBeTruthy();
+      expect(button("Start a new session")).toBeTruthy();
+      // Asking writes nothing.
+      expect(writes.filter((w) => w.path === `sessions/${STALE_ID}`)).toEqual([]);
     });
-    expect(host.querySelector(".jg-sbar")).toBeTruthy();
-    const heartbeat = writes.find((w) => w.path === `sessions/${STALE_ID}`);
-    expect(heartbeat?.data).toHaveProperty("lastHeartbeatAt");
-    // Only the heartbeat and this device (the sessions round, Oct 12 2026):
-    // its day, its status and its sets are untouched.
-    expect(Object.keys(heartbeat!.data).sort()).toEqual(["lastHeartbeatAt", "recordingDeviceId"]);
-    expect(heartbeat!.data.recordingDeviceId).toBe(localStorage.getItem("journey_device_id"));
-    expect(localStorage.getItem("max_strength_active_session_id")).toBe(STALE_ID);
-  });
 
-  it("Start a new session leaves it exactly as it is and lands on the briefing", async () => {
-    sessionDocs = STALE_SESSION_DOCS;
-    const host = await mount(<Tracker />);
-    await act(async () => {
-      button("Start a new session")!.click();
+    /* The sessions round (Oct 12 2026; AJ: "Anyone can clear a session"):
+       Discard on the question, after a second tap, as ONE batch. */
+    it("Discard on the trainer's own abandoned session: a second tap, then the session and its sets in one batch", async () => {
+      sessionDocs = STALE_SESSION_DOCS;
+      await mount(<Tracker />);
+      await act(async () => button("Discard it")!.click());
+      expect(netCtl.deletes).toEqual([]);
+      expect(document.body.textContent).toContain("Discard this session?");
+      await act(async () => button("Discard")!.click());
+      expect(netCtl.deletes).toContain(`sessions/${STALE_ID}`);
+      expect(netCtl.deletes.some((p) => p.startsWith("exerciseLogs/"))).toBe(true);
+      expect(netCtl.deletes.some((p) => p.startsWith("sessionNotes/"))).toBe(false);
+      expect(document.body.textContent).toContain("Session discarded.");
     });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 0));
+
+    it("a colleague's: the server is asked first, and a session already gone is never deleted again", async () => {
+      sessionDocs = [{ id: STALE_ID, data: () => ({ ...STALE_SESSION_DOCS[0].data(), trainerId: "t-aj", trainerInitials: "AJ" }) }];
+      finishCtl.serverStatus = undefined; // the server has no such session
+      await mount(<Tracker />);
+      await act(async () => button("Discard it")!.click());
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(document.body.textContent).toContain("That session was already discarded.");
+      const held = button("Discard")!;
+      expect(held.disabled).toBe(true);
+      await act(async () => held.click());
+      expect(netCtl.deletes).toEqual([]);
     });
-    expect(host.querySelector(".jg-sbar")).toBeNull();
-    expect(button("Resume it")).toBeFalsy();
-    expect(writes.filter((w) => w.path === `sessions/${STALE_ID}`)).toEqual([]);
+
+    it("Resume carries on in that session and marks it running again", async () => {
+      sessionDocs = STALE_SESSION_DOCS;
+      const host = await mount(<Tracker />);
+      await act(async () => {
+        button("Resume it")!.click();
+      });
+      expect(host.querySelector(".jg-sbar")).toBeTruthy();
+      const heartbeat = writes.find((w) => w.path === `sessions/${STALE_ID}`);
+      expect(heartbeat?.data).toHaveProperty("lastHeartbeatAt");
+      // Only the heartbeat and this device (the sessions round, Oct 12 2026):
+      // its day, its status and its sets are untouched.
+      expect(Object.keys(heartbeat!.data).sort()).toEqual(["lastHeartbeatAt", "recordingDeviceId"]);
+      expect(heartbeat!.data.recordingDeviceId).toBe(localStorage.getItem("journey_device_id"));
+      expect(localStorage.getItem("max_strength_active_session_id")).toBe(STALE_ID);
+    });
+
+    it("Start a new session leaves it exactly as it is and lands on the briefing", async () => {
+      sessionDocs = STALE_SESSION_DOCS;
+      const host = await mount(<Tracker />);
+      await act(async () => {
+        button("Start a new session")!.click();
+      });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(host.querySelector(".jg-sbar")).toBeNull();
+      expect(button("Resume it")).toBeFalsy();
+      expect(writes.filter((w) => w.path === `sessions/${STALE_ID}`)).toEqual([]);
+    });
+
+    it("a live session is still adopted without asking", async () => {
+      // SESSION_DOCS' heartbeat is now: nothing to ask.
+      const host = await mount(<Tracker />);
+      expect(host.querySelector(".jg-sbar")).toBeTruthy();
+      expect(document.body.textContent ?? "").not.toContain("has an unfinished session");
+    });
+
+    it("the device's remembered session is not adopted for a different client", async () => {
+      // The takeover check used to compare against `selectedClient`, which is
+      // null on the first render, so it adopted the remembered session for
+      // whichever client was opened.
+      sessionDocs = [];
+      localStorage.setItem("max_strength_active_session_id", "sess-other");
+      singleDocs["sessions/sess-other"] = {
+        clientId: "c-someone-else",
+        status: "In-Progress",
+        trainerInitials: "JC",
+        lastHeartbeatAt: new Date(),
+        createdAt: new Date(),
+      };
+      const host = await mount(<Tracker />);
+      expect(host.querySelector(".jg-sbar")).toBeNull();
+    });
+
+    it("the device's remembered session is not adopted once it is stale", async () => {
+      sessionDocs = [];
+      localStorage.setItem("max_strength_active_session_id", STALE_ID);
+      singleDocs[`sessions/${STALE_ID}`] = STALE_SESSION_DOCS[0].data();
+      const host = await mount(<Tracker />);
+      expect(host.querySelector(".jg-sbar")).toBeNull();
+    });
   });
 
-  it("a live session is still adopted without asking", async () => {
-    // SESSION_DOCS' heartbeat is now: nothing to ask.
-    const host = await mount(<Tracker />);
-    expect(host.querySelector(".jg-sbar")).toBeTruthy();
-    expect(document.body.textContent ?? "").not.toContain("has an unfinished session");
-  });
+  /*
+   * The night the colleague's test failed (Oct 16 2026), as the screen should
+   * see it: at 10:30 PM a colleague's session left open at 12:30 AM is 22
+   * hours quiet but still TODAY's, so it can be resumed, and Discard waits for
+   * the studio's tomorrow (session-record/discard.ts `discardWaitsToday`, Oct
+   * 12 2026: a Finish waiting on an offline iPad would be lost). From the
+   * studio's midnight it is offered. Both days are the studio's.
+   */
+  describe("a colleague's session left open earlier today: Discard waits for the studio's tomorrow", () => {
+    const leftOpen = new Date("2026-09-24T00:30:00-04:00");
+    beforeEach(() => {
+      sessionDocs = [
+        {
+          id: STALE_ID,
+          data: () => ({
+            ...STALE_SESSION_DOCS[0].data(),
+            date: "2026-09-24",
+            trainerId: "t-aj",
+            trainerInitials: "AJ",
+            startTime: leftOpen,
+            createdAt: leftOpen,
+            lastHeartbeatAt: leftOpen,
+          }),
+        },
+      ];
+    });
 
-  it("the device's remembered session is not adopted for a different client", async () => {
-    // The takeover check used to compare against `selectedClient`, which is
-    // null on the first render, so it adopted the remembered session for
-    // whichever client was opened.
-    sessionDocs = [];
-    localStorage.setItem("max_strength_active_session_id", "sess-other");
-    singleDocs["sessions/sess-other"] = {
-      clientId: "c-someone-else",
-      status: "In-Progress",
-      trainerInitials: "JC",
-      lastHeartbeatAt: new Date(),
-      createdAt: new Date(),
-    };
-    const host = await mount(<Tracker />);
-    expect(host.querySelector(".jg-sbar")).toBeNull();
-  });
+    it("at 10:30 PM, 22 hours on, it can be resumed, not discarded, and says from when", async () => {
+      vi.setSystemTime(new Date("2026-09-24T22:30:00-04:00"));
+      await mount(<Tracker />);
+      expect(document.body.textContent).toContain("has an unfinished session");
+      expect(button("Resume it")).toBeTruthy();
+      expect(button("Discard it")).toBeFalsy();
+      expect(document.body.textContent).toContain("AJ's session can be discarded from tomorrow");
+    });
 
-  it("the device's remembered session is not adopted once it is stale", async () => {
-    sessionDocs = [];
-    localStorage.setItem("max_strength_active_session_id", STALE_ID);
-    singleDocs[`sessions/${STALE_ID}`] = STALE_SESSION_DOCS[0].data();
-    const host = await mount(<Tracker />);
-    expect(host.querySelector(".jg-sbar")).toBeNull();
+    it("five minutes past the studio's midnight, Discard is offered", async () => {
+      vi.setSystemTime(new Date("2026-09-25T00:05:00-04:00"));
+      await mount(<Tracker />);
+      expect(button("Discard it")).toBeTruthy();
+      expect(document.body.textContent).not.toContain("can be discarded from tomorrow");
+    });
   });
 });
 
@@ -868,7 +952,12 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(label).toBeDefined();
     const box = document.getElementById(label!.getAttribute("for")!);
     expect(box?.tagName).toBe("TEXTAREA");
-    expect(document.getElementById(box!.getAttribute("aria-describedby")!)?.textContent).toBe("On the next four briefings.");
+    // The same note box as the Wrap-up's (the Wrap-up round, Oct 18 2026, "n2 a"): at Next time, and it says where it lands.
+    expect(document.getElementById(box!.getAttribute("aria-describedby")!)?.textContent).toMatch(/· read out on the next 4 briefings$/);
+    const goes = document.querySelector('[data-testid="next-trainer-box"] [role="radiogroup"][aria-label="Goes to"]')!;
+    expect(goes.querySelector('[aria-checked="true"]')!.textContent).toBe("Next time");
+    expect(label!.textContent).toBe("Note for the next trainer");
+    expect(document.body.textContent).not.toContain("(optional)");
     // "Wrap-up" is the post-session screen's name now, not this box's.
     expect(document.body.textContent).not.toContain("Wrap-up note");
   });
@@ -914,7 +1003,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
 
     // It is back on the Wrap-up, in the To-file tray: said for what it is,
     // fileable, and with no Discard (a discard would take it off the briefing).
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const card = document.querySelector('[data-testid="sweep-j-1"]')!;
     expect(card).toBeTruthy();
     expect(card.textContent).toContain("Note for the next trainer · on the next briefing");
@@ -923,17 +1012,61 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(buttons.some((t) => t?.includes("Discard"))).toBe(false);
   });
 
+  it("opens a machine's card from the Wrap-up, and words typed in it ask before they are lost (the round's review, Oct 18 2026)", async () => {
+    const host = await mount(
+      <UnsavedChangesProvider>
+        <Tracker />
+      </UnsavedChangesProvider>,
+    );
+    await act(async () => (host.querySelector(".jg-sbar__finish") as HTMLButtonElement).click());
+    await act(async () => finishButton()!.click());
+    await settle();
+    await settle();
+    const door = document.querySelector<HTMLButtonElement>('[data-testid="wrapup-machine-door"]');
+    expect(door).not.toBeNull();
+    await act(async () => door!.click());
+    await settle();
+    expect(document.querySelector(".mm-dialog .mm-card")).not.toBeNull();
+    const words = document.querySelector<HTMLTextAreaElement>('.mm-dialog [data-block="notes"] textarea');
+    expect(words).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(words!, "Seat felt low today");
+      words!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    // The card keeps its own words on the Wrap-up (the session's draft is gone), so Close asks first.
+    await act(async () => document.querySelector<HTMLButtonElement>(".mm-dialog .mm-close")!.click());
+    await settle();
+    expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+  });
+
+  it("keeps a just-for-me note at Finish to the trainer's own notebook: never the journal, never the session's copy (n2 a)", async () => {
+    jotted.length = 0;
+    await openEndSession();
+    const box = document.getElementById("next-trainer-note") as HTMLTextAreaElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "Ask how the move went, quietly.");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => (document.querySelector('[data-testid="next-trainer-box"] [data-testid="note-box-just-for-me"]') as HTMLButtonElement).click());
+    expect(document.querySelector('[data-testid="next-trainer-box"] [data-testid="note-box-where"]')!.textContent).toMatch(/^Your own notebook/);
+    await act(async () => finishButton()!.click());
+    await settle();
+    await settle();
+    expect(jotted).toEqual([expect.objectContaining({ clientId: expect.any(String), text: "Ask how the move went, quietly." })]);
+    expect(journalDocs).toHaveLength(0);
+    expect(completedWrites()[0].data.notes ?? "").toBe("");
+  });
+
   it("files the Note for the next trainer as it is written when a kind is picked, so it never waits in the tray (Oct 3 2026)", async () => {
     await openEndSession();
-    // Nothing typed: no extra row.
-    expect(document.querySelector('[data-testid="next-trainer-file-as"]')).toBeNull();
+    // What it's for shows before a word is typed (the Wrap-up round, Oct 18 2026).
+    const row = document.querySelector(`[data-testid="next-trainer-box"] [role="group"][aria-label="What it's for"]`)!;
+    expect(row).toBeTruthy();
     const box = document.getElementById("next-trainer-note") as HTMLTextAreaElement;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "Mentioned she may not renew in May.");
       box.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    const row = document.querySelector('[data-testid="next-trainer-file-as"]')!;
-    expect(row).toBeTruthy();
     const retention = Array.from(row.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Retention")!;
     await act(async () => retention.click());
     await act(async () => finishButton()!.click());
@@ -960,7 +1093,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
     await settle();
     await settle();
 
-    expect(document.body.textContent).toContain("Wrap-up · session saved on this iPad");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
     // The writes were made, on the iPad, before anything waited.
     expect(completedWrites()).toHaveLength(1);
     expect(totalsWrites()).toHaveLength(1);
@@ -976,7 +1109,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(totalsWrites()).toHaveLength(0);
     expect(completedWrites()).toHaveLength(0);
     expect(document.body.textContent).toContain("already finished on another iPad");
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
   });
 
   it("finishes once when Finish session is tapped twice at once", async () => {
@@ -991,8 +1124,112 @@ describe("Finish never hangs and never counts a session twice (session record, S
 
     expect(totalsWrites()).toHaveLength(1);
     expect(completedWrites()).toHaveLength(1);
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(document.body.textContent).not.toContain("saved on this iPad");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Finish waits for the sets (F22, AJ's "a", Oct 16 2026)
+ * ------------------------------------------------------------------ */
+
+describe("Finish waits for a resumed session's sets, and never stamps sets it hasn't heard (F22)", () => {
+  const buttonNamed = (t: string) => Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === t) as HTMLButtonElement | undefined;
+  const waitLine = () => document.querySelector('[data-testid="finish-waits-for-sets"]');
+  const completed = () => writes.filter((w) => w.path === `sessions/${SESSION_ID}` && w.data?.status === "Completed");
+  const settle = async () => {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  };
+  const LEG_PRESS = `exerciseLogs/${SESSION_ID}_m-leg-press`;
+  /** Leg press done on the other iPad: the server has it, this iPad hasn't heard it. */
+  const doneElsewhere = () => [
+    {
+      id: `${SESSION_ID}_m-leg-press`,
+      data: () => ({ sessionId: SESSION_ID, clientId: CLIENT_ID, machineId: "m-leg-press", weight: "100", reps: "10", studioId: STUDIO_ID }),
+    },
+  ];
+  async function openFinish() {
+    const host = await mount(<Tracker />);
+    await act(async () => (host.querySelector(".jg-sbar__finish") as HTMLButtonElement).click());
+    return host;
+  }
+
+  it("holds Finish until the server answers for the sets, then finishes with them: the leg press done elsewhere stays performed", async () => {
+    netCtl.logs = doneElsewhere();
+    netCtl.hold.add("exerciseLogs"); // resumed here: the sets listener hasn't answered
+    await openFinish();
+    const waiting = buttonNamed("Getting the sets…")!;
+    expect(waiting, "the Finish button waits").toBeDefined();
+    expect(waiting.disabled).toBe(true);
+    expect(waitLine()?.getAttribute("data-state")).toBe("getting");
+    expect(waitLine()?.textContent).toContain("Getting this session's sets");
+    await act(async () => waiting.click());
+    await settle();
+    expect(completed(), "nothing finished on an empty copy").toHaveLength(0);
+    expect(writes.some((w) => w.path === LEG_PRESS && w.data?.outcome === "not_reached")).toBe(false);
+
+    await act(async () => netCtl.release("exerciseLogs"));
+    expect(waitLine()).toBeNull();
+    const finish = buttonNamed("Finish session")!;
+    expect(finish.disabled).toBe(false);
+    await act(async () => finish.click());
+    await settle();
+    await settle();
+
+    expect(completed()).toHaveLength(1);
+    const legPress = writes.filter((w) => w.path === LEG_PRESS);
+    expect(legPress.some((w) => w.data?.outcome === "not_reached"), "never stamped not reached").toBe(false);
+    expect(legPress.some((w) => w.data?.reps === "10"), "written back as the server holds it").toBe(true);
+    // The rear delt really wasn't reached: that one is still said.
+    expect(writes.some((w) => w.path === `exerciseLogs/${SESSION_ID}_sm-solon-rear-delt` && w.data?.outcome === "not_reached")).toBe(true);
+  });
+
+  it("offline with only the iPad's copy, Finish waits and says why; every set is said to be saved", async () => {
+    netCtl.logs = doneElsewhere();
+    netCtl.fromCache.add("exerciseLogs");
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+    await openFinish();
+    expect(waitLine()?.getAttribute("data-state")).toBe("offline");
+    expect(waitLine()?.textContent).toContain("Every set is saved.");
+    expect(buttonNamed("Finish session")!.disabled).toBe(true);
+    // Keep training still goes back to the session: nothing is refused.
+    expect(buttonNamed("Keep training")!.disabled).toBe(false);
+  });
+
+  it("a session this iPad recorded from its Start finishes offline at once, from its own copy", async () => {
+    markRecordedHere(SESSION_ID);
+    netCtl.fromCache.add("exerciseLogs");
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+    finishCtl.commit = "hang"; // offline, the database never answers
+    await openFinish();
+    expect(waitLine()).toBeNull();
+    await act(async () => buttonNamed("Finish session")!.click());
+    await settle();
+    await settle();
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
+    expect(completed()).toHaveLength(1);
+  });
+
+  it("a session this iPad turned to watching loses its mark: brought back, it waits for the server", async () => {
+    markRecordedHere(SESSION_ID);
+    sessionDocs = [{ id: SESSION_ID, data: () => ({ ...SESSION_DOCS[0].data(), trainerId: "t-aj", trainerInitials: "AJ" }) }];
+    await mount(<Tracker />);
+    await settle();
+    expect(wasRecordedHere(SESSION_ID)).toBe(false);
+  });
+
+  it("a failed read of the sets says so, and Try again listens again", async () => {
+    netCtl.fail.add("exerciseLogs");
+    await openFinish();
+    expect(waitLine()?.getAttribute("data-state")).toBe("failed");
+    expect(buttonNamed("Finish session")!.disabled).toBe(true);
+    netCtl.fail.delete("exerciseLogs");
+    const again = Array.from(waitLine()!.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Try again")!;
+    await act(async () => again.click());
+    expect(waitLine()).toBeNull();
+    expect(buttonNamed("Finish session")!.disabled).toBe(false);
   });
 });
 
@@ -1012,6 +1249,32 @@ describe("sign-out sends the sets still waiting on the typing timer first (sessi
     expect(setWrites()).toHaveLength(0);
     await act(async () => sendSetsNow());
     expect(setWrites()).toHaveLength(1);
+  });
+});
+
+describe("the pain skip's Where? box keeps its words (F22, AJ's \"a\", Oct 16 2026)", () => {
+  it("writes the pain skip at once, and the words reach the set when the field is left, before anything moves on", async () => {
+    const host = await mount(<Tracker />);
+    const named = (t: string) => Array.from(host.querySelectorAll("button")).find((b) => b.textContent?.trim() === t)!;
+    const legPress = () => writes.filter((w) => w.path === `exerciseLogs/${SESSION_ID}_m-leg-press`);
+    await act(async () => named("Skip").click());
+    await act(async () => named("Pain or injury").click());
+    expect(
+      legPress().some((w) => w.data?.outcome === "skipped" && w.data?.skipReason === "pain_injury"),
+      "the skip is written the moment pain is picked",
+    ).toBe(true);
+
+    const where = host.querySelector<HTMLInputElement>('input[aria-label="Where is the pain? Optional."]')!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => {
+      where.focus();
+      setter.call(where, "left knee");
+      where.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => where.blur());
+    expect(legPress().some((w) => w.data?.skipNote === "left knee"), "the words are on the set").toBe(true);
+    // The skip was never taken back on the way.
+    expect(legPress().some((w) => w.data?.outcome === null)).toBe(false);
   });
 });
 
@@ -1270,7 +1533,7 @@ describe("a session another trainer is running opens read-only, and live (sessio
     sessionDocs = ajsSession();
     const again = await mount(<Tracker />);
     expect(watching(again)).toBeTruthy();
-    sessionDocs = ajsSession({ lastHeartbeatAt: TWENTY_TWO_HOURS_AGO, createdAt: TWENTY_TWO_HOURS_AGO });
+    sessionDocs = ajsSession({ lastHeartbeatAt: LEFT_OPEN_YESTERDAY, createdAt: LEFT_OPEN_YESTERDAY });
     await emitSessions();
     expect(watching(again)).toBeNull();
     expect(document.body.textContent).toContain("Nothing has been saved in this session for over an hour.");
@@ -2555,17 +2818,48 @@ describe("session writes never wait on the network (speed round, Oct 5 2026; R9)
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved on this iPad");
-    const box = document.querySelector<HTMLTextAreaElement>('textarea[placeholder^="Profile note"]');
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
+    // The note box opens from the minute after's row (the Wrap-up round, Oct 18 2026).
+    await act(async () => (document.querySelector('[data-testid="after-note"]') as HTMLButtonElement).click());
+    const box = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Note"]');
     expect(box).not.toBeNull();
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box!, "Likes the new seat height.");
       box!.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    // Filed where the box says: Preference, staying on the profile.
+    const what = document.querySelector(`[role="group"][aria-label="What it's for"]`)!;
+    await act(async () => (Array.from(what.querySelectorAll("button")).find((b) => b.textContent === "Preference") as HTMLButtonElement).click());
     const back = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Back to Hub")!;
     await act(async () => back.click());
     expect(setViewSpy).toHaveBeenCalledWith("clients");
-    expect(journalDocs.some((d) => d.data().body === "Likes the new seat height.")).toBe(true);
+    const filed = journalDocs.find((d) => d.data().body === "Likes the new seat height.")!.data();
+    expect(filed).toMatchObject({ kind: "preference", importance: "standard", origin: "post_session" });
+  });
+
+  it("files a sore spot from the Wrap-up as a Health note with its spot, at Next time (AJ's N3 a)", async () => {
+    offline();
+    const host = await mount(<Tracker />);
+    await act(async () => (host.querySelector(".jg-sbar__finish") as HTMLButtonElement).click());
+    const finish = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Finish session")!;
+    await act(async () => finish.click());
+    await settle();
+    await settle();
+    await act(async () => (document.querySelector('[data-testid="after-sore"]') as HTMLButtonElement).click());
+    const tag = Array.from(document.querySelectorAll('[data-testid="wrapup-sore"] button')).find((b) => b.textContent?.includes("Tag body region"))!;
+    await act(async () => (tag as HTMLButtonElement).click());
+    const picker = document.querySelector('[role="dialog"][aria-label="Body region picker"]')!;
+    await act(async () => (Array.from(picker.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Knees") as HTMLButtonElement).click());
+    const stiff = Array.from(document.querySelectorAll('[role="dialog"][aria-label="Body region picker"] [role="radio"]')).find((r) =>
+      r.getAttribute("aria-label")?.startsWith("Stiff"),
+    )!;
+    await act(async () => (stiff as HTMLButtonElement).click());
+    const back = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Back to Hub")!;
+    await act(async () => back.click());
+    const spot = journalDocs.find((d) => d.data().body === "Knees · Stiff")!.data();
+    expect(spot).toMatchObject({ importance: "elevated", origin: "post_session", bodyParts: [{ part: "knee", side: "both" }] });
+    // Only Pain and Stiff are read out at Next time: a spot rated better stays on the profile (the round's review).
+    expect(["injury", "health"]).toContain(spot.kind);
   });
 
   it("Finish asks 'finished elsewhere?' when the dialog opens, so the tap makes no second read", async () => {
@@ -3019,7 +3313,7 @@ describe("the Wrap-up's Next time, from Finish to the routine (Oct 8 2026)", () 
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     return host;
   };
   const card = () => document.querySelector('[data-testid="next-time"]');
@@ -3268,7 +3562,7 @@ describe("the Wrap-up's Next time, from Finish to the routine (Oct 8 2026)", () 
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(card()).toBeNull();
     writes.length = 0;
     await backToHub();
@@ -3305,7 +3599,7 @@ describe("the Wrap-up's Next time, from Finish to the routine (Oct 8 2026)", () 
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(card()!.textContent).toContain("Tick the ones that start Routine A.");
     expect(tickFor("Leg Press (Hoist)").getAttribute("aria-checked")).toBe("false");
     expect(tickFor("Rear Delt Hoist")).toBeTruthy();
@@ -3704,7 +3998,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await settle();
     await settle();
 
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(setViewSpy).not.toHaveBeenCalledWith("profile");
     const finished = writes.find((w) => w.path === `sessions/${OPEN_ID}` && w.data?.status === "Completed")!;
     expect(finished.data.clientId).toBe(CLIENT_ID);
@@ -3819,7 +4113,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const assign = sessionAssignWrite()!;
     const finished = writes.find((w) => w.path === `sessions/${OPEN_ID}` && w.data?.status === "Completed")!;
     expect(assign, "the assign").toBeTruthy();
@@ -3841,7 +4135,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const setting = writes.find((w) => w.path === `clientMachineSettings/${CLIENT_ID}_m-leg-press`)!;
     expect(setting, "today's weight is still written").toBeTruthy();
     expect(setting.data.currentWeight).toBe(100);
@@ -3930,14 +4224,14 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     // The assign's batch is refused, late.
     await act(async () => {
       netCtl.refusals[0](new Error("permission-denied"));
     });
     await settle();
     expect(document.body.textContent).not.toContain("press Who's this? again");
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
   });
   /* SETTINGS HELD ON THE SESSION (the open session round, Oct 9 2026; AJ's
      "3a": "Settings typed before the client is chosen are kept on the
@@ -4068,7 +4362,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const session = sessionAssignWrite()!;
     expect(isDelete(session.data.heldSetup)).toBe(true);
     const setting = writes.find((w) => w.path === `clientMachineSettings/${CLIENT_ID}_sm-solon-rear-delt` && w.batch === session.batch)!;
@@ -4176,7 +4470,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(document.querySelector('[data-testid="next-time"]'), "never a guess before the routines answer").toBeNull();
     await act(async () => netCtl.release("routines"));
     await settle();

@@ -144,6 +144,10 @@ describe("measureSection", () => {
     });
     expect(measureSection("pain", { ...a, painMap: [spot(4, "active"), spot(7, "improving"), spot(9, "resolved")] })).toBe(7);
     expect(measureSection("pain", { ...a, painMap: [spot(9, "resolved")] })).toBe(0);
+    // An active spot nobody rated (AJ's F20 "a") says nothing about how bad: unknown, never 0.
+    const unrated = { ...spot(0, "active"), id: "pu", severity: null };
+    expect(measureSection("pain", { ...a, painMap: [unrated] })).toBeNull();
+    expect(measureSection("pain", { ...a, painMap: [unrated, spot(4, "active")] })).toBe(4);
   });
 
   it("reads stress as the overall level", () => {

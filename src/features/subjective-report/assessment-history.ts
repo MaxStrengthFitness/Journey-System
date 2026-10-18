@@ -118,7 +118,11 @@ function ownExtra(id: string, a: SubjectiveAssessment, reviewed: readonly string
     case "pain": {
       const points = a.painMap ?? [];
       const active = points.filter((p) => p.status !== "resolved");
-      if (active.length) return Math.max(...active.map((p) => p.severity));
+      if (active.length) {
+        // Unrated spots (F20 "a") say nothing about how bad: unknown, never 0.
+        const rated = active.map((p) => p.severity).filter((s): s is number => typeof s === "number" && Number.isFinite(s));
+        return rated.length ? Math.max(...rated) : null;
+      }
       // Only resolved spots, or an explicit "nothing to report": that is an
       // answer, and the answer is no active pain.
       return points.length > 0 || reviewed.includes("pain") ? 0 : null;

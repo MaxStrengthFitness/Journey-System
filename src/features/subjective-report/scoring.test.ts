@@ -189,6 +189,16 @@ describe("pain map trends", () => {
     expect(s.trends[0].isNew).toBe(false);
     expect(s.worstSeverity).toBe(7);
   });
+  /* AJ's F20 "a" (Oct 16 2026): a new spot starts with no number until its
+     Dial is touched, and nothing compares or ranks a spot nobody rated. */
+  it("an unrated spot is counted, but never compared or made the worst", () => {
+    const s = summarizePain([{ ...knee, severity: null }], [{ ...knee, severity: 4 }]);
+    expect(s.activeCount).toBe(1);
+    expect(s.trends[0].severityChange).toBeNull();
+    expect(s.worstSeverity).toBeNull();
+    const mixed = summarizePain([{ ...knee, severity: null }, { ...knee, id: "p2", side: "right", severity: 3 }], null);
+    expect(mixed.worstSeverity).toBe(3);
+  });
   it("lists points that were active last time and are gone now", () => {
     const s = summarizePain([], [{ ...knee, severity: 4 }]);
     expect(s.resolvedSinceLast).toHaveLength(1);

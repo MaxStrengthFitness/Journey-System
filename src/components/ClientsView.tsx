@@ -180,6 +180,12 @@ export function ClientsView({
   const guardLeave = useLeaveGuard();
   const [dbSearchResults, setDbSearchResults] = useState<Client[]>([]);
   const [isSearchingDb, setIsSearchingDb] = useState(false);
+  /**
+   * The last name search beyond the studio list didn't finish: it failed, or
+   * only the iPad's own copy answered (offline). Unknown, never "no match"
+   * (Oct 15 2026 code check).
+   */
+  const [dbSearchIncomplete, setDbSearchIncomplete] = useState(false);
 
   /**
    * THE DAY ON SCREEN (hub fixes, Oct 1 2026): null follows today, so the
@@ -263,10 +269,12 @@ export function ClientsView({
   useEffect(() => {
     if (!searchTerm.trim()) {
       setDbSearchResults([]);
+      setDbSearchIncomplete(false);
       return;
     }
     const fetchClients = async () => {
       setIsSearchingDb(true);
+      setDbSearchIncomplete(false);
       try {
         const term = searchTerm.trim().toLowerCase();
         const alphaOnly = term.replace(/[^a-z]/g, "");
@@ -342,8 +350,12 @@ export function ClientsView({
         });
 
         setDbSearchResults(fetched);
+        // The iPad's own copy holds only the clients it has seen: an answer
+        // from it alone is not every client.
+        setDbSearchIncomplete(snap1.metadata.fromCache || snap2.metadata.fromCache);
       } catch (err) {
         console.error("Error searching matching clients in main search:", err);
+        setDbSearchIncomplete(true);
       } finally {
         setIsSearchingDb(false);
       }
@@ -1220,6 +1232,7 @@ export function ClientsView({
             rows={searchRows}
             matches={searchMatches}
             searching={isSearchingDb}
+            incomplete={dbSearchIncomplete}
             onOpen={(id) => onSelectClient(id)}
             onStart={(id) => {
               // The Hub's own path to a session.

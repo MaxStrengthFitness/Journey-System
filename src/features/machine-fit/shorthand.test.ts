@@ -160,6 +160,56 @@ describe("it would rather place too little than guess", () => {
   });
 });
 
+/* The Oct 15 2026 code check: "Seat 4." stored "4.", and a dial named in
+   three words was never read, even with a colon. */
+describe("a full stop after a value, and a dial named in three words or more", () => {
+  it("places a value typed with a full stop after it, in every form", () => {
+    for (const line of ["S4.", "S 4.", "Seat 4.", "S:4.", "S: 4.", "Seat: 4."]) {
+      expect(parseShorthand(line, ROW), line).toEqual({ values: { seat: "4" }, leftovers: [], notes: [] });
+    }
+    expect(parseShorthand("Gap:4. Seat:3.", ROW).values).toEqual({ gap: "4", seat: "3" });
+    expect(parseShorthand("Pad- D.", LEG_PRESS).values).toEqual({ Pads: "D" });
+    expect(parseShorthand("Handles: in.", ROW).values).toEqual({ handles: "In" });
+    expect(parseShorthand("WT: 120.", ROW)).toMatchObject({ weight: "120", leftovers: [] });
+  });
+
+  it("keeps a decimal whole, and takes only the one full stop", () => {
+    expect(parseShorthand("S3.75", ROW).values).toEqual({ seat: "3.75" });
+    expect(parseShorthand("S4.5", ROW).values).toEqual({ seat: "4.5" });
+    expect(parseShorthand("S3.75.", ROW).values).toEqual({ seat: "3.75" });
+    expect(parseShorthand("Seat 3.75.", ROW).values).toEqual({ seat: "3.75" });
+    expect(parseShorthand("S- 3.75", LEG_PRESS).values).toEqual({ Seat: "3.75" });
+  });
+
+  const HOIST: ShorthandField[] = [
+    { key: "seat", label: "Seat", type: "number" },
+    { key: "back-pad", label: "Back Pad", type: "number" },
+    { key: "back-pad-height", label: "Back Pad Height", type: "number" },
+    { key: "foot-plate-start-hole", label: "Foot Plate Start Hole", type: "number" },
+  ];
+
+  it("reads a dial named in three words or more, before a separator", () => {
+    expect(parseShorthand("Back Pad Height: 4", HOIST)).toEqual({ values: { "back-pad-height": "4" }, leftovers: [], notes: [] });
+    expect(parseShorthand("Back Pad Height: 4, Back Pad: 2, Seat: 3", HOIST).values).toEqual({
+      "back-pad-height": "4",
+      "back-pad": "2",
+      seat: "3",
+    });
+    expect(parseShorthand("Foot Plate Start Hole = 7", HOIST).values).toEqual({ "foot-plate-start-hole": "7" });
+    expect(parseShorthand("Back Pad Height: 4.", HOIST).values).toEqual({ "back-pad-height": "4" });
+  });
+
+  it("still keeps a stray word in front of a long dial name", () => {
+    expect(parseShorthand("PILLOW Back Pad Height: 4", HOIST)).toEqual({
+      values: { "back-pad-height": "4" },
+      leftovers: ["PILLOW"],
+      notes: [],
+    });
+    // Three words no dial answers to: the label beside the separator is still read.
+    expect(parseShorthand("under the Seat: 3", HOIST)).toEqual({ values: { seat: "3" }, leftovers: ["under", "the"], notes: [] });
+  });
+});
+
 describe("fitValue", () => {
   const handles = ROW[3];
   it("spells an option the machine's way", () => {

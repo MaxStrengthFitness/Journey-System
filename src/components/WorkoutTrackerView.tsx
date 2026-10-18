@@ -12,6 +12,7 @@ import {
   HeartPulse,
   X,
   ShieldAlert,
+  Info,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -59,6 +60,8 @@ import { stableHistory } from "../features/journey-grid/stable-history";
 import { useSendState } from "../features/session-record/useSendState";
 import { SendStatusStrip } from "../features/session-record/SendStatusStrip";
 import { finishedElsewhereAtTap, settleOrQueue } from "../features/session-record/finish-wait";
+import { refreshEndChoices, setsHeardFor, setsWaitWords, SETS_WAIT_BUTTON } from "../features/session-record/sets-heard";
+import { markRecordedHere, unmarkRecordedHere, wasRecordedHere } from "../features/session-record/recorded-here";
 import {
   readFromServer,
   finishRefusedAgainWords,
@@ -162,7 +165,6 @@ import { quietKindOf } from "../lib/session-quiet";
 interface PostSessionSnapshot {
   session: WorkoutSession;
   client: Client;
-  logs: ExerciseLog[];
   lines: TodayLine[];
   journey: JourneyRead;
   /** A mid-session note the trainer started and never saved (fluidity round). */
@@ -296,8 +298,10 @@ import {
   todayLines,
   type JourneyRead,
   type PriorSet,
+  type RowGain,
   type TodayLine,
 } from "../lib/post-session";
+import { progressFigure } from "../features/machine-menu/progress-figure";
 import { NOW_BAR_SIDE_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 import { usePhone } from "../features/phone/device";
 import { PhoneSessionStage } from "../features/phone/PhoneSessionStage";
@@ -308,13 +312,12 @@ import { SessionFlagsSheet } from "../features/journey-grid/SessionFlagsSheet";
 import { formatStudioDate, formatStudioTime, studioDayKeyOf } from "../lib/studio-time";
 import {
   DEFAULT_IMPORTANCE,
-  FILING_CATEGORIES,
   journalBodyOf,
   storedNoteOf,
   type FilingCategory,
 } from "../features/client-notes/note-catalog";
-import { NoteCategoryChips } from "../features/client-notes/NoteCategoryChips";
-import { painSkipNotes } from "../features/client-notes/pain-notes";
+import { NoteBox } from "../features/client-notes/NoteBox";
+import { bodyMarksFromWords, painSkipNotes } from "../features/client-notes/pain-notes";
 import { suggestFiling } from "../features/client-notes/suggest";
 import {
   clearSessionDraft,
@@ -344,7 +347,10 @@ import { LoadBoundary } from "../features/new-version/LoadBoundary";
 const ClientCheckInPanel = React.lazy(loadClientCheckInPanel);
 import { SessionJournalSidebar } from "./journal/SessionJournalSidebar";
 import { BriefingScreen } from "../features/briefing";
-import { WrapUpScreen } from "./WrapUpScreen";
+import { closeTargetOf } from "../features/briefing/close-target";
+import { jotAbout, useMyNotesAbout } from "../features/relay/notes/client-jots";
+import { WrapUpScreen, type WrapUpNote } from "./WrapUpScreen";
+import { REGION_SCALE, dialFromRegionState, dialWord } from "../features/rating";
 import { studioTodayKey } from "../lib/studio-time";
 import { sessionLinkOf } from "../features/client-notes/session-link";
 
@@ -378,6 +384,7 @@ import {
   type OnFile,
 } from "../features/open-session/held-setup";
 import { keepHeldSetup, queueHeldMoves } from "../features/open-session/held-store";
+import { trainerNameFor } from "../features/trainer-scope/names";
 import {
   OPEN_SESSION_REFUSED,
   OPEN_SESSION_REFUSED_KEPT,
@@ -429,6 +436,7 @@ export function WorkoutTrackerView({
   clientsStatus = "ready",
   onStartOpenSession,
   onReturn,
+  sessionFrom = null,
 }: {
   clientId: string | null;
   clients: Client[];
@@ -453,6 +461,12 @@ export function WorkoutTrackerView({
    * (`rememberLiveSession`'s `returnTo`). Without it, the Hub.
    */
   onReturn?: (to: LiveSessionReturn) => void;
+  /**
+   * The screen this session was opened from (AppContent's `sessionFrom`):
+   * where the briefing's close goes, in its words ("Back to the Hub"; AJ's
+   * F4 "a", the briefing round, Oct 17 2026). Without it, the profile.
+   */
+  sessionFrom?: View | null;
   machines: Machine[];
   schedules: any[];
   trainers: Trainer[];
@@ -668,6 +682,13 @@ export function WorkoutTrackerView({
      the time won't reliably be there". Picked, it is filed as it is written
      and never waits in the Wrap-up's tray; it is a Heads up either way. */
   const [nextTrainerCategory, setNextTrainerCategory] = useState<FilingCategory | null>(null);
+  /* Where it goes (the Wrap-up round, AJ, Oct 18 2026, "n2 a"): the note box
+     at Finish starts at Next time, placed, so a category never moves it; and
+     Just for me puts it in the trainer's own notebook instead. */
+  const [nextTrainerImportance, setNextTrainerImportance] = useState<JournalImportance>("elevated");
+  const [nextTrainerJustForMe, setNextTrainerJustForMe] = useState(false);
+  // The Finish question's word on Practice, Skipped and Not reached, behind its (i).
+  const [showOutcomeHelp, setShowOutcomeHelp] = useState(false);
 
   /**
    * When the trainer arrived at each machine.
@@ -1172,6 +1193,8 @@ export function WorkoutTrackerView({
     // that raced it. completeWorkoutSession keeps an unknown "last time" safe
     // regardless (sync-utils, newerOnFile).
     if (!s?.id || !selectedClient || !user?.uid || !totalsKnown) return;
+    // Its sets as the server holds them, never a partial copy (F22).
+    if (staleSetsHeard !== "heard") return;
     const sessionLogs = (Object.values(logs) as ExerciseLog[]).filter((l) => l.sessionId === s.id);
     const stamped = sessionLogs.map((l) => {
       const o = outcomeAtFinish(l, null);
@@ -1385,6 +1408,14 @@ export function WorkoutTrackerView({
   const [showEndConfirmation, setShowEndConfirmation] = useState(false);
   const [isPostSessionMode, setIsPostSessionMode] = useState(false);
   const [postSession, setPostSession] = useState<PostSessionSnapshot | null>(null);
+  /* The trainer's own notes about this client (Just for me), read while a
+     box that can file one is open (End Session, the Wrap-up), so the write
+     is issued at once, even on a sign-out, rather than after a read (the
+     round's review, Oct 18 2026). Unread: jotAbout reads them itself; a read
+     that failed starts a new working note rather than lose the words. */
+  const jotsFor = isPostSessionMode ? (postSession?.client.id ?? null) : showEndConfirmation ? (selectedClient?.id ?? null) : null;
+  const myJots = useMyNotesAbout(jotsFor ? (user?.uid ?? null) : null, jotsFor);
+  const jotsKnown = myJots.state === "ready" ? myJots.notes : myJots.state === "failed" ? [] : undefined;
 
   /*
    * THE NOTE DRAFT BELONGS TO THE SESSION (fluidity round, Sep 18 2026).
@@ -2125,6 +2156,8 @@ export function WorkoutTrackerView({
      session whose sets were read, says "loading" until they are, and a
      failed read is unknown, never "nothing on this machine". */
   const [logsWindow, setLogsWindow] = useState<{ key: string; ids: string[]; state: "ready" | "cache-only" | "failed" } | null>(null);
+  /* Listens again after a failed read, from the Finish question's Try again (F22). */
+  const [logsRetry, setLogsRetry] = useState(0);
   /* The window itself (machine-menu/older-read.ts): the running session, the
      one recorded here or the one being watched, and the newest past sessions,
      30 ids in all. The past sessions get 30 places, less one only when the
@@ -2194,9 +2227,17 @@ export function WorkoutTrackerView({
       );
       return () => unsubscribeLogs();
     }
-    // The window's ids are the whole of what this listens to.
+    // The window's ids are the whole of what this listens to (and a retry, after a failed read).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logsPlanKey]);
+  }, [logsPlanKey, logsRetry]);
+
+  /* A session this iPad turns to watching is recorded somewhere else from
+     then on: its sets are no longer all typed here, so a later Continue on
+     this iPad waits for the server before Finish stamps them (F22,
+     recorded-here.ts). */
+  useEffect(() => {
+    if (watchedSession?.id) unmarkRecordedHere(watchedSession.id);
+  }, [watchedSession?.id]);
 
   // Routine Alternation Logic & Historical Lifts Fetching
   useEffect(() => {
@@ -2660,6 +2701,8 @@ export function WorkoutTrackerView({
       // The device remembers the live session, so the bottom tab can bring
       // the trainer straight back after a crash (lib/live-session.ts).
       rememberLiveSession(sessionRef.id);
+      // Every set of it is typed here, so a Finish offline may stamp from this iPad's copy (F22).
+      markRecordedHere(sessionRef.id);
 
       /* A routine not decided yet: the session holds the list the briefing
          gave (often none) until it is, and the machine list is not taken
@@ -3051,12 +3094,14 @@ export function WorkoutTrackerView({
                 moves,
                 nameOf: (machineId) => floorMachines.find((x) => x.id === machineId)?.name || "Machine",
                 author: { id: authUid, fullName: authTrainer?.fullName || authTrainer?.initials || "Unknown", initials: authTrainer?.initials },
-                /* Signed by whoever kept it (a take-over's trainer before this one), when the team list knows them. */
+                /* Signed by whoever kept it (a take-over's trainer before this one), by id; as a
+                   trainer from another studio when the list doesn't hold them (the trainer lock),
+                   never by the trainer finishing now. */
                 authorOf: (machineId) => {
                   const by = heldBy[machineId];
                   if (!by || by === authUid) return null;
                   const who = trainers.find((t) => t.authUid === by || t.id === by);
-                  return who ? { id: by, fullName: who.fullName || who.initials || "Unknown", initials: who.initials } : null;
+                  return { id: by, fullName: trainerNameFor(who), initials: who?.initials };
                 },
                 journal: {
                   studioId: sessionNoteStudioId(client, contextActiveStudioId || authTrainer?.primaryHomeStudioId),
@@ -3443,6 +3488,10 @@ export function WorkoutTrackerView({
   const commitEndSession = async () => {
     if (!currentSession?.id || !selectedClient) return;
     if (finishingRef.current) return;
+    /* Not before this iPad has heard the session's sets (F22): stamped from
+       a copy that lacks them, real sets became "not reached" and left the
+       totals. The button waits with it; this holds a tap that raced it. */
+    if (finishSets !== "heard") return;
     // A client added on this iPad for this session (New client): nothing is on file for them anywhere.
     const createdHere = createdHereRef.current === selectedClient.id;
     /* A client chosen a moment ago (Who's this?) whose batch still waits on
@@ -3581,7 +3630,8 @@ export function WorkoutTrackerView({
           currentSession,
           selectedClient,
           finalLogs,
-          currentSessionNotes,
+          // Just for me is the trainer's own notebook: never the session's copy, which History and the export read.
+          nextTrainerJustForMe ? "" : currentSessionNotes,
           authTrainer,
           clientMachineSettings,
           user.uid,
@@ -3628,16 +3678,24 @@ export function WorkoutTrackerView({
          the post-session screen's name). Until the reporting round it reached
          only the session document, which the next trainer's briefing never
          reads. It still goes there (the History list and the export read
-         it); it ALSO files to the journal as a Heads up, which is the one
-         loudness the briefing reads out (at her next four sessions since Oct 3 2026). Outside the
-         batch, like every journal write. A note only for the profile is the
-         Wrap-up's Profile note, filed at Note loudness.
-         Being unfiled, it comes back in the Wrap-up's To-file tray, where it
-         can be filed to the profile (AJ, Sep 27 2026) but not discarded. The
-         snapshot carries its words now and its id when the write answers, so
-         the Wrap-up can tell its card apart (isNextTrainerNote). */
+         it); it ALSO files to the journal, at the loudness its box says:
+         Next time by default, the one loudness the briefing reads out at her
+         next four sessions (the Wrap-up round, AJ, Oct 18 2026, "n2 a": the
+         same note box as the Wrap-up's, starting at Next time). Just for me,
+         it goes to the trainer's own notebook instead, and never onto the
+         session. Outside the batch, like every journal write.
+         Unfiled, it comes back in the Wrap-up's To-file tray, where it can
+         be filed to the profile (AJ, Sep 27 2026) but not discarded while it
+         is on the briefing. The snapshot carries its words now and its id
+         when the write answers, so the Wrap-up can tell its card apart
+         (isNextTrainerNote); a note kept to the profile is an ordinary note. */
       const nextTrainerNote = journalBodyOf(currentSessionNotes);
-      if (nextTrainerNote) {
+      const nextTrainerOnBriefing = !!nextTrainerNote && !nextTrainerJustForMe && nextTrainerImportance !== "standard";
+      if (nextTrainerNote && nextTrainerJustForMe) {
+        jotAbout({ uid: user.uid, clientId: selectedClient.id, name: clientDisplayName(selectedClient), text: nextTrainerNote, notes: jotsKnown }).catch(() =>
+          toastError("Session saved. Your just-for-me note didn't save — add it again from the profile's working notes."),
+        );
+      } else if (nextTrainerNote) {
         // Filed as it is written when a kind was picked (Oct 3 2026); unfiled otherwise.
         const nextTrainerStored = storedNoteOf(nextTrainerCategory, null, null);
         createJournalEntry(
@@ -3648,7 +3706,7 @@ export function WorkoutTrackerView({
             kind: nextTrainerStored.kind,
             category: nextTrainerStored.category,
             body: nextTrainerNote,
-            importance: "elevated",
+            importance: nextTrainerImportance,
             machineId: null,
             focusId: null,
             ...sessionLinkOf(currentSession, studioTodayKey()),
@@ -3656,7 +3714,7 @@ export function WorkoutTrackerView({
           },
         ).then(
           (id) => {
-            if (!id) return;
+            if (!id || !nextTrainerOnBriefing) return;
             setPostSession((ps) =>
               ps && ps.session.id === sessionId && ps.nextTrainerNote
                 ? { ...ps, nextTrainerNote: { ...ps.nextTrainerNote, id } }
@@ -3725,7 +3783,41 @@ export function WorkoutTrackerView({
           : undefined;
       };
       const machineName = (id: string) => floorMachines.find((m) => m.id === id)?.name || id;
-      const lines = todayLines({ order: activeMachineIds, logs: finalLogs, nameOf: machineName, priorOf, priorKnown });
+      /* Each row's gain (the Wrap-up round, AJ, Oct 18 2026, "2a"): the Now
+         Bar's green figure from the same rule (machine-menu/progress-figure.ts)
+         — today's load against the starting weight on file, or against the
+         first counted set once every session has been read — and the day it
+         counts from. Said only when up; never a target. */
+      const everyRead = priorKnown && (createdHere || sessionsAllRead);
+      const gainOf = (machineId: string, today: number | null): RowGain | null => {
+        const row = gridRows.find((r) => r.machine.id === machineId);
+        if (!row || today === null) return null;
+        const sets = orderedSets(row, gridHistory);
+        const fig = progressFigure({
+          startingWeight: row.startingWeight,
+          firstCounted: sets[0]?.weight ?? today,
+          lastCounted: today,
+          everythingRead: everyRead,
+          coverage: clientCoverage,
+        });
+        if (!fig?.up || fig.gain === null) return null;
+        /* The month it counts from, only when Journey saw the start lifted:
+           the first counted set's session, or, for a start on file, the
+           first session that lifted exactly that load. A start corrected
+           from a paper chart was never lifted here, so it says "+N%" with no
+           month rather than a wrong one (the round's review, Oct 18 2026). */
+        const since =
+          fig.source === "first-counted"
+            ? (computeRowStats(row, gridHistory).first?.session.date ?? null)
+            : (gridHistory.find((sess) => {
+                const set = row.sets[sess.id];
+                return !!set && set.outcome === "performed" && set.weight === fig.start;
+              })?.date ?? null);
+        return { pct: fig.gain, since };
+      };
+      const lines = todayLines({ order: activeMachineIds, logs: finalLogs, nameOf: machineName, priorOf, priorKnown }).map((l) =>
+        l.outcome === "performed" ? { ...l, gain: gainOf(l.machineId, l.weight) } : l,
+      );
       const todayWeight = new Map(lines.filter((l) => l.outcome === "performed").map((l) => [l.machineId, l.weight]));
       const journey = strengthJourney(
         (priorKnown ? gridRows : []).map((row) => {
@@ -3807,11 +3899,10 @@ export function WorkoutTrackerView({
       setPostSession({
         session: { ...currentSession, status: "Completed", endTime: new Date() },
         client: selectedClient,
-        logs: finalLogs,
         lines,
         journey,
         draft: hasDraftText(noteDraft) ? noteDraft : null,
-        nextTrainerNote: nextTrainerNote ? { id: null, body: nextTrainerNote } : null,
+        nextTrainerNote: nextTrainerOnBriefing ? { id: null, body: nextTrainerNote } : null,
         queued,
         refused,
         nextTime,
@@ -3823,6 +3914,8 @@ export function WorkoutTrackerView({
       setCurrentSession(null);
       setCurrentSessionNotes("");
       setNextTrainerCategory(null);
+      setNextTrainerImportance("elevated");
+      setNextTrainerJustForMe(false);
       setShowEndConfirmation(false);
       setIsPostSessionMode(true);
     } catch (error) {
@@ -4088,49 +4181,103 @@ export function WorkoutTrackerView({
   const dropSessionDraft = () => setPostSession((s) => (s ? { ...s, draft: null } : s));
 
   /**
-   * Files what the Wrap-up holds — the Profile note, and a mid-session draft
-   * nobody saved or dropped — WITHOUT leaving (the Atlas answers, Oct 2 2026:
-   * every way out files a typed Profile note exactly once). The Wrap-up calls
-   * it when it goes by any other way than Back to Hub (the bottom bar, the
-   * header, a sign-out) and when the iPad is locked or the page hidden; Back
-   * to Hub files through `leavePostSession`, which calls this. The Wrap-up
-   * hands each typed note over once; the draft is filed once per session.
+   * Files what the Wrap-up holds — the note box, the sore spots, and a
+   * mid-session draft nobody saved or dropped — WITHOUT leaving (the Atlas
+   * answers, Oct 2 2026: every way out files what is typed exactly once). The
+   * Wrap-up calls it when it goes by any other way than Back to Hub (the
+   * bottom bar, the header, a sign-out) and when the iPad is locked or the
+   * page hidden; Back to Hub files through `leavePostSession`, which calls
+   * this. The Wrap-up hands each typed note and each spot over once; the
+   * draft is filed once per session.
+   *
+   * THE NOTE BOX (the Wrap-up round, AJ, Oct 18 2026, "n1 a n2 a n3 a"): the
+   * note goes where the box said — its loudness, its category (unfiled when
+   * none, to wait in To file) — or, Just for me, to the trainer's own
+   * notebook and never the record. Words the box carried from the session's
+   * unsaved note keep that draft's machine, flavour and body parts, and the
+   * draft is never filed on its own as well. Each sore spot is a Health note
+   * with its spot, at Next time (N3 a): "Left Knee · Stiff".
    */
   const draftFiledForRef = useRef<string | null>(null);
-  const filePostSessionNotes = async (profileNote?: { noteContent: string; importance: JournalImportance; effectiveUntil?: Date | null }) => {
+  const filePostSessionNotes = async (note?: WrapUpNote) => {
     const snap = postSession;
     // A draft the trainer neither saved nor dropped is filed, unfiled, on the
     // way out. The To-file tray exists for exactly this; losing it does not.
-    /* Both writes are ISSUED here, side by side, and never one after the
+    /* Every write is ISSUED here, side by side, and never one after the
        other (speed round, Oct 5 2026; R9): each says its own refusal. */
     const filing: Promise<void>[] = [];
     const draftKey = snap?.session.id ?? null;
+    // The box carried the draft: it is filed from the box, or not at all when its words were cleared.
+    // Its marks (the machine, the flavour, the body parts) only while the box still holds the draft's words.
+    const carried = !!note?.fromDraft && !!note?.keepsDraftMarks && !!snap?.draft;
+    if (note?.fromDraft) draftFiledForRef.current = draftKey;
     if (snap?.draft && hasDraftText(snap.draft) && draftFiledForRef.current !== draftKey) {
       draftFiledForRef.current = draftKey;
       filing.push(fileSessionDraft(snap.draft.body));
     }
-    const body = profileNote?.noteContent.trim() ?? "";
-    if (snap && body && user?.uid) {
-      filing.push(noteOrSay(
-        createJournalEntry(
-          snap.client.id,
-          sessionNoteStudioId(snap.client, contextActiveStudioId || authTrainer?.primaryHomeStudioId),
-          { id: user.uid, initials: authTrainer?.initials || "", fullName: authTrainer?.fullName || "" },
-          {
-            kind: "general",
-            category: null,
+    if (!snap || !user?.uid) {
+      await Promise.all(filing);
+      return;
+    }
+    const studioId = sessionNoteStudioId(snap.client, contextActiveStudioId || authTrainer?.primaryHomeStudioId);
+    const author = { id: user.uid, initials: authTrainer?.initials || "", fullName: authTrainer?.fullName || "" };
+    const link = sessionLinkOf(snap.session, studioTodayKey());
+    const body = note?.noteContent.trim() ?? "";
+    if (body && note?.justForMe) {
+      filing.push(
+        noteOrSay(
+          jotAbout({ uid: user.uid, clientId: snap.client.id, name: clientDisplayName(snap.client), text: body, notes: jotsKnown }).then(() => "notebook"),
+          "Session saved. Your just-for-me note didn't save — add it again from the profile's working notes.",
+        ),
+      );
+    } else if (body) {
+      const d = carried ? snap.draft : null;
+      const category = note?.category ?? null;
+      // The draft's flavour only while the box still files it where the draft did.
+      const stored = storedNoteOf(category, d && d.category === category ? d.flavour : null, d?.bodyParts ?? null);
+      filing.push(
+        noteOrSay(
+          createJournalEntry(snap.client.id, studioId, author, {
+            kind: stored.kind,
+            category: stored.category,
+            bodyParts: stored.bodyParts,
             body: body.slice(0, 5000),
-            importance: profileNote?.importance ?? "standard",
-            effectiveUntil:
-              profileNote?.importance && profileNote.importance !== "standard" ? (profileNote.effectiveUntil ?? null) : null,
+            importance: note?.importance ?? "standard",
+            effectiveUntil: note?.importance && note.importance !== "standard" ? (note.effectiveUntil ?? null) : null,
+            machineId: d?.aboutMachine ? (d.machineId ?? null) : null,
+            focusId: null,
+            ...link,
+            origin: d ? "in_session" : "post_session",
+          }),
+          "Session saved. The note could not be saved — add it from Notes & Profile → Notes.",
+        ),
+      );
+    }
+    for (const spot of note?.soreSpots ?? []) {
+      const dial = spot.dial ?? dialFromRegionState(spot.state);
+      const word = dialWord(REGION_SCALE, dial);
+      // Pain or Stiff is read out at Next time; As usual, Better or Recovered stays on the profile (the round's review).
+      const sore = dial !== null && dial < 0;
+      const stored = storedNoteOf("health", null, bodyMarksFromWords(spot.region));
+      filing.push(
+        noteOrSay(
+          createJournalEntry(snap.client.id, studioId, author, {
+            kind: stored.kind,
+            category: stored.category,
+            bodyParts: stored.bodyParts,
+            body: `${spot.region} · ${word}`,
+            importance: sore ? "elevated" : "standard",
+            // End of the studio day, as the composer writes it — never a raw
+            // date-only string, which would be UTC midnight (CLAUDE.md).
+            effectiveUntil: sore && spot.until ? new Date(`${spot.until}T23:59:59`) : null,
             machineId: null,
             focusId: null,
-            ...sessionLinkOf(snap.session, studioTodayKey()),
+            ...link,
             origin: "post_session",
-          },
+          }),
+          `Session saved. The sore spot (${spot.region}) could not be saved — add it from Notes & Profile → Notes.`,
         ),
-        "Session saved. The profile note could not be saved — add it from Notes & Profile → Notes.",
-      ));
+      );
     }
     await Promise.all(filing);
   };
@@ -4138,8 +4285,8 @@ export function WorkoutTrackerView({
   /** Leaving the Wrap-up by Back to Hub files its Profile note, if any, and goes home.
       The writes are issued and the Hub comes at once; their toasts follow
       their answers (R9). Nothing typed is lost: the writes are on the iPad. */
-  const leavePostSession = (profileNote?: { noteContent: string; importance: JournalImportance; effectiveUntil?: Date | null }) => {
-    void filePostSessionNotes(profileNote);
+  const leavePostSession = (note?: WrapUpNote) => {
+    void filePostSessionNotes(note);
     setPostSession(null);
     setIsPostSessionMode(false);
     setSelectedClientId(null);
@@ -4201,6 +4348,25 @@ export function WorkoutTrackerView({
   /* No tick here (R10): the strip under the bar keeps its own clock. */
   const sendState = useSendState({ tick: false });
   const markSent = sendState.sent;
+
+  /* Has this iPad heard the session's sets (F22, AJ's "a", Oct 16 2026:
+     "Finish waits for the sets"; features/session-record/sets-heard.ts)?
+     Finish, and "Finish it as it was", stamp and count from this iPad's copy
+     only then: the server answered for them, or every set was typed here.
+     Until then the Finish question waits and says why. */
+  const setsHeardHere = (sessionId: string | null | undefined) =>
+    setsHeardFor(sessionId, { window: logsWindow, recordedHere: (id) => wasRecordedHere(id), online: sendState.online });
+  const finishSets = setsHeardHere(currentSession?.id);
+  const staleSetsHeard = setsHeardHere(staleSession?.id);
+  /* The Finish question's "Started, no count" machines are worked out from
+     what this iPad held when it opened; once the sets are heard they are
+     worked out again, keeping every answer already given (F22). */
+  useEffect(() => {
+    if (!showEndConfirmation || finishSets !== "heard") return;
+    setEndChoices((prev) => refreshEndChoices<EndChoice>(prev, uncountedMachineIds(), "skipped"));
+    // uncountedMachineIds reads `logs` and today's list, both current in this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEndConfirmation, finishSets, logs]);
 
   const pendingLogWritesRef = useRef<
     Map<
@@ -4884,6 +5050,13 @@ export function WorkoutTrackerView({
       const u = patch.outcome === "practice" ? withWeight(o, sideL) : o;
       updateLogMultiple(sessionId, machineId, u, sideL);
       if (sides) updateLogMultiple(sessionId, machineId, patch.outcome === "practice" ? withWeight(o, "Right") : o, "Right");
+    } else if (patch.skipNote !== undefined) {
+      /* The pain skip's "Where?" words alone, as they are typed (F22): the
+         skip was written when Pain or injury was tapped, and the words go
+         through the typing queue like reps, sent when the field is left. */
+      const n = { skipNote: patch.skipNote ?? null } as Partial<ExerciseLog>;
+      updateLogMultiple(sessionId, machineId, n, sideL);
+      if (sides) updateLogMultiple(sessionId, machineId, n, "Right");
     }
     if (patch.isTSC !== undefined) {
       const u = { isTSC: patch.isTSC, isStaticHold: patch.isTSC };
@@ -5021,7 +5194,9 @@ export function WorkoutTrackerView({
    * sets itself, only on a tap. Watching another trainer's session, the
    * card reads only.
    */
-  const menuSession = currentSession ?? watchedSession;
+  /* On the Wrap-up (the Wrap-up round, Oct 18 2026: a machine's name opens
+     its card), the session just finished: a note added there links to it. */
+  const menuSession = currentSession ?? watchedSession ?? (isPostSessionMode && postSession ? postSession.session : null);
   const menuReadIds = useMemo(() => (logsWindow ? new Set(logsWindow.ids) : new Set<string>()), [logsWindow]);
   /* The sessions the machine card knows: the window, and the older pages its
      Load older fetched. More may wait on the server while the window came
@@ -5108,8 +5283,11 @@ export function WorkoutTrackerView({
       journal: machineJournalRead.entries,
       journalState: machineJournalRead.state,
       session: { id: menuLink.sessionId, number: menuLink.sessionNumber, day: menuLink.sessionDay },
-      noteDraft,
-      onNoteDraftChange: handleDraftChange,
+      /* On the Wrap-up the session's draft is gone (Finish filed or handed it
+         on), so the card keeps its own words and registers them with the one
+         leave question, as on the profile (the round's review, Oct 18 2026). */
+      noteDraft: isPostSessionMode ? null : noteDraft,
+      onNoteDraftChange: isPostSessionMode ? undefined : handleDraftChange,
       watching: menuWatching,
     }),
     [
@@ -5139,6 +5317,7 @@ export function WorkoutTrackerView({
       menuLink,
       noteDraft,
       handleDraftChange,
+      isPostSessionMode,
       menuWatching,
     ],
   );
@@ -5400,6 +5579,9 @@ export function WorkoutTrackerView({
      did: the change comes from the sessions listener, so there is no moment
      to ask. */
   useEffect(() => {
+    // The Wrap-up opens it too (its rows' names, Oct 18 2026), so a card
+    // carried over from the session closes as the Wrap-up comes up, and one
+    // opened there closes when the Wrap-up goes.
     if (screen !== "tracker" && screen !== "watch") setMenuMachineId(null);
     // And it opens as an ordinary card next time, never as Set up's.
     if (screen !== "tracker" && screen !== "watch") setMenuQuickFor(null);
@@ -5407,6 +5589,7 @@ export function WorkoutTrackerView({
 
   if (screen === "post-session" && postSession) {
     return (
+      <>
       <WrapUpScreen
         studioName={activeStudio?.name}
         // Times with room (Openings round): the studio the iPad is in, every
@@ -5417,9 +5600,8 @@ export function WorkoutTrackerView({
         client={postSession.client}
         coverage={clientCoverage}
         session={postSession.session}
-        logs={postSession.logs}
-        allLogs={Object.values(logs).filter((l: any) => l.clientId === postSession.client.id) as any}
         lines={postSession.lines}
+        onOpenMachine={openMachineMenu}
         journey={postSession.journey}
         schedules={schedules}
         authTrainer={authTrainer}
@@ -5443,6 +5625,10 @@ export function WorkoutTrackerView({
         trainerDropdown={trainerDropdown}
         onStudioClick={onStudioClick}
       />
+      {/* A row's name opens the machine's one card on top of the Wrap-up
+          (the Wrap-up round, Oct 18 2026, "1a"): the settings, then Save. */}
+      <MachineMenu open={!!menuMachineId} machineId={menuMachineId} onClose={closeMachineMenu} host={machineMenuHost} />
+      </>
     );
   }
 
@@ -5620,7 +5806,7 @@ export function WorkoutTrackerView({
         onResume={resumeStaleSession}
         onStartNew={leaveStaleSession}
         onFinishAsItWas={finishStaleSessionAsItWas}
-        finishAsItWasReady={totalsKnown}
+        finishAsItWasReady={totalsKnown && staleSetsHeard === "heard"}
         onDiscard={() => discardStale(staleSession, "client")}
         {...discardTermsOf(staleSession, !staleNotMine, false)}
         checkDiscard={staleNotMine ? () => checkStillLeftOpen(db, staleSession, staleSession.lastHeartbeatAt) : undefined}
@@ -5659,7 +5845,19 @@ export function WorkoutTrackerView({
              cache answer is not "no routine"): the briefing claims nothing
              about a client starting out until it is. */
           routinesKnown={routinesKnown}
-          onStart={(routineType, customMachines, note, checkIn, noteCategory, startPlan) =>
+          onStart={(routineType, customMachines, note, checkIn, noteCategory, startPlan, privateNote) => {
+            /* "Just for me" (the briefing round, phase 4): the trainer's own
+               notebook, under their Auth uid, never the client's record.
+               Never waited on; a refusal comes back as a toast. */
+            const mineUid = user?.uid ?? null;
+            if (privateNote?.trim() && mineUid && selectedClient?.id) {
+              jotAbout({ uid: mineUid, clientId: selectedClient.id, name: clientDisplayName(selectedClient), text: privateNote }).catch(
+                (err) => {
+                  console.warn("[briefing] a just-for-me note was refused:", err);
+                  toastError("Your just-for-me note didn't save. Add it again from the profile's working notes.");
+                },
+              );
+            }
             startNewSession(
               routineType,
               undefined,
@@ -5668,11 +5866,14 @@ export function WorkoutTrackerView({
               checkIn,
               noteCategory,
               startPlan,
-            )
-          }
+            );
+          }}
+          /* Back where Start was tapped, and says so (AJ's F4 "a", the
+             briefing round, Oct 17 2026; features/briefing/close-target.ts). */
+          closeWords={closeTargetOf(sessionFrom, clientFirstName(selectedClient, "")).words}
           onClose={() => {
             setIsPreSessionMode(false);
-            setView("profile");
+            setView(closeTargetOf(sessionFrom).view);
           }}
           machines={floorMachines}
           routines={routines}
@@ -5980,12 +6181,27 @@ export function WorkoutTrackerView({
               <div className="space-y-4">
                 {Object.keys(endChoices).length > 0 && (
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-bold text-ink-d2">
-                      Started, no count — record as
-                    </label>
-                    <p className="text-xs font-medium text-muted-foreground -mt-1">
-                      Practice keeps the numbers for history without counting them. Skipped is the default. Not reached: the load was set up but the session ended first.
-                    </p>
+                    {/* The three words' meaning behind an (i) (the Wrap-up round,
+                        Oct 18 2026: show it, don't label it), a tap away, never
+                        a hover. */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-bold text-ink-d2">Started, no count — record as</span>
+                      <button
+                        type="button"
+                        aria-expanded={showOutcomeHelp}
+                        aria-label="What Practice, Skipped and Not reached mean"
+                        onClick={() => setShowOutcomeHelp((v) => !v)}
+                        className="w-10 h-10 inline-flex items-center justify-center rounded-full text-ink-d2 hover:text-ink-d1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        data-testid="outcome-help"
+                      >
+                        <Info className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                    {showOutcomeHelp && (
+                      <p className="text-xs font-medium text-muted-foreground -mt-1">
+                        Practice keeps the numbers for history without counting them. Skipped is the default. Not reached: the load was set up but the session ended first.
+                      </p>
+                    )}
                     <div className="flex flex-col gap-2">
                       {Object.keys(endChoices).map((machineId) => {
                         const name =
@@ -6027,45 +6243,55 @@ export function WorkoutTrackerView({
                     </div>
                   </div>
                 )}
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2" data-testid="next-trainer-box">
                   {/* The note for the next trainer (voice-review round, Sep 27
-                      2026 — "the end session note is for the next trainer").
-                      It files as a Heads up, the loudness the briefing shows
-                      at four sessions. A note only for the profile is the
-                      Wrap-up's Profile note, one screen on. */}
-                  <label
-                    htmlFor="next-trainer-note"
-                    className="text-sm font-bold text-ink-d2"
-                  >
-                    Note for the next trainer (optional)
+                      2026 — "the end session note is for the next trainer"),
+                      in the same note box as the Wrap-up's (the Wrap-up round,
+                      AJ, Oct 18 2026, "n2 a"): it starts at Next time, placed,
+                      so a category never moves it, and says where it lands. */}
+                  <label htmlFor="next-trainer-note" className="text-sm font-bold text-ink-d2">
+                    Note for the next trainer
                   </label>
-                  {/* The shared field: its 3:1 edge, sunk into the well. */}
-                  <Textarea
+                  <NoteBox
                     id="next-trainer-note"
-                    value={currentSessionNotes}
-                    onChange={(e) => setCurrentSessionNotes(e.target.value)}
+                    value={{
+                      text: currentSessionNotes,
+                      importance: nextTrainerImportance,
+                      justForMe: nextTrainerJustForMe,
+                      category: nextTrainerCategory,
+                      picked: true,
+                    }}
+                    onChange={(v) => {
+                      setCurrentSessionNotes(v.text);
+                      setNextTrainerImportance(v.importance);
+                      setNextTrainerJustForMe(v.justForMe);
+                      setNextTrainerCategory(v.category);
+                    }}
+                    firstName={clientFirstName(selectedClient) || ""}
                     placeholder="What should the next trainer know before the next session?"
-                    aria-describedby="next-trainer-note-hint"
-                    className="min-h-25 resize-none"
                   />
-                  <p id="next-trainer-note-hint" className="text-xs text-muted-foreground">
-                    On the next four briefings.
-                  </p>
-                  {currentSessionNotes.trim() ? (
-                    <div className="flex flex-col gap-1.5" data-testid="next-trainer-file-as">
-                      <span className="nc-kicker">File it as (optional)</span>
-                      <NoteCategoryChips
-                        value={nextTrainerCategory}
-                        options={FILING_CATEGORIES}
-                        label="File the note for the next trainer as"
-                        small
-                        onChange={(c) =>
-                          setNextTrainerCategory((prev) => (prev === c ? null : (c as FilingCategory)))
-                        }
-                      />
-                    </div>
-                  ) : null}
                 </div>
+                {/* Finish waits for the session's sets (F22, sets-heard.ts):
+                    one line while it does, and Try again after a failed read. */}
+                {finishSets !== "heard" && (
+                  <div className="flex flex-col gap-2" data-testid="finish-waits-for-sets" data-state={finishSets}>
+                    <p role="status" className="text-sm text-ink-d2 break-words">
+                      {setsWaitWords(finishSets)}
+                    </p>
+                    {finishSets === "failed" && (
+                      <Button
+                        variant="outline"
+                        className="h-11 rounded-2xl self-start"
+                        onClick={() => {
+                          setLogsWindow(null);
+                          setLogsRetry((n) => n + 1);
+                        }}
+                      >
+                        Try again
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Button
                     variant="outline"
@@ -6081,9 +6307,10 @@ export function WorkoutTrackerView({
                   <Button
                     className="h-14 rounded-2xl shadow-(--go-lift) bg-cta text-cta-foreground hover:bg-cta"
                     onClick={() => void commitEndSession()}
-                    disabled={isSyncing}
+                    disabled={isSyncing || finishSets !== "heard"}
+                    aria-busy={finishSets === "getting" || undefined}
                   >
-                    {isSyncing ? "Saving…" : "Finish session"}
+                    {isSyncing ? "Saving…" : finishSets === "getting" ? SETS_WAIT_BUTTON : "Finish session"}
                   </Button>
                 </div>
                 <div className="pt-4 flex justify-center border-t border-slate-100 dark:border-slate-800 mt-2">

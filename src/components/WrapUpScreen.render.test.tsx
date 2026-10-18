@@ -28,7 +28,7 @@ vi.mock("../features/subjective-report", async (importOriginal) => {
   const real = await importOriginal<typeof import("../features/subjective-report")>();
   return {
     ...real,
-    PulseQuickLogDialog: (props: { open: boolean }) => (props.open ? <div data-testid="pulse-stub">Pulse stub</div> : null),
+    PulseQuickLog: () => <div data-testid="pulse-stub">Pulse stub</div>,
   };
 });
 
@@ -236,6 +236,20 @@ const click = async (el: Element | null | undefined) => {
 const buttonByText = (root: ParentNode, text: string) =>
   Array.from(root.querySelectorAll("button")).find((b) => b.textContent?.trim().includes(text));
 
+/** The note box's words, opening it from the minute after's row first (the Wrap-up round, Oct 18 2026). */
+const noteBox = async (host: ParentNode): Promise<HTMLTextAreaElement> => {
+  const open = host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement | null;
+  if (open) return open;
+  await click(host.querySelector('[data-testid="after-note"]'));
+  return host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement;
+};
+const typeInto = async (el: HTMLTextAreaElement, text: string) => {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(el, text);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+};
+
 const client = { id: "c1", homeStudioId: "s1", firstName: "Judy", lastName: "Client", sessionCount: 12 } as Client;
 const session = { id: "sess1", clientId: "c1", status: "Completed", sessionNumber: 12 } as WorkoutSession;
 const trainer = { id: "t-doc", fullName: "Jane Coach", initials: "JC", role: "LifeTransformer" } as any;
@@ -255,7 +269,6 @@ function Screen({
     <WrapUpScreen
       client={who}
       session={session}
-      logs={[]}
       lines={[]}
       journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
       schedules={[]}
@@ -287,9 +300,10 @@ describe("the post-session screen mounts", () => {
     // No green, no red: every position is the neutral tone.
     expect(radios.every((r) => r.getAttribute("data-tone") === "neutral")).toBe(true);
     expect(radios.every((r) => r.getAttribute("aria-checked") === "false")).toBe(true);
-    // Untouched says what it will save.
+    // Untouched, it rests on what it will save, and says no more (show it, don't label it).
     expect(dial.textContent).toContain("As expected");
-    expect(host.querySelector('[data-testid="effort-default-hint"]')!.textContent).toBe("Left untouched, it saves As expected.");
+    expect(host.textContent).not.toContain("Left untouched");
+    expect(host.textContent).not.toContain("The whole workout, judged by you");
     expect(onEffort).not.toHaveBeenCalled();
 
     await click(radios[3]);
@@ -297,13 +311,20 @@ describe("the post-session screen mounts", () => {
     expect(radios[3].getAttribute("aria-checked")).toBe("true");
     // No advice under it (Oct 2 2026): the app never suggests a weight.
     expect(host.querySelector('[data-testid="dose-sentence"]')).toBeNull();
-    expect(host.textContent).not.toMatch(/next time/i);
-    expect(host.querySelector('[data-testid="effort-card"]')!.textContent).toContain("Saved");
+    // The word it rests on is the answer; nothing else is said of a save.
+    expect(dial.querySelector(".rt__word")!.textContent).toBe("Pushed hard");
+    expect(host.querySelector('[data-testid="effort-card"]')!.textContent).not.toContain("Not saved");
 
     // Tapping it again takes the tap back: the default is written in its place.
     await click(radios[3]);
     expect(onEffort).toHaveBeenLastCalledWith(0, true);
-    expect(host.querySelector('[data-testid="effort-default-hint"]')).toBeTruthy();
+  });
+
+  it("says when the effort didn't save, so it can be tapped again", async () => {
+    const host = await mount(<Screen onEffort={vi.fn(async () => false)} />);
+    const radios = Array.from(host.querySelector('[data-testid="effort-dial"]')!.querySelectorAll('[role="radio"]'));
+    await click(radios[4]);
+    expect(host.querySelector('[data-testid="effort-card"]')!.textContent).toContain("Not saved. Tap it again.");
   });
 
   it("saves As expected, marked as the default, once, when the trainer leaves without tapping", async () => {
@@ -337,47 +358,48 @@ describe("the post-session screen mounts", () => {
     expect(onEffort).toHaveBeenCalledWith(0, true);
   });
 
-  it("offers the profile note's Loudness with Note checked, and Matters until behind Heads up", async () => {
+  it("opens the note box from Note: where it goes and what it's for before a word is typed, and where it lands (AJ, Oct 18 2026)", async () => {
     const host = await mount(<Screen />);
-    const loud = host.querySelector('[role="radiogroup"][aria-label="How loud?"]')!;
-    expect(loud).toBeTruthy();
-    expect(Array.from(loud.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Note", "Heads up", "Critical"]);
-    expect(loud.querySelector('[aria-checked="true"]')!.textContent).toBe("Note");
-    expect(host.querySelector('input[aria-label="Matters until"]')).toBeNull();
-    // At Note the Profile note goes to her profile only (voice-review round,
-    // Sep 27 2026), and the screen says so in plain words rather than the
-    // generic "found by its category" (it is filed unfiled).
-    expect(host.querySelector('[data-testid="profile-note-hint"]')!.textContent).toBe(
-      "Stays on Judy's profile. The next trainer's briefing won't show it.",
-    );
-    expect(host.textContent).not.toContain("found by its category");
+    // Closed until Note is tapped: the minute after is one row.
+    expect(host.querySelector('textarea[aria-label="Note"]')).toBeNull();
+    expect(Array.from(host.querySelectorAll('[data-testid="after-row"] button')).map((b) => b.textContent)).toEqual(["Note", "Sore spot", "Pulse"]);
+    const box = await noteBox(host);
+    expect(box.getAttribute("placeholder")).toBe("Anything for Judy's record, or for next time");
+    // Shown before anything is typed (the sketch hid them until then).
+    const goes = host.querySelector('[role="radiogroup"][aria-label="Goes to"]')!;
+    expect(Array.from(goes.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Profile only", "Next time", "Critical"]);
+    expect(goes.querySelector('[aria-checked="true"]')!.textContent).toBe("Profile only");
+    const what = host.querySelector('[role="group"][aria-label="What it\'s for"]')!;
+    expect(Array.from(what.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Coaching & equipment", "Health", "Incident", "Retention", "Preference"]);
+    const where = () => host.querySelector('[data-testid="note-box-where"]')!.textContent;
+    expect(where()).toBe("Judy's profile → Notes → To file · stays on the profile, not on the briefing");
 
-    await click(buttonByText(loud, "Heads up"));
-    const until = host.querySelector('input[aria-label="Matters until"]') as HTMLInputElement;
-    expect(until).toBeTruthy();
-    expect(until.getAttribute("min")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(host.textContent).toContain("Matters until (optional)");
-    expect(host.textContent).toContain("After this it stops showing on the briefing.");
-    // Louder, it does reach the briefing, and Loudness's own hint says so.
-    expect(host.querySelector('[data-testid="profile-note-hint"]')).toBeNull();
-    expect(host.textContent).toContain("on the briefing while it still matters");
+    // Health goes to next time, and the leaders hear of it.
+    await click(buttonByText(what, "Health"));
+    expect(goes.querySelector('[aria-checked="true"]')!.textContent).toBe("Next time");
+    expect(where()).toBe("Judy's profile → Notes → Health · read out on the next 4 briefings · leaders see it on Operations → Today");
+    // Placed by hand, a category no longer moves it.
+    await click(buttonByText(goes, "Profile only"));
+    await click(buttonByText(what, "Incident"));
+    expect(goes.querySelector('[aria-checked="true"]')!.textContent).toBe("Profile only");
 
-    await click(buttonByText(loud, "Note"));
-    expect(host.querySelector('input[aria-label="Matters until"]')).toBeNull();
-    expect(host.querySelector('[data-testid="profile-note-hint"]')).toBeTruthy();
+    // Just for me: the trainer's own notebook, never the record.
+    await click(host.querySelector('[data-testid="note-box-just-for-me"]'));
+    expect(host.querySelector('[role="radiogroup"][aria-label="Goes to"]')).toBeNull();
+    expect(where()).toBe("Your own notebook. Nobody else sees it, and it isn't filed on Judy's record.");
   });
 
   it("is headed Wrap-up: briefing is pre-session, wrap-up is post-session (voice-review round)", async () => {
     const host = await mount(<Screen />);
-    expect(host.textContent).toContain("Wrap-up · session saved");
+    // Saved is the plain case, and the screen says it by being here (the
+    // Wrap-up round, Oct 18 2026: show it, don't label it).
+    expect(host.querySelector('[data-testid="wrapup-eyebrow"]')!.textContent).toBe("Wrap-up");
+    expect(host.textContent).not.toContain("session saved");
     expect(host.textContent).not.toContain("Session complete");
     // A plain congratulation picked for this session (Oct 2 2026), never a
     // judgement of how she did.
     expect(host.querySelector("h1")!.textContent).toBe(congratulation("sess1", "Judy"));
     expect(host.textContent).not.toContain("strong work");
-    expect(host.querySelector('textarea[aria-label="Profile note"]')!.getAttribute("placeholder")).toBe(
-      "Profile note — anything for Judy's record. It files when you leave this screen.",
-    );
   });
 
   /* A Finish refused after the Wrap-up came up (the sessions round, Oct 12
@@ -388,7 +410,6 @@ describe("the post-session screen mounts", () => {
         <WrapUpScreen
           client={client}
           session={session}
-          logs={[]}
           lines={[]}
           journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
           schedules={[]}
@@ -404,8 +425,8 @@ describe("the post-session screen mounts", () => {
     };
     const elsewhere = await at("elsewhere");
     expect(elsewhere.textContent).toContain("Already finished on another iPad · it counts once");
-    expect(elsewhere.textContent).toContain("Wrap-up · session saved");
-    expect(elsewhere.textContent).not.toContain("session saved on this iPad");
+    expect(elsewhere.querySelector('[data-testid="wrapup-eyebrow"]')!.textContent).toBe("Wrap-up");
+    expect(elsewhere.textContent).not.toContain("saved on this iPad");
     expect(elsewhere.textContent).not.toContain("when the connection is back");
 
     const gone = await at("gone");
@@ -451,41 +472,50 @@ describe("the post-session screen mounts", () => {
     expect(await tray({ ...client, firstName: "" } as Client)).toContain("about them saved without a category");
   });
 
-  it("says Update Pulse, never Assessment or priority, and opens the Pulse quick-log", async () => {
+  it("opens the Pulse in place under the row, never a dialog, and says neither Assessment nor priority", async () => {
     const host = await mount(<Screen />);
     expect(host.textContent).not.toMatch(/assessment/i);
     expect(host.textContent).not.toMatch(/priority/i);
-    expect(host.textContent).toContain("Effort · profile note · Pulse");
+    expect(host.textContent).not.toContain("Effort · profile note · Pulse");
     expect(host.querySelector('[data-testid="pulse-stub"]')).toBeNull();
-    await click(buttonByText(host, "Update Pulse"));
-    expect(host.querySelector('[data-testid="pulse-stub"]')).toBeTruthy();
+    await click(host.querySelector('[data-testid="after-pulse"]'));
+    const pulse = host.querySelector('[data-testid="wrapup-pulse"]')!;
+    expect(pulse.querySelector('[data-testid="pulse-stub"]')).toBeTruthy();
+    expect(pulse.closest('[role="dialog"]')).toBeNull();
+    // One panel at a time: the note box takes its place.
+    await noteBox(host);
+    expect(host.querySelector('[data-testid="wrapup-pulse"]')).toBeNull();
   });
 
-  it("leaves with the profile note, its loudness and its until day", async () => {
+  it("leaves with the note, where it goes and what it's for, once", async () => {
     const onLeave = vi.fn();
     const host = await mount(<Screen onLeave={onLeave} />);
-    const textarea = host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, "Shoulder tender on chest press");
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    const loud = host.querySelector('[role="radiogroup"][aria-label="How loud?"]')!;
-    await click(buttonByText(loud, "Heads up"));
-    const until = host.querySelector('input[aria-label="Matters until"]') as HTMLInputElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(until, "2099-09-20");
-      until.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-
+    await typeInto(await noteBox(host), "Shoulder tender on chest press");
+    await click(buttonByText(host.querySelector('[role="group"][aria-label="What it\'s for"]')!, "Health"));
     await click(buttonByText(host, "Back to Hub"));
     expect(onLeave).toHaveBeenCalledTimes(1);
-    const profileNote = onLeave.mock.calls[0][0];
-    expect(profileNote).toMatchObject({ noteContent: "Shoulder tender on chest press", importance: "elevated" });
-    const stored = profileNote.effectiveUntil as Date;
-    expect([stored.getFullYear(), stored.getMonth(), stored.getDate(), stored.getHours()]).toEqual([2099, 8, 20, 23]);
+    expect(onLeave.mock.calls[0][0]).toEqual({
+      noteContent: "Shoulder tender on chest press",
+      importance: "elevated",
+      effectiveUntil: null,
+      category: "health",
+      justForMe: false,
+      fromDraft: false,
+      keepsDraftMarks: false,
+      soreSpots: [],
+    });
     // Leaving twice does nothing.
     await click(buttonByText(host, "Leaving"));
     expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands over a just-for-me note as the trainer's own", async () => {
+    const onLeave = vi.fn();
+    const host = await mount(<Screen onLeave={onLeave} />);
+    await typeInto(await noteBox(host), "Prefers to be called Jude");
+    await click(host.querySelector('[data-testid="note-box-just-for-me"]'));
+    await click(buttonByText(host, "Back to Hub"));
+    expect(onLeave.mock.calls[0][0]).toMatchObject({ noteContent: "Prefers to be called Jude", justForMe: true });
   });
 
   it("draws no FORD sweep when FORD answered with nothing caught", async () => {
@@ -509,11 +539,20 @@ describe("the post-session screen mounts", () => {
     expect(host.querySelector(".ford-sweep")).toBeNull();
   });
 
-  it("leaves a plain Note with no until day", async () => {
+  it("leaves with nothing to file when nothing was written", async () => {
     const onLeave = vi.fn();
     const host = await mount(<Screen onLeave={onLeave} />);
     await click(buttonByText(host, "Back to Hub"));
-    expect(onLeave.mock.calls[0][0]).toEqual({ noteContent: "", importance: "standard", effectiveUntil: null });
+    expect(onLeave.mock.calls[0][0]).toEqual({
+      noteContent: "",
+      importance: "standard",
+      effectiveUntil: null,
+      category: null,
+      justForMe: false,
+      fromDraft: false,
+      keepsDraftMarks: false,
+      soreSpots: [],
+    });
   });
 });
 
@@ -543,7 +582,6 @@ describe("the Note for the next trainer in the Wrap-up's To-file tray", () => {
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -640,7 +678,6 @@ describe("the post-session screen and a client's history", () => {
         client={who}
         coverage={coverage}
         session={{ ...session, sessionNumber: 4 }}
-        logs={[]}
         lines={[firstLine]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -655,8 +692,7 @@ describe("the post-session screen and a client's history", () => {
   it("calls a machine her first time, and numbers the session, when Journey holds her whole story", async () => {
     const host = await mount(<HistoryScreen coverage="complete" />);
     expect(host.textContent).toContain("First time");
-    expect(host.textContent).toContain("1 new machine");
-    expect(host.textContent).toContain("session #4");
+    expect(host.querySelector('[data-testid="wrapup-session-line"]')!.textContent).toContain("#4");
   });
 
   it("says neither to a migrating client nobody has recorded a total for", async () => {
@@ -664,20 +700,21 @@ describe("the post-session screen and a client's history", () => {
       const host = await mount(<HistoryScreen coverage={coverage} />);
       expect(host.textContent).not.toContain("First time");
       expect(host.textContent).not.toMatch(/new machine/);
-      expect(host.textContent).not.toContain("session #");
+      expect(host.textContent).not.toMatch(/#\d/);
       // What actually happened today is still there.
       expect(host.textContent).toContain("Leg Press");
-      expect(host.textContent).toContain("1 of 1 machine");
+      expect(host.querySelector('[data-testid="wrapup-row-today"]')!.textContent).toContain("120 × 8");
     }
   });
 
-  it("numbers the session once somebody has recorded her total, and still claims no first time", async () => {
+  it("numbers the session in her total once somebody has recorded it (F6 = c), and still claims no first time", async () => {
     const recorded = {
       ...client,
       priorHistory: { sessions: 412, importedCount: 0, through: "2026-09-12", source: "filemaker" },
     } as Client;
     const host = await mount(<HistoryScreen coverage="partial" who={recorded} />);
-    expect(host.textContent).toContain("session #4");
+    // 412 before Journey, and today is Journey's 4th: the "#416" the briefing promised, never "#4".
+    expect(host.querySelector('[data-testid="wrapup-session-line"]')!.textContent).toContain("#416");
     expect(host.textContent).not.toContain("First time");
   });
 });
@@ -731,13 +768,7 @@ describe("every way out of the Wrap-up files the typed profile note, once", () =
   const viewOf = (host: HTMLElement) => host.querySelector('[data-testid="app"]')!.getAttribute("data-view");
   const hub = (host: HTMLElement) =>
     Array.from(host.querySelectorAll("nav button")).find((b) => b.textContent?.trim() === "Hub");
-  const typeNote = async (host: HTMLElement, text: string) => {
-    const textarea = host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, text);
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-  };
+  const typeNote = async (host: HTMLElement, text: string) => typeInto(await noteBox(host), text);
   const question = () => document.querySelector('[role="alertdialog"]');
 
   beforeEach(() => {
@@ -793,7 +824,7 @@ describe("every way out of the Wrap-up files the typed profile note, once", () =
     expect(filedOnTheWay).toEqual([expect.objectContaining({ noteContent: "Shoulder tender on chest press" })]);
     expect(viewOf(host)).toBe("workouts");
     await act(async () => setHidden(false));
-    expect((host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement).value).toBe("");
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("");
     expect(host.querySelector('[data-testid="profile-note-filed"]')).toBeTruthy();
     // Hidden again with nothing new typed: nothing more is filed.
     await act(async () => setHidden(true));
@@ -845,7 +876,6 @@ describe("the packages card (consultation round, Sep 2026)", () => {
       <WrapUpScreen
         client={{ ...client, ...who } as Client}
         session={{ ...session, hostedAtStudioId: "s1" } as WorkoutSession}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -893,7 +923,7 @@ describe("the packages card (consultation round, Sep 2026)", () => {
     const renewal = { cycleKey: "9001", situation: "on-track", flags: [], dataGaps: [] } as any;
     const host = await mount(<PackagesScreen who={{ ...checked, renewal }} coverage="complete" />);
     expect(card(host)).toBeNull();
-    expect(buttonByText(host, "Renewal conversation")).toBeTruthy();
+    expect(host.querySelector('[data-testid="after-renewal"]')!.textContent).toBe("Renewal");
   });
 
   it("is not drawn for a client who is away", async () => {
@@ -941,7 +971,6 @@ describe("the post-session screen's small honesty fixes (packages round)", () =>
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[{ machineId: "m1", name: "Seated Leg Press With A Long Studio Name", outcome: "performed", weight: 180, count: 9 } as any]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -989,7 +1018,6 @@ describe("a carried draft for the studio's floor notes", () => {
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -1019,11 +1047,64 @@ describe("a carried draft for the studio's floor notes", () => {
     expect(onDropDraft).toHaveBeenCalled();
   });
 
-  it("reads the switch defensively: anything but true is a note about the client", async () => {
+  it("reads the switch defensively: anything but true is a note about the client, in the note box", async () => {
     const host = await mount(<FloorScreen onSaveDraft={vi.fn()} draft={{ ...floorDraft, toFloor: "true" }} />);
-    const card = host.querySelector('[data-testid="unsaved-draft"]')!;
-    expect(card.textContent).toContain("You started a note during the session and didn't save it");
-    expect(buttonByText(card, "Save note")).toBeTruthy();
+    expect(host.querySelector('[data-testid="unsaved-draft"]')).toBeNull();
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("Seat pin sticks at 7");
+  });
+
+  it("opens the note box on a note the session left unsaved, with its words and its filing, and hands it over as the draft's", async () => {
+    const onLeave = vi.fn();
+    const host = await mount(
+      <WrapUpScreen
+        client={client}
+        session={session}
+        lines={[]}
+        journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
+        schedules={[]}
+        authTrainer={trainer}
+        onEffort={vi.fn()}
+        onLeave={onLeave}
+        unsavedDraft={{ body: "Knee clicked on the way down", category: "health", flavour: null, bodyParts: [], importance: "elevated", machineId: "m1", aboutMachine: true } as any}
+        machines={[{ id: "m1", name: "Leg Press" } as any]}
+      />,
+    );
+    // One box, open, never a second one above it.
+    expect(host.querySelector('[data-testid="unsaved-draft"]')).toBeNull();
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("Knee clicked on the way down");
+    expect(host.querySelector('[role="radiogroup"][aria-label="Goes to"] [aria-checked="true"]')!.textContent).toBe("Next time");
+    expect(buttonByText(host.querySelector('[role="group"][aria-label="What it\'s for"]')!, "Health")!.getAttribute("aria-pressed")).toBe("true");
+    await click(buttonByText(host, "Back to Hub"));
+    expect(onLeave.mock.calls[0][0]).toMatchObject({
+      noteContent: "Knee clicked on the way down",
+      category: "health",
+      importance: "elevated",
+      fromDraft: true,
+      keepsDraftMarks: true,
+    });
+  });
+
+  it("drops the draft's marks once its words are cleared, and the new words are a note of their own (the round's review)", async () => {
+    const onLeave = vi.fn();
+    const host = await mount(
+      <WrapUpScreen
+        client={client}
+        session={session}
+        lines={[]}
+        journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
+        schedules={[]}
+        authTrainer={trainer}
+        onEffort={vi.fn()}
+        onLeave={onLeave}
+        unsavedDraft={{ body: "Knee clicked on the way down", category: "health", flavour: null, bodyParts: [], importance: "elevated", machineId: "m1", aboutMachine: true } as any}
+        machines={[{ id: "m1", name: "Leg Press" } as any]}
+      />,
+    );
+    const box = host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement;
+    await typeInto(box, "");
+    await typeInto(box, "Asked about Saturday times");
+    await click(buttonByText(host, "Back to Hub"));
+    expect(onLeave.mock.calls[0][0]).toMatchObject({ noteContent: "Asked about Saturday times", fromDraft: true, keepsDraftMarks: false });
   });
 });
 
@@ -1040,7 +1121,6 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
       <WrapUpScreen
         client={{ ...client, renewal: { cycleKey: "9001", situation: "on-track", flags: [], dataGaps: [] } } as any}
         session={session}
-        logs={[{ id: "l1", machineId: "m1", sessionId: "sess1", weight: "180", reps: "9", outcome: "performed" } as any]}
         lines={[
           { machineId: "m1", name: "Leg Press", outcome: "performed", weight: 180, count: 9, isTSC: false, quality: 3, loadDelta: 5, countDelta: 0, first: false },
         ] as any}
@@ -1049,7 +1129,9 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
         authTrainer={trainer}
         onEffort={vi.fn()}
         onLeave={vi.fn()}
-        unsavedDraft={{ body: "Mentioned her daughter's wedding", category: null } as any}
+        // A floor note left unsaved: the one draft that keeps its own Save (the client's opens the note box).
+        unsavedDraft={{ body: "Seat pin sticks at 7", category: null, flavour: null, bodyParts: [], importance: "standard", machineId: "m1", aboutMachine: true, toFloor: true } as any}
+        studioName="Westlake"
         machines={[{ id: "m1", name: "Leg Press", anatomicalRegion: "Lower Body" } as any]}
         // Next time's card is on the screen too, so the sweeps below cover it.
         nextTime={{
@@ -1086,7 +1168,7 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
 
   it("says a save in brand blue on its own on-colour, in sentence case", async () => {
     const host = await mount(<FullScreen />);
-    const save = buttonByText(host.querySelector('[data-testid="unsaved-draft"]')!, "Save note")!;
+    const save = buttonByText(host.querySelector('[data-testid="unsaved-draft"]')!, "Add to Westlake's notes")!;
     expect(save.className).toContain("bg-(--eq-live)");
     expect(save.className).toContain("text-(--eq-live-on)");
     expect(save.className).not.toContain("uppercase");
@@ -1094,7 +1176,7 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
 
   it("draws its own buttons in bold sentence case at 14px, with the brand focus ring", async () => {
     const host = await mount(<FullScreen />);
-    const own = ["Save note", "Drop it", "Update Pulse", "Renewal conversation", "Back to Hub"].map(
+    const own = ["Add to Westlake's notes", "Drop it", "Note", "Sore spot", "Pulse", "Renewal", "Back to Hub"].map(
       (label) => buttonByText(host, label)!,
     );
     for (const b of own) {
@@ -1113,7 +1195,7 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
 
   it("raises its doors on the 3:1 edge with a lift and a press, and lifts Save in solid blue (type and depth, phase 8)", async () => {
     const host = await mount(<FullScreen />);
-    const doors = ["Drop it", "Update Pulse", "Renewal conversation", "Back to Hub"].map((label) => buttonByText(host, label)!);
+    const doors = ["Drop it", "Note", "Sore spot", "Pulse", "Renewal", "Back to Hub"].map((label) => buttonByText(host, label)!);
     for (const b of doors) {
       expect(b).toBeTruthy();
       const cls = b.className.split(/\s+/);
@@ -1126,11 +1208,11 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
         expect(cls, `${b.textContent}: ${gone}`).not.toContain(gone);
       }
     }
-    const save = buttonByText(host.querySelector('[data-testid="unsaved-draft"]')!, "Save note")!;
+    const save = buttonByText(host.querySelector('[data-testid="unsaved-draft"]')!, "Add to Westlake's notes")!;
     expect(save.className.split(/\s+/)).toEqual(expect.arrayContaining(["shadow-(--solid-lift)", "active:translate-y-px", "disabled:shadow-none"]));
   });
 
-  it("heads its cards in the label voice, and titles the page in the codex voice", async () => {
+  it("titles the page in the codex voice, and slants no card head", async () => {
     const host = await mount(<FullScreen />);
     const title = host.querySelector("h1")!;
     // Moved on purpose (type and depth, phase 12, Oct 4 2026; AJ's 1A): the
@@ -1140,16 +1222,12 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
     expect(titleClasses).toEqual(expect.arrayContaining(["font-display", "font-extrabold", "text-[30px]", "break-words"]));
     expect(titleClasses).not.toContain("italic");
     expect(titleClasses).not.toContain("uppercase");
-    // Moved on purpose (type and depth review, Oct 5 2026; AJ's 1A and 3B):
-    // a card's head was 12px capitals, the pattern the round took out
-    // everywhere else. It is the label voice now, 14/700 in ink-2.
-    // "The journey" became "How it went" (the floor round, Oct 9 2026, 3a).
-    const head = Array.from(host.querySelectorAll("div")).find((d) => d.textContent === "How it went")!;
-    const cls = head.className.split(/\s+/);
-    expect(cls).toEqual(expect.arrayContaining(["text-[14px]", "font-bold", "text-ink-d2"]));
-    expect(cls).not.toContain("uppercase");
-    expect(cls).not.toContain("italic");
-    expect(cls).not.toContain("font-display");
+    // The Wrap-up round (Oct 18 2026): the list's card heads ("Today", "How
+    // it went", "Next session's weights") went with the show-don't-label
+    // rule. No card head on the list is in capitals or slanted.
+    for (const head of Array.from(host.querySelectorAll("section > div:first-child"))) {
+      expect(head.className, head.textContent ?? "").not.toMatch(/\buppercase\b|\bitalic\b/);
+    }
   });
 
   it("keeps every text size in its source on the scale, and no cyan focus left: the Wrap-up and the Times with room sheet it opens", () => {
@@ -1167,57 +1245,6 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
       // the code typeface drew "lb moved", the shares, today's lines and the lifetime tiles until then.
       expect(src, f).not.toMatch(/\bfont-mono\b/);
     }
-  });
-
-  // The floor round, Oct 9 2026, F4: Upper Body's bar was amber (chart-5), which beside the Navy
-  // Frame read as the orange of now and go. chart-5 is a cool data colour in both themes.
-  it("draws no region's bar in an orange", () => {
-    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../index.css"), "utf8");
-    const values = [...css.matchAll(/--chart-5:\s*(#[0-9A-Fa-f]{6})/g)].map((m) => m[1]);
-    expect(values).toHaveLength(2);
-    for (const hex of values) {
-      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-      expect(b > r && b > g, `${hex} is a cool colour, never amber or orange`).toBe(true);
-    }
-  });
-
-  /* Where the work went: hero orange (chart-2, the same colour as --cta) is
-     the one loud action of a screen and chart-1 is the brand blue in the
-     light theme, so neither colours a muscle group. */
-  it("colours where the work went with neither of the brand's two colours, one colour per region", async () => {
-    const machines = [
-      { id: "m1", name: "Leg Press", anatomicalRegion: "Lower Body" },
-      { id: "m2", name: "Chest Press", anatomicalRegion: "Chest" },
-      { id: "m3", name: "Lower Back", anatomicalRegion: "Lumbar" },
-      { id: "m4", name: "Mystery Machine", anatomicalRegion: "" },
-    ];
-    const logs = machines.map((m, i) => ({ id: `l${i}`, machineId: m.id, sessionId: "sess1", weight: "100", reps: String(5 + i), outcome: "performed" }));
-    const host = await mount(
-      <WrapUpScreen
-        client={client}
-        session={session}
-        logs={logs as any}
-        lines={[]}
-        journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
-        schedules={[]}
-        authTrainer={trainer}
-        onEffort={vi.fn()}
-        onLeave={vi.fn()}
-        machines={machines as any}
-      />,
-    );
-    const label = Array.from(host.querySelectorAll("span")).find((s) => s.textContent === "Where the work went")!;
-    const block = label.parentElement!.parentElement!;
-    for (const region of ["Lower Body", "Upper Body", "Core & Spine", "Other"]) expect(block.textContent).toContain(region);
-    const classes = Array.from(block.querySelectorAll("[class]")).flatMap((el) => el.className.split(/\s+/));
-    expect(classes).not.toContain("bg-chart-1");
-    expect(classes).not.toContain("bg-chart-2");
-    expect(classes).not.toContain("bg-cta");
-    const dotTones = Array.from(block.querySelectorAll("span.rounded-full.shrink-0")).map((d) =>
-      d.className.split(/\s+/).find((c) => c.startsWith("bg-")),
-    );
-    expect(dotTones).toHaveLength(4);
-    expect(new Set(dotTones).size).toBe(4);
   });
 
   it("bursts its confetti once as it opens, out of the way of every tap", async () => {
@@ -1250,7 +1277,6 @@ describe("the post-session screen says where the session is saved (session recor
     <WrapUpScreen
       client={client}
       session={session}
-      logs={[]}
       lines={[]}
       journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
       schedules={[]}
@@ -1262,16 +1288,16 @@ describe("the post-session screen says where the session is saved (session recor
     />
   );
 
-  it("says 'saved' once the studio's records have the session", async () => {
+  it("says 'saved' only by being here once the studio's records have the session", async () => {
     const host = await mount(screen());
-    expect(host.textContent).toContain("Wrap-up · session saved");
+    expect(host.querySelector('[data-testid="wrapup-eyebrow"]')!.textContent).toBe("Wrap-up");
     expect(host.textContent).not.toContain("saved on this iPad");
     expect(host.textContent).not.toContain("when the connection is back");
   });
 
   it("says 'saved on this iPad' while the database has not answered, and that it will send", async () => {
     const host = await mount(screen(true));
-    expect(host.textContent).toContain("Wrap-up · session saved on this iPad");
+    expect(host.querySelector('[data-testid="wrapup-eyebrow"]')!.textContent).toBe("Wrap-up · saved on this iPad");
     expect(host.textContent).toContain("It sends to the studio's records when the connection is back. Nothing more to do.");
   });
 });
@@ -1350,7 +1376,6 @@ describe("Next: her next booking, and the door to Times with room", () => {
         trainers={[SAM, PAT]}
         client={client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={schedules as any}
@@ -1498,25 +1523,31 @@ describe("Next: her next booking, and the door to Times with room", () => {
     expect(effortCard(noDoor).compareDocumentPosition(nextLine(noDoor)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("lays its cards out in the order the trainer acts (AJ, Oct 9 2026, the floor round's 3a)", async () => {
+  it("lays its cards out in the order the trainer acts (AJ, Oct 9 2026, 3a; Oct 18 2026, 1a)", async () => {
     const host = await mount(<NextScreen />);
     await settle();
-    const heads = Array.from(host.querySelectorAll("section > div:first-child")).map((d) => d.textContent?.trim());
-    const order = ["Today", "How it went", "Effort · profile note · Pulse", "Next"];
-    // Today's head row also says "vs last time on each machine".
-    const at = order.map((h) => heads.findIndex((t) => t === h || (h === "Today" && t?.startsWith("Today"))));
-    expect(at.every((i) => i >= 0), heads.join(" | ")).toBe(true);
-    expect([...at].sort((a, b) => a - b)).toEqual(at);
-    expect(heads).not.toContain("The journey");
-    // Where the work went moved out of Today into How it went.
-    const where = host.querySelector('[data-testid="where-the-work-went"]');
-    if (where) expect(where.closest("section")!.querySelector("div")!.textContent).toBe("How it went");
+    const list = host.querySelector('[data-testid="wrapup-list"]')!;
+    const sentence = host.querySelector('[data-testid="journey-sentence"]')!;
+    const effort = host.querySelector('[data-testid="effort-card"]')!;
+    const next = host.querySelector('[data-testid="next-booking"]')!;
+    const leave = host.querySelector('[data-testid="wrapup-leave"]')!;
+    // How it went is the one sentence under the list, in the same card.
+    expect(sentence.closest("section")).toBe(list.closest("section"));
+    const order = [list, effort, next, leave];
+    for (let i = 1; i < order.length; i++) {
+      expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    // Back to Hub is outside the scrolling page, pinned under it.
+    expect(leave.closest(".overflow-y-auto")).toBeNull();
+    for (const gone of ["How it went", "Where the work went", "Biggest gain", "Next session's weights", "vs last time on each machine", "The session is saved"]) {
+      expect(host.textContent).not.toContain(gone);
+    }
   });
 
   it("opens Times with room on top of the Wrap-up, naming no client, and closes back to it", async () => {
     const host = await mount(<NextScreen />);
     await settle();
-    const note = host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement;
+    const note = await noteBox(host);
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(note, "Asked about Tuesdays");
       note.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1532,12 +1563,12 @@ describe("Next: her next booking, and the door to Times with room", () => {
     // Times only: no client (hers or anyone's), no trainer, and never why.
     for (const name of ["Judy", "Ann", "Regular", "Sam", "Pat"]) expect(s.textContent).not.toContain(name);
     expect(s.textContent).not.toMatch(/cancel|isn't booked/i);
-    // It never left the Wrap-up: the Profile note is still there as typed.
-    expect((host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement).value).toBe("Asked about Tuesdays");
+    // It never left the Wrap-up: the note is still there as typed.
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("Asked about Tuesdays");
     await click(Array.from(s.querySelectorAll("button")).find((b) => b.textContent === "Done"));
     await settle();
     expect(sheet()).toBeNull();
-    expect((host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement).value).toBe("Asked about Tuesdays");
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("Asked about Tuesdays");
   });
 });
 
@@ -1573,7 +1604,6 @@ describe("the renewal prompt follows the auto-renewal mark", () => {
       <WrapUpScreen
         client={{ ...client, renewal: warning, ...who } as Client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -1594,7 +1624,7 @@ describe("the renewal prompt follows the auto-renewal mark", () => {
     const autoRenewMark = { renews: false, contractId: "9001", setAt: "2026-09-25T14:00:00.000Z", setById: "uid-jane" };
     const host = await mount(<RenewalScreen who={{ autoRenewMark }} />);
     expect(host.textContent).not.toContain("Talk about it today?");
-    expect(buttonByText(host, "Renewal conversation")).toBeTruthy();
+    expect(host.querySelector('[data-testid="after-renewal"]')!.textContent).toBe("Renewal");
   });
 
   it("still asks when the mark was made on another contract", async () => {
@@ -1654,7 +1684,6 @@ describe("Next time: the machines that carry into the routine", () => {
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -1671,7 +1700,6 @@ describe("Next time: the machines that carry into the routine", () => {
   const card = (host: ParentNode) => host.querySelector('[data-testid="next-time"]') as HTMLElement | null;
   const ticks = (host: ParentNode) => Array.from(card(host)!.querySelectorAll<HTMLButtonElement>('[role="checkbox"]'));
   const tickFor = (host: ParentNode, name: string) => ticks(host).find((t) => t.textContent?.includes(name))!;
-  const bracket = (host: ParentNode) => card(host)!.querySelector(".rpl-road__group--bracket");
   const setHidden = (hidden: boolean) => {
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (hidden ? "hidden" : "visible") });
     document.dispatchEvent(new Event("visibilitychange"));
@@ -1680,12 +1708,11 @@ describe("Next time: the machines that carry into the routine", () => {
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
   });
 
-  it("sits after the next session's weights, headed Next time in the label voice", async () => {
+  it("sits after today's machines, with no head of its own", async () => {
     const host = await mount(
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[{ machineId: "m-ext", name: NAMES["m-ext"], outcome: "performed", weight: 40, count: 10 } as any]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -1698,11 +1725,12 @@ describe("Next time: the machines that carry into the routine", () => {
         machines={[]}
       />,
     );
+    const list = host.querySelector('[data-testid="wrapup-list"]')!;
+    const next = card(host)!;
+    expect(list.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(next.closest("section")).not.toBe(list.closest("section"));
     const heads = Array.from(host.querySelectorAll("section > div:first-child")).map((d) => d.textContent);
-    expect(heads.indexOf("Next time")).toBe(heads.indexOf("Next session's weights") + 1);
-    const head = Array.from(host.querySelectorAll("div")).find((d) => d.textContent === "Next time")!;
-    expect(head.className.split(/\s+/)).toEqual(expect.arrayContaining(["text-[14px]", "font-bold", "text-ink-d2"]));
-    expect(head.className).not.toMatch(/uppercase/);
+    expect(heads).not.toContain("Next time");
   });
 
   /*
@@ -1734,9 +1762,9 @@ describe("Next time: the machines that carry into the routine", () => {
     expect(ticks(host).map((t) => t.getAttribute("aria-checked"))).toEqual(["false", "false", "false", "false"]);
     expect(tickFor(host, "Leg Press").textContent).toContain("Day one");
     expect(tickFor(host, "Leg Extension").textContent).toContain("Next in the plan");
-    // Nothing ticked: the next visit runs day one again, and the line says so.
-    expect(bracket(host)!.textContent).toContain("Next time · 3");
-    expect(c.querySelector(".rpl-road__progress")!.textContent).toBe("0 of 5 · day one: Leg Press, Compound Row and Lumbar");
+    // No Road and no "0 of 5" under the ticks (the Wrap-up round, Oct 18 2026).
+    expect(c.querySelector(".rpl-road")).toBeNull();
+    expect(c.textContent).not.toMatch(/\d+ of \d+/);
     await click(buttonByText(c, "Tick all"));
     expect(ticks(host).every((t) => t.getAttribute("aria-checked") === "true")).toBe(true);
     expect(buttonByText(c, "Untick all")).toBeTruthy();
@@ -1759,20 +1787,12 @@ describe("Next time: the machines that carry into the routine", () => {
     expect(ticks(host).every((t) => t.getAttribute("aria-checked") === "false")).toBe(true);
   });
 
-  it("the Road for next time follows the ticks, live", async () => {
+  it("draws no Road for next time, whatever is ticked (the Wrap-up round, Oct 18 2026)", async () => {
     const host = await mount(<NextScreen next={consult()} onNextTime={vi.fn()} />);
     await click(tickFor(host, "Lumbar"));
     expect(tickFor(host, "Lumbar").getAttribute("aria-checked")).toBe("true");
-    expect(bracket(host)!.textContent).toContain("Next time · 1");
-    expect(bracket(host)!.textContent).toContain("Joins");
-    expect(card(host)!.querySelector(".rpl-road__progress")!.textContent).toBe("1 of 5 · next: Leg Press");
-    await click(tickFor(host, "Leg Press"));
-    expect(bracket(host)!.textContent).toContain("Next time · 2");
-    // The road's order, not the order ticked.
-    const names = Array.from(bracket(host)!.querySelectorAll(".rpl-road__name")).map((n) => n.textContent);
-    expect(names).toEqual(["Leg Press", "Lumbar"]);
-    await click(tickFor(host, "Lumbar"));
-    expect(bracket(host)!.textContent).toContain("Next time · 1");
+    expect(card(host)!.querySelector(".rpl-road")).toBeNull();
+    expect(card(host)!.textContent).not.toMatch(/\d+ of \d+/);
   });
 
   it("writes nothing per tick, and once on Back to Hub with the ticked ids in today's order", async () => {
@@ -1904,10 +1924,10 @@ describe("Next time: the machines that carry into the routine", () => {
     expect(buttonByText(c, "Tick all")).toBeTruthy();
     expect(c.textContent).not.toContain("not in the plan");
     expect(tickFor(host, "Leg Curl").textContent).toContain("Added today");
-    // Nothing ticked, nothing to draw for next time.
     expect(c.querySelector(".rpl-road")).toBeNull();
     await click(tickFor(host, "Leg Curl"));
-    expect(bracket(host)!.textContent).toContain("Next time · 1");
+    expect(tickFor(host, "Leg Curl").getAttribute("aria-checked")).toBe("true");
+    expect(c.querySelector(".rpl-road")).toBeNull();
   });
 
   it("no card for a Free session (no snapshot), or when nothing is left to offer", async () => {
@@ -1933,5 +1953,109 @@ describe("Next time: the machines that carry into the routine", () => {
     // No orange here: orange is Start session and Finish.
     const src = readFileSync(join(here, "../features/routine-plan/ui/NextTimeCard.tsx"), "utf8");
     expect(src).not.toMatch(/--eq-hero|--eq-go|orange/);
+  });
+});
+
+/*
+ * THE WRAP-UP ROUND (AJ, Oct 18 2026, "1a 2a"): today's machines once. Each
+ * row says today's weight × reps, the change since last time and the gain
+ * since the start, with next time's weight beside it; a machine's name opens
+ * its card.
+ */
+describe("today's machines, once (the Wrap-up round, Oct 18 2026)", () => {
+  const rows = [
+    { machineId: "m1", name: "Hip Adduction", outcome: "performed", weight: 154, count: 9, isTSC: false, quality: 2, loadDelta: 0, countDelta: 1, first: false, gain: { pct: 28, since: "2026-03-02" } },
+    { machineId: "m2", name: "Leg Press", outcome: "performed", weight: 142, count: 10, isTSC: false, quality: 3, loadDelta: 2, countDelta: 0, first: false, gain: null },
+    { machineId: "m3", name: "Seated Dip", outcome: "skipped", skipReason: "pain_injury", weight: 60, count: null, isTSC: false, quality: null, loadDelta: null, countDelta: null, first: false },
+  ] as any[];
+
+  function ListScreen({ onNextWeight, onOpenMachine }: { onNextWeight?: any; onOpenMachine?: (id: string) => void }) {
+    return (
+      <WrapUpScreen
+        client={client}
+        session={session}
+        lines={rows}
+        journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
+        schedules={[]}
+        authTrainer={trainer}
+        onEffort={vi.fn()}
+        onLeave={vi.fn()}
+        onNextWeight={onNextWeight}
+        onOpenMachine={onOpenMachine}
+        machines={[]}
+      />
+    );
+  }
+  const rowOf = (host: ParentNode, id: string) => host.querySelector(`[data-testid="wrapup-row"][data-machine="${id}"]`) as HTMLElement;
+
+  it("says today, the change since last time and the gain since the start on one line, the gain only when up", async () => {
+    const host = await mount(<ListScreen onNextWeight={vi.fn(async () => true)} />);
+    const adduction = rowOf(host, "m1").querySelector('[data-testid="wrapup-row-today"]')!.textContent;
+    expect(adduction).toContain("154 × 9");
+    expect(adduction).toContain("▲ +1 rep");
+    expect(adduction).toMatch(/\+28% since Mar( 2026)?$/);
+    const press = rowOf(host, "m2");
+    expect(press.querySelector('[data-testid="wrapup-row-today"]')!.textContent).toBe("142 × 10 · ▲ +2 lb");
+    expect(press.querySelector('[data-testid="wrapup-row-gain"]')).toBeNull();
+    // The max-strength star sits with the name.
+    expect(press.querySelector('[aria-label="Max-strength set"]')).toBeTruthy();
+    // The gain is the Now Bar's green, never the brand blue.
+    expect(rowOf(host, "m1").querySelector('[data-testid="wrapup-row-gain"]')!.className).toContain("text-(--jg-pf-gain)");
+  });
+
+  it("puts next time's weight on each performed row, and none on a machine not performed", async () => {
+    const onNextWeight = vi.fn(async () => true);
+    const host = await mount(<ListScreen onNextWeight={onNextWeight} />);
+    expect((rowOf(host, "m1").querySelector('[data-testid="next-weight-row"] input') as HTMLInputElement).value).toBe("154");
+    expect(rowOf(host, "m2").querySelector('[data-testid="next-weight-row"]')).toBeTruthy();
+    const dip = rowOf(host, "m3");
+    expect(dip.querySelector('[data-testid="next-weight-row"]')).toBeNull();
+    expect(dip.textContent).toContain("Skipped · pain");
+    await click(rowOf(host, "m1").querySelector('button[aria-label^="Raise"]'));
+    expect(onNextWeight).toHaveBeenLastCalledWith("m1", 156, 154);
+    // One list: the old "Today 154 lb" line of the next weights' card is gone.
+    expect(host.textContent).not.toContain("Today 154 lb");
+  });
+
+  it("opens a machine's card from its name, and leaves the name a name without a door", async () => {
+    const onOpenMachine = vi.fn();
+    const host = await mount(<ListScreen onOpenMachine={onOpenMachine} />);
+    const door = rowOf(host, "m2").querySelector('[data-testid="wrapup-machine-door"]') as HTMLButtonElement;
+    expect(door.textContent).toBe("Leg Press");
+    expect(door.className).toContain("min-h-10");
+    await click(door);
+    expect(onOpenMachine).toHaveBeenCalledWith("m2");
+    const plain = await mount(<ListScreen />);
+    expect(plain.querySelector('[data-testid="wrapup-machine-door"]')).toBeNull();
+    expect(rowOf(plain, "m2").textContent).toContain("Leg Press");
+  });
+});
+
+/*
+ * A SORE SPOT AFTER THE SESSION (AJ's N3 a, Oct 18 2026): the briefing's
+ * figure and its rating step; each spot handed over to be filed as a Health
+ * note with the spot, at Next time. Nothing is kept until it is rated.
+ */
+describe("a sore spot after the session (N3 a)", () => {
+  it("rates a spot and hands it over on the way out, saying where it lands", async () => {
+    const onLeave = vi.fn();
+    const host = await mount(<Screen onLeave={onLeave} />);
+    await click(host.querySelector('[data-testid="after-sore"]'));
+    const sore = host.querySelector('[data-testid="wrapup-sore"]')!;
+    expect(sore.querySelector('[data-testid="sore-where"]')!.textContent).toBe(
+      "Judy's profile → Notes → Health · read out on the next 4 briefings · leaders see it on Operations → Today",
+    );
+    await click(buttonByText(sore, "Tag body region"));
+    const picker = document.querySelector('[role="dialog"][aria-label="Body region picker"]')!;
+    await click(buttonByText(picker, "Knees"));
+    const stiff = Array.from(document.querySelectorAll('[role="dialog"][aria-label="Body region picker"] [role="radio"]')).find(
+      (r) => r.getAttribute("aria-label")?.startsWith("Stiff"),
+    )!;
+    await click(stiff);
+    expect(host.querySelector('[data-testid="after-sore"]')!.textContent).toBe("Sore spot · 1");
+    await click(buttonByText(host, "Back to Hub"));
+    const handed = onLeave.mock.calls[0][0];
+    expect(handed.soreSpots).toHaveLength(1);
+    expect(handed.soreSpots[0]).toMatchObject({ region: "Knees", dial: -1 });
   });
 });

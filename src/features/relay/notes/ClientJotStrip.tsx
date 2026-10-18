@@ -1,14 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { limit, onSnapshot, query, where } from "firebase/firestore";
+import { useMemo, useState } from "react";
 import { NotebookPen, Send } from "lucide-react";
 import { auth } from "../../../firebase";
 import type { Client } from "../../../types";
 import { clientFirstName } from "../../../lib/client-name";
 import type { Pronouns } from "../../client-codex/kit/pronouns";
 import { requestPlanner } from "../intent";
-import { appendNoteLog, newNoteId, notesRef, saveNote } from "./mutations";
-import { blankDraft, logEntry, noteFromDoc, whenLabel } from "./notes";
-import type { NoteLogEntry, TrainerNote } from "./types";
+import { jotAbout, jotHome, recentJots, useMyNotesAbout } from "./client-jots";
+import { logEntry, whenLabel } from "./notes";
 import "./notes.css";
 
 /**
@@ -22,7 +20,9 @@ import "./notes.css";
  *
  * Private by path: trainers/{uid}/notes, read with one query filtered to
  * this client (clientIds array-contains), no order clause, so it needs no
- * index; sorted here. Only ever the signed-in trainer's own notes.
+ * index; sorted here. Only ever the signed-in trainer's own notes. The read,
+ * the home note and the jot itself are client-jots.ts, which the briefing's
+ * "Just for me" shares (the briefing round, Oct 17 2026).
  *
  * A FAILED READ IS NOT "NO NOTES" (client codex, Sep 2026, phase 14). The
  * read used to settle as `ready` with an empty list when it failed, and a jot
@@ -35,38 +35,6 @@ import "./notes.css";
  * panel, on the codex's scale; `pronouns` word it the way the page does.
  */
 const SHOWN = 3;
-
-type JotRead = { notes: TrainerNote[]; state: "loading" | "ready" | "failed" };
-
-function useMyNotesAbout(uid: string | null, clientId: string | null): JotRead {
-  // Keyed by who and which client, so the last client's answer never stands
-  // for this one while its read is on the way.
-  const key = uid && clientId ? `${uid}|${clientId}` : null;
-  const [read, setRead] = useState<JotRead & { key: string | null }>({ key: null, notes: [], state: "loading" });
-  useEffect(() => {
-    if (!uid || !clientId) return;
-    const k = `${uid}|${clientId}`;
-    const unsub = onSnapshot(
-      query(notesRef(uid), where("clientIds", "array-contains", clientId), limit(20)),
-      (snap) => {
-        setRead({ key: k, notes: snap.docs.map((d) => noteFromDoc(d.id, d.data() as Record<string, unknown>)), state: "ready" });
-      },
-      (err) => {
-        console.warn("[notes] jot strip read failed:", err);
-        setRead({ key: k, notes: [], state: "failed" });
-      },
-    );
-    return unsub;
-  }, [uid, clientId]);
-  if (!key) return { notes: [], state: "ready" };
-  return read.key === key ? { notes: read.notes, state: read.state } : { notes: [], state: "loading" };
-}
-
-const ms = (v: unknown): number => {
-  const t = v as { toMillis?: () => number } | Date | undefined;
-  if (t instanceof Date) return t.getTime();
-  return typeof (t as { toMillis?: () => number })?.toMillis === "function" ? (t as { toMillis: () => number }).toMillis() : 0;
-};
 
 export function ClientJotStrip({
   client,
@@ -91,33 +59,18 @@ export function ClientJotStrip({
   const [error, setError] = useState<string | null>(null);
 
   // Where a jot lands: the newest note about them that is not on the record.
-  const home = useMemo(() => {
-    const sorted = [...notes].sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt));
-    return sorted.find((n) => !n.sharedWith) ?? sorted[0] ?? null;
-  }, [notes]);
-
-  const recent = useMemo(() => {
-    const all: { entry: NoteLogEntry; note: TrainerNote }[] = [];
-    for (const n of notes) for (const entry of n.log) if (!entry.clientId || entry.clientId === clientId) all.push({ entry, note: n });
-    return all.sort((a, b) => b.entry.at - a.entry.at).slice(0, SHOWN);
-  }, [notes, clientId]);
+  const home = useMemo(() => jotHome(notes), [notes]);
+  const recent = useMemo(() => recentJots(notes, clientId, SHOWN), [notes, clientId]);
 
   const add = async () => {
     // Only on a read that answered: a failed or pending read cannot tell
     // "no note yet" from "a note it could not see".
     if (!uid || !clientId || !ready) return;
-    const entry = logEntry(text, clientId);
-    if (!entry) return;
+    if (!logEntry(text, clientId)) return;
     setBusy(true);
     setError(null);
     try {
-      let noteId = home?.id ?? null;
-      if (!noteId) {
-        noteId = newNoteId(uid);
-        const draft = { ...blankDraft({ id: clientId, name }), title: `${name} — working notes` };
-        await saveNote({ uid, noteId, draft, before: null, author: { id: uid, name: "" } });
-      }
-      await appendNoteLog(uid, noteId, entry);
+      await jotAbout({ uid, clientId, name, text, notes });
       setText("");
     } catch (err) {
       console.warn("[notes] jot from the record failed:", err);

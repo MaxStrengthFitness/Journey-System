@@ -277,6 +277,8 @@ import { useActiveStudio } from "./contexts/ActiveStudioContext";
 import { useAutoSync } from "./features/admin/useAutoSync";
 import { useScheduleRefresh } from "./features/admin/useScheduleRefresh";
 import { useTrainers } from "./hooks/useTrainers";
+import { trainerScopeFor } from "./features/trainer-scope/scope";
+import { readTrainers } from "./features/trainer-scope/read";
 import { useStudios } from "./hooks/useStudios";
 import { useNetworks } from "./hooks/useNetworks";
 import { useMachines } from "./hooks/useMachines";
@@ -447,6 +449,16 @@ export default function AppContent({
     admins: isAdmin,
   });
   const { currentView, appMode, setAppMode } = place;
+  /*
+   * WHERE A SESSION WAS OPENED FROM (the briefing round, Oct 17 2026; AJ's
+   * F4 "a": the briefing's close returns to where Start was tapped, and says
+   * so). The screen before the Active Session, remembered as state set
+   * during render, React's way to keep the previous value.
+   */
+  const [viewTrail, setViewTrail] = useState<{ at: View; sessionFrom: View | null }>({ at: currentView, sessionFrom: null });
+  if (viewTrail.at !== currentView) {
+    setViewTrail({ at: currentView, sessionFrom: currentView === "workouts" ? viewTrail.at : viewTrail.sessionFrom });
+  }
   /*
    * UNSAVED CHANGES (Sep 24 2026). There is no router, so a screen leaves
    * the tree when `currentView` (or the client, or the studio) changes — and
@@ -622,7 +634,10 @@ export default function AppContent({
 
   const isDataReady = !!authTrainer && !hasQuotaError;
 
-  useTrainers(isDataReady, setTrainers);
+  /* The trainers this iPad may hold: the person's studios, or everyone for
+     the company tier (the trainer lock, Oct 18 2026; features/trainer-scope). */
+  const trainerScope = useMemo(() => trainerScopeFor(authTrainer), [authTrainer]);
+  useTrainers(isDataReady, trainerScope, setTrainers);
   useStudios(isDataReady, setStudios);
   useNetworks(isDataReady, setNetworks);
 
@@ -1129,14 +1144,12 @@ export default function AppContent({
           { fromCache: snap.metadata.fromCache },
         );
       } else if (collectionName === "trainers") {
-        const snap = await getDocs(collection(db, "trainers"));
+        // The person's scope, as the live listener reads it (the trainer lock).
+        const scope = trainerScopeFor(authTrainer);
+        if (!scope) return;
+        const answer = await readTrainers(scope, "server");
         // Tombstoned placeholders are not people — see trainer-identity/claim.ts.
-        setTrainers(
-          withoutSuperseded(
-            snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Trainer),
-          ),
-          { fromCache: snap.metadata.fromCache },
-        );
+        setTrainers(withoutSuperseded(answer.docs), { fromCache: answer.fromCache });
       }
     } catch (e) {
       console.error("Manual refresh failed", e);
@@ -1977,6 +1990,7 @@ export default function AppContent({
                     // Not now on a session opened from a door, and a finished
                     // Discard, go back to that door (Oct 12 2026).
                     onReturn={returnToDoor}
+                    sessionFrom={viewTrail.sessionFrom}
                   />
                 )}
                 {currentView === "profile" && (

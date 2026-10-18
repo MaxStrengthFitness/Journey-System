@@ -57,7 +57,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Heart } from "lucide-react";
-import type { JournalDraft, JournalImportance, JournalOrigin, NoteBodyMark } from "../../types/journal";
+import { IMPORTANCE_META, type JournalDraft, type JournalImportance, type JournalOrigin, type NoteBodyMark } from "../../types/journal";
 import type { Machine } from "../../types";
 import {
   COMPOSER_CATEGORIES,
@@ -82,6 +82,7 @@ import { FORD_META, FORD_PILLARS, type FordOrigin, type FordPillar } from "../..
 import { EMPTY_SESSION_DRAFT, type SessionNoteDraft } from "../../features/client-notes/session-draft";
 import { EMPTY_MATTERING, MatteringPicker } from "../../features/client-notes/MatteringPicker";
 import { windowFromChoice, type MatteringChoice } from "../../features/client-notes/mattering";
+import { HEADS_UP_SESSIONS } from "../../features/client-notes/heads-up";
 import "../../features/client-notes/notes.css";
 
 const PLACEHOLDERS: Record<FilingCategory, string> = {
@@ -672,7 +673,7 @@ export function JournalComposer({
           {openDetail === "loud" ? (
             <div className="nq-panel" id="nq-panel-loud">
               <Loudness
-                ask="How loud? (optional)"
+                ask="Goes to"
                 value={effImportance}
                 compact={origin === "in_session"}
                 onChange={(lvl) => {
@@ -731,15 +732,17 @@ type DetailId = "kind" | "body" | "machine" | "when" | "loud";
 
 /** "Heads up · next 4 sessions", "Critical · until closed", "Note · on Oct 15" — the loudness chip's words. */
 export function loudnessSummary(importance: JournalImportance, matters: MatteringChoice): string {
-  const word = importance === "critical" ? "Critical" : importance === "elevated" ? "Heads up" : "Note";
+  // Where the note goes, in the one Loudness control's words (the Wrap-up
+  // round, AJ, Oct 18 2026, "n1 a"): Profile only · Next time · Critical.
+  const word = IMPORTANCE_META[importance].where;
   if (matters.shape === "day") return `${word} · on ${matters.from ? dayWords(matters.from) : "a day"}`;
   if (matters.shape === "range") {
     return matters.until ? `${word} · until ${dayWords(matters.until)}` : matters.from ? `${word} · from ${dayWords(matters.from)}` : word;
   }
   if (matters.from) return `${word} · from ${dayWords(matters.from)}`;
-  if (importance === "elevated") return "Heads up · next 4 sessions";
-  if (importance === "critical") return "Critical · until closed";
-  return "Note";
+  if (importance === "elevated") return `${word} · ${HEADS_UP_SESSIONS} sessions`;
+  if (importance === "critical") return `${word} · until closed`;
+  return word;
 }
 
 /** "Oct 15" for a yyyy-mm-dd day, read at local noon. */

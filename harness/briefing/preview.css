@@ -1,0 +1,15 @@
+/* The briefing preview's stylesheet: the app's own, with Tailwind told to
+   read the app's files (this page's root is harness/briefing, so on its own
+   it would generate none of the classes the app's components use), and the
+   page let grow so a photograph can take it top to bottom (the app's shell
+   holds the page to the screen and scrolls <main> instead). Never ships. */
+@import "../../src/index.css";
+@source "../../src";
+
+html,
+body,
+#root {
+  height: auto !important;
+  min-height: 100%;
+  overflow: visible !important;
+}

@@ -269,12 +269,14 @@ export function summarizePain(
   const prevActive = (previous ?? []).filter((p) => p.status !== "resolved");
   const prevByKey = new Map(prevActive.map((p) => [painKeyOf(p), p]));
   const active = current.filter((p) => p.status !== "resolved");
+  const rated = active.map((p) => p.severity).filter((s): s is number => typeof s === "number" && Number.isFinite(s));
 
   const trends = current.map((p) => {
     const prev = prevByKey.get(painKeyOf(p)) ?? null;
     return {
       point: p,
-      severityChange: prev ? p.severity - prev.severity : null,
+      // Only two rated spots compare (an unrated one, F20 "a", says nothing).
+      severityChange: prev && p.severity !== null && prev.severity !== null ? p.severity - prev.severity : null,
       isNew: !prev,
     };
   });
@@ -284,7 +286,7 @@ export function summarizePain(
 
   return {
     activeCount: active.length,
-    worstSeverity: active.length ? Math.max(...active.map((p) => p.severity)) : null,
+    worstSeverity: rated.length ? Math.max(...rated) : null,
     trends,
     resolvedSinceLast,
   };

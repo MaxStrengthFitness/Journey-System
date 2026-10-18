@@ -9,6 +9,7 @@
  * leader following along costs one read per saved set.
  */
 import type { LiveSet } from "../journey-grid";
+import { ANOTHER_STUDIOS_TRAINER_MID } from "../trainer-scope/names";
 import { todayFor } from "../routine-plan/plan";
 import type { RoutinePlan } from "../routine-plan/types";
 import { lastSignOfLife, type LiveSessionLike } from "../../lib/live-session";
@@ -187,7 +188,9 @@ export function machinesDone(ids: readonly string[], values: Record<string, Live
  * Who started a session and who has it now, as initials. They differ only
  * after a take-over: Start writes `startedByTrainerId`, and a take-over (and
  * Finish) move `trainerId` and its initials to whoever records the rest. The
- * starter is named only when the roster can name them; never guessed.
+ * starter is named by the list when it holds them; otherwise they are "a
+ * trainer from another studio" (the trainer lock, Oct 18 2026), never
+ * guessed and never left out.
  */
 export function whoStartedIt(
   session: { trainerId?: string | null; trainerInitials?: string | null; startedByTrainerId?: string | null },
@@ -199,5 +202,5 @@ export function whoStartedIt(
     return { starter: runner, runner, changedHands: false };
   }
   const found = trainers.find((t) => t.id === starterId);
-  return { starter: (found?.initials || "").trim() || null, runner, changedHands: true };
+  return { starter: (found?.initials || "").trim() || ANOTHER_STUDIOS_TRAINER_MID, runner, changedHands: true };
 }

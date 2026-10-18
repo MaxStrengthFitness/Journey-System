@@ -360,18 +360,18 @@ describe("the Notes page mounts", () => {
     expect(composer.querySelector('[data-testid="note-file-hint"]')!.textContent).toContain("Pick where it goes, or just type");
     expect(buttonByText(composer, "Save — file later")).toBeTruthy();
     // Quiet by default: no loudness, no window, no flavours, no body map on screen.
-    expect(composer.querySelector('[role="radiogroup"][aria-label="How loud? (optional)"]')).toBeNull();
+    expect(composer.querySelector('[role="radiogroup"][aria-label="Goes to"]')).toBeNull();
     expect(composer.querySelector('[data-testid="body-part-picker"]')).toBeNull();
 
     await click(choice(composer, "Health"));
     // Health reaches the studio's leaders, and says so.
     expect(composer.querySelector('[data-testid="note-file-hint"]')!.textContent).toContain("Leaders see it on Today.");
     // Health starts as Heads up: the loudness chip says so, and opens the shared Loudness control.
-    expect(detail(composer, "loud")!.textContent).toContain("Heads up · next 4 sessions");
+    expect(detail(composer, "loud")!.textContent).toContain("Next time · 4 sessions");
     await click(detail(composer, "loud"));
-    const loud = composer.querySelector('[role="radiogroup"][aria-label="How loud? (optional)"]')!;
-    expect(Array.from(loud.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Note", "Heads up", "Critical"]);
-    expect(loud.querySelector('[aria-checked="true"]')!.textContent).toBe("Heads up");
+    const loud = composer.querySelector('[role="radiogroup"][aria-label="Goes to"]')!;
+    expect(Array.from(loud.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Profile only", "Next time", "Critical"]);
+    expect(loud.querySelector('[aria-checked="true"]')!.textContent).toBe("Next time");
     const when = composer.querySelector('[role="group"][aria-label="When does this matter"]')!;
     expect(when).toBeTruthy();
     expect(Array.from(when.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Always", "From – until", "Only on a day"]);
@@ -477,8 +477,8 @@ describe("the Notes page mounts", () => {
     expect(composer.querySelector('[role="group"][aria-label="When does this matter"]')).toBeNull();
     expect(buttonByText(composer, "Pin to a date (a birthday, an anniversary)")).toBeTruthy();
 
-    const loud = composer.querySelector('[role="radiogroup"][aria-label="How loud? (optional)"]')!;
-    await click(buttonByText(loud, "Heads up"));
+    const loud = composer.querySelector('[role="radiogroup"][aria-label="Goes to"]')!;
+    await click(buttonByText(loud, "Next time"));
     const when = composer.querySelector('[role="group"][aria-label="When does this matter"]')!;
     expect(when).toBeTruthy();
     await click(buttonByText(when, "From – until"));
@@ -486,7 +486,7 @@ describe("the Notes page mounts", () => {
     expect(until).toBeTruthy();
     expect(composer.textContent).toContain("After the last day it stops showing on the briefing.");
     await typeInto(until, "2026-09-20");
-    expect(detail(composer, "loud")!.textContent).toContain("Heads up · until Sep 20");
+    expect(detail(composer, "loud")!.textContent).toContain("Next time · until Sep 20");
     await click(buttonByText(composer, "Save as Preference"));
 
     expect(writes[0].data).toMatchObject({ kind: "preference", importance: "elevated", repeat: null, effectiveFrom: null });
@@ -519,15 +519,15 @@ describe("the Notes page mounts", () => {
     const { composer } = await mountComposer();
     await click(choice(composer, "Incident"));
     // Since Oct 3 2026 an incident starts at Heads up: it runs from a lost phone to a fall.
-    expect(detail(composer, "loud")!.textContent).toBe("Heads up · next 4 sessions");
+    expect(detail(composer, "loud")!.textContent).toBe("Next time · 4 sessions");
     await click(choice(composer, "Retention"));
-    expect(detail(composer, "loud")!.textContent).toBe("Heads up · next 4 sessions");
+    expect(detail(composer, "loud")!.textContent).toBe("Next time · 4 sessions");
     await click(detail(composer, "loud"));
-    const loud = composer.querySelector('[role="radiogroup"][aria-label="How loud? (optional)"]')!;
-    expect(loud.querySelector('[aria-checked="true"]')!.textContent).toBe("Heads up");
-    await click(buttonByText(loud, "Note"));
+    const loud = composer.querySelector('[role="radiogroup"][aria-label="Goes to"]')!;
+    expect(loud.querySelector('[aria-checked="true"]')!.textContent).toBe("Next time");
+    await click(buttonByText(loud, "Profile only"));
     await click(choice(composer, "Health"));
-    expect(detail(composer, "loud")!.textContent).toBe("Note");
+    expect(detail(composer, "loud")!.textContent).toBe("Profile only");
   });
 
   it("files a cue with its P, and set-up as an equipment note", async () => {
@@ -575,7 +575,7 @@ describe("the Notes page mounts", () => {
     expect(composer.querySelector(".ford-capture")).toBeNull();
     expect(composer.getAttribute("data-mode")).toBe("ford");
     // A FORD detail has no loudness and no window.
-    expect(composer.querySelector('[role="radiogroup"][aria-label="How loud? (optional)"]')).toBeNull();
+    expect(composer.querySelector('[role="radiogroup"][aria-label="Goes to"]')).toBeNull();
     const letters = composer.querySelector('[role="group"][aria-label="File under (optional)"]')!;
     expect(letters.querySelectorAll("button")).toHaveLength(4);
     expect(host.querySelector(".nx-compose__title")?.textContent).toBe("Something about the client's life");

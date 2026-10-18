@@ -53,7 +53,7 @@ export function TutChart({ weeks, period = "week" }: { weeks: WeekBucket[]; peri
             cursor={{ stroke: "var(--cr-border-strong)" }}
             content={(p) => (
               <WeekTooltip
-                {...(p as { active?: boolean; payload?: TipPayload })}
+                {...(p as unknown as { active?: boolean; payload?: TipPayload })}
                 period={period}
                 rows={(w) => [
                   { key: "t", label: "Under tension", value: w.tutSeconds ? formatMinutes(w.tutSeconds) : "not recorded" },

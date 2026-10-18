@@ -22,6 +22,23 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 vi.mock("../firebase", () => ({ db: {}, auth: { currentUser: { uid: "uid-ioreth" } } }));
+/*
+ * The header search's name query beyond the studio list (the only read here
+ * that builds a query itself): the server answers with nobody by default; a
+ * test can make it fail, or have only the iPad's own copy answer (offline).
+ */
+const nameQuery = vi.hoisted(() => ({ answer: "server" as "server" | "cache" | "fails" }));
+vi.mock("firebase/firestore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("firebase/firestore")>()),
+  collection: () => ({}),
+  query: () => ({}),
+  where: () => ({}),
+  limit: () => ({}),
+  getDocs: async () => {
+    if (nameQuery.answer === "fails") throw new Error("unavailable");
+    return { docs: [], metadata: { fromCache: nameQuery.answer === "cache" } };
+  },
+}));
 vi.mock("../hooks/useHubCriticalNotes", () => ({
   useHubCriticalNotes: () => ({ status: "ready", notesFor: () => [] }),
 }));
@@ -130,6 +147,7 @@ beforeEach(() => {
   } catch {
     // no storage here
   }
+  nameQuery.answer = "server";
   hub.fordCalls = [];
   hub.details = {};
   hub.marksCalls = [];
@@ -460,14 +478,47 @@ describe("the Hub: the header's search", () => {
     expect(calls.selected).toEqual(["bilbo", "bilbo"]);
   });
 
-  it("says so when nobody matches", async () => {
-    const { el } = mount(IO, { searchTerm: "zzzz" });
-    // The name query Firestore would answer is asked after a pause; nothing comes back here.
-    await act(async () => {
+  /** The name query Firestore would answer is asked after a pause. */
+  const pastThePause = () =>
+    act(async () => {
       await new Promise((r) => setTimeout(r, 400));
     });
+
+  it("says so when nobody matches", async () => {
+    const { el } = mount(IO, { searchTerm: "zzzz" });
+    await pastThePause();
     expect(el.querySelector(".cd-line")?.textContent).toBe("No client matches \u201czzzz\u201d.");
     expect(el.querySelectorAll(".cd-row")).toHaveLength(0);
+  });
+
+  /* A failed read is unknown, never empty (Oct 15 2026 code check): the
+     search used to log the failure and then say "No client matches". */
+  it("never says nobody matches when the search failed", async () => {
+    nameQuery.answer = "fails";
+    const { el } = mount(IO, { searchTerm: "zzzz" });
+    await pastThePause();
+    expect(el.querySelector(".cd-line")?.textContent).toBe(
+      "Couldn\u2019t search every client for \u201czzzz\u201d. Check the connection and try again.",
+    );
+    expect(el.textContent).not.toContain("No client matches");
+  });
+
+  it("counts an answer from the iPad's own copy alone as not every client", async () => {
+    nameQuery.answer = "cache";
+    const { el } = mount(IO, { searchTerm: "zzzz" });
+    await pastThePause();
+    expect(el.querySelector(".cd-line")?.textContent).toBe(
+      "Couldn\u2019t search every client for \u201czzzz\u201d. Check the connection and try again.",
+    );
+  });
+
+  it("keeps the matches it found when the search failed, and says it couldn't search every client", async () => {
+    nameQuery.answer = "fails";
+    const veteran = client("bilbo", "Bilbo", "Baggins", 54, { lastSessionDate: "2026-09-21" });
+    const { el } = mount(IO, { searchTerm: "bil", clients: [...CLIENTS, veteran] });
+    await pastThePause();
+    expect(el.querySelector('.cd-row[data-client-id="bilbo"]')).not.toBeNull();
+    expect(el.querySelector(".cd-line")?.textContent).toBe("1 client matches \u201cbil\u201d \u00b7 couldn\u2019t search every client");
   });
 });
 

@@ -276,11 +276,11 @@ describe("filing and loudness", () => {
   it("starts at the category's own loudness, and a loudness picked by hand sticks", async () => {
     const host = await mount(<MenuNotes {...base()} />);
     await focus(box(host));
-    expect(radio(host, "Note")!.getAttribute("aria-checked")).toBe("true");
+    expect(radio(host, "Profile only")!.getAttribute("aria-checked")).toBe("true");
     await click(byText(host, "Change"));
     await click(byText(host, "Health"));
     expect(host.querySelector("[data-filed]")!.textContent).toBe("Health");
-    expect(radio(host, "Heads up")!.getAttribute("aria-checked")).toBe("true");
+    expect(radio(host, "Next time")!.getAttribute("aria-checked")).toBe("true");
     expect(host.textContent).toContain("Reaches the studio's leaders on Operations → Today");
     expect(byText(host, "Where on the body (optional)")).not.toBeNull();
 
@@ -303,10 +303,10 @@ describe("filing and loudness", () => {
     await focus(box(host));
     await click(byText(host, "Change"));
     await click(byText(host, "Incident"));
-    expect(radio(host, "Heads up")!.getAttribute("aria-checked")).toBe("true");
+    expect(radio(host, "Next time")!.getAttribute("aria-checked")).toBe("true");
     await click(byText(host, "Change"));
     await click(byText(host, "Preference"));
-    expect(radio(host, "Note")!.getAttribute("aria-checked")).toBe("true");
+    expect(radio(host, "Profile only")!.getAttribute("aria-checked")).toBe("true");
   });
 });
 
@@ -320,7 +320,7 @@ describe("the machine itself", () => {
     expect(box(host).value).toBe("Seat pin sticks at 7");
     expect(host.textContent).toContain("Westlake's notes on Leg Press · everyone at Westlake sees it");
     expect(host.textContent).not.toContain("Filed as");
-    expect(radio(host, "Note")).toBeNull();
+    expect(radio(host, "Profile only")).toBeNull();
     await click(byText(host, "Add to Westlake's notes"));
     expect(writes.floorNotes).toEqual([
       { studioId: "westlake", machineId: "leg-press", machineName: "Leg Press", body: "Seat pin sticks at 7", writer: { name: "Sam Reyes" } },
@@ -365,7 +365,7 @@ describe("on the profile", () => {
     const host = await mount(<MenuNotes {...base()} healthNote={{ changeWords: "Seat 4 → 5", nonce: 1 }} />);
     expect(box(host).value).toBe("Seat 4 → 5 for pain or discomfort.");
     expect(host.textContent).toContain("Health · Injury or pain");
-    expect(radio(host, "Heads up")!.getAttribute("aria-checked")).toBe("true");
+    expect(radio(host, "Next time")!.getAttribute("aria-checked")).toBe("true");
   });
 });
 
