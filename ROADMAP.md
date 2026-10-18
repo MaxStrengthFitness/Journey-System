@@ -284,7 +284,9 @@ from it:
 - **Strongsville's Hoist leg press** (Q15 = A: it counts as a leg press in the
   routine builder's checks). It has no "most like" (`basedOn`) and is filed
   under Horizontal Push, and `basedOn` can be chosen only when a machine is
-  made: this round makes it editable and corrects the Hoist.
+  made: this round makes it editable. The Hoist's own lineage is corrected
+  ahead of the round, for its missing watch-outs (Oct 15 2026,
+  `scripts/fix-hoist-lineage.ts`, written when AJ runs `--commit`).
 - **The maker's machines, with their sizes.** Most studios use Imagine Strength
   machines; the twenty models are seeded with their footprints
   (`machineModels/{id}.size`, Oct 12 2026), and a unit can carry its own size
