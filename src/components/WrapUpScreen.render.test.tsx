@@ -28,7 +28,7 @@ vi.mock("../features/subjective-report", async (importOriginal) => {
   const real = await importOriginal<typeof import("../features/subjective-report")>();
   return {
     ...real,
-    PulseQuickLogDialog: (props: { open: boolean }) => (props.open ? <div data-testid="pulse-stub">Pulse stub</div> : null),
+    PulseQuickLog: () => <div data-testid="pulse-stub">Pulse stub</div>,
   };
 });
 
@@ -236,6 +236,20 @@ const click = async (el: Element | null | undefined) => {
 const buttonByText = (root: ParentNode, text: string) =>
   Array.from(root.querySelectorAll("button")).find((b) => b.textContent?.trim().includes(text));
 
+/** The note box's words, opening it from the minute after's row first (the Wrap-up round, Oct 18 2026). */
+const noteBox = async (host: ParentNode): Promise<HTMLTextAreaElement> => {
+  const open = host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement | null;
+  if (open) return open;
+  await click(host.querySelector('[data-testid="after-note"]'));
+  return host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement;
+};
+const typeInto = async (el: HTMLTextAreaElement, text: string) => {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(el, text);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+};
+
 const client = { id: "c1", homeStudioId: "s1", firstName: "Judy", lastName: "Client", sessionCount: 12 } as Client;
 const session = { id: "sess1", clientId: "c1", status: "Completed", sessionNumber: 12 } as WorkoutSession;
 const trainer = { id: "t-doc", fullName: "Jane Coach", initials: "JC", role: "LifeTransformer" } as any;
@@ -286,9 +300,10 @@ describe("the post-session screen mounts", () => {
     // No green, no red: every position is the neutral tone.
     expect(radios.every((r) => r.getAttribute("data-tone") === "neutral")).toBe(true);
     expect(radios.every((r) => r.getAttribute("aria-checked") === "false")).toBe(true);
-    // Untouched says what it will save.
+    // Untouched, it rests on what it will save, and says no more (show it, don't label it).
     expect(dial.textContent).toContain("As expected");
-    expect(host.querySelector('[data-testid="effort-default-hint"]')!.textContent).toBe("Left untouched, it saves As expected.");
+    expect(host.textContent).not.toContain("Left untouched");
+    expect(host.textContent).not.toContain("The whole workout, judged by you");
     expect(onEffort).not.toHaveBeenCalled();
 
     await click(radios[3]);
@@ -296,13 +311,20 @@ describe("the post-session screen mounts", () => {
     expect(radios[3].getAttribute("aria-checked")).toBe("true");
     // No advice under it (Oct 2 2026): the app never suggests a weight.
     expect(host.querySelector('[data-testid="dose-sentence"]')).toBeNull();
-    expect(host.textContent).not.toMatch(/next time/i);
-    expect(host.querySelector('[data-testid="effort-card"]')!.textContent).toContain("Saved");
+    // The word it rests on is the answer; nothing else is said of a save.
+    expect(dial.querySelector(".rt__word")!.textContent).toBe("Pushed hard");
+    expect(host.querySelector('[data-testid="effort-card"]')!.textContent).not.toContain("Not saved");
 
     // Tapping it again takes the tap back: the default is written in its place.
     await click(radios[3]);
     expect(onEffort).toHaveBeenLastCalledWith(0, true);
-    expect(host.querySelector('[data-testid="effort-default-hint"]')).toBeTruthy();
+  });
+
+  it("says when the effort didn't save, so it can be tapped again", async () => {
+    const host = await mount(<Screen onEffort={vi.fn(async () => false)} />);
+    const radios = Array.from(host.querySelector('[data-testid="effort-dial"]')!.querySelectorAll('[role="radio"]'));
+    await click(radios[4]);
+    expect(host.querySelector('[data-testid="effort-card"]')!.textContent).toContain("Not saved. Tap it again.");
   });
 
   it("saves As expected, marked as the default, once, when the trainer leaves without tapping", async () => {
@@ -336,34 +358,35 @@ describe("the post-session screen mounts", () => {
     expect(onEffort).toHaveBeenCalledWith(0, true);
   });
 
-  it("offers the profile note's Loudness with Note checked, and Matters until behind Heads up", async () => {
+  it("opens the note box from Note: where it goes and what it's for before a word is typed, and where it lands (AJ, Oct 18 2026)", async () => {
     const host = await mount(<Screen />);
-    const loud = host.querySelector('[role="radiogroup"][aria-label="How loud?"]')!;
-    expect(loud).toBeTruthy();
-    expect(Array.from(loud.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Note", "Heads up", "Critical"]);
-    expect(loud.querySelector('[aria-checked="true"]')!.textContent).toBe("Note");
-    expect(host.querySelector('input[aria-label="Matters until"]')).toBeNull();
-    // At Note the Profile note goes to her profile only (voice-review round,
-    // Sep 27 2026), and the screen says so in plain words rather than the
-    // generic "found by its category" (it is filed unfiled).
-    expect(host.querySelector('[data-testid="profile-note-hint"]')!.textContent).toBe(
-      "Stays on Judy's profile. The next trainer's briefing won't show it.",
-    );
-    expect(host.textContent).not.toContain("found by its category");
+    // Closed until Note is tapped: the minute after is one row.
+    expect(host.querySelector('textarea[aria-label="Note"]')).toBeNull();
+    expect(Array.from(host.querySelectorAll('[data-testid="after-row"] button')).map((b) => b.textContent)).toEqual(["Note", "Sore spot", "Pulse"]);
+    const box = await noteBox(host);
+    expect(box.getAttribute("placeholder")).toBe("Anything for Judy's record, or for next time");
+    // Shown before anything is typed (the sketch hid them until then).
+    const goes = host.querySelector('[role="radiogroup"][aria-label="Goes to"]')!;
+    expect(Array.from(goes.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Profile only", "Next time", "Critical"]);
+    expect(goes.querySelector('[aria-checked="true"]')!.textContent).toBe("Profile only");
+    const what = host.querySelector('[role="group"][aria-label="What it\'s for"]')!;
+    expect(Array.from(what.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Coaching & equipment", "Health", "Incident", "Retention", "Preference"]);
+    const where = () => host.querySelector('[data-testid="note-box-where"]')!.textContent;
+    expect(where()).toBe("Judy's profile → Notes → To file · stays on the profile, not on the briefing");
 
-    await click(buttonByText(loud, "Heads up"));
-    const until = host.querySelector('input[aria-label="Matters until"]') as HTMLInputElement;
-    expect(until).toBeTruthy();
-    expect(until.getAttribute("min")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(host.textContent).toContain("Matters until (optional)");
-    expect(host.textContent).toContain("After this it stops showing on the briefing.");
-    // Louder, it does reach the briefing, and Loudness's own hint says so.
-    expect(host.querySelector('[data-testid="profile-note-hint"]')).toBeNull();
-    expect(host.textContent).toContain("on the briefing while it still matters");
+    // Health goes to next time, and the leaders hear of it.
+    await click(buttonByText(what, "Health"));
+    expect(goes.querySelector('[aria-checked="true"]')!.textContent).toBe("Next time");
+    expect(where()).toBe("Judy's profile → Notes → Health · read out on the next 4 briefings · leaders see it on Operations → Today");
+    // Placed by hand, a category no longer moves it.
+    await click(buttonByText(goes, "Profile only"));
+    await click(buttonByText(what, "Incident"));
+    expect(goes.querySelector('[aria-checked="true"]')!.textContent).toBe("Profile only");
 
-    await click(buttonByText(loud, "Note"));
-    expect(host.querySelector('input[aria-label="Matters until"]')).toBeNull();
-    expect(host.querySelector('[data-testid="profile-note-hint"]')).toBeTruthy();
+    // Just for me: the trainer's own notebook, never the record.
+    await click(host.querySelector('[data-testid="note-box-just-for-me"]'));
+    expect(host.querySelector('[role="radiogroup"][aria-label="Goes to"]')).toBeNull();
+    expect(where()).toBe("Your own notebook. Nobody else sees it, and it isn't filed on Judy's record.");
   });
 
   it("is headed Wrap-up: briefing is pre-session, wrap-up is post-session (voice-review round)", async () => {
@@ -377,9 +400,6 @@ describe("the post-session screen mounts", () => {
     // judgement of how she did.
     expect(host.querySelector("h1")!.textContent).toBe(congratulation("sess1", "Judy"));
     expect(host.textContent).not.toContain("strong work");
-    expect(host.querySelector('textarea[aria-label="Profile note"]')!.getAttribute("placeholder")).toBe(
-      "Profile note — anything for Judy's record. It files when you leave this screen.",
-    );
   });
 
   /* A Finish refused after the Wrap-up came up (the sessions round, Oct 12
@@ -452,41 +472,49 @@ describe("the post-session screen mounts", () => {
     expect(await tray({ ...client, firstName: "" } as Client)).toContain("about them saved without a category");
   });
 
-  it("says Update Pulse, never Assessment or priority, and opens the Pulse quick-log", async () => {
+  it("opens the Pulse in place under the row, never a dialog, and says neither Assessment nor priority", async () => {
     const host = await mount(<Screen />);
     expect(host.textContent).not.toMatch(/assessment/i);
     expect(host.textContent).not.toMatch(/priority/i);
-    expect(host.textContent).toContain("Effort · profile note · Pulse");
+    expect(host.textContent).not.toContain("Effort · profile note · Pulse");
     expect(host.querySelector('[data-testid="pulse-stub"]')).toBeNull();
-    await click(buttonByText(host, "Update Pulse"));
-    expect(host.querySelector('[data-testid="pulse-stub"]')).toBeTruthy();
+    await click(host.querySelector('[data-testid="after-pulse"]'));
+    const pulse = host.querySelector('[data-testid="wrapup-pulse"]')!;
+    expect(pulse.querySelector('[data-testid="pulse-stub"]')).toBeTruthy();
+    expect(pulse.closest('[role="dialog"]')).toBeNull();
+    // One panel at a time: the note box takes its place.
+    await noteBox(host);
+    expect(host.querySelector('[data-testid="wrapup-pulse"]')).toBeNull();
   });
 
-  it("leaves with the profile note, its loudness and its until day", async () => {
+  it("leaves with the note, where it goes and what it's for, once", async () => {
     const onLeave = vi.fn();
     const host = await mount(<Screen onLeave={onLeave} />);
-    const textarea = host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, "Shoulder tender on chest press");
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    const loud = host.querySelector('[role="radiogroup"][aria-label="How loud?"]')!;
-    await click(buttonByText(loud, "Heads up"));
-    const until = host.querySelector('input[aria-label="Matters until"]') as HTMLInputElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(until, "2099-09-20");
-      until.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-
+    await typeInto(await noteBox(host), "Shoulder tender on chest press");
+    await click(buttonByText(host.querySelector('[role="group"][aria-label="What it\'s for"]')!, "Health"));
     await click(buttonByText(host, "Back to Hub"));
     expect(onLeave).toHaveBeenCalledTimes(1);
-    const profileNote = onLeave.mock.calls[0][0];
-    expect(profileNote).toMatchObject({ noteContent: "Shoulder tender on chest press", importance: "elevated" });
-    const stored = profileNote.effectiveUntil as Date;
-    expect([stored.getFullYear(), stored.getMonth(), stored.getDate(), stored.getHours()]).toEqual([2099, 8, 20, 23]);
+    expect(onLeave.mock.calls[0][0]).toEqual({
+      noteContent: "Shoulder tender on chest press",
+      importance: "elevated",
+      effectiveUntil: null,
+      category: "health",
+      justForMe: false,
+      fromDraft: false,
+      soreSpots: [],
+    });
     // Leaving twice does nothing.
     await click(buttonByText(host, "Leaving"));
     expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands over a just-for-me note as the trainer's own", async () => {
+    const onLeave = vi.fn();
+    const host = await mount(<Screen onLeave={onLeave} />);
+    await typeInto(await noteBox(host), "Prefers to be called Jude");
+    await click(host.querySelector('[data-testid="note-box-just-for-me"]'));
+    await click(buttonByText(host, "Back to Hub"));
+    expect(onLeave.mock.calls[0][0]).toMatchObject({ noteContent: "Prefers to be called Jude", justForMe: true });
   });
 
   it("draws no FORD sweep when FORD answered with nothing caught", async () => {
@@ -510,11 +538,19 @@ describe("the post-session screen mounts", () => {
     expect(host.querySelector(".ford-sweep")).toBeNull();
   });
 
-  it("leaves a plain Note with no until day", async () => {
+  it("leaves with nothing to file when nothing was written", async () => {
     const onLeave = vi.fn();
     const host = await mount(<Screen onLeave={onLeave} />);
     await click(buttonByText(host, "Back to Hub"));
-    expect(onLeave.mock.calls[0][0]).toEqual({ noteContent: "", importance: "standard", effectiveUntil: null });
+    expect(onLeave.mock.calls[0][0]).toEqual({
+      noteContent: "",
+      importance: "standard",
+      effectiveUntil: null,
+      category: null,
+      justForMe: false,
+      fromDraft: false,
+      soreSpots: [],
+    });
   });
 });
 
@@ -730,13 +766,7 @@ describe("every way out of the Wrap-up files the typed profile note, once", () =
   const viewOf = (host: HTMLElement) => host.querySelector('[data-testid="app"]')!.getAttribute("data-view");
   const hub = (host: HTMLElement) =>
     Array.from(host.querySelectorAll("nav button")).find((b) => b.textContent?.trim() === "Hub");
-  const typeNote = async (host: HTMLElement, text: string) => {
-    const textarea = host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, text);
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-  };
+  const typeNote = async (host: HTMLElement, text: string) => typeInto(await noteBox(host), text);
   const question = () => document.querySelector('[role="alertdialog"]');
 
   beforeEach(() => {
@@ -792,7 +822,7 @@ describe("every way out of the Wrap-up files the typed profile note, once", () =
     expect(filedOnTheWay).toEqual([expect.objectContaining({ noteContent: "Shoulder tender on chest press" })]);
     expect(viewOf(host)).toBe("workouts");
     await act(async () => setHidden(false));
-    expect((host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement).value).toBe("");
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("");
     expect(host.querySelector('[data-testid="profile-note-filed"]')).toBeTruthy();
     // Hidden again with nothing new typed: nothing more is filed.
     await act(async () => setHidden(true));
@@ -891,7 +921,7 @@ describe("the packages card (consultation round, Sep 2026)", () => {
     const renewal = { cycleKey: "9001", situation: "on-track", flags: [], dataGaps: [] } as any;
     const host = await mount(<PackagesScreen who={{ ...checked, renewal }} coverage="complete" />);
     expect(card(host)).toBeNull();
-    expect(buttonByText(host, "Renewal conversation")).toBeTruthy();
+    expect(host.querySelector('[data-testid="after-renewal"]')!.textContent).toBe("Renewal");
   });
 
   it("is not drawn for a client who is away", async () => {
@@ -1015,11 +1045,35 @@ describe("a carried draft for the studio's floor notes", () => {
     expect(onDropDraft).toHaveBeenCalled();
   });
 
-  it("reads the switch defensively: anything but true is a note about the client", async () => {
+  it("reads the switch defensively: anything but true is a note about the client, in the note box", async () => {
     const host = await mount(<FloorScreen onSaveDraft={vi.fn()} draft={{ ...floorDraft, toFloor: "true" }} />);
-    const card = host.querySelector('[data-testid="unsaved-draft"]')!;
-    expect(card.textContent).toContain("You started a note during the session and didn't save it");
-    expect(buttonByText(card, "Save note")).toBeTruthy();
+    expect(host.querySelector('[data-testid="unsaved-draft"]')).toBeNull();
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("Seat pin sticks at 7");
+  });
+
+  it("opens the note box on a note the session left unsaved, with its words and its filing, and hands it over as the draft's", async () => {
+    const onLeave = vi.fn();
+    const host = await mount(
+      <WrapUpScreen
+        client={client}
+        session={session}
+        lines={[]}
+        journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
+        schedules={[]}
+        authTrainer={trainer}
+        onEffort={vi.fn()}
+        onLeave={onLeave}
+        unsavedDraft={{ body: "Knee clicked on the way down", category: "health", flavour: null, bodyParts: [], importance: "elevated", machineId: "m1", aboutMachine: true } as any}
+        machines={[{ id: "m1", name: "Leg Press" } as any]}
+      />,
+    );
+    // One box, open, never a second one above it.
+    expect(host.querySelector('[data-testid="unsaved-draft"]')).toBeNull();
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("Knee clicked on the way down");
+    expect(host.querySelector('[role="radiogroup"][aria-label="Goes to"] [aria-checked="true"]')!.textContent).toBe("Next time");
+    expect(buttonByText(host.querySelector('[role="group"][aria-label="What it\'s for"]')!, "Health")!.getAttribute("aria-pressed")).toBe("true");
+    await click(buttonByText(host, "Back to Hub"));
+    expect(onLeave.mock.calls[0][0]).toMatchObject({ noteContent: "Knee clicked on the way down", category: "health", importance: "elevated", fromDraft: true });
   });
 });
 
@@ -1044,7 +1098,9 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
         authTrainer={trainer}
         onEffort={vi.fn()}
         onLeave={vi.fn()}
-        unsavedDraft={{ body: "Mentioned her daughter's wedding", category: null } as any}
+        // A floor note left unsaved: the one draft that keeps its own Save (the client's opens the note box).
+        unsavedDraft={{ body: "Seat pin sticks at 7", category: null, flavour: null, bodyParts: [], importance: "standard", machineId: "m1", aboutMachine: true, toFloor: true } as any}
+        studioName="Westlake"
         machines={[{ id: "m1", name: "Leg Press", anatomicalRegion: "Lower Body" } as any]}
         // Next time's card is on the screen too, so the sweeps below cover it.
         nextTime={{
@@ -1081,7 +1137,7 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
 
   it("says a save in brand blue on its own on-colour, in sentence case", async () => {
     const host = await mount(<FullScreen />);
-    const save = buttonByText(host.querySelector('[data-testid="unsaved-draft"]')!, "Save note")!;
+    const save = buttonByText(host.querySelector('[data-testid="unsaved-draft"]')!, "Add to Westlake's notes")!;
     expect(save.className).toContain("bg-(--eq-live)");
     expect(save.className).toContain("text-(--eq-live-on)");
     expect(save.className).not.toContain("uppercase");
@@ -1089,7 +1145,7 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
 
   it("draws its own buttons in bold sentence case at 14px, with the brand focus ring", async () => {
     const host = await mount(<FullScreen />);
-    const own = ["Save note", "Drop it", "Update Pulse", "Renewal conversation", "Back to Hub"].map(
+    const own = ["Add to Westlake's notes", "Drop it", "Note", "Sore spot", "Pulse", "Renewal", "Back to Hub"].map(
       (label) => buttonByText(host, label)!,
     );
     for (const b of own) {
@@ -1108,7 +1164,7 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
 
   it("raises its doors on the 3:1 edge with a lift and a press, and lifts Save in solid blue (type and depth, phase 8)", async () => {
     const host = await mount(<FullScreen />);
-    const doors = ["Drop it", "Update Pulse", "Renewal conversation", "Back to Hub"].map((label) => buttonByText(host, label)!);
+    const doors = ["Drop it", "Note", "Sore spot", "Pulse", "Renewal", "Back to Hub"].map((label) => buttonByText(host, label)!);
     for (const b of doors) {
       expect(b).toBeTruthy();
       const cls = b.className.split(/\s+/);
@@ -1121,7 +1177,7 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
         expect(cls, `${b.textContent}: ${gone}`).not.toContain(gone);
       }
     }
-    const save = buttonByText(host.querySelector('[data-testid="unsaved-draft"]')!, "Save note")!;
+    const save = buttonByText(host.querySelector('[data-testid="unsaved-draft"]')!, "Add to Westlake's notes")!;
     expect(save.className.split(/\s+/)).toEqual(expect.arrayContaining(["shadow-(--solid-lift)", "active:translate-y-px", "disabled:shadow-none"]));
   });
 
@@ -1460,7 +1516,7 @@ describe("Next: her next booking, and the door to Times with room", () => {
   it("opens Times with room on top of the Wrap-up, naming no client, and closes back to it", async () => {
     const host = await mount(<NextScreen />);
     await settle();
-    const note = host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement;
+    const note = await noteBox(host);
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(note, "Asked about Tuesdays");
       note.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1476,12 +1532,12 @@ describe("Next: her next booking, and the door to Times with room", () => {
     // Times only: no client (hers or anyone's), no trainer, and never why.
     for (const name of ["Judy", "Ann", "Regular", "Sam", "Pat"]) expect(s.textContent).not.toContain(name);
     expect(s.textContent).not.toMatch(/cancel|isn't booked/i);
-    // It never left the Wrap-up: the Profile note is still there as typed.
-    expect((host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement).value).toBe("Asked about Tuesdays");
+    // It never left the Wrap-up: the note is still there as typed.
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("Asked about Tuesdays");
     await click(Array.from(s.querySelectorAll("button")).find((b) => b.textContent === "Done"));
     await settle();
     expect(sheet()).toBeNull();
-    expect((host.querySelector('textarea[aria-label="Profile note"]') as HTMLTextAreaElement).value).toBe("Asked about Tuesdays");
+    expect((host.querySelector('textarea[aria-label="Note"]') as HTMLTextAreaElement).value).toBe("Asked about Tuesdays");
   });
 });
 
@@ -1537,7 +1593,7 @@ describe("the renewal prompt follows the auto-renewal mark", () => {
     const autoRenewMark = { renews: false, contractId: "9001", setAt: "2026-09-25T14:00:00.000Z", setById: "uid-jane" };
     const host = await mount(<RenewalScreen who={{ autoRenewMark }} />);
     expect(host.textContent).not.toContain("Talk about it today?");
-    expect(buttonByText(host, "Renewal conversation")).toBeTruthy();
+    expect(host.querySelector('[data-testid="after-renewal"]')!.textContent).toBe("Renewal");
   });
 
   it("still asks when the mark was made on another contract", async () => {
@@ -1941,5 +1997,34 @@ describe("today's machines, once (the Wrap-up round, Oct 18 2026)", () => {
     const plain = await mount(<ListScreen />);
     expect(plain.querySelector('[data-testid="wrapup-machine-door"]')).toBeNull();
     expect(rowOf(plain, "m2").textContent).toContain("Leg Press");
+  });
+});
+
+/*
+ * A SORE SPOT AFTER THE SESSION (AJ's N3 a, Oct 18 2026): the briefing's
+ * figure and its rating step; each spot handed over to be filed as a Health
+ * note with the spot, at Next time. Nothing is kept until it is rated.
+ */
+describe("a sore spot after the session (N3 a)", () => {
+  it("rates a spot and hands it over on the way out, saying where it lands", async () => {
+    const onLeave = vi.fn();
+    const host = await mount(<Screen onLeave={onLeave} />);
+    await click(host.querySelector('[data-testid="after-sore"]'));
+    const sore = host.querySelector('[data-testid="wrapup-sore"]')!;
+    expect(sore.querySelector('[data-testid="sore-where"]')!.textContent).toBe(
+      "Judy's profile → Notes → Health · read out on the next 4 briefings · leaders see it on Operations → Today",
+    );
+    await click(buttonByText(sore, "Tag body region"));
+    const picker = document.querySelector('[role="dialog"][aria-label="Body region picker"]')!;
+    await click(buttonByText(picker, "Knees"));
+    const stiff = Array.from(document.querySelectorAll('[role="dialog"][aria-label="Body region picker"] [role="radio"]')).find(
+      (r) => r.getAttribute("aria-label")?.startsWith("Stiff"),
+    )!;
+    await click(stiff);
+    expect(host.querySelector('[data-testid="after-sore"]')!.textContent).toBe("Sore spot · 1");
+    await click(buttonByText(host, "Back to Hub"));
+    const handed = onLeave.mock.calls[0][0];
+    expect(handed.soreSpots).toHaveLength(1);
+    expect(handed.soreSpots[0]).toMatchObject({ region: "Knees", dial: -1 });
   });
 });

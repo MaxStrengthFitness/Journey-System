@@ -18,8 +18,15 @@
  * Same bar as the Dial (three equal segments, 48px, words inside because
  * three words fit), same urgency colours as the Dial's left side, so "how
  * urgent" reads the same on every screen. Nothing is pre-selected by the
- * component; the parent decides the default (the Wrap-up's Profile note
- * starts at Note).
+ * component; the parent decides the default (the Wrap-up's note starts at
+ * Profile only).
+ *
+ * SAYS WHERE (the Wrap-up round, AJ, Oct 18 2026, "n1 a": a note "for next
+ * time or just a note to the profile and where its going to be filed to").
+ * The segments say where the note goes, Profile only · Next time · Critical
+ * (`IMPORTANCE_META.where`), under "Goes to", on every box that writes a
+ * note. The stored values are unchanged, and a note's badge when it is read
+ * later keeps its name ("Heads up").
  */
 import { IMPORTANCE_META, type JournalImportance } from "../../types/journal";
 import "./rating.css";
@@ -43,7 +50,7 @@ export const LOUDNESS_TONE: Readonly<Record<JournalImportance, LoudnessTone>> = 
 export interface LoudnessProps {
   value: JournalImportance | null | undefined;
   onChange: (next: JournalImportance) => void;
-  /** Defaults to "How loud?". */
+  /** Defaults to "Goes to". */
   ask?: string;
   /** Show IMPORTANCE_META's hint for the chosen level under the bar. */
   hint?: boolean;
@@ -52,7 +59,7 @@ export interface LoudnessProps {
   className?: string;
 }
 
-export function Loudness({ value, onChange, ask = "How loud?", hint = true, disabled = false, compact = false, className }: LoudnessProps) {
+export function Loudness({ value, onChange, ask = "Goes to", hint = true, disabled = false, compact = false, className }: LoudnessProps) {
   return (
     <div className={["rt", "rt--loud", compact ? "rt--compact" : "", className ?? ""].filter(Boolean).join(" ")}>
       <div className="rt__head">
@@ -70,7 +77,7 @@ export function Loudness({ value, onChange, ask = "How loud?", hint = true, disa
             disabled={disabled}
             onClick={() => onChange(lvl)}
           >
-            {IMPORTANCE_META[lvl].short}
+            {IMPORTANCE_META[lvl].where}
           </button>
         ))}
       </div>

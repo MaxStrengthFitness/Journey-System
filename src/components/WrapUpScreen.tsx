@@ -5,7 +5,7 @@ import { handleFirestoreError, OperationType } from "../lib/firestore-errors";
 import { AppHeader } from "./AppHeader";
 import { WrapUpConfetti } from "./WrapUpConfetti";
 import "./wrap-up.css";
-import type { DialValue, Studio } from "../types";
+import type { BodyStateTag, DialValue, Studio } from "../types";
 import {
   Client,
   WorkoutSession,
@@ -17,15 +17,21 @@ import type { JournalEntry, JournalImportance } from "../types/journal";
 import type { JournalStream } from "../hooks/useClientJournal";
 import { sessionJournalOf } from "../features/session-record/session-journal";
 import { safeToDate } from "../lib/utils";
-import { PulseQuickLogDialog } from "../features/subjective-report";
+import { PulseQuickLog } from "../features/subjective-report";
 import { FordSweep } from "../features/ford/FordSweep";
 import { useClientFord } from "../features/ford/useClientFord";
 import { NoteSweep, discardUnfiledEntry, fileUnfiledEntry, isUnfiled } from "../features/client-notes";
 import { isNextTrainerNote, type NextTrainerNoteMark } from "../features/client-notes/note-catalog";
-import { Dial, EFFORT_SCALE, Loudness } from "../features/rating";
+import { Dial, EFFORT_SCALE } from "../features/rating";
+import { NoteBox } from "../features/client-notes/NoteBox";
+import { emptyNoteBox, whereItLands, type NoteBoxValue } from "../features/client-notes/note-box";
+import { FILING_CATEGORIES, type FilingCategory } from "../features/client-notes/note-catalog";
+import { BodyModel, figureGenderOf } from "./anatomy";
+import { BodyStateTracker } from "./BodyStateTracker";
+import { soreAreaOfTag, tagOfSlug } from "../features/briefing/stack";
 import type { SessionNoteDraft } from "../features/client-notes/session-draft";
 import { carriedFloorWords, floorCarryOf } from "../features/machine-menu/note-target";
-import { ArrowLeft, CalendarCheck2, CalendarClock, CalendarSearch, CalendarX2, Check, HeartPulse, MessageSquareText, Star } from "lucide-react";
+import { ArrowLeft, CalendarCheck2, CalendarClock, CalendarSearch, CalendarX2, Check, MessageSquareText, Star } from "lucide-react";
 import {
   LogConversationDialog,
   promptText,
@@ -287,6 +293,78 @@ function useHerBookings(clientId: string, enabled: boolean): { rows: ScheduleEnt
   return { rows: current.rows, read };
 }
 
+/**
+ * What the Wrap-up hands its host to file (the Wrap-up round, Oct 18 2026):
+ * the note box's words with where they go and what they are for, and the
+ * sore spots rated here. Each typed note and each spot is handed over once.
+ */
+export interface WrapUpNote {
+  noteContent: string;
+  importance: JournalImportance;
+  effectiveUntil?: Date | null;
+  /** What it is for (the five filing categories); null files it unfiled, to wait in To file. */
+  category?: FilingCategory | null;
+  /** The trainer's own notebook (the briefing round, phase 4), never the client's record. */
+  justForMe?: boolean;
+  /**
+   * The words came from the session's unsaved note: the host files the
+   * draft's own marks with them (its machine, flavour and body parts) and
+   * never files the draft again, even when the words were cleared.
+   */
+  fromDraft?: boolean;
+  /** Sore spots rated here (AJ's N3 a): each a Health note with its spot, at Next time. */
+  soreSpots?: BodyStateTag[];
+}
+
+/** A draft's category, when it is one the note box files under. */
+function filingOf(category: unknown): FilingCategory | null {
+  return FILING_CATEGORIES.some((c) => c.id === category) ? (category as FilingCategory) : null;
+}
+
+/** The note box, opened on a note the session left unsaved: its words, its category and where it was going. */
+function boxFromDraft(draft: SessionNoteDraft): NoteBoxValue {
+  return {
+    text: draft.body,
+    importance: draft.importance ?? "standard",
+    justForMe: false,
+    category: filingOf(draft.category),
+    picked: (draft.importance ?? "standard") !== "standard",
+  };
+}
+
+/** The sore spot figure's lit regions: the screen's blue, as the briefing's. */
+const SORE_LIT: [string, string] = ["var(--eq-live)", "var(--eq-live)"];
+
+type AfterPanel = "note" | "sore" | "pulse";
+
+/** One of the minute after's chips: a firm edge, blue while its panel is open. */
+function AfterChip({
+  open,
+  onClick,
+  done,
+  testId,
+  children,
+}: {
+  open: boolean;
+  onClick: () => void;
+  done: boolean;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onClick}
+      data-testid={testId}
+      className="min-h-10 px-3.5 rounded-full border border-input bg-(--raised) shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) text-[14px] font-bold text-ink-d1 inline-flex items-center gap-1.5 aria-expanded:border-(--eq-live) aria-expanded:bg-(--eq-live-fill) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
+    >
+      {children}
+      {done && <Check size={14} strokeWidth={3} className="text-(--eq-ok)" aria-label="written" />}
+    </button>
+  );
+}
+
 export interface WrapUpScreenProps {
   /** The studio the session is at, for the header (the active studio's name). */
   studioName?: string;
@@ -353,15 +431,15 @@ export interface WrapUpScreenProps {
    * never waits on it. Without it there is no card.
    */
   onNextTime?: (ticked: string[]) => void;
-  /** Leaves the screen; the Profile note (if any) is filed on the way out with its Loudness and "until" day. */
-  onLeave: (profileNote: { noteContent: string; importance: JournalImportance; effectiveUntil?: Date | null }) => void | Promise<void>;
+  /** Leaves the screen; the note box and the sore spots (if any) are filed on the way out. */
+  onLeave: (note: WrapUpNote) => void | Promise<void>;
   /**
    * Files the Profile note (and, through the host, a waiting mid-session
    * draft) WITHOUT leaving: when the screen goes by any way but Back to Hub,
    * when the iPad is locked or the page hidden, and on a sign-out. Each typed
    * note is handed over once (the Atlas answers, Oct 2 2026).
    */
-  onFile?: (profileNote: { noteContent: string; importance: JournalImportance; effectiveUntil?: Date | null }) => void | Promise<void>;
+  onFile?: (note: WrapUpNote) => void | Promise<void>;
   /**
    * A note the trainer started mid-session and never saved (fluidity round,
    * Sep 2026). The screen says so and offers to finish it or drop it; a
@@ -573,7 +651,7 @@ export function WrapUpScreen({
   coverage = "unknown",
 }: WrapUpScreenProps) {
   const [effort, setEffort] = useState<DialValue | null>(null);
-  const [effortSaved, setEffortSaved] = useState(false);
+  const [effortState, setEffortState] = useState<"idle" | "saved" | "failed">("idle");
   // Whether the effort has been written yet: untouched, the way out writes
   // the default once.
   const effortWrittenRef = useRef(false);
@@ -604,21 +682,40 @@ export function WrapUpScreen({
   onNextTimeRef.current = onNextTime;
   // What was last handed over, in today's order; null until the first.
   const nextHandedRef = useRef<string[] | null>(null);
-  const [notes, setNotes] = useState("");
-  const [importance, setImportance] = useState<JournalImportance>("standard");
-  const [effectiveUntil, setEffectiveUntil] = useState("");
-  const [showPulse, setShowPulse] = useState(false);
   const todayKey = useMemo(() => studioTodayKey(), []);
-  // The unfinished mid-session note, editable here so a last word can be added.
-  const [draftText, setDraftText] = useState(unsavedDraft?.body ?? "");
-  const [draftBusy, setDraftBusy] = useState(false);
   // A draft written for the studio's floor notes on a machine (the machine
   // menu's "The machine itself", Oct 4 2026) offers to go there, never onto
   // the client's record; left here, the host adds it there on the way out.
   const floorCarry = floorCarryOf(unsavedDraft);
+  const floorDraft = !!unsavedDraft && !!floorCarry;
   const floorWords = floorCarry
     ? carriedFloorWords(studioName, machines.find((m) => m.id === floorCarry.machineId)?.name ?? null)
     : null;
+  // The floor draft, editable here so a last word can be added.
+  const [draftText, setDraftText] = useState(unsavedDraft?.body ?? "");
+  const [draftBusy, setDraftBusy] = useState(false);
+  /* THE NOTE BOX (the Wrap-up round, Oct 18 2026). A note about the client
+     the session left unsaved opens the box with its words, its category and
+     where it was going: one box, never a second one above it. */
+  const clientDraft = unsavedDraft && !floorCarry && unsavedDraft.body.trim() ? unsavedDraft : null;
+  const [box, setBox] = useState<NoteBoxValue>(() => (clientDraft ? boxFromDraft(clientDraft) : emptyNoteBox("standard")));
+  const [draftInBox, setDraftInBox] = useState(!!clientDraft);
+  const [after, setAfter] = useState<AfterPanel | null>(clientDraft ? "note" : null);
+  const toggleAfter = (panel: AfterPanel) => setAfter((cur) => (cur === panel ? null : panel));
+  /* SORE SPOT (AJ's N3 a): the briefing's figure, head included. A tap on
+     the figure opens the tracker's Dial for that region; nothing is kept
+     until it is rated. Each spot files as a Health note at Next time. */
+  const [spots, setSpots] = useState<BodyStateTag[]>([]);
+  const [soreView, setSoreView] = useState<"front" | "back">("front");
+  const [soreRequest, setSoreRequest] = useState<{ region: string; nonce: number } | null>(null);
+  const tapSore = (slug: string) => {
+    const region = tagOfSlug(slug);
+    if (region) setSoreRequest((prev) => ({ region, nonce: (prev?.nonce ?? 0) + 1 }));
+  };
+  const soreRegions = useMemo(
+    () => spots.map((b) => soreAreaOfTag(b.region)).filter((r): r is NonNullable<typeof r> => r !== null),
+    [spots],
+  );
 
   // This session's journal entries, for the To-file tray: one equality query
   // (the journalEntries (sessionId, occurredAt) index), the same stream the Active Session
@@ -698,26 +795,33 @@ export function WrapUpScreen({
    */
   const [noteFiledHere, setNoteFiledHere] = useState(false);
 
-  /* The Profile note is filed when the trainer leaves — by the button, or by
-     closing the tab. Keep the latest text in a ref so an unload can read it. */
-  const notesRef = useRef({ notes, importance, effectiveUntil });
-  notesRef.current = { notes, importance, effectiveUntil };
+  /* The note box and the sore spots are filed when the trainer leaves — by
+     the button, or by closing the tab. Keep the latest in a ref so an unload
+     can read it. */
+  const outRef = useRef({ box, spots, draftInBox });
+  outRef.current = { box, spots, draftInBox };
   const draftWaitingRef = useRef(false);
-  draftWaitingRef.current = !!unsavedDraft && draftText.trim() !== "";
+  draftWaitingRef.current = floorDraft && draftText.trim() !== "";
   const onFileRef = useRef(onFile);
   onFileRef.current = onFile;
   const leftRef = useRef(false);
 
-  /** The Profile note as the host files it, from what is typed right now. */
-  const profileNoteNow = () => {
-    const { notes: noteContent, importance: loud, effectiveUntil: until } = notesRef.current;
+  /** What the host files, from what is here right now. */
+  const noteNow = (): WrapUpNote => {
+    const { box: b, spots: sp, draftInBox: fromDraft } = outRef.current;
     return {
-      noteContent,
-      importance: loud,
-      // End of the studio day, as the composer writes it — never a raw
-      // date-only string, which would be UTC midnight (CLAUDE.md).
-      effectiveUntil: loud !== "standard" && until ? new Date(`${until}T23:59:59`) : null,
+      noteContent: b.text,
+      importance: b.importance,
+      effectiveUntil: null,
+      category: b.category,
+      justForMe: b.justForMe,
+      fromDraft,
+      soreSpots: sp,
     };
+  };
+  /** Handed over: the box empties (where it goes and what it is for stay), the spots go. */
+  const handedOver = () => {
+    outRef.current = { box: { ...outRef.current.box, text: "" }, spots: [], draftInBox: false };
   };
 
   /**
@@ -727,12 +831,20 @@ export function WrapUpScreen({
    */
   const fileWithoutLeaving = (): boolean => {
     if (leftRef.current || !onFileRef.current) return false;
-    const note = profileNoteNow();
+    const note = noteNow();
     const typed = note.noteContent.trim() !== "";
-    if (!typed && !draftWaitingRef.current) return false;
-    notesRef.current = { ...notesRef.current, notes: "" };
-    void onFileRef.current(typed ? note : { ...note, noteContent: "" });
-    return typed;
+    const spotted = (note.soreSpots?.length ?? 0) > 0;
+    if (!typed && !spotted && !note.fromDraft && !draftWaitingRef.current) return false;
+    handedOver();
+    void onFileRef.current(note);
+    return typed || spotted;
+  };
+  /** After a hand-over that stays (the iPad locked, a sign-out): the box empty, the spots gone, and it says so. */
+  const showHandedOver = () => {
+    setBox((b) => ({ ...b, text: "" }));
+    setSpots([]);
+    setDraftInBox(false);
+    setNoteFiledHere(true);
   };
 
   const leave = () => {
@@ -741,8 +853,8 @@ export function WrapUpScreen({
     setLeaving(true);
     fileEffortDefault();
     fileNextTime();
-    const note = profileNoteNow();
-    notesRef.current = { ...notesRef.current, notes: "" };
+    const note = noteNow();
+    handedOver();
     void onLeave(note);
   };
 
@@ -752,19 +864,13 @@ export function WrapUpScreen({
       if (document.visibilityState !== "hidden") return;
       fileEffortDefault();
       fileNextTime();
-      if (fileWithoutLeaving()) {
-        setNotes("");
-        setNoteFiledHere(true);
-      }
+      if (fileWithoutLeaving()) showHandedOver();
     };
     // A sign-out asks every screen to send now, while the person is signed in.
     const onSignOut = () => {
       fileEffortDefault();
       fileNextTime();
-      if (fileWithoutLeaving()) {
-        setNotes("");
-        setNoteFiledHere(true);
-      }
+      if (fileWithoutLeaving()) showHandedOver();
     };
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener(SEND_SETS_NOW_EVENT, onSignOut);
@@ -782,11 +888,11 @@ export function WrapUpScreen({
   onEffortRef.current = onEffort;
   const pickEffort = (v: DialValue | null) => {
     setEffort(v);
-    setEffortSaved(false);
+    setEffortState("idle");
     effortWrittenRef.current = true;
     Promise.resolve(v === null ? onEffort(0, true) : onEffort(v, false)).then(
-      (ok) => setEffortSaved(v !== null && ok !== false),
-      () => setEffortSaved(false),
+      (ok) => setEffortState(ok === false ? "failed" : v === null ? "idle" : "saved"),
+      () => setEffortState("failed"),
     );
   };
   /** Untouched on the way out: "As expected", marked as the default. Once. */
@@ -988,16 +1094,20 @@ export function WrapUpScreen({
             </Card>
           )}
 
-          {/* 3 · effort, the profile note and Pulse: what the trainer does
-                 before the client leaves (3a; they were the lower half of the
-                 Next card, under a small label). */}
+          {/* 3 · the minute after (the Wrap-up round, Oct 18 2026, "1a"):
+                 the effort Dial, open, then Note · Sore spot · Pulse ·
+                 Renewal in one row, each opening under it, never a dialog
+                 (the renewal conversation is a whole form, so it keeps its
+                 own). The note is the one note box (N1 a): where it goes and
+                 what it is for show as soon as it opens, and a line says
+                 where it lands. A note started in the session and never
+                 saved opens the box with its words. */}
           <Card delay={0.15}>
-            <Kicker>Effort · profile note · Pulse</Kicker>
-            {/* A note started during the session and never saved. Said
-                plainly, above everything else on this card, because the
-                trainer is about to walk the client out and this is the last
-                moment it is still theirs to finish. */}
-            {unsavedDraft && (
+            {/* A note for the studio's floor notes on a machine, started in
+                the session and never saved (the machine menu's "The machine
+                itself", Oct 4 2026): it goes there, never onto the client's
+                record, so it keeps its own offer. */}
+            {floorDraft && (
               <div
                 className="flex flex-col gap-2 rounded-xl border border-(--eq-warn)/40 bg-(--eq-warn-fill) p-3"
                 role="region"
@@ -1006,8 +1116,8 @@ export function WrapUpScreen({
               >
                 <div className="flex items-center gap-2">
                   <MessageSquareText size={16} className="text-(--eq-warn) shrink-0" aria-hidden="true" />
-                  <span className="text-[14px] font-bold text-ink-d1 break-words min-w-0" data-floor-draft={floorWords ? "" : undefined}>
-                    {floorWords ? floorWords.title : "You started a note during the session and didn't save it"}
+                  <span className="text-[14px] font-bold text-ink-d1 break-words min-w-0" data-floor-draft="">
+                    {floorWords?.title}
                   </span>
                 </div>
                 <textarea
@@ -1031,7 +1141,7 @@ export function WrapUpScreen({
                       }
                     }}
                   >
-                    {floorWords ? floorWords.button : "Save note"}
+                    {floorWords?.button}
                   </button>
                   <button
                     type="button"
@@ -1042,121 +1152,123 @@ export function WrapUpScreen({
                     Drop it
                   </button>
                 </div>
-                <span className="text-[11px] text-ink-d3">
-                  {floorWords ? floorWords.foot : "Left as it is, it is saved unfiled when you leave — nothing you wrote is lost."}
-                </span>
+                <span className="text-[11px] text-ink-d3">{floorWords?.foot}</span>
               </div>
             )}
 
             {/* The effort Dial (Oct 2 2026; it replaced the dose Dial) — one
                 rating for the whole workout, the trainer's own judgement,
                 saved as it is tapped. Neutral: no position is green or red.
-                Untouched, it saves "As expected" on the way out. */}
+                Untouched, it saves "As expected" on the way out. The word it
+                rests on is its answer; only a failed save says more. */}
             <div className="flex flex-col gap-2" data-testid="effort-card">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[14px] font-bold text-ink-d1">Effort</span>
-                {effortSaved && effort !== null && (
-                  <span className="text-[11px] text-(--eq-ok) font-bold flex items-center gap-1">
-                    <Check size={12} strokeWidth={3} /> Saved
-                  </span>
-                )}
-              </div>
               <Dial
                 scale={EFFORT_SCALE}
                 value={effort}
                 onChange={pickEffort}
                 ask={clientFirstName(client) ? `How hard did ${clientFirstName(client)} work today?` : EFFORT_SCALE.ask}
-                sub="The whole workout, judged by you"
+                sub={effortState === "failed" ? "Not saved. Tap it again." : undefined}
                 data-testid="effort-dial"
               />
-              {effort === null && (
-                <span className="text-[11px] text-ink-d3" data-testid="effort-default-hint">
-                  Left untouched, it saves As expected.
-                </span>
-              )}
             </div>
 
-            <textarea
-              className="w-full bg-(--well) border border-input shadow-(--elev-0) rounded-[10px] p-2.5 px-3 min-h-16 text-[14px] text-ink-d1 placeholder:text-ink-d3 placeholder:italic resize-none outline-none focus:border-(--eq-focus-ring) transition-colors"
-              placeholder={`Profile note — anything for ${clientFirstName(client)}'s record. It files when you leave this screen.`}
-              value={notes}
-              onChange={(e) => {
-                setNotes(e.target.value);
-                setNoteFiledHere(false);
-              }}
-              aria-label="Profile note"
-            />
-            {noteFiledHere && (
-              <span className="text-[11px] text-(--eq-ok) font-bold flex items-center gap-1" role="status" data-testid="profile-note-filed">
-                <Check size={12} strokeWidth={3} /> Profile note saved. Anything you type now is a new note.
-              </span>
-            )}
-            {/* The Profile note is the one that goes only to the client's
-                profile (voice-review round, Sep 27 2026): at Note it stays on the
-                record and the next trainer's briefing never shows it. The
-                note FOR the next trainer is the End Session box. Louder,
-                Loudness's own hint says where it goes; at Note the generic
-                hint ("found by its category") would be wrong for a note
-                that is filed unfiled, so it says the plain fact instead. */}
-            <div className="flex flex-col gap-2" data-testid="profile-note-loudness">
-              <Loudness value={importance} onChange={setImportance} hint={importance !== "standard"} />
-              {importance === "standard" && (
-                <span className="text-[11px] text-ink-d3" data-testid="profile-note-hint">
-                  Stays on {clientFirstName(client)}'s profile. The next trainer's briefing won't show it.
-                </span>
-              )}
-              {importance !== "standard" && (
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[14px] font-bold text-ink-d2">Matters until (optional)</span>
-                  <input
-                    type="date"
-                    className="w-full min-h-11 bg-(--well) border border-input shadow-(--elev-0) rounded-[10px] px-3 text-[14px] text-ink-d1 outline-none focus:border-(--eq-focus-ring) transition-colors"
-                    value={effectiveUntil}
-                    min={todayKey}
-                    aria-label="Matters until"
-                    onChange={(e) => setEffectiveUntil(e.target.value)}
-                  />
-                  <span className="text-[11px] text-ink-d3">After this it stops showing on the briefing.</span>
-                </label>
-              )}
-            </div>
-
-            {/* The doors are RAISED (type and depth, phase 8, Oct 4 2026; AJ's
-                2A): a fill a hair lighter than the card, a contact lift and a
-                white top light, on the 3:1 --input edge (they drew the
-                decorative divider), and a press. The voice stays 14px bold. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowPulse(true)}
-                className="min-h-11 rounded-xl border border-input bg-(--raised) shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) px-4 text-[14px] font-bold text-ink-d1 hover:opacity-90 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
-              >
-                <HeartPulse className="w-4 h-4 text-(--eq-live)" />
-                Update Pulse
-              </button>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="After the session" data-testid="after-row">
+              <AfterChip open={after === "note"} onClick={() => toggleAfter("note")} done={box.text.trim() !== ""} testId="after-note">
+                Note
+              </AfterChip>
+              <AfterChip open={after === "sore"} onClick={() => toggleAfter("sore")} done={spots.length > 0} testId="after-sore">
+                {spots.length > 0 ? `Sore spot · ${spots.length}` : "Sore spot"}
+              </AfterChip>
+              <AfterChip open={after === "pulse"} onClick={() => toggleAfter("pulse")} done={false} testId="after-pulse">
+                Pulse
+              </AfterChip>
               {/* Always reachable while a package is on file ("there's not
                   really a good way to open it"); loud only when due. */}
               {renewal?.cycleKey && (
                 <button
                   type="button"
                   onClick={() => setShowRenewal(true)}
-                  className={`min-h-11 rounded-xl border px-4 py-2 text-[14px] font-bold hover:opacity-90 active:translate-y-px active:shadow-(--press) flex items-center justify-center gap-2 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring) ${
-                    // A tint lifts without the top light; the raised door
-                    // takes the lift and the top light.
+                  data-testid="after-renewal"
+                  className={`min-h-10 px-3.5 rounded-full border text-[14px] font-bold inline-flex items-center gap-1.5 active:translate-y-px active:shadow-(--press) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring) ${
                     renewalDue && !renewalLogged
                       ? "border-(--eq-hero)/50 bg-(--eq-hero-fill) text-ink-d1 shadow-(--elev-1)"
                       : "border-input bg-(--raised) text-ink-d1 shadow-(--raised-lift)"
                   }`}
                 >
-                  <MessageSquareText className={`w-4 h-4 shrink-0 ${renewalDue && !renewalLogged ? "text-(--eq-hero-text)" : "text-(--eq-live)"}`} />
-                  {renewalLogged
-                    ? "Renewal conversation saved ✓"
-                    : renewalDue
-                      ? promptText(renewal)
-                      : "Renewal conversation"}
+                  <MessageSquareText
+                    className={`w-4 h-4 shrink-0 ${renewalDue && !renewalLogged ? "text-(--eq-hero-text)" : "text-(--eq-live)"}`}
+                    aria-hidden="true"
+                  />
+                  {renewalLogged ? (
+                    <>
+                      Renewal <Check size={14} strokeWidth={3} className="text-(--eq-ok)" aria-label="saved" />
+                    </>
+                  ) : renewalDue ? (
+                    promptText(renewal)
+                  ) : (
+                    "Renewal"
+                  )}
                 </button>
               )}
             </div>
+
+            {after === "note" && (
+              <NoteBox
+                value={box}
+                onChange={(v) => {
+                  setBox(v);
+                  setNoteFiledHere(false);
+                }}
+                firstName={clientFirstName(client)}
+                label="Note"
+                placeholder={`Anything for ${clientFirstName(client) || "the client"}'s record, or for next time`}
+                autoFocus={!draftInBox}
+              />
+            )}
+
+            {after === "sore" && (
+              <div className="flex flex-col gap-2" data-testid="wrapup-sore">
+                <div className="flex gap-1.5" role="group" aria-label="Side of the figure">
+                  {(["front", "back"] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-pressed={soreView === v}
+                      onClick={() => setSoreView(v)}
+                      className="min-h-10 px-3.5 rounded-full border border-input bg-(--raised) shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) text-[14px] font-bold text-ink-d1 aria-pressed:border-(--eq-live) aria-pressed:bg-(--eq-live-fill) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
+                    >
+                      {v === "front" ? "Front" : "Back"}
+                    </button>
+                  ))}
+                </div>
+                <div className="mx-auto w-full max-w-60">
+                  <BodyModel
+                    gender={figureGenderOf(client.gender)}
+                    view={soreView}
+                    areas={soreRegions}
+                    colors={SORE_LIT}
+                    baseFill="var(--eq-surface-3)"
+                    onRegionClick={tapSore}
+                  />
+                </div>
+                <BodyStateTracker value={spots} onChange={setSpots} request={soreRequest} />
+                <p className="text-[12px] text-ink-d2 break-words" data-testid="sore-where">
+                  {whereItLands({ importance: "elevated", justForMe: false, category: "health" }, clientFirstName(client))}
+                </p>
+              </div>
+            )}
+
+            {after === "pulse" && (
+              <div data-testid="wrapup-pulse">
+                <PulseQuickLog client={client} trainer={authTrainer} machines={machines} compact onDone={() => setAfter(null)} />
+              </div>
+            )}
+
+            {noteFiledHere && (
+              <span className="text-[12px] text-(--eq-ok) font-bold flex items-center gap-1" role="status" data-testid="profile-note-filed">
+                <Check size={12} strokeWidth={3} /> Saved. Anything you add now is a new note.
+              </span>
+            )}
           </Card>
 
           {/* 4 · next: the next booking, last (3a), and its door to Times with room. */}
@@ -1294,14 +1406,6 @@ export function WrapUpScreen({
         snapshot={renewal}
         trainer={authTrainer}
         onSaved={() => setRenewalLogged(true)}
-      />
-
-      <PulseQuickLogDialog
-        open={showPulse}
-        onClose={() => setShowPulse(false)}
-        client={client}
-        trainer={authTrainer}
-        machines={machines}
       />
 
       {/* On top of this screen, never instead of it: the notes stay put. */}

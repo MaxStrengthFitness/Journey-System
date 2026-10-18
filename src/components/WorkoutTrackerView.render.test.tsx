@@ -2761,16 +2761,46 @@ describe("session writes never wait on the network (speed round, Oct 5 2026; R9)
     await settle();
     await settle();
     expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
-    const box = document.querySelector<HTMLTextAreaElement>('textarea[placeholder^="Profile note"]');
+    // The note box opens from the minute after's row (the Wrap-up round, Oct 18 2026).
+    await act(async () => (document.querySelector('[data-testid="after-note"]') as HTMLButtonElement).click());
+    const box = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Note"]');
     expect(box).not.toBeNull();
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box!, "Likes the new seat height.");
       box!.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    // Filed where the box says: Preference, staying on the profile.
+    const what = document.querySelector(`[role="group"][aria-label="What it's for"]`)!;
+    await act(async () => (Array.from(what.querySelectorAll("button")).find((b) => b.textContent === "Preference") as HTMLButtonElement).click());
     const back = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Back to Hub")!;
     await act(async () => back.click());
     expect(setViewSpy).toHaveBeenCalledWith("clients");
-    expect(journalDocs.some((d) => d.data().body === "Likes the new seat height.")).toBe(true);
+    const filed = journalDocs.find((d) => d.data().body === "Likes the new seat height.")!.data();
+    expect(filed).toMatchObject({ kind: "preference", importance: "standard", origin: "post_session" });
+  });
+
+  it("files a sore spot from the Wrap-up as a Health note with its spot, at Next time (AJ's N3 a)", async () => {
+    offline();
+    const host = await mount(<Tracker />);
+    await act(async () => (host.querySelector(".jg-sbar__finish") as HTMLButtonElement).click());
+    const finish = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Finish session")!;
+    await act(async () => finish.click());
+    await settle();
+    await settle();
+    await act(async () => (document.querySelector('[data-testid="after-sore"]') as HTMLButtonElement).click());
+    const tag = Array.from(document.querySelectorAll('[data-testid="wrapup-sore"] button')).find((b) => b.textContent?.includes("Tag body region"))!;
+    await act(async () => (tag as HTMLButtonElement).click());
+    const picker = document.querySelector('[role="dialog"][aria-label="Body region picker"]')!;
+    await act(async () => (Array.from(picker.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Knees") as HTMLButtonElement).click());
+    const stiff = Array.from(document.querySelectorAll('[role="dialog"][aria-label="Body region picker"] [role="radio"]')).find((r) =>
+      r.getAttribute("aria-label")?.startsWith("Stiff"),
+    )!;
+    await act(async () => (stiff as HTMLButtonElement).click());
+    const back = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Back to Hub")!;
+    await act(async () => back.click());
+    const spot = journalDocs.find((d) => d.data().body === "Knees · Stiff")!.data();
+    expect(spot).toMatchObject({ importance: "elevated", origin: "post_session", bodyParts: [{ part: "knee", side: "both" }] });
+    expect(["injury", "health"]).toContain(spot.kind);
   });
 
   it("Finish asks 'finished elsewhere?' when the dialog opens, so the tap makes no second read", async () => {
