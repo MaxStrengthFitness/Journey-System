@@ -27,8 +27,10 @@ import { describe, expect, it, vi } from "vitest";
  *      (a background-position shimmer repaints every frame).
  *   4. The Hub's per-card costs (W12): no container per card (the column
  *      is the one container), no opacity layer per finished card (a veil of
- *      the ground in colour), the hatching one small tile with no opacity;
- *      and no will-change or blend mode beyond the loading mark.
+ *      the ground in colour; since the cards round, Oct 17 2026, no veil
+ *      either: a card that is over is a solid colour, a recorded session a
+ *      pale tile), the hatching one small tile with no opacity; and no
+ *      will-change or blend mode beyond the loading mark.
  *
  * If one of these fails, the fix is the stylesheet or the class list, not
  * the test.
