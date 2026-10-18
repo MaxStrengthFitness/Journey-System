@@ -84,3 +84,8 @@ Steps for the PC, in PowerShell from the project folder:
   - a23: "we need to build a maintainer log".
   - Retention, upgrades, renewals, lateness and the city: "studios will build this".
   - Marketing: "admins and claude will research this".
+- **Oct 18 2026: phase 1, the server route, is built.** AJ: "Use my Console account for now; we move it to a Max Strength account before note filing."
+  - **The route:** `POST /api/academy/ask` (`server/academy-routes.ts`, `server/academy.ts`). It has the staff sign-in, one question at a time and 20 in 15 minutes per person, a 4 KB body and a question of 3 to 300 characters. The question is never logged. With no key it says "isn't switched on yet". The key is `ANTHROPIC_API_KEY` in `render.yaml`, not synced. Sonnet 5.5 answers (`ANSWER_MODEL`).
+  - **Two of AJ's notes fixed:** neck pain is now answered from form and breathing (Cervical Extension, Breathing), and the four P's answer cites the compound row's elbow example. One thing to watch: a pain question with no surgery in it still leads with the surgery-and-clearance line.
+  - **Checks:** typecheck 0; suite 14,898 in 912 files: one server.ts source check failed on the new parser line, which was fixed and re-run green; first screen 470.5 KB of 480. The server bundle grew to 1.4 MB with the Academy's text.
+  - **Not live:** nothing calls the route until phase 2's screen. When it ships, the key goes on the Render web service's Environment: a NEW key, not the 30-day `journey-trial` one, which ends Nov 17.

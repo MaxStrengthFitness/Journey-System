@@ -38,6 +38,7 @@ const PICK_INSTRUCTIONS = [
   "A trainer has asked a question. Below is every page of the Academy, one per line: its id, where it sits, and its title.",
   `Choose the pages most likely to answer the question, best first, at most ${MAX_PAGES}. Choose fewer when fewer fit. Use the ids exactly as written.`,
   "A question about one machine usually needs that machine's overview, quick reference card or script; a question about the method usually needs a topic.",
+  "A question about pain, a headache or discomfort during or after a workout also needs the pages on what in a client's form or breathing could cause it: breathing, EIH, posture, and the machines involved.",
   "If no page could answer it (it is not about the training method, the machines, or working with a client in a session), return no pages and covered false.",
   "The Academy is the method only. A question about using the Journey app or Mindbody, a studio's prices, fees or policies, marketing, or fixing a machine is not covered.",
   "Set health true when the question is about a client's injury, surgery, pain or medical condition; otherwise false.",

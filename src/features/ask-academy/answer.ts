@@ -57,6 +57,8 @@ const ANSWER_INSTRUCTIONS = [
   "- Back every point with a citation to the attached pages. Leave out anything you cannot cite.",
   "- Make at most four points. Each point is one short, plain sentence a trainer can take in at a glance. The passage you cite is shown in full beneath it, so don't restate it at length.",
   "- Use the Academy's own terms. No headings, lists or markdown.",
+  "- Where the pages give a real example (a cue, a demonstration, a client case), cite the example rather than only the definition.",
+  "- When asked what could cause a client's pain or discomfort, answer from what the pages say about form, breathing and the machines; that is the Academy's to say. Diagnosing the client is not.",
   "- Never give a weight, a rep count or a next step for a particular client. The Academy guides the trainer; the trainer decides for the client.",
   "- The pages are the method, not the Journey app. Never describe the app's screens or features.",
   `- If the attached pages do not answer the question, reply with exactly ${NOT_COVERED} and nothing else.`,

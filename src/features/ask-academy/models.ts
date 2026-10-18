@@ -19,6 +19,13 @@ export const ANSWER_MODELS = {
 
 export type AnswerModelKey = keyof typeof ANSWER_MODELS;
 
+/**
+ * The model that answers in the app. AJ, Oct 18 2026, after grading the blind
+ * trial (Sonnet better 8, Opus better 4, the same 28): "the answered ones
+ * pass, use Sonnet 5.5". It is also about half the price and faster.
+ */
+export const ANSWER_MODEL = ANSWER_MODELS.sonnet;
+
 interface Price {
   input: number;
   output: number;

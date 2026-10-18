@@ -21,7 +21,18 @@ export interface RequestLimitOptions {
   maxInFlight: number;
   maxPerWindow: number;
   windowMs: number;
+  /** What a refused caller reads; the chart reader's words when left out. */
+  messages?: {
+    busy: string;
+    /** For a caller over the window, given the minutes to wait. */
+    tooMany: (minutes: number) => string;
+  };
 }
+
+const CHART_MESSAGES = {
+  busy: "A chart is already being read for you. Wait for it to finish, then try again.",
+  tooMany: (minutes: number) => `That's a lot of chart pages in a short time. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+};
 
 /**
  * One flat shape rather than a union: this project compiles without
@@ -48,6 +59,7 @@ export function createRequestLimiter(
   now: () => number = Date.now,
 ): RequestLimiter {
   const { maxInFlight, maxPerWindow, windowMs } = options;
+  const messages = options.messages ?? CHART_MESSAGES;
   const started = new Map<string, number[]>();
   const running = new Map<string, number>();
 
@@ -63,7 +75,7 @@ export function createRequestLimiter(
           ok: false,
           release: noop,
           retryAfterSeconds: 30,
-          error: "A chart is already being read for you. Wait for it to finish, then try again.",
+          error: messages.busy,
         };
       }
 
@@ -76,7 +88,7 @@ export function createRequestLimiter(
           ok: false,
           release: noop,
           retryAfterSeconds,
-          error: `That's a lot of chart pages in a short time. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+          error: messages.tooMany(minutes),
         };
       }
 

@@ -15,8 +15,12 @@ It reads no client record, so it can't speak about one client. It never gives a 
    - Cards titled with an abbreviation take the Academy's name for the machine, from its script.
    - The glossary is read term by term.
 2. **Picking** (`pick.ts`). Haiku 5.5 reads the question and one line per page, then names up to five pages as JSON checked against a schema. Ids are then checked against the real pages, so a made-up one is dropped.
-3. **Answering** (`answer.ts`). The picked pages go in whole, as plain-text documents with citations on. `readAnswer` turns each cited line into a point: Claude's line, then the quoted sentences (`cited_text`, which the API copies from the page) and their pages. Uncited lines are dropped. `NOT_COVERED` means the pages don't answer the question.
+3. **Answering** (`answer.ts`). The picked pages go in whole, as plain-text documents with citations on. `readAnswer` turns each cited line into a point: Claude's line, then the quoted sentences (`cited_text`, which the API copies from the page) and their pages. Uncited lines are dropped. `NOT_COVERED` means the pages don't answer the question; `CONFLICTING` means they disagree, and head office decides (AJ: loyal to what we teach, never "willy-nilly").
+   - **A health question** (an injury, surgery, pain or a condition; the pick says so) is also sent the Academy's line on surgery and medical clearance (`CLEARANCE_PAGE_ID`, the TSC page), and the point quoting a clearance line is read out first (AJ, Oct 18 2026: "we always need to have the Academy's medical clearance line on any pages that need it").
+   - **Not the method:** the Journey app, Mindbody, prices, marketing and machine repair come back not covered.
 4. **Refusals.** There is no fallback model (Oct 17 2026). The API can pass a declined request to another model, but that would put an answer from a model AJ didn't choose in front of a trainer, so it is his call. Until he decides, a declined question comes back as `refused` with its category, and the trial counts how often that happens.
+
+`ask.ts` is one question start to end (`askAcademy`, or its halves `pickPages` and `answerFrom`), with the SDK client handed in. **Sonnet 5.5 answers** (`ANSWER_MODEL`): AJ's pick from the blind trial on Oct 18 2026.
 
 `models.ts` has the model ids and list prices. `costOf` prices a request by the model that actually served it, and returns null, never zero, for a model it doesn't know.
 
@@ -28,10 +32,14 @@ It reads no client record, so it can't speak about one client. It never gives a 
 | `academy-files.ts` | Every Academy JSON file, imported at once. For the server and the trial only: the Academy screen loads a module at a time and must keep doing so |
 | `pick.ts` | The picking request and `readPicks` |
 | `answer.ts` | The answering request and `readAnswer` |
-| `models.ts` | Which model does what, the prices, `costOf` |
-| `trial-questions.ts` | Phase 0's questions, each naming the pages it should come from |
+| `ask.ts` | One question start to end, for the server: `askAcademy`, `pickPages`, `answerFrom`, the `AskResult` a trainer is shown |
+| `models.ts` | Which model does what (`ANSWER_MODEL` is Sonnet 5.5), the prices, `costOf` |
+| `academy-routes.test.ts` | The server route on a bare Express app: sign-in, length, no key, one at a time, a failure |
+| `trial-questions.ts` | Phase 0's questions: Claude's 20 and AJ's 37 (his ten reasons), each naming the pages it should come from |
 
-Everything here is pure: no React, no Firebase, no network. The calls are made by `scripts/ask-academy-trial.ts` today, and later by the server route (phase 1).
+On the server: `server/academy-routes.ts` is `POST /api/academy/ask` (the staff sign-in, one question at a time and 20 in 15 minutes per person, a 4 KB body, a question of 3 to 300 characters; the question is never logged), and `server/academy.ts` makes the client from `ANTHROPIC_API_KEY` and builds the pages on the first question. With no key, the route answers "Ask the Academy isn't switched on yet."
+
+Everything here is pure: no React, no Firebase, no network of its own. The calls are made by the server route and by `scripts/ask-academy-trial.ts`.
 
 ## Traps
 
@@ -40,8 +48,8 @@ Everything here is pure: no React, no Firebase, no network. The calls are made b
 
 ## Phases
 
-0. **The trial**: built. It waits on AJ's API key and his 10 questions. The commands are in the round document.
-1. The server route.
+0. **The trial**: passed on Oct 18 2026; AJ picked Sonnet 5.5. The commands are in the round document.
+1. **The server route**: built (Oct 18 2026).
 2. The screen.
 3. Head office's list of questions the Academy can't answer, with its Firestore collection and rules.
 4. AJ's walk, then the deploy.
