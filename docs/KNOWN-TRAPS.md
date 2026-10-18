@@ -11,7 +11,7 @@ What broke, why, and the rule that came out of it. **Before you touch an area, r
 | [Packages, renewals and InBody](#renewals) | `client.renewal`, renewal cycles, Mindbody pricing and contracts on a client, attendance, InBody scans |
 | [Layout and CSS](#layout) | sticky bars, flex and grid layout, buttons, loading states |
 | [Mindbody, the server, scheduled jobs and sync](#server) | `/api/mindbody/*`, `server/`, the cron jobs, the schedule, the studio roster, the schedule sync, machine trends, Openings (the Sunday job's step, the next 7 days, the Overview's week read), any new field on a client document (every open streams them) |
-| [Security rules and permissions](#rules) | `firestore.rules`, roles and claims, who may read or write what, shared lists, announcements, rosters, Openings' marks, the standing week's limits, Your week's read |
+| [Security rules and permissions](#rules) | `firestore.rules`, roles and claims, who may read or write what, shared lists, announcements, rosters, Openings' marks, the standing week's limits, Your week's read, the trainer lock (the scoped trainer list, a list query over an array field) |
 | [React, tests, dates and tooling](#tooling) | reducers, layout effects, render tests, dates and time zones, Intl formatters, invisible characters, what runs where, the perf lab, line ends in a worktree |
 
 <a id="relay"></a>
@@ -956,6 +956,15 @@ the data files with esbuild's text loader, so that field comes back as the
 - **A session's host and client move only through `sessionTenancyKept`.** `sessionIsReadable` trusts both, so a new write that sets `hostedAtStudioId` or `clientId` on an existing session must be one of its cases (a host-less session given its own client's home; a client named once on an open session, or moved by the merge, readable by the caller, never across the Demo Mode line), with a rules test in the app's own shape.
 - **The sessions update rule's "who" test is `sessionIsReadable(resource.data, getRole(), callerTrainer())`, resolved once.** The old `isSuperAdmin() || isTrainerOfStudio(host) || namedClientIsReadable(client)` re-derived the role and the trainer document so often that, with no role claim on the token, two History edits on the client branch ran out of the 1,000-expression budget on master, and one more clause took a third over. Don't put the old helpers back into that rule; measure a new clause with the coverage report on the no-claim path (the rules tests' contexts carry no claim unless given one).
 
+### The trainer lock (Oct 18 2026)
+
+`docs/rounds/2026-10-18-trainer-lock.md`; AJ: "1a 2a 3a".
+
+- **The trainer list is the signed-in person's studios, not the company.** `useTrainers` holds the people of the studios the person works at or runs (`features/trainer-scope`), administrators everyone, and the rules refuse `trainers/{id}` outside that set (`trainerRecordReadable`). So `trainers.find((t) => t.id === someId)` is undefined for a trainer from another studio, and a `getDoc(doc(db, "trainers", id))` for one is PERMISSION_DENIED. A screen names a trainer from the record that carries the name (a session's `trainerName` stamped at Start, a job's poster, a note's author) and falls back to "A trainer from another studio" (`trainer-scope/names.ts`), never to a fetch of the record and never to nothing. A new listener on `trainers` goes through `trainerQueriesFor`, never `collection(db, "trainers")` bare: the rules refuse the bare list for everyone below the company tier.
+- **A list query over an array field is provable.** The rules engine proves `where(field, "array-contains-any", S)` against `resource.data.get(field, []).hasAny(mine)` and `where(field, "in", S)` against `resource.data.get(field, '') in mine`, each value of S bound in turn (the emulator, Oct 18 2026; "the trainer lock" in the rules tests). So a scoped read of records that name several studios in a list field does not need one `array-contains` query per studio. One value outside the caller's set refuses the whole query: the app's five queries each take the same list, built once (`trainerScopeFor`), and the rules' `callerStudios` must stay the same list (home, also works at, guests, the grant, owned for a role that runs its own studios, Demo Mode).
+- **A read taken away ships app first, rules second** (as the franchise partition did). An iPad on the old build asks for every trainer; once the new rules are live that ask is refused and the iPad shows "Firestore Action Failed" and stale names until it loads the new build. The rules wait for Render's boot report.
+- **The emulator's `array-contains-any` proof is only as good as the seed.** A rules test that asserts a scoped query succeeds proves the rule accepts the SHAPE; whether the right people come back is the merged ids (`idsOf` in the test), which the test checks too. Keep both when adding a query.
+
 <a id="tooling"></a>
 
 ## React, tests, dates and tooling
@@ -1167,6 +1176,8 @@ between two files you just wrote together) is this trap, not your code.
 ## Baselines by round
 
 The typecheck count and the test count after each round, moved here from the Commands table in `CLAUDE.md`. Compare COUNTS; since Oct 18 2026 the typecheck count is zero and CI fails on the first new type error, while the test count stays a count.
+
+- **The trainer lock (Oct 18 2026, `claude/keen-elbakyan-b06716` with master `b7773a53` merged in):** typecheck **0**; **14,841** tests in 904 files (14,805 in 899 on `878c7f95`, the Wrap-up round, before it); rules tests **627** on the emulator (601 in `firestore.rules.test.ts`, 14 of them the round's, plus the lint and the comment proof); the first screen 470.6 KB gzip of the 480 KB budget.
 
 - **Typecheck on `oct18/gemini-review` (Oct 18 2026, the Gemini review round):** **0**. The two that had been the baseline since Oct 1 went: `clinical-review/charts.tsx` casts Recharts' tooltip props through `unknown` (its `payload` is readonly, the local type was not), and `EditTrainerModal.tsx` drops a `position="popper"` prop the Select never took (a Radix word on a base-ui component). `.github/typecheck-baseline.txt` is 0.
 

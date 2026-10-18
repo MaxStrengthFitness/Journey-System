@@ -22,6 +22,7 @@
  */
 
 import { useState } from "react";
+import { findTrainerRecord, trainerNameFor } from "../../trainer-scope/names";
 import Papa from "papaparse";
 import {
   QueryConstraint,
@@ -163,9 +164,13 @@ export function useStudioExports(deps: StudioExportDeps) {
       }
 
       const payrollData = allSessions.map((s) => {
-        const trainerObj = trainers.find(
-          (t) => t.id === s.trainerId || t.initials === s.trainerInitials,
-        );
+        // By id; by initials only for a session with no id (an import). An id
+        // the list doesn't hold is a trainer from another studio (the trainer
+        // lock), named by what the session itself carries, never by the one
+        // trainer here who shares the initials.
+        const trainerObj =
+          findTrainerRecord(trainers, s.trainerId) ??
+          (!s.trainerId && s.trainerInitials ? trainers.find((t) => t.initials === s.trainerInitials) : undefined);
         const clientObj = clients.find((c) => c.id === s.clientId);
         const studioObj = studios.find((std) => std.id === s.hostedAtStudioId);
 
@@ -173,7 +178,7 @@ export function useStudioExports(deps: StudioExportDeps) {
 
         return {
           "Trainer Initials": s.trainerInitials || "N/A",
-          "Trainer Name": trainerObj?.fullName || "Unknown Trainer",
+          "Trainer Name": trainerNameFor(trainerObj, (s as { trainerName?: string | null }).trainerName),
           "Studio ID": s.hostedAtStudioId || "N/A",
           "Studio Name": studioObj?.name || "Unknown Studio",
           "Client Name": clientObj

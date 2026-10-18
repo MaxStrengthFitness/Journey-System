@@ -9,6 +9,7 @@
  * answer on the next snapshot. No backdating of anything else happens here.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { storedNamesFromSessions } from "../../lib/client-rollups";
 import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "../../firebase";
 import { isPermissionError, isQuotaError } from "../../lib/studio-roster";
@@ -55,11 +56,14 @@ export function useTopTrainer(
         const snap = await getDocs(query(collection(db, "sessions"), where("clientId", "==", clientId)));
         const sessions = snap.docs.map((d) => d.data() as WorkoutSession);
         const trainerTally = tallyFromSessions(sessions);
-        const top = resolveTopTrainer(trainerTally, trainers);
+        // Named by the record, else by what Start stamped on the sessions: a
+        // coach from another studio keeps their name, and a name that is only
+        // "from another studio" is never written to the client (the trainer lock).
+        const top = resolveTopTrainer(trainerTally, trainers, undefined, storedNamesFromSessions(sessions));
         await updateDoc(doc(db, "clients", clientId), {
           trainerTally,
           topTrainerId: top?.key ?? null,
-          topTrainerName: top?.name ?? null,
+          topTrainerName: top?.named ? top.name : null,
           topTrainerSessions: top?.sessions ?? 0,
           trainerTallyUpdatedAt: serverTimestamp(),
         });
@@ -94,8 +98,10 @@ export function useTopTrainer(
 
   return useMemo<TopTrainerState>(() => {
     if (!client) return { top: null, source: "none", backfilling };
+    // The names the loaded sessions carry, for a coach the list doesn't hold.
+    const storedNames = storedNamesFromSessions(loadedSessions);
     if (hasTally) {
-      const top = resolveTopTrainer(client.trainerTally, trainers, client.topTrainerId);
+      const top = resolveTopTrainer(client.trainerTally, trainers, client.topTrainerId, storedNames);
       return { top, source: top ? "tally" : "none", backfilling };
     }
     // Estimate from what the profile already holds (the last page of history).
@@ -108,6 +114,8 @@ export function useTopTrainer(
         })),
       ),
       trainers,
+      undefined,
+      storedNames,
     );
     return { top: estimate, source: estimate ? "estimate" : "none", backfilling };
   }, [client, hasTally, trainers, loadedSessions, backfilling]);

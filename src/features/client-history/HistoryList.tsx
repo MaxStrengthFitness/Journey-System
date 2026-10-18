@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { ANOTHER_STUDIOS_TRAINER } from "../trainer-scope/names";
 import { AlertTriangle, ArrowUpRight, Network, StickyNote } from "lucide-react";
 import type { ExerciseLog } from "../../types";
 import { formatStudioTime } from "../../lib/studio-time";
@@ -158,7 +159,12 @@ export const SessionRow = memo(function SessionRow({
               </span>
             )}
             <span className="hist-who__name">
-              {trainer?.shortName || (legacy ? "Imported" : s.trainerInitials || "Unknown")}
+              {trainer?.shortName ||
+                (legacy
+                  ? "Imported"
+                  : // The name Start stamped on the session, else its initials, else a
+                    // trainer from another studio (the trainer lock): never "Unknown".
+                    (s.trainerName || "").trim().split(/\s+/)[0] || s.trainerInitials || ANOTHER_STUDIOS_TRAINER)}
             </span>
           </span>
           <span className={`hist-time ${time ? "" : "hist-time--muted"}`}>

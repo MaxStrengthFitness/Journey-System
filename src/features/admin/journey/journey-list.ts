@@ -69,6 +69,8 @@ export interface JourneyEntry {
   early: boolean;
   /** Her usual trainer, when last night's record names one Journey knows; `uid` is their sign-in id. */
   usual: { id: string; name: string; uid: string } | null;
+  /** The record names a usual trainer the list doesn't hold: a trainer from another studio (the trainer lock, Oct 18 2026). */
+  usualElsewhere: boolean;
   /** "7:00 AM – 3:00 PM" when her usual trainer has bookings today; null otherwise. */
   usualInToday: string | null;
   watch: WatchState;
@@ -236,6 +238,7 @@ export function studioJourneys(i: StudioJourneysInput): JourneyEntry[] {
     const night = doc && doc.state === journey.state ? { since: doc.since, was: doc.was } : null;
     const trainer = trainerById(i.trainers, snapshot?.primaryTrainerId);
     const usual = trainer?.id ? { id: trainer.id, name: trainer.fullName, uid: trainer.authUid || trainer.id } : null;
+    const usualElsewhere = !usual && Boolean(snapshot?.primaryTrainerId);
     let usualInToday: string | null = null;
     if (shifts && trainer) {
       if (!shiftOf.has(trainer)) shiftOf.set(trainer, shiftFromIndex(shifts, trainer, i.tz));
@@ -256,6 +259,7 @@ export function studioJourneys(i: StudioJourneysInput): JourneyEntry[] {
       inRenewalWindow: lane === "talk-now" || lane === "before-charge" || lane === "coming-up",
       early: row.total.state === "known" && row.total.value !== null && row.total.value <= i.lines.settlingMax,
       usual,
+      usualElsewhere,
       usualInToday,
       watch: watchState(entry ?? undefined, i.today),
       watchEntry: entry,

@@ -147,7 +147,7 @@ export function JourneyCase({ entry, studioId, today, me, tz, trainers = [], aut
           <dt className="ops-case__lab">Next step</dt>
           <dd className="ops-line">
             <b>Owner: {c.owner.name}</b>
-            {c.owner.usual ? " · the usual trainer" : " · no usual trainer on record"}
+            {c.owner.usual ? " · the usual trainer" : entry.usualElsewhere ? " · her usual trainer is from another studio" : " · no usual trainer on record"}
             {entry.usualInToday ? ` · in today, ${entry.usualInToday}` : ""}
           </dd>
           <dd className="ops-line">{c.nextStep}</dd>

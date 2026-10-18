@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ANOTHER_STUDIOS_TRAINER } from "../trainer-scope/names";
 import {
   Timestamp,
   collection,
@@ -564,7 +565,7 @@ export function SessionDetailDialog({
                       <span className="hsd-head__name">{trainer.name}</span>
                     </>
                   ) : (
-                    <span className="hsd-head__name">{selected.trainerInitials || "Unknown trainer"}</span>
+                    <span className="hsd-head__name">{(selected.trainerName || "").trim() || selected.trainerInitials || ANOTHER_STUDIOS_TRAINER}</span>
                   )}
                   {selected.isCrossTrain && <Network size={14} aria-hidden style={{ color: "var(--cal-live-text)" }} />}
                 </div>

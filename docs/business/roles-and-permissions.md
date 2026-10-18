@@ -139,6 +139,21 @@ AJ, on who sees what for the beta: "im not too concerned for permission at this 
 - Trainers can have **guest** access to other studios.
 - Queries always name the studios they read (`src/lib/tenancy.ts`), and the rules check the same thing.
 
+## A trainer's record (the trainer lock, Oct 18 2026)
+
+A trainer record is a person: name, email, role, photo, which studios they are tied to, and their Kaizen Roster (clients' names with a reason and a note). Until Oct 18 2026 any signed-in account could read every one, and every iPad downloaded them all. Now (`docs/rounds/2026-10-18-trainer-lock.md`; AJ: "1a 2a 3a"; `src/features/trainer-scope/`, `trainerRecordReadable` in the rules):
+
+| | Whose records they read |
+| --- | --- |
+| A Life Transformer | Everyone tied to their home studio, a studio they also work at, or one they are a guest at: colleagues, those studios' leaders, and their franchise owner. Plus Demo Mode's three practice trainers |
+| A head trainer, studio leader or studio owner, or a trainer with the grant | The same, for every studio they run (the grant counts). The studios they run, not their group: the corporate group rule (Q12's follow-up, Oct 14 2026) waits for the bookings lock |
+| A franchise owner | Their home and every studio they own, exactly as its leaders (the franchise partition) |
+| An administrator, the founder, the overseer | Everyone |
+| Someone signed in with no account | One record: a profile made for them in advance, found by their own sign-in email. A sign-in that carries no email (some Microsoft accounts) finds nothing and uses Request Access; their leader lets them in from My Studio → Team |
+| Anyone | Their own record |
+
+Two people read each other when they **share a studio** in any of the ways a person is tied to one: home, also works at, a guest, owns, the grant. Who may *change* a record did not change (the update rules). A trainer's counters (`trainers/{id}/stats`) stay readable by anyone let in. A screen that names a trainer outside the reader's studios says "a trainer from another studio" rather than nothing; a session keeps the name Start stamped on it.
+
 ## A studio's machine knowledge, and sharing it (Sep 28 2026)
 
 AJ, the voice review notes: "Studio-local machine notes stay with that studio. Only the official standard flows company-wide." And on sharing: it "should submit to admins first for review, we can review in admin dashboard".

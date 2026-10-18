@@ -320,6 +320,42 @@ service cloud.firestore {
       return d.get('homeStudioId', d.get('studioId', ''));
     }
 
+    /* THE TRAINER LOCK (Oct 18 2026). The studios the caller is tied to, as
+       trainerWorksAt and trainerLeads count them (owned only for a role that
+       runs its own studios), plus Demo Mode, where everyone works. */
+    function callerStudios(r, t) {
+      return [t.get('primaryHomeStudioId', '')]
+        .concat(t.get('accessibleStudioIds', []))
+        .concat(t.get('activeGuestStudioIds', []))
+        .concat(t.get('managedStudioIds', []))
+        .concat(roleRunsOwnStudios(r) ? t.get('ownedStudioIds', []) : [])
+        .concat(['demo-studio']);
+    }
+
+    /** A trainer record and the caller share a studio, in any way a person is tied to one. */
+    function sharesAStudio(d, mine) {
+      return (d.get('primaryHomeStudioId', '') != '' && d.get('primaryHomeStudioId', '') in mine)
+        || d.get('accessibleStudioIds', []).hasAny(mine)
+        || d.get('activeGuestStudioIds', []).hasAny(mine)
+        || d.get('ownedStudioIds', []).hasAny(mine)
+        || d.get('managedStudioIds', []).hasAny(mine);
+    }
+
+    /** The claim's lookup: the record carrying the caller's own sign-in email. No email on the token, no match (AJ's 1a). */
+    function trainerEmailMatches(d) {
+      return d.get('email', '') != ''
+        && d.get('email', '') == request.auth.token.get('email', '').lower();
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#trainerrecordreadable
+    function trainerRecordReadable(d) {
+      let r = getRole();
+      let t = callerTrainer();
+      return roleIsSuper(r)
+        || trainerEmailMatches(d)
+        || (t != null && sharesAStudio(d, callerStudios(r, t)));
+    }
+
     // Why: docs/ops/RULES-NOTES.md#clientisreadableby
     function clientIsReadableBy(c, r, t) {
       return t != null && (
@@ -1599,7 +1635,12 @@ service cloud.firestore {
     }
 
     match /trainers/{trainerId} {
-      allow read: if isAuthenticated();
+      // The trainer lock (Oct 18 2026): your own record; otherwise the
+      // company tier, the claim's email lookup, or a record you share a
+      // studio with (trainerRecordReadable). Every signed-in account could
+      // read every record before.
+      allow read: if isAuthenticated() &&
+                  (request.auth.uid == trainerId || trainerRecordReadable(resource.data));
 
       // A TRAINER'S COUNTERS (the cost plan, Sep 26 2026, D3c): sessions
       // coached, the rolling windows. Beside the trainer document rather than

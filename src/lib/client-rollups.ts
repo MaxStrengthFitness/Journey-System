@@ -22,6 +22,7 @@
  */
 
 import type { Client, ClientMachineStat, Trainer } from "../types";
+import { ANOTHER_STUDIOS_TRAINER, findTrainerRecord } from "../features/trainer-scope/names";
 import { isPerformedLog, type OutcomeLog } from "./set-outcome";
 
 /* ------------------------------------------------------------------ *
@@ -62,8 +63,10 @@ export interface TopTrainer {
   key: string;
   /** Resolved trainer document, when the key maps to one. */
   trainer: Trainer | null;
-  /** Display name: the trainer's full name, or the bare initials. */
+  /** Display name: the trainer's full name, the name the sessions carry, the bare initials, or "A trainer from another studio". */
   name: string;
+  /** Whether `name` names the person (a record, a stored name or initials) rather than saying they are from another studio: only a named name is written to the client. */
+  named: boolean;
   sessions: number;
   /** Total tallied sessions across every trainer — for "23 of 46". */
   total: number;
@@ -71,12 +74,44 @@ export interface TopTrainer {
   share: number;
 }
 
+/** The names the sessions themselves carry, by tally key: the one Start stamped on each (the trainer lock, Oct 18 2026). */
+export type StoredTrainerNames = ReadonlyMap<string, string>;
+
 function resolveTrainer(key: string, trainers: Trainer[]): Trainer | null {
   if (key.startsWith("initials:")) {
     const initials = key.slice("initials:".length);
     return trainers.find((t) => (t.initials || "").toUpperCase() === initials) ?? null;
   }
-  return trainers.find((t) => t.id === key) ?? null;
+  // The document id, or an older account's sign-in uid. An id the list
+  // doesn't hold is a trainer from another studio, never matched by initials.
+  return findTrainerRecord(trainers, key) ?? null;
+}
+
+/** The name for a key the list can't resolve: the stored name, the initials, or the words. */
+function unresolvedName(key: string, stored: StoredTrainerNames | undefined): { name: string; named: boolean } {
+  const fromSessions = (stored?.get(key) ?? "").trim();
+  if (fromSessions) return { name: fromSessions, named: true };
+  if (key.startsWith("initials:")) return { name: key.slice("initials:".length), named: true };
+  return { name: ANOTHER_STUDIOS_TRAINER, named: false };
+}
+
+/**
+ * The names the sessions carry, by the key the tally uses for each, the
+ * latest session's name winning. Hand it to `resolveTopTrainer` and
+ * `tallyRows` so a coach the list doesn't hold is still named as Start named
+ * them.
+ */
+export function storedNamesFromSessions(
+  sessions: Array<{ trainerId?: string | null; trainerInitials?: string | null; trainerName?: string | null }>,
+): StoredTrainerNames {
+  const out = new Map<string, string>();
+  for (const s of sessions) {
+    const name = (s.trainerName ?? "").trim();
+    if (!name) continue;
+    const key = trainerKeyFor(s);
+    if (key) out.set(tallyFieldKey(key), name);
+  }
+  return out;
 }
 
 /**
@@ -88,6 +123,7 @@ export function resolveTopTrainer(
   tally: Record<string, number> | undefined | null,
   trainers: Trainer[],
   preferKey?: string | null,
+  storedNames?: StoredTrainerNames,
 ): TopTrainer | null {
   if (!tally) return null;
   let bestKey: string | null = null;
@@ -104,10 +140,12 @@ export function resolveTopTrainer(
   }
   if (!bestKey) return null;
   const trainer = resolveTrainer(bestKey, trainers);
+  const fallback = unresolvedName(bestKey, storedNames);
   return {
     key: bestKey,
     trainer,
-    name: trainer?.fullName || (bestKey.startsWith("initials:") ? bestKey.slice(9) : "Unknown trainer"),
+    name: trainer?.fullName || fallback.name,
+    named: Boolean(trainer?.fullName) || fallback.named,
     sessions: best,
     total,
     share: total > 0 ? best / total : 0,
@@ -121,7 +159,11 @@ export interface TallyRow {
   sessions: number;
   share: number;
 }
-export function tallyRows(tally: Record<string, number> | undefined | null, trainers: Trainer[]): TallyRow[] {
+export function tallyRows(
+  tally: Record<string, number> | undefined | null,
+  trainers: Trainer[],
+  storedNames?: StoredTrainerNames,
+): TallyRow[] {
   if (!tally) return [];
   const rows: TallyRow[] = [];
   let total = 0;
@@ -132,7 +174,7 @@ export function tallyRows(tally: Record<string, number> | undefined | null, trai
     const trainer = resolveTrainer(key, trainers);
     rows.push({
       key,
-      name: trainer?.fullName || (key.startsWith("initials:") ? key.slice(9) : "Unknown trainer"),
+      name: trainer?.fullName || unresolvedName(key, storedNames).name,
       sessions: n,
       share: 0,
     });
@@ -263,10 +305,11 @@ export function completedSessionRollup(
     const top = resolveTopTrainer(projected, trainers, client?.topTrainerId);
     if (top) {
       updates.topTrainerId = top.key;
-      // Only write a name we actually resolved — a caller that passed just
-      // the finishing trainer must not stamp "Unknown trainer" over a name
-      // an earlier write got right. The header derives its own name anyway.
-      if (top.trainer || top.key.startsWith("initials:")) updates.topTrainerName = top.name;
+      // Only write a name that names the person — a caller that passed just
+      // the finishing trainer must not stamp "A trainer from another studio"
+      // over a name an earlier write got right. The header derives its own
+      // name anyway.
+      if (top.named) updates.topTrainerName = top.name;
       updates.topTrainerSessions = top.sessions;
     }
     updates.trainerTallyUpdatedAt = ops.serverTimestamp();
@@ -373,10 +416,11 @@ export function importedSessionsRollup(
     const top = resolveTopTrainer(projected, trainers, client?.topTrainerId);
     if (top) {
       updates.topTrainerId = top.key;
-      // Only write a name we actually resolved — a caller that passed just
-      // the finishing trainer must not stamp "Unknown trainer" over a name
-      // an earlier write got right. The header derives its own name anyway.
-      if (top.trainer || top.key.startsWith("initials:")) updates.topTrainerName = top.name;
+      // Only write a name that names the person — a caller that passed just
+      // the finishing trainer must not stamp "A trainer from another studio"
+      // over a name an earlier write got right. The header derives its own
+      // name anyway.
+      if (top.named) updates.topTrainerName = top.name;
       updates.topTrainerSessions = top.sessions;
     }
     updates.trainerTallyUpdatedAt = ops.serverTimestamp();

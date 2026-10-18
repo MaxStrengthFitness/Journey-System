@@ -384,6 +384,7 @@ import {
   type OnFile,
 } from "../features/open-session/held-setup";
 import { keepHeldSetup, queueHeldMoves } from "../features/open-session/held-store";
+import { trainerNameFor } from "../features/trainer-scope/names";
 import {
   OPEN_SESSION_REFUSED,
   OPEN_SESSION_REFUSED_KEPT,
@@ -3093,12 +3094,14 @@ export function WorkoutTrackerView({
                 moves,
                 nameOf: (machineId) => floorMachines.find((x) => x.id === machineId)?.name || "Machine",
                 author: { id: authUid, fullName: authTrainer?.fullName || authTrainer?.initials || "Unknown", initials: authTrainer?.initials },
-                /* Signed by whoever kept it (a take-over's trainer before this one), when the team list knows them. */
+                /* Signed by whoever kept it (a take-over's trainer before this one), by id; as a
+                   trainer from another studio when the list doesn't hold them (the trainer lock),
+                   never by the trainer finishing now. */
                 authorOf: (machineId) => {
                   const by = heldBy[machineId];
                   if (!by || by === authUid) return null;
                   const who = trainers.find((t) => t.authUid === by || t.id === by);
-                  return who ? { id: by, fullName: who.fullName || who.initials || "Unknown", initials: who.initials } : null;
+                  return { id: by, fullName: trainerNameFor(who), initials: who?.initials };
                 },
                 journal: {
                   studioId: sessionNoteStudioId(client, contextActiveStudioId || authTrainer?.primaryHomeStudioId),
