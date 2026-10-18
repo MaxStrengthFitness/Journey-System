@@ -367,8 +367,13 @@ export interface ClientFordSummary {
   counts: Record<FordPillar, number>;
   /** Details caught on the floor and not yet filed. Drives the sweep badge. */
   untagged: number;
-  /** A couple of pinned lines per pillar, for glance rendering in a list. */
-  pinned: Partial<Record<FordPillar, string[]>>;
+  /**
+   * Not written since Oct 18 2026 (AJ's 2a, the Gemini review round): it was
+   * FORD text on a document cross-train studios can read, and nothing read
+   * it. An old record may carry it until its next FORD save; readers go
+   * through `fordSummaryOf`, which drops it.
+   */
+  pinned?: Partial<Record<FordPillar, string[]>>;
   /** The soonest upcoming date across every detail. ISO date, not a Timestamp. */
   nextDate: { date: string; label: string; pillar: FordPillar | null } | null;
   /** Opportunities still at idea or planned. */
@@ -379,7 +384,6 @@ export interface ClientFordSummary {
 export const EMPTY_FORD_SUMMARY: ClientFordSummary = {
   counts: { family: 0, occupation: 0, recreation: 0, dreams: 0 },
   untagged: 0,
-  pinned: {},
   nextDate: null,
   openOpportunities: 0,
   updatedAt: "",

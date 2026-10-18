@@ -336,11 +336,14 @@ moved it.
   saw and comes back `ready` — empty if this iPad never opened the client's
   FORD. Don't test the "couldn't be read" notice in airplane mode; make the
   listener error instead (the render test does).
-- **`fordSummary.pinned` is FORD text on the client document**, which a
-  cross-train studio can read. Nothing outside this folder reads it. With the
-  filter fixed, trainers' saves now refresh it too. Whether to stop writing it
-  is waiting on AJ (client codex round); until he says so it is written as
-  before.
+- **`fordSummary.pinned` is not written any more** (the Gemini review round,
+  Oct 18 2026; AJ's 2a: "stop copying the pinned lines, keep the counts and the
+  date"). It was FORD text on the client document, which a cross-train studio
+  can read, and nothing read it. `summariseFord` carries counts, untagged, the
+  next date and open opportunities only; `fordSummaryOf` drops a legacy copy on
+  read; an old record loses its copy at its next FORD save, and the reset
+  (`sameFordCounts`) treats a copy as stale and rewrites the summary without it.
+  `ford.test.ts` holds all three.
 - **A component that draws with `ford.css` imports it** (client codex,
   phase 19). The app is split into chunks and a stylesheet arrives with the
   chunk that imports it. The FORD hub brought `ford.css` in with the profile;

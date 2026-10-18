@@ -20,6 +20,7 @@ import {
   adaptClientEvents,
   fordStudioIdOf,
   groupByPillar,
+  fordSummaryOf,
   summariseFord,
   upcomingFord,
 } from "./ford-rollup";
@@ -152,18 +153,27 @@ describe("summariseFord", () => {
     expect(s.nextDate).toBeNull();
   });
 
-  it("carries a few pinned lines per pillar, truncated", () => {
-    const long = "K".repeat(200);
+  it("carries no FORD text: the client document it lands on is read by cross-train studios (Oct 18 2026)", () => {
+    // Until the Gemini review round the summary copied up to three pinned
+    // lines per pillar onto clients/{id}; nothing read them. AJ's 2a: stop.
     const s = summariseFord([
       entry({ pillar: "family", isPinned: true, body: "Wife is Karen." }),
-      entry({ pillar: "family", isPinned: true, body: "Two kids, Ethan and Mia." }),
-      entry({ pillar: "family", isPinned: true, body: "Dog called Cooper." }),
-      entry({ pillar: "family", isPinned: true, body: "A fourth, over the cap." }),
-      entry({ pillar: "dreams", isPinned: true, body: long }),
+      entry({ pillar: "dreams", isPinned: true, body: "K".repeat(200) }),
     ]);
-    expect(s.pinned.family).toHaveLength(3);
-    expect(s.pinned.dreams![0]).toHaveLength(90);
-    expect(s.pinned.dreams![0].endsWith("…")).toBe(true);
+    expect(s).not.toHaveProperty("pinned");
+    expect(JSON.stringify(s)).not.toContain("Karen");
+    expect(s.counts.family).toBe(1);
+    expect(s.counts.dreams).toBe(1);
+  });
+
+  it("drops a legacy pinned copy on read, so no caller sees FORD text through the summary", () => {
+    const client = {
+      fordSummary: { counts: { family: 2 }, pinned: { family: ["Wife is Karen."] }, nextDate: null },
+    } as unknown as Parameters<typeof fordSummaryOf>[0];
+    const s = fordSummaryOf(client);
+    expect(s).not.toHaveProperty("pinned");
+    expect(s.counts.family).toBe(2);
+    expect(JSON.stringify(s)).not.toContain("Karen");
   });
 
   it("counts open gestures but not ones already delivered or passed on", () => {
