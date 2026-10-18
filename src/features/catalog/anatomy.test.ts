@@ -81,6 +81,15 @@ describe("machinesForBodySlug", () => {
     expect(machinesForBodySlug("hair")).toEqual([]);
     expect(machinesForBodySlug("")).toEqual([]);
   });
+
+  it("lists the neck machine once, although the map keeps cervical_extension as an alias of m-neck", () => {
+    // The Gemini review round (Oct 18 2026): the map's alias entry must never
+    // make a region list the same machine twice, or under its database key.
+    const hits = machinesForBodySlug("neck");
+    expect(hits.filter((id) => id === "m-neck")).toHaveLength(1);
+    expect(hits).not.toContain("cervical_extension");
+    expect(new Set(hits).size).toBe(hits.length);
+  });
 });
 
 describe("preferredView actually shows the target", () => {
