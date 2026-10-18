@@ -2,9 +2,20 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { visibleHeight } from "./app-height";
+import { isZoomed, visibleHeight } from "./app-height";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+describe("isZoomed", () => {
+  // A zoomed page reports a smaller height; taking it left the bar over a
+  // blank band (AJ's iPad, Oct 18 2026). The shell keeps its last good one.
+  it("is true only while the page is pinched past 1", () => {
+    expect(isZoomed({ visualViewport: { scale: 1.6 } as VisualViewport })).toBe(true);
+    expect(isZoomed({ visualViewport: { scale: 1 } as VisualViewport })).toBe(false);
+    expect(isZoomed({ visualViewport: { scale: 1.005 } as VisualViewport })).toBe(false);
+    expect(isZoomed({ visualViewport: null })).toBe(false);
+  });
+});
 
 describe("visibleHeight", () => {
   it("takes the smallest height iPadOS reports, so the bar is never under the strip", () => {

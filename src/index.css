@@ -868,6 +868,14 @@
     overflow: hidden;
     overscroll-behavior: none;
     }
+  /* No pinch-zoom and no double-tap zoom, anywhere (AJ, Oct 18 2026). A
+     zoomed page left the bottom bar over a blank band; a Safari tab ignores
+     the viewport tag's user-scalable=no, so the page says it here: a finger
+     may pan, never zoom. An element's own touch-action (none, pan-y) still
+     narrows it further. features/home-screen/README.md, "No zoom". */
+  html {
+    touch-action: pan-x pan-y;
+    }
   #root { height: 100%; }
 }
 

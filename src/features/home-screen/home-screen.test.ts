@@ -49,8 +49,14 @@ function png(file: string) {
 describe("index.html", () => {
   it("runs edge to edge, so env(safe-area-inset-*) reports real values", () => {
     expect(meta("viewport")).toContain("viewport-fit=cover");
-    // Pinch-zoom stays available: nothing here turns it off.
-    expect(meta("viewport")).not.toMatch(/user-scalable\s*=\s*no|maximum-scale/);
+  });
+
+  it("never zooms, so the bottom bar stays at the foot of the screen (AJ, Oct 18 2026)", () => {
+    // A pinch left the bar floating over a blank band. The tag covers the
+    // Home Screen app and a tapped text box; index.css covers a Safari tab.
+    expect(meta("viewport")).toMatch(/maximum-scale\s*=\s*1(?![.\d])/);
+    expect(meta("viewport")).toMatch(/user-scalable\s*=\s*no/);
+    expect(INDEX_CSS).toMatch(/html \{\s*touch-action: pan-x pan-y;/);
   });
 
   it("declares the Home Screen web app", () => {

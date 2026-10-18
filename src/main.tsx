@@ -21,6 +21,7 @@ import { APP_BUILD } from './features/new-version/build';
 import { noteChunkLoadError } from './features/new-version/chunk-error';
 import { versionStore } from './features/new-version/version-store';
 import { watchAppHeight } from './features/home-screen/app-height';
+import { blockPinchZoom } from './features/home-screen/no-zoom';
 import { reportClientError } from './lib/client-error-report';
 import { startBootTiming } from './features/boot-timing/boot-timing';
 
@@ -137,6 +138,7 @@ startBootTiming();
 // The Home Screen app's height (Oct 3 2026): the shell takes the smallest
 // height iPadOS reports, so the bottom bar never lands under iPadOS's strip.
 watchAppHeight();
+blockPinchZoom();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
