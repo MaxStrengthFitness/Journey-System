@@ -72,9 +72,22 @@ AJ's answers on the card page ("Now, Next, Done"): 1A, Not logged stands out fro
 
 ## The gates
 
-Run in the worktree `.claude\worktrees\colour-build` on AJ's PC, on the tip `e1e624cb` unless the line says otherwise.
+Run in the worktree `.claude\worktrees\colour-build` on AJ's PC. Each table names the tip it was run on.
 
-**The card build, so far** (Oct 18 2026), each phase on its own commit: typecheck **2** after every one. Full suite: 14,721 in 892 at the head row (`80695c0f`), 14,741 in 892 at C1, 14,848 in 900 at the merge, 14,869 in 901 at C3, and **14,882** in **901**, none failed (C4 adds 12 tests, C5 1) at the docs commit. The colour set (`harness/colour/light2/judge-tests-css.txt`) with the Hub's tests, the card state, the quiet blue, the Calendar, the phone, `ClientsView` and `CalendarView`: 3,480 in 81 at C3, 3,493 at C4, 3,494 at C5, none failed. The build, `check:bundle` and the case check are for the ship. The table below is the first five phases'.
+**The card build, phase by phase** (Oct 18 2026), each phase on its own commit: typecheck **2** after every one. Full suite: 14,721 in 892 at the head row (`80695c0f`), 14,741 in 892 at C1, 14,848 in 900 at the merge, 14,869 in 901 at C3, and **14,882** in **901**, none failed (C4 adds 12 tests, C5 1) at the docs commit. The colour set (`harness/colour/light2/judge-tests-css.txt`) with the Hub's tests, the card state, the quiet blue, the Calendar, the phone, `ClientsView` and `CalendarView`: 3,480 in 81 at C3, 3,493 at C4, 3,494 at C5, none failed.
+
+**The whole branch, on the tip `d7c0ba2b`** (Oct 18 2026, every card phase in and master `bb39cbb5` merged):
+
+| Gate | Result |
+| --- | --- |
+| Typecheck, `npx tsc --noEmit` | **2** errors, the baseline pair (`clinical-review/charts.tsx`, `EditTrainerModal.tsx`) |
+| Full suite, `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` | **14,882** passed in **901** files, none failed. Master `bb39cbb5`: 14,782 in 898. The branch adds 100 tests and three files (`quiet-blue.test.ts`, `hub-schedule/hub-head-row.test.ts`, `hub-schedule/hub-card-look.test.ts`). No test needed changing on the tip |
+| Production build, `NODE_ENV=production npx vite build`, then `npm run check:bundle` | Clean. The first screen is **470.7 KB** gzip in 8 files (budget 480). Master `bb39cbb5`, built the same way from an export of that commit, is 469.6 KB, so the branch adds 1.1 KB (the app shell's script 0.6, its stylesheet 0.5) and leaves 9.3 KB of room |
+| The case check, `git ls-files \| tr A-Z a-z \| sort \| uniq -d` | Prints nothing |
+| Line ends | LF in all 70 files the branch changes from master, on disk and in the commits |
+| `git status` | Clean; `master..HEAD` is 18 commits with this one: the first five phases, this document and the review's two, G3 and G4, the head row, C1, the merge, C2, C3, C4, C5, the docs, and these gates |
+
+**The first five phases, on the tip `e1e624cb`** (Oct 17 2026):
 
 | Gate | Result |
 | --- | --- |
