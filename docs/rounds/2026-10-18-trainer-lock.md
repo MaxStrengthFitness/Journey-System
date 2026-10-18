@@ -1,11 +1,14 @@
 # The trainer lock: an iPad holds its own studios' trainers (Oct 18 2026)
 
-**Branch:** `claude/keen-elbakyan-b06716` (a desktop worktree), over master
-`878c7f95` (the Wrap-up round). One commit per phase, each typechecked on its
+**Branch:** `claude/keen-elbakyan-b06716` (a desktop worktree), cut from
+master `878c7f95` (the Wrap-up round), with master `b7773a53` (the Gemini
+review round, which changed no rule or index) merged in at the end, so the
+push to master fast-forwards. One commit per phase, each typechecked on its
 own. App, rules and indexes; no Cloud Function, cron, Mindbody or Firestore
 structure change, and no new field.
 
-*A proposal. Nothing below is built until AJ answers §5.*
+*Proposed Oct 18 2026, answered the same day (§9), built the same day (§7,
+§10, §11). Not pushed; AJ ships it (§8).*
 
 ## 1. What this is
 
@@ -272,7 +275,25 @@ team, a client's history names its coaches; and nothing red.
 
 ## 10. Gates
 
-*(filled in on the final commit)*
+On the merged tip (master `b7773a53` in), Oct 18 2026:
+
+| Gate | Result |
+| --- | --- |
+| Typecheck (`npx tsc --noEmit`) | **0** (CI holds it at 0 since the Gemini review round) |
+| The suite (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`) | **14,841** pass in 904 files (14,805 in 899 on `878c7f95` before the round) |
+| Rules tests (`npm run test:rules`, the emulator, Java 26) | **627** pass: 601 in `firestore.rules.test.ts` (14 of them "the trainer lock"), plus the rules lint and the comment proof |
+| `src/lib/firestore-indexes.test.ts` | green: the five queries and their composites |
+| `src/claude-md.test.ts` | green: `CLAUDE.md` at 44,797 of 45,000 characters (three stale parentheticals trimmed to make room for the decision) |
+| The build and the budget (`NODE_ENV=production npx vite build`, `npm run check:bundle`) | the first screen 470.6 KB gzip of the 480 KB budget |
+| `firestore.rules` | 180,054 bytes as written (178,098 before) |
+
+The commits: `77b59dbe` the proposal (phase 0); `05c3a3b3` the scoped reads
+and their five indexes (phase 1); `aa42778a` the rules and their tests
+(phase 2); `47ce18d6` every screen that reads the list (phase 3);
+`7bb392bd` the written record (phase 4); `3b9261a5` the merge of master;
+then the counts.
+
+**AJ's `test:rules` run is the one that counts**, as always.
 
 ## 11. Phase 3: every screen that reads the list
 
