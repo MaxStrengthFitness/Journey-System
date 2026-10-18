@@ -99,14 +99,16 @@ afterAll(async () => {
 });
 
 describe("Firestore Security Rules", () => {
-  // (a) regular Trainer getDocs(collection('trainers')) SUCCEEDS
-  it("allows regular Trainer to read trainers collection", async () => {
+  // (a) A regular Trainer reads the trainers of their own studios, never the
+  // whole collection (the trainer lock, Oct 18 2026; until it,
+  // getDocs(collection('trainers')) succeeded for any signed-in account).
+  it("lets a regular Trainer read their studio's trainers, and refuses the whole collection", async () => {
     const trainerContext = testEnv.authenticatedContext("trainerA", {
       email: "trainera@test.com",
     });
     const db = trainerContext.firestore();
-    const query = getDocs(collection(db, "trainers"));
-    await assertSucceeds(query);
+    await assertSucceeds(getDocs(query(collection(db, "trainers"), where("primaryHomeStudioId", "in", ["studioA", "demo-studio"]))));
+    await assertFails(getDocs(collection(db, "trainers")));
   });
 
   // (b) cross-studio session read FAILS
@@ -10787,5 +10789,171 @@ describe("privacy Round 0: the sessions update asks the same people, resolved on
     await assertFails(updateDoc(doc(ctx("trainerC", claim), "sessions", "histV"), edit));
     await assertSucceeds(updateDoc(doc(testEnv.authenticatedContext("adminClaimOnly", { role: "Admin" }).firestore(), "sessions", "histV"), edit));
     await assertFails(updateDoc(doc(testEnv.authenticatedContext("strangerS", {}).firestore(), "sessions", "histV"), edit));
+  });
+});
+
+// ── THE TRAINER LOCK (Oct 18 2026) ──────────────────────────────────────
+// docs/rounds/2026-10-18-trainer-lock.md; AJ: "1a 2a 3a". A trainer record
+// is read by its owner, the company tier, the claim's email lookup, and
+// anyone who shares a studio with it (docs/ops/RULES-NOTES.md
+// #trainerrecordreadable). The app reads it through five queries
+// (features/trainer-scope/read.ts), each run here in its own shape. Every
+// context below carries NO role claim unless the test says so: the
+// no-claim path is the expression budget's worst case.
+describe("the trainer lock", () => {
+  const as = (uid: string, token: Record<string, unknown> = { email: `${uid}@test.com` }) =>
+    testEnv.authenticatedContext(uid, token).firestore();
+  /** The five queries the app runs for the studios S, as the app writes them. */
+  const scoped = (db: ReturnType<typeof as>, S: string[]) => [
+    getDocs(query(collection(db, "trainers"), where("primaryHomeStudioId", "in", S))),
+    getDocs(query(collection(db, "trainers"), where("accessibleStudioIds", "array-contains-any", S))),
+    getDocs(query(collection(db, "trainers"), where("activeGuestStudioIds", "array-contains-any", S))),
+    getDocs(query(collection(db, "trainers"), where("ownedStudioIds", "array-contains-any", S))),
+    getDocs(query(collection(db, "trainers"), where("managedStudioIds", "array-contains-any", S))),
+  ];
+  /** The ids the five queries return, merged, as the app merges them. */
+  const idsOf = async (db: ReturnType<typeof as>, S: string[]) => {
+    const snaps = await Promise.all(scoped(db, S));
+    return [...new Set(snaps.flatMap((s) => s.docs.map((d) => d.id)))].sort();
+  };
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "studios", "studioC"), { name: "Studio C" });
+      // Studio B's people tied to Studio A in each of the other four ways.
+      await setDoc(doc(db, "trainers", "floaterB"), { fullName: "Flo B", initials: "FB", role: "LifeTransformer", primaryHomeStudioId: "studioB", accessibleStudioIds: ["studioB", "studioA"] });
+      await setDoc(doc(db, "trainers", "guestB"), { fullName: "Gus B", initials: "GB", role: "LifeTransformer", primaryHomeStudioId: "studioB", accessibleStudioIds: ["studioB"], activeGuestStudioIds: ["studioA"] });
+      await setDoc(doc(db, "trainers", "grantB"), { fullName: "Gail B", initials: "GL", role: "LifeTransformer", primaryHomeStudioId: "studioB", accessibleStudioIds: ["studioB"], managedStudioIds: ["studioA"] });
+      // The franchise owner of Studio A, homed at Studio C.
+      await setDoc(doc(db, "trainers", "franchiseX"), { fullName: "Frank X", initials: "FX", role: "Owner", primaryHomeStudioId: "studioC", accessibleStudioIds: ["studioC"], ownedStudioIds: ["studioA"] });
+      // Studio C's leader: runs C, nothing to do with A or B.
+      await setDoc(doc(db, "trainers", "leaderC"), { fullName: "Lee C", initials: "LC", role: "StudioLeader", primaryHomeStudioId: "studioC", accessibleStudioIds: ["studioC"] });
+      await setDoc(doc(db, "trainers", "adminZ"), { fullName: "Admin Z", initials: "AZ", role: "Admin", primaryHomeStudioId: "system", accessibleStudioIds: ["system"] });
+      // Demo Mode's practice trainer, and a profile made in advance at Studio B.
+      await setDoc(doc(db, "trainers", "demo-trainer-1"), { fullName: "Demo One", initials: "D1", role: "LifeTransformer", primaryHomeStudioId: "demo-studio", accessibleStudioIds: ["demo-studio"], isDemo: true, pendingClaim: true });
+      await setDoc(doc(db, "trainers", "placeholderP"), { fullName: "Pat New", initials: "PN", role: "LifeTransformer", primaryHomeStudioId: "studioB", accessibleStudioIds: ["studioB"], email: "pat.new@example.com", pendingClaim: true });
+    });
+  });
+
+  it("a trainer's five queries each pass, and together hold exactly the people tied to their studio", async () => {
+    const db = as("trainerA");
+    for (const read of scoped(db, ["studioA", "demo-studio"])) await assertSucceeds(read);
+    expect(await idsOf(db, ["studioA", "demo-studio"])).toEqual(
+      ["demo-trainer-1", "floaterB", "franchiseX", "grantB", "guestB", "ownerA", "trainerA"].sort(),
+    );
+  });
+
+  it("the same with the role claim on the token, the production path", async () => {
+    const db = as("trainerA", { email: "trainera@test.com", role: "LifeTransformer" });
+    for (const read of scoped(db, ["studioA", "demo-studio"])) await assertSucceeds(read);
+  });
+
+  it("refuses the whole collection, another studio's queries, and another studio's record", async () => {
+    const db = as("trainerA");
+    await assertFails(getDocs(collection(db, "trainers")));
+    await assertFails(getDocs(query(collection(db, "trainers"), where("primaryHomeStudioId", "in", ["studioB"]))));
+    await assertFails(getDocs(query(collection(db, "trainers"), where("accessibleStudioIds", "array-contains-any", ["studioB"]))));
+    // One studio outside the scope poisons the whole list: the rules refuse a query if any document it could return fails.
+    await assertFails(getDocs(query(collection(db, "trainers"), where("primaryHomeStudioId", "in", ["studioA", "studioB"]))));
+    await assertFails(getDoc(doc(db, "trainers", "trainerB")));
+    await assertFails(getDoc(doc(db, "trainers", "leaderC")));
+    await assertFails(getDoc(doc(db, "trainers", "placeholderP")));
+  });
+
+  it("reads their own record, a colleague's, the studio's owner's, and Demo Mode's", async () => {
+    const db = as("trainerA");
+    await assertSucceeds(getDoc(doc(db, "trainers", "trainerA")));
+    await assertSucceeds(getDoc(doc(db, "trainers", "ownerA")));
+    await assertSucceeds(getDoc(doc(db, "trainers", "floaterB")));
+    await assertSucceeds(getDoc(doc(db, "trainers", "guestB")));
+    await assertSucceeds(getDoc(doc(db, "trainers", "grantB")));
+    await assertSucceeds(getDoc(doc(db, "trainers", "franchiseX")));
+    await assertSucceeds(getDoc(doc(db, "trainers", "demo-trainer-1")));
+    await assertSucceeds(getDocs(query(collection(db, "trainers"), where("primaryHomeStudioId", "in", ["demo-studio"]))));
+  });
+
+  it("a floater, a guest and the grant each read both their studios' people", async () => {
+    for (const uid of ["floaterB", "guestB", "grantB"]) {
+      const db = as(uid);
+      for (const read of scoped(db, ["studioB", "studioA", "demo-studio"])) await assertSucceeds(read);
+      await assertSucceeds(getDoc(doc(db, "trainers", "trainerA")));
+      await assertSucceeds(getDoc(doc(db, "trainers", "trainerB")));
+      await assertFails(getDoc(doc(db, "trainers", "leaderC")));
+    }
+  });
+
+  it("a franchise owner reads their home and the studios they own, as its leaders do, and nowhere else", async () => {
+    const db = as("franchiseX");
+    for (const read of scoped(db, ["studioC", "studioA", "demo-studio"])) await assertSucceeds(read);
+    await assertSucceeds(getDoc(doc(db, "trainers", "trainerA")));
+    await assertSucceeds(getDoc(doc(db, "trainers", "leaderC")));
+    await assertFails(getDoc(doc(db, "trainers", "trainerB")));
+    await assertFails(getDocs(query(collection(db, "trainers"), where("primaryHomeStudioId", "in", ["studioB"]))));
+  });
+
+  it("a studio leader reads the studios they run, not their group (AJ's 2a)", async () => {
+    const db = as("leaderC");
+    await assertSucceeds(getDoc(doc(db, "trainers", "franchiseX")));
+    await assertFails(getDoc(doc(db, "trainers", "trainerA")));
+    await assertFails(getDoc(doc(db, "trainers", "trainerB")));
+    await assertFails(getDocs(collection(db, "trainers")));
+  });
+
+  it("a plain trainer's leftover owned studio opens nothing to them, while the record it names is theirs to be seen by", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "trainers", "trainerA"), { ownedStudioIds: ["studioB"] });
+    });
+    // The caller's owned studios count only for a role that runs its own (roleRunsOwnStudios).
+    await assertFails(getDoc(doc(as("trainerA"), "trainers", "trainerB")));
+    await assertFails(getDocs(query(collection(as("trainerA"), "trainers"), where("primaryHomeStudioId", "in", ["studioB"]))));
+    // Studio B's people see a record naming their studio in ownedStudioIds: the
+    // app's query returns it, and a list is refused whole otherwise.
+    await assertSucceeds(getDoc(doc(as("trainerB"), "trainers", "trainerA")));
+    await assertSucceeds(getDocs(query(collection(as("trainerB"), "trainers"), where("ownedStudioIds", "array-contains-any", ["studioB", "demo-studio"]))));
+  });
+
+  it("the company tier lists everyone, by the record or by the claim alone", async () => {
+    await assertSucceeds(getDocs(collection(as("adminZ"), "trainers")));
+    await assertSucceeds(getDoc(doc(as("adminZ"), "trainers", "placeholderP")));
+    await assertSucceeds(getDocs(collection(as("adminClaimOnly", { email: "ac@test.com", role: "Admin" }), "trainers")));
+    await assertSucceeds(getDocs(collection(as("founderClaimOnly", { email: "fc@test.com", role: "Founder" }), "trainers")));
+  });
+
+  it("a stranger reads a profile made for them by their own email, in any case, and nothing else", async () => {
+    const pat = as("pat-uid", { email: "pat.new@example.com" });
+    const found = await assertSucceeds(getDocs(query(collection(pat, "trainers"), where("email", "==", "pat.new@example.com"))));
+    expect(found.docs.map((d) => d.id)).toEqual(["placeholderP"]);
+    await assertSucceeds(getDoc(doc(pat, "trainers", "placeholderP")));
+    // The app's uid-first lookup: their own id, before any record is there.
+    await assertSucceeds(getDoc(doc(pat, "trainers", "pat-uid")));
+    // Someone else's email, the whole list, a colleague-to-be's record: no.
+    await assertFails(getDocs(query(collection(pat, "trainers"), where("email", "==", "trainera@test.com"))));
+    await assertFails(getDocs(collection(pat, "trainers")));
+    await assertFails(getDoc(doc(pat, "trainers", "trainerB")));
+    // The sign-in's email in another case still matches the lower-cased record.
+    const upper = as("pat-uid-2", { email: "Pat.New@Example.com" });
+    await assertSucceeds(getDocs(query(collection(upper, "trainers"), where("email", "==", "pat.new@example.com"))));
+  });
+
+  it("a sign-in with no email on its token matches no profile (AJ's 1a)", async () => {
+    const noEmail = testEnv.authenticatedContext("ms-no-email", {}).firestore();
+    await assertFails(getDocs(query(collection(noEmail, "trainers"), where("email", "==", "pat.new@example.com"))));
+    await assertFails(getDoc(doc(noEmail, "trainers", "placeholderP")));
+    await assertSucceeds(getDoc(doc(noEmail, "trainers", "ms-no-email")));
+  });
+
+  it("a trainer let in may still read a profile carrying their email, the claim's own case", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "trainers", "oldPlaceholderA"), { fullName: "Trainer A", initials: "TA", role: "LifeTransformer", primaryHomeStudioId: "studioC", accessibleStudioIds: ["studioC"], email: "trainera@test.com", pendingClaim: true });
+    });
+    await assertSucceeds(getDocs(query(collection(as("trainerA"), "trainers"), where("email", "==", "trainera@test.com"))));
+  });
+
+  it("leaves a trainer's counters and a signed-out read as they were", async () => {
+    // trainers/{id}/stats stays readable by anyone let in (not in this round's scope).
+    await assertSucceeds(getDoc(doc(as("trainerB"), "trainers", "trainerA", "stats", "rollups")));
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), "trainers", "trainerA")));
+    await assertFails(getDocs(query(collection(testEnv.unauthenticatedContext().firestore(), "trainers"), where("primaryHomeStudioId", "in", ["studioA"]))));
   });
 });

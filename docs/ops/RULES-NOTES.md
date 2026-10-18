@@ -149,6 +149,58 @@ visiting from another location, which is precisely the case that failed
 that was going to say yes.
 ```
 
+<a id="trainerrecordreadable"></a>
+### `function trainerRecordReadable`
+
+```text
+THE TRAINER LOCK (Oct 18 2026; docs/rounds/2026-10-18-trainer-lock.md;
+AJ: "1a 2a 3a"). Until this round `trainers/{id}` was
+`allow read: if isAuthenticated()`: any signed-in account, let in or
+not, could list every trainer record in the company -- a person's name,
+email, role, photo, studios and Kaizen Roster (clients' names with a
+reason and a note) -- and every iPad subscribed to all of them.
+
+Who reads a trainer record now (the read rule, with the record's owner
+first, outside this function):
+
+  1. the record's owner (request.auth.uid == trainerId), which is also how
+     a stranger's app reads trainers/{their uid} before it exists;
+  2. the company tier, by the role claim or the record (roleIsSuper);
+  3. the claim's lookup: a record whose `email` is the caller's own
+     sign-in email, lower-cased (trainerEmailMatches). A token with no
+     email matches nothing -- AJ's 1a: a Microsoft account whose sign-in
+     carries no email uses Request Access, and nothing about an unclaimed
+     profile is open to anyone signed in;
+  4. anyone whose own record shares a studio with it (sharesAStudio),
+     in any of the ways a person is tied to a studio -- home, also works
+     at, a guest, owns, the grant -- plus Demo Mode, where everyone works.
+
+The caller's studios (callerStudios) are the ones trainerWorksAt and
+trainerLeads count: owned studios only for a role that runs its own
+(roleRunsOwnStudios), so a LifeTransformer's leftover ownedStudioIds opens
+nothing to THEM. The record's own lists are not role-gated, because the
+app's five queries return any record naming the studio and a list query
+is refused whole if one document fails the rule. A leader reads the
+studios they run, not their group (AJ's 2a; the corporate group waits for
+the bookings lock).
+
+THE APP'S QUERIES (features/trainer-scope/read.ts), each accepted whole
+by this rule: `primaryHomeStudioId in S`, and `array-contains-any S` on
+accessibleStudioIds, activeGuestStudioIds, ownedStudioIds and
+managedStudioIds, where S is the caller's studios (the same list,
+built in the app by trainerScopeFor). The rules engine proves an `in`
+filter against the `in` test and an `array-contains-any` filter against
+`hasAny`; an unfiltered list, or one naming a studio the caller is not
+tied to, is refused. The company tier keeps the unfiltered list.
+
+The cost: one getRole() and one callerTrainer(), then map work -- well
+inside the 1,000-expression budget on the no-claim path.
+
+Not changed here: trainers/{id}/stats (anyone let in), the update and
+create rules, the secrets subcollection. Tests: "the trainer lock" in
+tests/firestore.rules.test.ts.
+```
+
 <a id="crosstrainsessiontotals"></a>
 ### `function crossTrainSessionTotals`
 
