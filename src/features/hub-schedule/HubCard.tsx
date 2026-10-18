@@ -12,7 +12,10 @@
  *   - the left edge says the booking's state; the glyphs say what is worth
  *     knowing, from the SAME moments as the Opportunities list
  *     (hub-opportunities/moments-today); crimson is the Critical triangle
- *     alone.
+ *     alone;
+ *   - "Now · 4:30" once its time has come and no session has started in
+ *     Journey (the cards round, Oct 17 2026: `hubCardIsNow`, which the Next
+ *     30 minutes strip asks too), the word whole or not at all.
  *
  * What the card may say about a booking's outcome is lib/hub-card-state over
  * lib/booking-state (done means logged, AJ Sep 24): live and in-session cards
@@ -32,7 +35,7 @@ import { memo, type ComponentType } from "react";
 import { Activity, AlertTriangle, Award, Cake, Check, CloudOff, FileSignature, MessageCircle, RefreshCw, Sparkles, Undo2 } from "lucide-react";
 import type { Client, WorkoutSession } from "../../types";
 import { isStaffBlock, type BookingMarks, type LoggedSessions } from "../../lib/booking-state";
-import { hubCardRecedes, hubCardState } from "../../lib/hub-card-state";
+import { hubCardIsNow, hubCardRecedes, hubCardState, type HubCardState } from "../../lib/hub-card-state";
 import { clientDisplayName } from "../../lib/client-name";
 import { safeToDate } from "../../lib/utils";
 import { zonedHM } from "../../lib/studio-time";
@@ -57,6 +60,16 @@ export const GLYPH: Record<MomentKind, ComponentType<{ size?: number; strokeWidt
 };
 
 /**
+ * Is the card's time a span ("10:00 – 10:45 AM") rather than one clock
+ * ("9:30")? Only a booking that isn't the usual half hour (a new client
+ * consult), or any booking with an end when `span` is asked for.
+ */
+export function cardTimeIsSpan(start: Date | null, end: Date | null, { span = false }: { span?: boolean } = {}): boolean {
+  if (!start || !end) return false;
+  return span || Math.round((end.getTime() - start.getTime()) / 60_000) !== 30;
+}
+
+/**
  * "9:30", or "10:00 – 10:45 AM" when the booking isn't the usual half hour
  * (a new client consult), in STUDIO time. `span` always gives both ends.
  */
@@ -69,8 +82,7 @@ export function cardTime(start: Date | null, end: Date | null, { span = false }:
     return suffix ? `${h12}:${mm} ${hm.hour >= 12 ? "PM" : "AM"}` : `${h12}:${mm}`;
   };
   if (!start) return "";
-  const minutes = end ? Math.round((end.getTime() - start.getTime()) / 60_000) : 30;
-  if (!end || (minutes === 30 && !span)) return clock(start, false);
+  if (!cardTimeIsSpan(start, end, { span })) return clock(start, false);
   return `${clock(start, false)} – ${clock(end, true)}`;
 }
 
@@ -100,9 +112,12 @@ export interface HubCardProps {
   quietWord?: string | null;
   /** `loggedSessions` over the Hub's session stream; null while unknown. */
   logged?: LoggedSessions | null;
-  /** The day's "didn't come" marks (`useBookingMarks().marks`); null when not read. A marked booking reads "Didn't come", never "Not logged". */
+  /** The day's late-cancel marks (`useBookingMarks().marks`); null when not read. A marked booking reads "Late cancel", never "Not logged". */
   noShows?: BookingMarks | null;
-  /** The Hub's minute clock. */
+  /**
+   * The Hub's minute clock. It matters to the card through its state and
+   * whether it is Now (`sameCard`).
+   */
   now?: Date;
   /** The roster is still loading: a booking naming a client we don't hold YET is pending, not "Not synced". */
   rosterLoading?: boolean;
@@ -194,6 +209,10 @@ function HubCardView({
   }
 
   const cardState = stateOfCard({ booking, client, logged, now, workoutSession, noShows, readable });
+  /* NOW (the cards round, Oct 17 2026): its time has come and no session has
+     started in Journey, from its start until it would turn Not logged
+     (lib/hub-card-state, hubCardIsNow; the strip asks the same). */
+  const isNow = hubCardIsNow({ state: cardState, start, end, now });
   const recedes = hubCardRecedes(cardState);
   const isUnlinked = !client;
   const isPending = isUnlinked && rosterLoading && Boolean(booking?.clientId);
@@ -202,7 +221,7 @@ function HubCardView({
   /* A finished slot nobody logged. Only on a linked card: one with no
      profile already says why nothing could be logged. */
   const isNotLogged = cardState === "not-logged" && !isUnlinked;
-  /* A leader marked it "didn't come" (Operations wave 3): a fact, said as quietly as "Not logged". */
+  /* Someone at the studio marked a late cancel (Operations wave 3; anyone since Oct 2 2026): a fact, said as quietly as "Not logged". */
   const isDidntCome = cardState === "didnt-come" && !isUnlinked;
   const isDone = cardState === "done";
 
@@ -210,6 +229,12 @@ function HubCardView({
   const marks = recedes || isUnlinked ? cardMarks(null) : cardMarks(entry?.moments, undefined, { yours: wordy });
   const kind = isPending ? "pending" : isUnknown ? "unknown" : isUnlinked ? "unlinked" : "client";
   const interactive = kind === "client";
+  /* Only a client's card is Now. The word goes before the time, but not
+     before a span (a consult's "10:00 – 10:45 AM"), which leaves it no room
+     beside the marks: there the card's mark says it alone (cards round, C3).
+     Anywhere else short of room, the word drops whole (hub-card.css). */
+  const clientNow = kind === "client" && isNow;
+  const nowWord = clientNow && !cardTimeIsSpan(start, end);
 
   /* Her number, in the card's top-right corner, quietly (AJ, Oct 1 2026: "i
      do wish the top right of the card said what session number they were
@@ -229,6 +254,7 @@ function HubCardView({
       data-dim={dimmed ? "true" : undefined}
       data-words={wordy ? "all" : undefined}
       data-open={open ? "true" : undefined}
+      data-now={clientNow ? "true" : undefined}
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : -1}
       aria-haspopup={interactive && opensPeek ? "dialog" : undefined}
@@ -278,7 +304,7 @@ function HubCardView({
       )}
 
       <div className="hs-card-meta">
-        <span className="hs-card-when">
+        <span className="hs-card-when" data-now={nowWord ? "true" : undefined}>
           {isPending ? (
             <span aria-label="Loading this client">{time}</span>
           ) : isUnknown ? (
@@ -296,6 +322,15 @@ function HubCardView({
           ) : (
             <>
               {isDone && <Check size={13} aria-label="Done" />}
+              {/* "Now · 4:30": a word, read out and seen without telling
+                  colours apart. The word and its dot are one part, so short
+                  of room they drop together and the time stays. */}
+              {nowWord && (
+                <span className="hs-card-now-part">
+                  <strong className="hs-card-now">Now</strong>
+                  {" · "}
+                </span>
+              )}
               {time}
             </>
           )}
@@ -364,7 +399,7 @@ function HubCardView({
 }
 
 /** What happened to the booking, by the card's own rule (lib/hub-card-state). */
-function stateOfCard(p: Pick<HubCardProps, "booking" | "client" | "logged" | "now" | "workoutSession" | "noShows" | "readable">) {
+function stateOfCard(p: Pick<HubCardProps, "booking" | "client" | "logged" | "now" | "workoutSession" | "noShows" | "readable">): HubCardState {
   const booking = p.booking;
   return hubCardState(
     {
@@ -380,15 +415,28 @@ function stateOfCard(p: Pick<HubCardProps, "booking" | "client" | "logged" | "no
   );
 }
 
+/** Is the card Now, by the one rule the strip also asks (lib/hub-card-state)? */
+function nowOfCard(p: Pick<HubCardProps, "booking" | "now">, state: HubCardState): boolean {
+  const booking = p.booking;
+  return hubCardIsNow({
+    state,
+    start: safeToDate(booking?.startTime || booking?.StartDateTime || booking?.date),
+    end: safeToDate(booking?.endTime || booking?.EndDateTime),
+    now: p.now ?? new Date(),
+  });
+}
+
 const momentsKey = (entry: RunSheetEntry | null | undefined) => (entry ? JSON.stringify(entry.moments) : "");
 
 /**
  * Does the card draw the same? (speed round, Oct 5 2026, R7.) Every prop the
  * same, except two the Hub hands over new far more often than the card
  * changes: the minute clock, which matters only through the booking's state
- * (in session, done, not logged), and the day's entry, of which the card
- * reads only the moments. A minute tick, or a session's heartbeat elsewhere
- * on the floor, then redraws only the cards whose state or marks moved.
+ * (in session, done, not logged) and whether it is Now, and the day's entry,
+ * of which the card reads only the moments. A minute tick, or a session's
+ * heartbeat elsewhere on the floor, then redraws only the cards whose state,
+ * Now or marks moved. Now is compared on its own (the cards round, Oct 17
+ * 2026): a card turns Now at its start while its state stays "live".
  */
 export function sameCard(a: HubCardProps, b: HubCardProps): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
@@ -397,7 +445,12 @@ export function sameCard(a: HubCardProps, b: HubCardProps): boolean {
     if ((a as unknown as Record<string, unknown>)[k] !== (b as unknown as Record<string, unknown>)[k]) return false;
   }
   if (a.entry !== b.entry && momentsKey(a.entry) !== momentsKey(b.entry)) return false;
-  if (a.now !== b.now && !isStaffBlock(a.booking) && stateOfCard(a) !== stateOfCard(b)) return false;
+  if (a.now !== b.now && !isStaffBlock(a.booking)) {
+    const state = stateOfCard(a);
+    if (state !== stateOfCard(b)) return false;
+    // Only a live card can be Now, and the two states are the same here.
+    if (state === "live" && nowOfCard(a, state) !== nowOfCard(b, state)) return false;
+  }
   return true;
 }
 

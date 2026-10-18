@@ -69,6 +69,25 @@ describe("the Next 30 minutes strip", () => {
     expect(itemOf(el, "Estella").querySelector(".hn-with")?.textContent).toBe("with Damrod");
   });
 
+  it("says Now as its own word, so only the word takes the Now colour and the time stays in the ink (cards round, Oct 17 2026)", () => {
+    const { el } = mount();
+    const estella = itemOf(el, "Estella");
+    expect(estella.dataset.when).toBe("now");
+    const when = estella.querySelector(".hn-when")!;
+    expect(when.textContent).toBe("Now · 9:30");
+    expect([...when.querySelectorAll(".hn-now")].map((w) => w.textContent)).toEqual(["Now"]);
+    // The word, its dot and the time are ONE flex item (no 5px gap inside "Now · 9:30"), and the time is not inside the word.
+    expect(when.children).toHaveLength(1);
+    const words = when.firstElementChild!;
+    expect(words.textContent).toBe("Now · 9:30");
+    expect(words.lastChild?.nodeType).toBe(Node.TEXT_NODE);
+    expect(words.lastChild?.textContent).toBe("9:30");
+    // Coming up and in session have no Now word.
+    expect(itemOf(el, "Belladonna").querySelector(".hn-now")).toBeNull();
+    expect(itemOf(el, "Hamfast").querySelector(".hn-now")).toBeNull();
+    expect(itemOf(el, "Hamfast").querySelector(".hn-when")?.textContent).toBe("In session");
+  });
+
   it("the triangle is the only red, and the card's marks say only their sayable words", () => {
     const { el } = mount();
     const bella = itemOf(el, "Belladonna");

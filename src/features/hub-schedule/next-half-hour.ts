@@ -16,7 +16,11 @@
  *     and not over ("Now"), under way with a session open ("In session"), or
  *     starting within the half hour ("9:45") — the Opportunities list's own
  *     "Now and the next 30 min" (moments-today's time sections), asked of
- *     each booking.
+ *     each booking. Whether it is "Now" is the card's own rule
+ *     (`hubCardIsNow`, the cards round, Oct 17 2026), so an item says Now
+ *     exactly when its card does. It still leaves the strip at its slot's
+ *     end: the five minutes after it, before Not logged, the card alone
+ *     says Now.
  *   - Never a booking that is over: a session done, a slot not logged, or
  *     nothing to claim (AJ, Hub question 2: "once the session is done it
  *     should make a lot less noise"). The card's own state decides it
@@ -24,11 +28,13 @@
  *   - Soonest first; at the same time yours first, then the grid's columns
  *     left to right.
  */
-import { hubCardRecedes, type HubCardState } from "../../lib/hub-card-state";
+import { hubCardIsNow, hubCardRecedes, type HubCardState } from "../../lib/hub-card-state";
 import type { Span } from "./grid-model";
 
 /** The strip's window, in minutes. */
 export const NEXT_WINDOW_MIN = 30;
+
+const MINUTE_MS = 60_000;
 
 export type NextWhen = "in-session" | "now" | "soon";
 
@@ -78,6 +84,12 @@ export function nextHalfHour<T>(
     .map((c) => ({
       item: c.item,
       span: c.span,
-      when: c.state === "in-session" ? "in-session" : c.span.from <= nowMin ? "now" : "soon",
+      when:
+        c.state === "in-session"
+          ? "in-session"
+          : // The card's own rule, on the studio's minutes: one axis, so a minute times 60,000 is its milliseconds.
+            hubCardIsNow({ state: c.state, start: c.span.from * MINUTE_MS, end: c.span.to * MINUTE_MS, now: nowMin * MINUTE_MS })
+            ? "now"
+            : "soon",
     }));
 }

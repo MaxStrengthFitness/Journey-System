@@ -21,7 +21,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { StrictMode, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { HubCard } from "./HubCard";
+import { HubCard, sameCard } from "./HubCard";
 import { bookingMarks, loggedSessions, type BookingMarks, type LoggedSessions } from "../../lib/booking-state";
 import { momentsToday, type MomentsTodayInput, type RunSheetEntry } from "../hub-opportunities/moments-today";
 import type { Client, WorkoutSession } from "../../types";
@@ -526,5 +526,139 @@ describe("the Hub card and a Critical note", () => {
     const older = critical({ body: "Pacemaker: no chest-compression machines", occurredAt: at("09:00", "2026-08-01") });
     const c = mount({ hm: "15:00", who: plain, criticalNotes: [older, critical()] });
     expect(c.critical).toBe(`Critical: ${SHOULDER} · Critical: Pacemaker: no chest-compression machines`);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * NOW (the cards round, Oct 17 2026; AJ's "Now, Next, Done", 1A 2A 3A):
+ * a card whose time has come and whose session has not started says
+ * "Now" before its time, as a word, from its start until it would turn
+ * Not logged (lib/hub-card-state, hubCardIsNow). The minute clock moves it
+ * while its state stays "live", so the memo must redraw it.
+ * ------------------------------------------------------------------ */
+
+describe("Now: a card whose time has come and no session has started", () => {
+  const TODAY = "2026-10-17";
+  const half = booking("16:30", TODAY); // 4:30-5:00 PM
+  const nowAt = (hm: string, sec = 0) => new Date(at(hm, TODAY).getTime() + sec * 1000);
+  const onOpen = () => {};
+
+  function draw(props: Partial<Parameters<typeof HubCard>[0]> & { now: Date }) {
+    const el = (
+      <HubCard booking={half} client={plain} entry={null} sessionNumber={null} logged={NOTHING_LOGGED} onOpen={onOpen} {...props} />
+    );
+    if (!root) {
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      root = createRoot(host);
+    }
+    act(() => root!.render(el));
+    const card = host!.firstElementChild as HTMLElement;
+    return {
+      card,
+      now: card.dataset.now === "true",
+      word: card.querySelector(".hs-card-when .hs-card-now")?.textContent ?? null,
+      when: card.querySelector(".hs-card-when")?.textContent ?? "",
+    };
+  }
+
+  it("is not Now before its start: the time alone", () => {
+    const c = draw({ now: nowAt("16:20") });
+    expect(c.card.dataset.state).toBe("live");
+    expect(c.now).toBe(false);
+    expect(c.word).toBeNull();
+    expect(c.when).toBe("4:30");
+  });
+
+  it("says 'Now · 4:30' at 4:40, the word as text before the time", () => {
+    const c = draw({ now: nowAt("16:40") });
+    expect(c.card.dataset.state).toBe("live");
+    expect(c.now).toBe(true);
+    expect(c.word).toBe("Now");
+    expect(c.when).toBe("Now · 4:30");
+    // The word and its dot are one part, and the time is never inside it: short of room, the part drops whole.
+    const when = c.card.querySelector<HTMLElement>(".hs-card-when")!;
+    expect(when.dataset.now).toBe("true");
+    const part = when.querySelector(".hs-card-now-part");
+    expect(part?.textContent).toBe("Now · ");
+    expect(part?.querySelector("strong.hs-card-now")).toBeTruthy();
+    expect(when.lastChild?.nodeType).toBe(Node.TEXT_NODE);
+    expect(when.lastChild?.textContent).toBe("4:30");
+    // The marks stay: a card that is Now is a card still to come.
+    expect(c.card.dataset.recede).toBe("false");
+  });
+
+  it("is still Now at 5:03, in the five minutes before Not logged", () => {
+    const c = draw({ now: nowAt("17:03") });
+    expect(c.card.dataset.state).toBe("live");
+    expect(c.now).toBe(true);
+    expect(c.when).toBe("Now · 4:30");
+  });
+
+  it("is gone at 5:06: the card says Not logged instead", () => {
+    const c = draw({ now: nowAt("17:06") });
+    expect(c.card.dataset.state).toBe("not-logged");
+    expect(c.now).toBe(false);
+    expect(c.word).toBeNull();
+    expect(c.when).toBe("4:30 · Not logged");
+  });
+
+  it("redraws the memoised card when a minute tick crosses 4:30, and only then", () => {
+    // The Hub's clock ticks once a minute from whenever it mounted: 4:29:40, then 4:30:40.
+    const before = draw({ now: nowAt("16:29", 40) });
+    expect(before.now).toBe(false);
+    expect(before.when).toBe("4:30");
+    const after = draw({ now: nowAt("16:30", 40) });
+    expect(after.card.dataset.state).toBe("live");
+    expect(after.now).toBe(true);
+    expect(after.when).toBe("Now · 4:30");
+    // A tick that changes nothing the card shows is still skipped.
+    const base = { booking: half, client: plain, entry: null, sessionNumber: null, logged: NOTHING_LOGGED, onOpen };
+    expect(sameCard({ ...base, now: nowAt("16:29", 40) }, { ...base, now: nowAt("16:30", 40) })).toBe(false);
+    expect(sameCard({ ...base, now: nowAt("16:31", 40) }, { ...base, now: nowAt("16:32", 40) })).toBe(true);
+    expect(sameCard({ ...base, now: nowAt("16:20") }, { ...base, now: nowAt("16:21") })).toBe(true);
+    // Leaving Now is a change of state too (Not logged), and redraws.
+    expect(sameCard({ ...base, now: nowAt("17:04", 30) }, { ...base, now: nowAt("17:05", 30) })).toBe(false);
+  });
+
+  it("is never Now in session, once done, or on a card with no profile", () => {
+    const running = { ...session("In-Progress", "16:31"), startTime: at("16:31", TODAY), date: TODAY, lastHeartbeatAt: at("16:39", TODAY) } as WorkoutSession;
+    const inSession = draw({ now: nowAt("16:40"), workoutSession: running });
+    expect(inSession.card.dataset.state).toBe("in-session");
+    expect(inSession.now).toBe(false);
+    expect(inSession.word).toBeNull();
+    const finished = { ...session("Completed", "16:32"), startTime: at("16:32", TODAY), date: TODAY } as WorkoutSession;
+    const done = draw({ now: nowAt("16:50"), logged: loggedSessions([finished]), workoutSession: finished });
+    expect(done.card.dataset.state).toBe("done");
+    expect(done.now).toBe(false);
+    const unlinked = draw({ now: nowAt("16:40"), client: null });
+    expect(unlinked.card.dataset.kind).toBe("unlinked");
+    expect(unlinked.now).toBe(false);
+    expect(unlinked.word).toBeNull();
+  });
+
+  it("a consult's span is Now without the word: no room beside its marks, so the card's mark says it", () => {
+    const consult = { ...half, startTime: at("10:00", TODAY), endTime: at("10:45", TODAY), serviceName: "New Client Consultation" };
+    const c = draw({ booking: consult, now: nowAt("10:20") });
+    expect(c.now).toBe(true);
+    expect(c.word).toBeNull();
+    expect(c.when).toBe("10:00 – 10:45 AM");
+    expect(c.card.querySelector<HTMLElement>(".hs-card-when")?.dataset.now).toBeUndefined();
+  });
+
+  it("the stylesheet drops the word whole and never shrinks the time below itself", () => {
+    const css = readFileSync(resolve(__dirname, "hub-card.css"), "utf8");
+    const line = css.match(/\.hs-card-when\[data-now="true"\]\s*\{([^}]*)\}/)?.[1] ?? "";
+    // One line high, wrapping, clipped: a part that doesn't fit goes to the hidden second line whole.
+    expect(line).toMatch(/flex-wrap:\s*wrap/);
+    expect(line).toMatch(/height:\s*16px/);
+    expect(line).toMatch(/overflow:\s*hidden/);
+    // Right to left with the time first in flex order, so the word is the part that wraps.
+    expect(line).toMatch(/flex-direction:\s*row-reverse/);
+    // It may shrink, never below the time (overflow: hidden alone would let it reach 0 and cut the time).
+    expect(line).toMatch(/min-width:\s*min-content/);
+    const part = css.match(/\.hs-card-now-part\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(part).toMatch(/order:\s*1\b/);
+    expect(part).not.toMatch(/display:\s*none|text-overflow/);
   });
 });

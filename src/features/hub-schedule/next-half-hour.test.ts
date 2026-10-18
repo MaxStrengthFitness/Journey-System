@@ -4,7 +4,7 @@
  * question 2); soonest first, yours first at the same time.
  */
 import { describe, expect, it } from "vitest";
-import type { HubCardState } from "../../lib/hub-card-state";
+import { hubCardIsNow, type HubCardState } from "../../lib/hub-card-state";
 import type { Span } from "./grid-model";
 import { NEXT_WINDOW_MIN, nextHalfHour, stripOpen, type NextCandidate } from "./next-half-hour";
 
@@ -73,5 +73,32 @@ describe("who is on it", () => {
 
   it("a session opened a few minutes early is in session, not 'soon'", () => {
     expect(nextHalfHour([c("early", "09:30", "10:00", "in-session")], now)[0].when).toBe("in-session");
+  });
+});
+
+describe("Now on the strip is the card's own Now (cards round, Oct 17 2026)", () => {
+  const MIN = 60_000;
+
+  it("says Now exactly when the card does, minute by minute through a 9:30 booking", () => {
+    for (let m = t("09:00"); m <= t("10:10"); m++) {
+      const on = nextHalfHour([c("b", "09:30", "10:00")], m);
+      const card = hubCardIsNow({ state: "live", start: t("09:30") * MIN, end: t("10:00") * MIN, now: m * MIN });
+      if (on.length) expect(on[0].when === "now", `minute ${m}`).toBe(card);
+    }
+  });
+
+  it("is on the strip once it starts within the half hour, until its slot ends; Now from its start", () => {
+    const at = (hhmm: string) => nextHalfHour([c("b", "09:30", "10:00")], t(hhmm)).map((x) => x.when);
+    expect(at("08:59")).toEqual([]);
+    expect(at("09:01")).toEqual(["soon"]);
+    expect(at("09:29")).toEqual(["soon"]);
+    expect(at("09:30")).toEqual(["now"]);
+    expect(at("09:59")).toEqual(["now"]);
+    // Its slot is over: it leaves the strip, while the card says Now until 10:05 and then Not logged.
+    expect(at("10:00")).toEqual([]);
+  });
+
+  it("a day the sessions don't cover has no now: a started unread booking is its time alone", () => {
+    expect(nextHalfHour([c("b", "09:15", "09:45", "unread")], t("09:24"))[0].when).toBe("soon");
   });
 });

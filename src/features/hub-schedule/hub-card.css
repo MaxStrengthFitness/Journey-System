@@ -323,6 +323,55 @@
   color: var(--eq-ink-2);
 }
 
+/* NOW (the cards round, Oct 17 2026): "Now · 4:30" on a client card whose
+   time has come and whose session has not started (HubCard, hubCardIsNow).
+   The word and its dot are ONE part, shown whole or not at all, and the
+   time is never what gives way (the "say less" rule below; KNOWN-TRAPS, a
+   number in a part that shrinks). Short of room (two bookings in a slot,
+   the marks beside it) the part drops to a hidden second line, so no
+   width is guessed here: the card measures itself, whatever its lanes,
+   marks, words or screen.
+     - The line runs right to left with the time FIRST in flex order (the
+       part is `order: 1`), so the part is the one that wraps; the source,
+       and a screen reader, still say "Now · 4:30".
+     - It may shrink, never below its min-content, which is the time: the
+       time is unbroken (nowrap), and the part may break anywhere inside
+       itself, so it asks less. With the word dropped, the time and the
+       marks sit exactly where they sit without it.
+     - The part's 4px is a margin, not the gap: every engine counts a margin
+       in the line's own width. Shown, it is 4px from the time, as "Not
+       logged" is.
+     - What gives way to it: only the words after the time ("New to
+       Journey", a service), which give way to everything in this line, as
+       they do to the marks. The marks keep their room, a mark's word
+       included where its column shows one.
+   Measured in headless Chrome over HubCard's own markup (Oct 18 2026):
+   lanes 40 to 440px wide, one to three to a slot, none to three marks, a
+   number, a long name, "New to Journey" and a service. Against the same
+   card before its start: the time whole exactly where it was whole, the
+   word on one line or not shown, the marks, the name and the card's height
+   unchanged. It shows from a lane of about 92px with no marks. A span (a
+   consult's "10:00 – 10:45 AM") never carries the word (HubCard). The
+   colour is the round's C3; until then it is the bold ink above. */
+.hs-card-when[data-now="true"] {
+  flex: 0 1 auto;
+  min-width: min-content;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-content: flex-start;
+  gap: 0;
+  height: 16px;
+  overflow: hidden;
+}
+
+.hs-card-now-part {
+  order: 1;
+  margin-right: 4px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* The words after them ("New to Journey", a service) give way first when the
    glyphs need the room — but WHOLE, never cut (hub fixes, Oct 1 2026: AJ's
    iPad read "11:00 · New to Jo…"). One line high, wrapping: a part that
