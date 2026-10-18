@@ -1120,6 +1120,32 @@ describe("sign-out sends the sets still waiting on the typing timer first (sessi
   });
 });
 
+describe("the pain skip's Where? box keeps its words (F22, AJ's \"a\", Oct 16 2026)", () => {
+  it("writes the pain skip at once, and the words reach the set when the field is left, before anything moves on", async () => {
+    const host = await mount(<Tracker />);
+    const named = (t: string) => Array.from(host.querySelectorAll("button")).find((b) => b.textContent?.trim() === t)!;
+    const legPress = () => writes.filter((w) => w.path === `exerciseLogs/${SESSION_ID}_m-leg-press`);
+    await act(async () => named("Skip").click());
+    await act(async () => named("Pain or injury").click());
+    expect(
+      legPress().some((w) => w.data?.outcome === "skipped" && w.data?.skipReason === "pain_injury"),
+      "the skip is written the moment pain is picked",
+    ).toBe(true);
+
+    const where = host.querySelector<HTMLInputElement>('input[aria-label="Where is the pain? Optional."]')!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => {
+      where.focus();
+      setter.call(where, "left knee");
+      where.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => where.blur());
+    expect(legPress().some((w) => w.data?.skipNote === "left knee"), "the words are on the set").toBe(true);
+    // The skip was never taken back on the way.
+    expect(legPress().some((w) => w.data?.outcome === null)).toBe(false);
+  });
+});
+
 describe("the Active Session never draws a blank page (session record, Sep 26 2026)", () => {
   function Bare(props: { clientId: string | null; lookup?: "ready" | "loading" | "failed" | "missing"; setView: any; onRetry?: () => void }) {
     return (

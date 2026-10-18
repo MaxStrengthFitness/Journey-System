@@ -284,15 +284,33 @@ function Stopwatch({
  * what the pain map and the Monday review need and nobody remembers it by
  * the end of the session. The field is optional: a trainer with a client
  * waiting can still just hit "Save and next".
+ *
+ * The pain skip is written the moment Pain or injury is tapped, and the
+ * words as they are typed (F22, AJ's "a", Oct 16 2026: "the Where? box keeps
+ * its words"). Until then both waited for Save and next, so a trainer who
+ * moved on (another machine, Next, Finish) lost the words and the skip
+ * itself. Back takes the pain skip off again, to what the machine had.
  */
 function SkipStrip({
   machineName,
   onPick,
   onCancel,
+  onPain,
+  onWhere,
+  onWhereLeft,
+  onBack,
 }: {
   machineName: string;
   onPick: (reason: SkipReason, note: string | null) => void;
   onCancel: () => void;
+  /** Pain or injury tapped: the skip is written now. */
+  onPain: () => void;
+  /** The "Where?" words, on every keystroke (they go through the typing queue). */
+  onWhere: (note: string) => void;
+  /** The "Where?" field left: what was typed is sent. */
+  onWhereLeft: () => void;
+  /** Back from the "Where?" question: the pain skip comes off. */
+  onBack: () => void;
 }) {
   const [pain, setPain] = useState(false);
   const [note, setNote] = useState("");
@@ -313,7 +331,14 @@ function SkipStrip({
               key={r}
               type="button"
               className={`jg-nb__reason ${r === "pain_injury" ? "jg-nb__reason--pain" : ""}`}
-              onClick={() => (r === "pain_injury" ? setPain(true) : onPick(r, null))}
+              onClick={() => {
+                if (r !== "pain_injury") {
+                  onPick(r, null);
+                  return;
+                }
+                setPain(true);
+                onPain();
+              }}
             >
               {SKIP_REASON_LABEL[r]}
             </button>
@@ -331,7 +356,11 @@ function SkipStrip({
             aria-label="Where is the pain? Optional."
             placeholder="Where? e.g. left knee (optional)"
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            onChange={(e) => {
+              setNote(e.target.value);
+              onWhere(e.target.value);
+            }}
+            onBlur={onWhereLeft}
             onKeyDown={(e) => {
               if (e.key === "Enter") onPick("pain_injury", note.trim() || null);
             }}
@@ -343,7 +372,15 @@ function SkipStrip({
           >
             Save and next
           </button>
-          <button type="button" className="jg-nb__reason jg-nb__reason--cancel" onClick={() => setPain(false)}>
+          <button
+            type="button"
+            className="jg-nb__reason jg-nb__reason--cancel"
+            onClick={() => {
+              setPain(false);
+              setNote("");
+              onBack();
+            }}
+          >
             Back
           </button>
         </div>
@@ -510,6 +547,28 @@ function SessionNowBarImpl({
   const clearOutcome = () => {
     if (!machine) return;
     onChange(machine.id, { outcome: null, bloodFlow: null, skipReason: null, skipNote: null });
+  };
+  /* The pain skip, written as it is tapped (F22): what the machine had
+     before is kept, so Back puts exactly that back. */
+  const beforePainRef = useRef<Partial<LiveSet> | null>(null);
+  const startPainSkip = () => {
+    if (!machine) return;
+    beforePainRef.current = {
+      outcome: v.outcome ?? null,
+      bloodFlow: v.bloodFlow ?? null,
+      skipReason: v.skipReason ?? null,
+      skipNote: v.skipNote ?? null,
+    };
+    onChange(machine.id, { outcome: "skipped", skipReason: "pain_injury", skipNote: null });
+  };
+  const painWhere = (note: string) => {
+    if (machine) onChange(machine.id, { skipNote: note.trim() || null });
+  };
+  const backFromPain = () => {
+    if (!machine) return;
+    const before = beforePainRef.current;
+    beforePainRef.current = null;
+    onChange(machine.id, before?.outcome ? before : { outcome: null, bloodFlow: null, skipReason: null, skipNote: null });
   };
 
   /* The plan's next machine, offered where the bar would otherwise end:
@@ -758,7 +817,15 @@ function SessionNowBarImpl({
       {/* --- line 2 · the set ------------------------------------------ */}
       {skipOpen ? (
         <div className="jg-nb__controls jg-nb__controls--skip">
-          <SkipStrip machineName={machine.name} onPick={pickSkip} onCancel={() => setSkipOpen(false)} />
+          <SkipStrip
+            machineName={machine.name}
+            onPick={pickSkip}
+            onCancel={() => setSkipOpen(false)}
+            onPain={startPainSkip}
+            onWhere={painWhere}
+            onWhereLeft={commit}
+            onBack={backFromPain}
+          />
         </div>
       ) : (
         <div className="jg-nb__controls">

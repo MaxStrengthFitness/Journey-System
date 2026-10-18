@@ -4932,6 +4932,13 @@ export function WorkoutTrackerView({
       const u = patch.outcome === "practice" ? withWeight(o, sideL) : o;
       updateLogMultiple(sessionId, machineId, u, sideL);
       if (sides) updateLogMultiple(sessionId, machineId, patch.outcome === "practice" ? withWeight(o, "Right") : o, "Right");
+    } else if (patch.skipNote !== undefined) {
+      /* The pain skip's "Where?" words alone, as they are typed (F22): the
+         skip was written when Pain or injury was tapped, and the words go
+         through the typing queue like reps, sent when the field is left. */
+      const n = { skipNote: patch.skipNote ?? null } as Partial<ExerciseLog>;
+      updateLogMultiple(sessionId, machineId, n, sideL);
+      if (sides) updateLogMultiple(sessionId, machineId, n, "Right");
     }
     if (patch.isTSC !== undefined) {
       const u = { isTSC: patch.isTSC, isStaticHold: patch.isTSC };
