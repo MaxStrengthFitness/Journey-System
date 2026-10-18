@@ -64,6 +64,23 @@
   --eq-mine-head:       #d4e1ef;
   --eq-rail-booked:     #6e93b9;   /* a coming-up card's edge       3.1:1   */
 
+  /* The Hub card's states (the cards round, Oct 17 2026; AJ's 1A 2A 3A:
+     "what happened steps back; what wasn't recorded stays a card; Now says
+     Now"). A recorded card (done, a late cancel) is a pale tile, the card
+     mixed --eq-done-mix into its own ground. A card nobody recorded (Not
+     logged, Left open) keeps a plum mark, the app's caution. The card whose
+     time has come and no session has started takes the orange mark and the
+     word "Now" in the deep orange (orange is now and go). Every card has a
+     1px outline: the full edge on a card still in play or not recorded,
+     the quiet one on a card that is over (hub-card.css, next-strip.css).
+     Ratios on the card. */
+  --eq-done-mix:        30%;
+  --eq-unlogged-mark:   var(--eq-warn);        /* plum         5.5:1   */
+  --eq-now-mark:        var(--eq-hero);        /* the mark     3.9:1   */
+  --eq-now-text:        var(--eq-hero-text);   /* "Now"        5.7:1   */
+  --eq-card-edge:       rgba(25, 45, 65, 0.12);
+  --eq-card-edge-quiet: rgba(25, 45, 65, 0.07);
+
   /* Green: a machine that is set up and in use. */
   --eq-ok:              #17714b;   /* 5.5:1, 5.2:1 on its fill              */
   --eq-ok-fill:         #e3f1ea;
@@ -163,6 +180,15 @@
   --eq-mine-head:       #133555;
   --eq-rail-booked:     #5581b0;   /* 3.6:1                                 */
 
+  /* The Hub card's states: the same names, dark's rim (the dark round's D5:
+     the soft edge, and a quieter one for a card that is over). */
+  --eq-done-mix:        30%;
+  --eq-unlogged-mark:   var(--eq-warn);        /* plum         6.0:1   */
+  --eq-now-mark:        var(--eq-hero);        /* the mark     5.0:1   */
+  --eq-now-text:        var(--eq-hero-text);   /* "Now"        6.8:1   */
+  --eq-card-edge:       var(--eq-edge);
+  --eq-card-edge-quiet: rgba(150, 180, 210, 0.077);
+
   --eq-ok:              #52d7c1;   /* 8.4:1, 6.7:1 on its fill              */
   --eq-ok-fill:         #113e36;
 
@@ -229,6 +255,12 @@
     --eq-mine:            #0e243a;
     --eq-mine-head:       #133555;
     --eq-rail-booked:     #5581b0;
+    --eq-done-mix:        30%;
+    --eq-unlogged-mark:   var(--eq-warn);
+    --eq-now-mark:        var(--eq-hero);
+    --eq-now-text:        var(--eq-hero-text);
+    --eq-card-edge:       var(--eq-edge);
+    --eq-card-edge-quiet: rgba(150, 180, 210, 0.077);
     --eq-ok:              #52d7c1;
     --eq-ok-fill:         #113e36;
     --eq-warn:            #d98cbd;
