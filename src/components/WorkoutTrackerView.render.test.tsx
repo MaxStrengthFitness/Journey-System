@@ -470,6 +470,7 @@ vi.mock("../contexts/ActiveStudioContext", async (importOriginal) => {
 import { WorkoutTrackerView } from "./WorkoutTrackerView";
 import { announceOpenSessionRefused, declinedStaleOpenSessions } from "../features/open-session/start";
 import { ToastProvider } from "../contexts/ToastContext";
+import { markRecordedHere, wasRecordedHere } from "../features/session-record/recorded-here";
 import type { Client, Machine, Trainer } from "../types";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -993,6 +994,110 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(completedWrites()).toHaveLength(1);
     expect(document.body.textContent).toContain("Wrap-up · session saved");
     expect(document.body.textContent).not.toContain("saved on this iPad");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Finish waits for the sets (F22, AJ's "a", Oct 16 2026)
+ * ------------------------------------------------------------------ */
+
+describe("Finish waits for a resumed session's sets, and never stamps sets it hasn't heard (F22)", () => {
+  const buttonNamed = (t: string) => Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === t) as HTMLButtonElement | undefined;
+  const waitLine = () => document.querySelector('[data-testid="finish-waits-for-sets"]');
+  const completed = () => writes.filter((w) => w.path === `sessions/${SESSION_ID}` && w.data?.status === "Completed");
+  const settle = async () => {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  };
+  const LEG_PRESS = `exerciseLogs/${SESSION_ID}_m-leg-press`;
+  /** Leg press done on the other iPad: the server has it, this iPad hasn't heard it. */
+  const doneElsewhere = () => [
+    {
+      id: `${SESSION_ID}_m-leg-press`,
+      data: () => ({ sessionId: SESSION_ID, clientId: CLIENT_ID, machineId: "m-leg-press", weight: "100", reps: "10", studioId: STUDIO_ID }),
+    },
+  ];
+  async function openFinish() {
+    const host = await mount(<Tracker />);
+    await act(async () => (host.querySelector(".jg-sbar__finish") as HTMLButtonElement).click());
+    return host;
+  }
+
+  it("holds Finish until the server answers for the sets, then finishes with them: the leg press done elsewhere stays performed", async () => {
+    netCtl.logs = doneElsewhere();
+    netCtl.hold.add("exerciseLogs"); // resumed here: the sets listener hasn't answered
+    await openFinish();
+    const waiting = buttonNamed("Getting the sets…")!;
+    expect(waiting, "the Finish button waits").toBeDefined();
+    expect(waiting.disabled).toBe(true);
+    expect(waitLine()?.getAttribute("data-state")).toBe("getting");
+    expect(waitLine()?.textContent).toContain("Getting this session's sets");
+    await act(async () => waiting.click());
+    await settle();
+    expect(completed(), "nothing finished on an empty copy").toHaveLength(0);
+    expect(writes.some((w) => w.path === LEG_PRESS && w.data?.outcome === "not_reached")).toBe(false);
+
+    await act(async () => netCtl.release("exerciseLogs"));
+    expect(waitLine()).toBeNull();
+    const finish = buttonNamed("Finish session")!;
+    expect(finish.disabled).toBe(false);
+    await act(async () => finish.click());
+    await settle();
+    await settle();
+
+    expect(completed()).toHaveLength(1);
+    const legPress = writes.filter((w) => w.path === LEG_PRESS);
+    expect(legPress.some((w) => w.data?.outcome === "not_reached"), "never stamped not reached").toBe(false);
+    expect(legPress.some((w) => w.data?.reps === "10"), "written back as the server holds it").toBe(true);
+    // The rear delt really wasn't reached: that one is still said.
+    expect(writes.some((w) => w.path === `exerciseLogs/${SESSION_ID}_sm-solon-rear-delt` && w.data?.outcome === "not_reached")).toBe(true);
+  });
+
+  it("offline with only the iPad's copy, Finish waits and says why; every set is said to be saved", async () => {
+    netCtl.logs = doneElsewhere();
+    netCtl.fromCache.add("exerciseLogs");
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+    await openFinish();
+    expect(waitLine()?.getAttribute("data-state")).toBe("offline");
+    expect(waitLine()?.textContent).toContain("Every set is saved.");
+    expect(buttonNamed("Finish session")!.disabled).toBe(true);
+    // Keep training still goes back to the session: nothing is refused.
+    expect(buttonNamed("Keep training")!.disabled).toBe(false);
+  });
+
+  it("a session this iPad recorded from its Start finishes offline at once, from its own copy", async () => {
+    markRecordedHere(SESSION_ID);
+    netCtl.fromCache.add("exerciseLogs");
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+    finishCtl.commit = "hang"; // offline, the database never answers
+    await openFinish();
+    expect(waitLine()).toBeNull();
+    await act(async () => buttonNamed("Finish session")!.click());
+    await settle();
+    await settle();
+    expect(document.body.textContent).toContain("Wrap-up · session saved on this iPad");
+    expect(completed()).toHaveLength(1);
+  });
+
+  it("a session this iPad turned to watching loses its mark: brought back, it waits for the server", async () => {
+    markRecordedHere(SESSION_ID);
+    sessionDocs = [{ id: SESSION_ID, data: () => ({ ...SESSION_DOCS[0].data(), trainerId: "t-aj", trainerInitials: "AJ" }) }];
+    await mount(<Tracker />);
+    await settle();
+    expect(wasRecordedHere(SESSION_ID)).toBe(false);
+  });
+
+  it("a failed read of the sets says so, and Try again listens again", async () => {
+    netCtl.fail.add("exerciseLogs");
+    await openFinish();
+    expect(waitLine()?.getAttribute("data-state")).toBe("failed");
+    expect(buttonNamed("Finish session")!.disabled).toBe(true);
+    netCtl.fail.delete("exerciseLogs");
+    const again = Array.from(waitLine()!.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Try again")!;
+    await act(async () => again.click());
+    expect(waitLine()).toBeNull();
+    expect(buttonNamed("Finish session")!.disabled).toBe(false);
   });
 });
 

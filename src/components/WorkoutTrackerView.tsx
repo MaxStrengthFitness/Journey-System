@@ -59,6 +59,8 @@ import { stableHistory } from "../features/journey-grid/stable-history";
 import { useSendState } from "../features/session-record/useSendState";
 import { SendStatusStrip } from "../features/session-record/SendStatusStrip";
 import { finishedElsewhereAtTap, settleOrQueue } from "../features/session-record/finish-wait";
+import { refreshEndChoices, setsHeardFor, setsWaitWords, SETS_WAIT_BUTTON } from "../features/session-record/sets-heard";
+import { markRecordedHere, unmarkRecordedHere, wasRecordedHere } from "../features/session-record/recorded-here";
 import {
   readFromServer,
   finishRefusedAgainWords,
@@ -1181,6 +1183,8 @@ export function WorkoutTrackerView({
     // that raced it. completeWorkoutSession keeps an unknown "last time" safe
     // regardless (sync-utils, newerOnFile).
     if (!s?.id || !selectedClient || !user?.uid || !totalsKnown) return;
+    // Its sets as the server holds them, never a partial copy (F22).
+    if (staleSetsHeard !== "heard") return;
     const sessionLogs = (Object.values(logs) as ExerciseLog[]).filter((l) => l.sessionId === s.id);
     const stamped = sessionLogs.map((l) => {
       const o = outcomeAtFinish(l, null);
@@ -2134,6 +2138,8 @@ export function WorkoutTrackerView({
      session whose sets were read, says "loading" until they are, and a
      failed read is unknown, never "nothing on this machine". */
   const [logsWindow, setLogsWindow] = useState<{ key: string; ids: string[]; state: "ready" | "cache-only" | "failed" } | null>(null);
+  /* Listens again after a failed read, from the Finish question's Try again (F22). */
+  const [logsRetry, setLogsRetry] = useState(0);
   /* The window itself (machine-menu/older-read.ts): the running session, the
      one recorded here or the one being watched, and the newest past sessions,
      30 ids in all. The past sessions get 30 places, less one only when the
@@ -2203,9 +2209,17 @@ export function WorkoutTrackerView({
       );
       return () => unsubscribeLogs();
     }
-    // The window's ids are the whole of what this listens to.
+    // The window's ids are the whole of what this listens to (and a retry, after a failed read).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logsPlanKey]);
+  }, [logsPlanKey, logsRetry]);
+
+  /* A session this iPad turns to watching is recorded somewhere else from
+     then on: its sets are no longer all typed here, so a later Continue on
+     this iPad waits for the server before Finish stamps them (F22,
+     recorded-here.ts). */
+  useEffect(() => {
+    if (watchedSession?.id) unmarkRecordedHere(watchedSession.id);
+  }, [watchedSession?.id]);
 
   // Routine Alternation Logic & Historical Lifts Fetching
   useEffect(() => {
@@ -2669,6 +2683,8 @@ export function WorkoutTrackerView({
       // The device remembers the live session, so the bottom tab can bring
       // the trainer straight back after a crash (lib/live-session.ts).
       rememberLiveSession(sessionRef.id);
+      // Every set of it is typed here, so a Finish offline may stamp from this iPad's copy (F22).
+      markRecordedHere(sessionRef.id);
 
       /* A routine not decided yet: the session holds the list the briefing
          gave (often none) until it is, and the machine list is not taken
@@ -3452,6 +3468,10 @@ export function WorkoutTrackerView({
   const commitEndSession = async () => {
     if (!currentSession?.id || !selectedClient) return;
     if (finishingRef.current) return;
+    /* Not before this iPad has heard the session's sets (F22): stamped from
+       a copy that lacks them, real sets became "not reached" and left the
+       totals. The button waits with it; this holds a tap that raced it. */
+    if (finishSets !== "heard") return;
     // A client added on this iPad for this session (New client): nothing is on file for them anywhere.
     const createdHere = createdHereRef.current === selectedClient.id;
     /* A client chosen a moment ago (Who's this?) whose batch still waits on
@@ -4210,6 +4230,25 @@ export function WorkoutTrackerView({
   /* No tick here (R10): the strip under the bar keeps its own clock. */
   const sendState = useSendState({ tick: false });
   const markSent = sendState.sent;
+
+  /* Has this iPad heard the session's sets (F22, AJ's "a", Oct 16 2026:
+     "Finish waits for the sets"; features/session-record/sets-heard.ts)?
+     Finish, and "Finish it as it was", stamp and count from this iPad's copy
+     only then: the server answered for them, or every set was typed here.
+     Until then the Finish question waits and says why. */
+  const setsHeardHere = (sessionId: string | null | undefined) =>
+    setsHeardFor(sessionId, { window: logsWindow, recordedHere: (id) => wasRecordedHere(id), online: sendState.online });
+  const finishSets = setsHeardHere(currentSession?.id);
+  const staleSetsHeard = setsHeardHere(staleSession?.id);
+  /* The Finish question's "Started, no count" machines are worked out from
+     what this iPad held when it opened; once the sets are heard they are
+     worked out again, keeping every answer already given (F22). */
+  useEffect(() => {
+    if (!showEndConfirmation || finishSets !== "heard") return;
+    setEndChoices((prev) => refreshEndChoices<EndChoice>(prev, uncountedMachineIds(), "skipped"));
+    // uncountedMachineIds reads `logs` and today's list, both current in this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEndConfirmation, finishSets, logs]);
 
   const pendingLogWritesRef = useRef<
     Map<
@@ -5629,7 +5668,7 @@ export function WorkoutTrackerView({
         onResume={resumeStaleSession}
         onStartNew={leaveStaleSession}
         onFinishAsItWas={finishStaleSessionAsItWas}
-        finishAsItWasReady={totalsKnown}
+        finishAsItWasReady={totalsKnown && staleSetsHeard === "heard"}
         onDiscard={() => discardStale(staleSession, "client")}
         {...discardTermsOf(staleSession, !staleNotMine, false)}
         checkDiscard={staleNotMine ? () => checkStillLeftOpen(db, staleSession, staleSession.lastHeartbeatAt) : undefined}
@@ -6090,6 +6129,27 @@ export function WorkoutTrackerView({
                     </div>
                   ) : null}
                 </div>
+                {/* Finish waits for the session's sets (F22, sets-heard.ts):
+                    one line while it does, and Try again after a failed read. */}
+                {finishSets !== "heard" && (
+                  <div className="flex flex-col gap-2" data-testid="finish-waits-for-sets" data-state={finishSets}>
+                    <p role="status" className="text-sm text-ink-d2 break-words">
+                      {setsWaitWords(finishSets)}
+                    </p>
+                    {finishSets === "failed" && (
+                      <Button
+                        variant="outline"
+                        className="h-11 rounded-2xl self-start"
+                        onClick={() => {
+                          setLogsWindow(null);
+                          setLogsRetry((n) => n + 1);
+                        }}
+                      >
+                        Try again
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Button
                     variant="outline"
@@ -6105,9 +6165,10 @@ export function WorkoutTrackerView({
                   <Button
                     className="h-14 rounded-2xl shadow-(--go-lift) bg-cta text-cta-foreground hover:bg-cta"
                     onClick={() => void commitEndSession()}
-                    disabled={isSyncing}
+                    disabled={isSyncing || finishSets !== "heard"}
+                    aria-busy={finishSets === "getting" || undefined}
                   >
-                    {isSyncing ? "Saving…" : "Finish session"}
+                    {isSyncing ? "Saving…" : finishSets === "getting" ? SETS_WAIT_BUTTON : "Finish session"}
                   </Button>
                 </div>
                 <div className="pt-4 flex justify-center border-t border-slate-100 dark:border-slate-800 mt-2">

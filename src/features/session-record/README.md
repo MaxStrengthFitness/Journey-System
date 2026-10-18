@@ -25,6 +25,15 @@ It reads nothing and writes nothing.
 - `finishedElsewhere` asks the server whether another iPad already finished the session. Finish then writes nothing, so the client's totals are never counted twice. Offline, or with no answer, it says no and Finish goes ahead.
 - ~~What this cannot stop: an offline Finish that replays after another iPad finished the same session online.~~ AJ judged that extremely unlikely on Sep 26 2026; on Oct 12 2026 the sessions round's audit found the same double count also comes from a take-over from an offline iPad, one trainer on two iPads and two "Finish it as it was", and AJ said "2 and 3 I will trust your decision please be sure!": the database now guards it (below).
 
+## Finish waits for the sets (F22, Oct 17 2026)
+
+AJ's "a" on the three-day review (Oct 16 2026): "Finish waits for the sets". Finish writes every set it holds back with a merge, adds a "not reached" row under the set's own id for each machine it holds nothing for, and counts the totals from what it holds. On a session that reached this iPad by Resume, a take-over or Continue on this iPad, before the server had answered for its sets, that stamped real sets "not reached" and left them out of the client's totals.
+
+- `sets-heard.ts` `setsHeardFor` is the one rule: the sets are **heard** once the tracker's sets listener has had the server's answer for a window holding the session (`logsWindow` "ready"), or when this iPad recorded the session from its Start (`recorded-here.ts`); otherwise **getting** (online), **offline**, or **failed**.
+- Until heard, the Finish question says so in one line (`setsWaitWords`) and its button waits ("Getting the sets…"); a failed read offers Try again, which listens again. Keep training and Scrap session stay. Nothing is refused: every set is already saved, and a session left open is finished here once the sets arrive or as it was by anyone at the studio. "Finish it as it was" waits the same way (its button already said "Reading the machines…").
+- The "Started, no count" machines are worked out again once the sets are heard, keeping every answer given (`refreshEndChoices`).
+- `recorded-here.ts` keeps, in localStorage, the sessions this iPad made (Start, and the Client Directory's Open session): every set of them was typed here, so a Finish offline (the studio's Wi-Fi gone, even after a reload) goes ahead from the iPad's copy as before. The mark comes off when this iPad turns to watching the session, lasts twelve hours, and is forgotten at a sign-out; forgetting only makes a Finish wait for the server.
+
 ## A finish is counted once (the sessions round, Oct 12 2026)
 
 The sessions round is `docs/rounds/2026-10-12-sessions.md` (AJ, Oct 12 2026: "Anyone can clear a session"): a finish counted once (this section), a trainer on two devices (Continue on this iPad) and a session left open, cleared by anyone at the studio (both below).
