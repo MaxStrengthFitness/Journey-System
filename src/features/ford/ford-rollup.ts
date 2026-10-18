@@ -40,11 +40,6 @@ export function fordStudioIdOf(client: Client | null | undefined): string {
   return c.homeStudioId || c.studioId || "";
 }
 
-/** How many pinned lines per pillar the rollup carries. Enough to glance at. */
-const PINNED_PER_PILLAR = 3;
-/** Pinned lines are truncated in the rollup — it is a chip, not the record. */
-const PINNED_MAX_CHARS = 90;
-
 /* ------------------------------------------------------------------ */
 /* THE SUMMARY                                                         */
 /* ------------------------------------------------------------------ */
@@ -58,25 +53,18 @@ export function summariseFord(all: FordEntry[]): ClientFordSummary {
     recreation: 0,
     dreams: 0,
   };
-  const pinned: Partial<Record<FordPillar, string[]>> = {};
   let untagged = 0;
   let openOpportunities = 0;
 
+  // No FORD text goes into the summary. Until Oct 18 2026 it carried up to
+  // three pinned lines per pillar; nothing read them, and the client document
+  // they sat on is read by cross-train studios, which FORD shows nothing to
+  // (AJ's 2a on the Gemini Review Check page). Counts and dates only.
   for (const e of live) {
     if (!e.pillar) {
       untagged += 1;
     } else {
       counts[e.pillar] += 1;
-      if (e.isPinned) {
-        const bucket = (pinned[e.pillar] ||= []);
-        if (bucket.length < PINNED_PER_PILLAR) {
-          bucket.push(
-            e.body.length > PINNED_MAX_CHARS
-              ? `${e.body.slice(0, PINNED_MAX_CHARS - 1).trimEnd()}…`
-              : e.body,
-          );
-        }
-      }
     }
     if (e.opportunity && (e.opportunity.status === "idea" || e.opportunity.status === "planned")) {
       openOpportunities += 1;
@@ -88,7 +76,6 @@ export function summariseFord(all: FordEntry[]): ClientFordSummary {
   return {
     counts,
     untagged,
-    pinned,
     nextDate: upcoming
       ? {
           date: upcoming.when.toISOString().slice(0, 10),
@@ -105,11 +92,15 @@ export function summariseFord(all: FordEntry[]): ClientFordSummary {
 export function fordSummaryOf(client: Client | null | undefined): ClientFordSummary {
   const raw = (client as any)?.fordSummary;
   if (!raw || typeof raw !== "object") return EMPTY_FORD_SUMMARY;
+  // An old record may still carry `pinned` (FORD text, not written since
+  // Oct 18 2026). It is dropped here, so no caller sees FORD text through
+  // the summary.
+  const rest: Record<string, any> = { ...raw };
+  delete rest.pinned;
   return {
     ...EMPTY_FORD_SUMMARY,
-    ...raw,
-    counts: { ...EMPTY_FORD_SUMMARY.counts, ...(raw.counts || {}) },
-    pinned: raw.pinned || {},
+    ...rest,
+    counts: { ...EMPTY_FORD_SUMMARY.counts, ...(rest.counts || {}) },
   };
 }
 

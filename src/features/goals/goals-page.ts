@@ -31,8 +31,8 @@
  *  - Unknown is not empty. A read that has not answered, or failed, is said
  *    to be so — never "nothing written yet".
  *  - FORD text reaches only a reader FORD lets in (`fordStatus` "ready"). The
- *    client document's `fordSummary.pinned` is FORD text a cross-train studio
- *    can read, so nothing here reads it.
+ *    client document's `fordSummary.pinned` was FORD text a cross-train studio
+ *    could read; it is not written since Oct 18 2026, and nothing here reads it.
  *  - Dates are the studio's days, in en-US words ("Jan 22, 2027"). A day key
  *    is read at local noon, never through UTC.
  *  - No regex lookbehind (older iPadOS Safari fails the module).

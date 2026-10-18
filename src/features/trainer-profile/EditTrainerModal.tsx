@@ -632,7 +632,6 @@ export function EditTrainerModal({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent
-                  position="popper"
                   sideOffset={4}
                   className="bg-card border border-border text-foreground max-h-72 w-(--radix-select-trigger-width) min-w-85 font-bold shadow-2xl z-50 rounded-2xl p-1"
                 >

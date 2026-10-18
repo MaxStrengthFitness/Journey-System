@@ -37,6 +37,7 @@ import {
   type MuscleId,
 } from "../../types/machines";
 import { MACHINE_ANATOMY } from "../../data/machine-anatomy-map";
+import { canonicalMachineId } from "./machine-identity";
 
 export interface MachineAnatomy {
   primary: MuscleId[];
@@ -165,12 +166,19 @@ export function machinesForBodySlug(slug: string): string[] {
 
   const primaryHits: string[] = [];
   const secondaryHits: string[] = [];
+  const seen = new Set<string>();
 
   for (const entry of Object.values(MACHINE_ANATOMY)) {
+    // The map keeps `cervical_extension` as an alias of m-neck (its comment
+    // says why), so every walk of it collapses ids first: a region lists a
+    // machine once (Oct 18 2026).
+    const id = canonicalMachineId(entry.machineId);
+    if (seen.has(id)) continue;
+    seen.add(id);
     if (entry.primary.some((m) => ids.has(m))) {
-      primaryHits.push(entry.machineId);
+      primaryHits.push(id);
     } else if ((entry.secondary ?? []).some((m) => ids.has(m))) {
-      secondaryHits.push(entry.machineId);
+      secondaryHits.push(id);
     }
   }
 

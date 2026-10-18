@@ -96,10 +96,10 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | --- | --- | --- |
 | Install | `npm ci` | `npm install` fails with an `edgesOut` error |
 | Run locally | `npm run dev` | Port 3000 |
-| Typecheck | `npx tsc --noEmit` | Compare the error **count** to the baseline, **2** (`clinical-review/charts.tsx`, `EditTrainerModal.tsx`); don't expect zero. History by round: `docs/KNOWN-TRAPS.md#baselines` |
-| Tests | `npx vitest run src` | **14,805** passing in 899 files (Oct 18 2026, the trainer lock). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). A round puts its count in its round document and here; every earlier count is in `docs/KNOWN-TRAPS.md#baselines` |
+| Typecheck | `npx tsc --noEmit` | **0** errors since Oct 18 2026; CI holds it there (`.github/typecheck-baseline.txt`). History by round: `docs/KNOWN-TRAPS.md#baselines` |
+| Tests | `npx vitest run src` | **14,805** passing in 899 files (Oct 18 2026, the trainer lock). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
 | Build | `npx vite build` | Then `npm run check:bundle` (`scripts/check-bundle-budget.mjs`, a CI step since Oct 5 2026): the first screen at most 480 KB gzip, no charts, drag-and-drop or motion on it, and a PRODUCTION build (`NODE_ENV` unset or `production`; a `test` build ships React's development files and is refused). `src/first-screen.test.ts` names the import chain if the first screen reaches a heavy module |
-| Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken" means an old emulator still holds 8080 — stop it first. Runs in the cloud container too (Sep 26 2026: JDK 21 is there and the emulator downloads through the proxy) — AJ's run is still the one that counts |
+| Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken" means an old emulator still holds 8080 — stop it first. Runs in the cloud container too; AJ's run is the one that counts |
 
 **Deploy order:** `firebase deploy --only firestore:indexes` → `npm run test:rules` → `firebase deploy --only firestore:rules` → `git push origin master` → on Render, Manual Deploy on the web service and Manual Build on both cron jobs (the app goes live; see Environments). Rules go first when they only add access, so the running app is unaffected and the new one finds its rules waiting. If the rules tests fail, stop. Releases are shipped with a staged PowerShell script (`scripts/ship/ship-*.ps1`): `-Stage prepare`, then `-Stage golive`.
 
