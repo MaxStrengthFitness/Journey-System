@@ -60,7 +60,7 @@ with the Firebase CLI, through the ship scripts in `scripts/ship/`.
 | Live on the iPads | Render's web service serves **`7ddd393`** (`/version.json` `2026-10-15T14:17:18Z-7ddd393`, read Oct 15 2026): everything through the Deep Dive, live since `aa84626` on Oct 14 2026 at 23:59 UTC (strangers out changed no app code). AJ was asked to press Manual Build on both crons after the Oct 14 deploy; that can't be seen from here, so check each cron's page names `aa84626` or later |
 | GitHub `master` | **`7ddd3935`** (strangers out, pushed by its golive on Oct 15 2026 at 10:09 ET) |
 | Live rules | **strangers out's** (`privacy/0-strangers-out`), deployed and checked live by its golive on Oct 15 2026 at 10:09 ET; restore tag `restore/2026-10-14-before-privacy-0` |
-| Typecheck (`npx tsc --noEmit`) | **2** errors — the baseline (`charts.tsx`, `EditTrainerModal.tsx`). Compare the count; never expect zero |
+| Typecheck (`npx tsc --noEmit`) | **0** errors since Oct 18 2026 (the baseline was 2, `charts.tsx` and `EditTrainerModal.tsx`, until the Gemini review round). CI compares the count to `.github/typecheck-baseline.txt` |
 | Tests (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`) | **14,647** in 888 files on master `7ddd3935`, strangers out (rules tests **587**; 14,629 in 886 on `aa846261` before it); **14,653** in 889 on `oct15/docs-pass`, which adds the trim's test; `CLAUDE.md` keeps the running count |
 | First screen | 469.2 KB gzip of a 480 KB budget |
 | Branches waiting | `oct15/docs-pass` (this pass, with the CLAUDE.md trim and the 1-on-1's brief merged in; documents and one test only, so a push and no Render step: `git push origin oct15/docs-pass:master`, a fast-forward of `7ddd3935`). Nothing else is waiting |
