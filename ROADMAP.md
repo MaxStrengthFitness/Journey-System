@@ -830,9 +830,11 @@ corrections.
 **The floor and the client profile** — `machineStats` first/last dates are not
 recomputed when a past session is edited; `sessionNumber` on a backfill (Log
 past session) comes from the newest session (the FileMaker importer numbers its
-visits from the history itself); the Journey grid truncates machine names and
-shows ~7 columns in portrait (not re-checked since the names-wrap guard of Sep
-29 2026).
+visits from the history itself); the Journey grid's machine names wrap and the row grows
+(checked Oct 18 2026, the Gemini review round: `.jg-machine__label`, now under
+the names-wrap guard; this line had said "truncates" since Sep 29), and the
+grid's column widths are tokens (`--jg-col-machine`, `--jg-col-session`), about
+8 history columns in portrait.
 
 **Renewals and Operations** — Operations → Renewals settings matched to the
 Mindbody package names; the collision-checker batching fix; the

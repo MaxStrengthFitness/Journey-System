@@ -50,6 +50,7 @@ const NAME_RULES: { file: string; cls: string; exact?: string; what: string }[] 
   { file: "features/journey-grid/journey-grid.css", cls: "jg-sbar__name", what: "the client on the live session bar (WorkoutTrackerView, WatchingSession)" },
   { file: "features/journey-grid/journey-grid.css", cls: "jg-nb__name", what: "the current machine on the Now Bar" },
   { file: "features/journey-grid/journey-grid.css", cls: "jg-nb__nextname", what: "the next machine on the Now Bar" },
+  { file: "features/journey-grid/journey-grid.css", cls: "jg-machine__label", what: "a machine's name in the Active Session grid (the ROADMAP had said it truncated; Oct 18 2026)" },
   { file: "features/journey-grid/journey-grid.css", cls: "jg-order__add", exact: ".jg-order__add span", what: "a machine in the routine-order sheet" },
   // The floor on day one (the first-session design round, Oct 8 2026, §4.6).
   { file: "features/phone/phone.css", cls: "ph-card__next", what: "\"Next: Leg Press\" and \"Next in the plan: Hip Abduction · Add\" on the phone's card in hand" },
