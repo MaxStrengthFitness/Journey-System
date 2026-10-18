@@ -606,7 +606,8 @@ describe("the session's dialogs and sheets speak the same voice", () => {
     expect(start).toBeGreaterThan(0);
     const dialogs = tracker.slice(start, end);
     const outlines = [...dialogs.matchAll(/<Button\s+variant="outline"[^>]*?className="([^"]*)"/g)].map((m) => m[1]);
-    expect(outlines.length).toBe(3);
+    // New client, Keep training, Scrap's Resume session, and Try again while Finish waits for the sets (F22, Oct 17 2026).
+    expect(outlines.length).toBe(4);
     for (const list of outlines) expect(list).not.toMatch(/border-slate-|border-2\b|hover:bg-slate-/);
     const note = /<Textarea\s+id="next-trainer-note"[\s\S]*?className="([^"]*)"/.exec(dialogs)?.[1];
     expect(note).toBeDefined();
