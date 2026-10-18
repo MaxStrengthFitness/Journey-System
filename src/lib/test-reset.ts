@@ -1275,7 +1275,9 @@ export function sameFordCounts(stored: unknown, next: ClientFordSummary): boolea
     sameValue(s.counts ?? null, next.counts) &&
     (s.untagged ?? 0) === next.untagged &&
     (s.openOpportunities ?? 0) === next.openOpportunities &&
-    sameValue(s.pinned ?? {}, next.pinned)
+    // A legacy `pinned` copy (FORD text, not written since Oct 18 2026) makes
+    // the stored summary stale, so the run rewrites it without the text.
+    Object.keys(s.pinned ?? {}).length === 0
   );
 }
 

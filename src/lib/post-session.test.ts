@@ -8,6 +8,7 @@ import {
   nextBookingAnswer,
   nextBookingFor,
   nextBookingSentence,
+  rowGainWords,
   strengthJourney,
   timesDoor,
   todayHeadline,
@@ -333,5 +334,22 @@ describe("congratulation (the Wrap-up's title, Oct 2 2026)", () => {
       expect(t).not.toContain("{name}");
       expect(t).not.toMatch(/,\s*\./);
     }
+  });
+});
+
+describe("rowGainWords: each row says its gain (the Wrap-up round, AJ's 2a, Oct 18 2026)", () => {
+  it("says the month this year, the month and year before it", () => {
+    expect(rowGainWords({ pct: 28, since: "2026-03-02" }, "2026-10-18")).toBe("+28% since Mar");
+    expect(rowGainWords({ pct: 35, since: "2025-11-20" }, "2026-10-18")).toBe("+35% since Nov 2025");
+  });
+  it("says the % alone when the start's day is unknown or unreadable", () => {
+    expect(rowGainWords({ pct: 12, since: null }, "2026-10-18")).toBe("+12%");
+    expect(rowGainWords({ pct: 12, since: "March" }, "2026-10-18")).toBe("+12%");
+  });
+  it("says nothing unless the load is up, as the Now Bar", () => {
+    expect(rowGainWords({ pct: 0, since: "2026-03-02" }, "2026-10-18")).toBeNull();
+    expect(rowGainWords({ pct: -8, since: "2026-03-02" }, "2026-10-18")).toBeNull();
+    expect(rowGainWords(null, "2026-10-18")).toBeNull();
+    expect(rowGainWords(undefined, "2026-10-18")).toBeNull();
   });
 });

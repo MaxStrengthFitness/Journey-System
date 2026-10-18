@@ -59,6 +59,35 @@ export interface TodayLine {
    */
   first: boolean;
   skipReason?: string | null;
+  /**
+   * How far this machine's load has come (the Wrap-up round, AJ, Oct 18
+   * 2026, "2a"): the Now Bar's green figure, from the same rule
+   * (machine-menu/progress-figure.ts), worked out at Finish. Absent when it
+   * isn't up, or Journey can't stand behind the start.
+   */
+  gain?: RowGain | null;
+}
+
+/** One row's gain: a whole percent above 0, and the studio day it counts from. */
+export interface RowGain {
+  pct: number;
+  /** `YYYY-MM-DD`: the day the starting weight was set, or the first counted session's. Null when unknown. */
+  since: string | null;
+}
+
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/**
+ * A row's gain in words: "+28% since Mar", "+28% since Mar 2025" before this
+ * year, "+28%" when the start's day is unknown. Null when there is no gain
+ * to say: a % is said only when it is up, as on the Now Bar.
+ */
+export function rowGainWords(gain: RowGain | null | undefined, todayYmd: string): string | null {
+  if (!gain || !Number.isFinite(gain.pct) || gain.pct <= 0) return null;
+  const m = gain.since ? /^(\d{4})-(\d{2})-\d{2}$/.exec(gain.since) : null;
+  const month = m ? MONTH_SHORT[Number(m[2]) - 1] : undefined;
+  if (!m || !month) return `+${gain.pct}%`;
+  return m[1] === todayYmd.slice(0, 4) ? `+${gain.pct}% since ${month}` : `+${gain.pct}% since ${month} ${m[1]}`;
 }
 
 const num = (v: unknown): number | null => {

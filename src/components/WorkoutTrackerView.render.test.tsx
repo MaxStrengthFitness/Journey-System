@@ -36,6 +36,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, act, useState } from "react";
+import { UnsavedChangesProvider } from "../features/unsaved-changes";
 import { createRoot, type Root } from "react-dom/client";
 
 /* ------------------------------------------------------------------ *
@@ -404,6 +405,14 @@ const studioCtx = vi.hoisted(() => ({
  * while the menu is open), so counting the calls counts the tracker's
  * renders; toJourneyRows is what rebuilds every row of the grid.
  */
+/* The trainer's own notebook (Just for me), caught here: what it was handed. */
+const jotted = vi.hoisted(() => [] as { clientId: string; text: string }[]);
+vi.mock("../features/relay/notes/client-jots", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../features/relay/notes/client-jots")>()),
+  jotAbout: async (input: { clientId: string; text: string }) => {
+    jotted.push(input);
+  },
+}));
 const renders = vi.hoisted(() => ({ tracker: 0, rows: 0 }));
 vi.mock("../features/session-record/useSendState", async (importOriginal) => {
   const realMod = await importOriginal<typeof import("../features/session-record/useSendState")>();
@@ -943,7 +952,12 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(label).toBeDefined();
     const box = document.getElementById(label!.getAttribute("for")!);
     expect(box?.tagName).toBe("TEXTAREA");
-    expect(document.getElementById(box!.getAttribute("aria-describedby")!)?.textContent).toBe("On the next four briefings.");
+    // The same note box as the Wrap-up's (the Wrap-up round, Oct 18 2026, "n2 a"): at Next time, and it says where it lands.
+    expect(document.getElementById(box!.getAttribute("aria-describedby")!)?.textContent).toMatch(/· read out on the next 4 briefings$/);
+    const goes = document.querySelector('[data-testid="next-trainer-box"] [role="radiogroup"][aria-label="Goes to"]')!;
+    expect(goes.querySelector('[aria-checked="true"]')!.textContent).toBe("Next time");
+    expect(label!.textContent).toBe("Note for the next trainer");
+    expect(document.body.textContent).not.toContain("(optional)");
     // "Wrap-up" is the post-session screen's name now, not this box's.
     expect(document.body.textContent).not.toContain("Wrap-up note");
   });
@@ -989,7 +1003,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
 
     // It is back on the Wrap-up, in the To-file tray: said for what it is,
     // fileable, and with no Discard (a discard would take it off the briefing).
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const card = document.querySelector('[data-testid="sweep-j-1"]')!;
     expect(card).toBeTruthy();
     expect(card.textContent).toContain("Note for the next trainer · on the next briefing");
@@ -998,17 +1012,61 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(buttons.some((t) => t?.includes("Discard"))).toBe(false);
   });
 
+  it("opens a machine's card from the Wrap-up, and words typed in it ask before they are lost (the round's review, Oct 18 2026)", async () => {
+    const host = await mount(
+      <UnsavedChangesProvider>
+        <Tracker />
+      </UnsavedChangesProvider>,
+    );
+    await act(async () => (host.querySelector(".jg-sbar__finish") as HTMLButtonElement).click());
+    await act(async () => finishButton()!.click());
+    await settle();
+    await settle();
+    const door = document.querySelector<HTMLButtonElement>('[data-testid="wrapup-machine-door"]');
+    expect(door).not.toBeNull();
+    await act(async () => door!.click());
+    await settle();
+    expect(document.querySelector(".mm-dialog .mm-card")).not.toBeNull();
+    const words = document.querySelector<HTMLTextAreaElement>('.mm-dialog [data-block="notes"] textarea');
+    expect(words).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(words!, "Seat felt low today");
+      words!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    // The card keeps its own words on the Wrap-up (the session's draft is gone), so Close asks first.
+    await act(async () => document.querySelector<HTMLButtonElement>(".mm-dialog .mm-close")!.click());
+    await settle();
+    expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+  });
+
+  it("keeps a just-for-me note at Finish to the trainer's own notebook: never the journal, never the session's copy (n2 a)", async () => {
+    jotted.length = 0;
+    await openEndSession();
+    const box = document.getElementById("next-trainer-note") as HTMLTextAreaElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "Ask how the move went, quietly.");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => (document.querySelector('[data-testid="next-trainer-box"] [data-testid="note-box-just-for-me"]') as HTMLButtonElement).click());
+    expect(document.querySelector('[data-testid="next-trainer-box"] [data-testid="note-box-where"]')!.textContent).toMatch(/^Your own notebook/);
+    await act(async () => finishButton()!.click());
+    await settle();
+    await settle();
+    expect(jotted).toEqual([expect.objectContaining({ clientId: expect.any(String), text: "Ask how the move went, quietly." })]);
+    expect(journalDocs).toHaveLength(0);
+    expect(completedWrites()[0].data.notes ?? "").toBe("");
+  });
+
   it("files the Note for the next trainer as it is written when a kind is picked, so it never waits in the tray (Oct 3 2026)", async () => {
     await openEndSession();
-    // Nothing typed: no extra row.
-    expect(document.querySelector('[data-testid="next-trainer-file-as"]')).toBeNull();
+    // What it's for shows before a word is typed (the Wrap-up round, Oct 18 2026).
+    const row = document.querySelector(`[data-testid="next-trainer-box"] [role="group"][aria-label="What it's for"]`)!;
+    expect(row).toBeTruthy();
     const box = document.getElementById("next-trainer-note") as HTMLTextAreaElement;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "Mentioned she may not renew in May.");
       box.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    const row = document.querySelector('[data-testid="next-trainer-file-as"]')!;
-    expect(row).toBeTruthy();
     const retention = Array.from(row.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Retention")!;
     await act(async () => retention.click());
     await act(async () => finishButton()!.click());
@@ -1035,7 +1093,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
     await settle();
     await settle();
 
-    expect(document.body.textContent).toContain("Wrap-up · session saved on this iPad");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
     // The writes were made, on the iPad, before anything waited.
     expect(completedWrites()).toHaveLength(1);
     expect(totalsWrites()).toHaveLength(1);
@@ -1051,7 +1109,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(totalsWrites()).toHaveLength(0);
     expect(completedWrites()).toHaveLength(0);
     expect(document.body.textContent).toContain("already finished on another iPad");
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
   });
 
   it("finishes once when Finish session is tapped twice at once", async () => {
@@ -1066,7 +1124,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
 
     expect(totalsWrites()).toHaveLength(1);
     expect(completedWrites()).toHaveLength(1);
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(document.body.textContent).not.toContain("saved on this iPad");
   });
 });
@@ -1150,7 +1208,7 @@ describe("Finish waits for a resumed session's sets, and never stamps sets it ha
     await act(async () => buttonNamed("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved on this iPad");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
     expect(completed()).toHaveLength(1);
   });
 
@@ -2760,17 +2818,48 @@ describe("session writes never wait on the network (speed round, Oct 5 2026; R9)
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved on this iPad");
-    const box = document.querySelector<HTMLTextAreaElement>('textarea[placeholder^="Profile note"]');
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
+    // The note box opens from the minute after's row (the Wrap-up round, Oct 18 2026).
+    await act(async () => (document.querySelector('[data-testid="after-note"]') as HTMLButtonElement).click());
+    const box = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Note"]');
     expect(box).not.toBeNull();
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box!, "Likes the new seat height.");
       box!.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    // Filed where the box says: Preference, staying on the profile.
+    const what = document.querySelector(`[role="group"][aria-label="What it's for"]`)!;
+    await act(async () => (Array.from(what.querySelectorAll("button")).find((b) => b.textContent === "Preference") as HTMLButtonElement).click());
     const back = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Back to Hub")!;
     await act(async () => back.click());
     expect(setViewSpy).toHaveBeenCalledWith("clients");
-    expect(journalDocs.some((d) => d.data().body === "Likes the new seat height.")).toBe(true);
+    const filed = journalDocs.find((d) => d.data().body === "Likes the new seat height.")!.data();
+    expect(filed).toMatchObject({ kind: "preference", importance: "standard", origin: "post_session" });
+  });
+
+  it("files a sore spot from the Wrap-up as a Health note with its spot, at Next time (AJ's N3 a)", async () => {
+    offline();
+    const host = await mount(<Tracker />);
+    await act(async () => (host.querySelector(".jg-sbar__finish") as HTMLButtonElement).click());
+    const finish = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Finish session")!;
+    await act(async () => finish.click());
+    await settle();
+    await settle();
+    await act(async () => (document.querySelector('[data-testid="after-sore"]') as HTMLButtonElement).click());
+    const tag = Array.from(document.querySelectorAll('[data-testid="wrapup-sore"] button')).find((b) => b.textContent?.includes("Tag body region"))!;
+    await act(async () => (tag as HTMLButtonElement).click());
+    const picker = document.querySelector('[role="dialog"][aria-label="Body region picker"]')!;
+    await act(async () => (Array.from(picker.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Knees") as HTMLButtonElement).click());
+    const stiff = Array.from(document.querySelectorAll('[role="dialog"][aria-label="Body region picker"] [role="radio"]')).find((r) =>
+      r.getAttribute("aria-label")?.startsWith("Stiff"),
+    )!;
+    await act(async () => (stiff as HTMLButtonElement).click());
+    const back = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Back to Hub")!;
+    await act(async () => back.click());
+    const spot = journalDocs.find((d) => d.data().body === "Knees · Stiff")!.data();
+    expect(spot).toMatchObject({ importance: "elevated", origin: "post_session", bodyParts: [{ part: "knee", side: "both" }] });
+    // Only Pain and Stiff are read out at Next time: a spot rated better stays on the profile (the round's review).
+    expect(["injury", "health"]).toContain(spot.kind);
   });
 
   it("Finish asks 'finished elsewhere?' when the dialog opens, so the tap makes no second read", async () => {
@@ -3224,7 +3313,7 @@ describe("the Wrap-up's Next time, from Finish to the routine (Oct 8 2026)", () 
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     return host;
   };
   const card = () => document.querySelector('[data-testid="next-time"]');
@@ -3473,7 +3562,7 @@ describe("the Wrap-up's Next time, from Finish to the routine (Oct 8 2026)", () 
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(card()).toBeNull();
     writes.length = 0;
     await backToHub();
@@ -3510,7 +3599,7 @@ describe("the Wrap-up's Next time, from Finish to the routine (Oct 8 2026)", () 
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(card()!.textContent).toContain("Tick the ones that start Routine A.");
     expect(tickFor("Leg Press (Hoist)").getAttribute("aria-checked")).toBe("false");
     expect(tickFor("Rear Delt Hoist")).toBeTruthy();
@@ -3909,7 +3998,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await settle();
     await settle();
 
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(setViewSpy).not.toHaveBeenCalledWith("profile");
     const finished = writes.find((w) => w.path === `sessions/${OPEN_ID}` && w.data?.status === "Completed")!;
     expect(finished.data.clientId).toBe(CLIENT_ID);
@@ -4024,7 +4113,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const assign = sessionAssignWrite()!;
     const finished = writes.find((w) => w.path === `sessions/${OPEN_ID}` && w.data?.status === "Completed")!;
     expect(assign, "the assign").toBeTruthy();
@@ -4046,7 +4135,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const setting = writes.find((w) => w.path === `clientMachineSettings/${CLIENT_ID}_m-leg-press`)!;
     expect(setting, "today's weight is still written").toBeTruthy();
     expect(setting.data.currentWeight).toBe(100);
@@ -4135,14 +4224,14 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     // The assign's batch is refused, late.
     await act(async () => {
       netCtl.refusals[0](new Error("permission-denied"));
     });
     await settle();
     expect(document.body.textContent).not.toContain("press Who's this? again");
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
   });
   /* SETTINGS HELD ON THE SESSION (the open session round, Oct 9 2026; AJ's
      "3a": "Settings typed before the client is chosen are kept on the
@@ -4273,7 +4362,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const session = sessionAssignWrite()!;
     expect(isDelete(session.data.heldSetup)).toBe(true);
     const setting = writes.find((w) => w.path === `clientMachineSettings/${CLIENT_ID}_sm-solon-rear-delt` && w.batch === session.batch)!;
@@ -4381,7 +4470,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(document.querySelector('[data-testid="next-time"]'), "never a guess before the routines answer").toBeNull();
     await act(async () => netCtl.release("routines"));
     await settle();

@@ -323,7 +323,7 @@ How the counts were built:
 
 **Company-wide on top of that** (driver #3):
 
-- **Reloads.** 18 reloads a studio a day, each reading all N studios, all ~8N trainers, the machine catalog twice (`useMachines.ts:14` and `useMachineCatalog.ts:32`, two different queries) and the whole `hub_announcements` collection with no filter (`src/features/notifications/useHubAnnouncements.ts:73-74`).
+- **Reloads.** 18 reloads a studio a day, each reading all N studios, all ~8N trainers, the machine catalog twice in this model (`useMachines` and `useMachineCatalog` each had a query; since the speed round, Oct 5 2026, both share the one listener in `src/lib/machines-store.ts`) and the whole `hub_announcements` collection with no filter (`src/features/notifications/useHubAnnouncements.ts:73-74`).
 - **Pushes.** About 0.65 × 6 × N × w per studio per day, where w is 190 writes per studio per day at 80 clients and 300 at 210.
 
 **Scheduled jobs:**

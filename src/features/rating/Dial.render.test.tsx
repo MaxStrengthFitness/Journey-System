@@ -113,7 +113,7 @@ describe("Dial", () => {
 });
 
 describe("Loudness", () => {
-  it("draws Note · Heads up · Critical and reports the tap", async () => {
+  it("draws Profile only · Next time · Critical and reports the tap", async () => {
     const seen: JournalImportance[] = [];
     function H() {
       const [v, setV] = useState<JournalImportance>("standard");
@@ -129,7 +129,8 @@ describe("Loudness", () => {
     }
     const host = await mount(<H />);
     const radios = host.querySelectorAll<HTMLButtonElement>('[role="radio"]');
-    expect(Array.from(radios).map((r) => r.textContent)).toEqual(["Note", "Heads up", "Critical"]);
+    // Where the note goes (the Wrap-up round, Oct 18 2026, "n1 a"); the stored values are unchanged.
+    expect(Array.from(radios).map((r) => r.textContent)).toEqual(["Profile only", "Next time", "Critical"]);
     expect(radios[0].getAttribute("aria-checked")).toBe("true");
     await act(async () => radios[2].click());
     expect(seen).toEqual(["critical"]);

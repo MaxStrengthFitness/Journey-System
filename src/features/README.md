@@ -28,7 +28,7 @@ New code goes here.
 | `equipment/` | Profile, Programming tab: All Machines, setting suggestions. The one card for a client on a machine is `machine-menu/` since Oct 4 2026 | `README.md` |
 | `machine-menu/` | The machine menu: ONE card for a client on one machine (safety, the settings, notes, the Staircase), opened from the Active Session and the profile | `README.md` |
 | `machine-totals/` | A client's machine maps in their own document (`clients/{id}/machineTotals/current`, since Oct 6 2026) | `README.md` |
-| `next-weight/` | The Wrap-up's next-session weight (`NextWeightCard`) | `next-weight.ts` |
+| `next-weight/` | The Wrap-up's next-session weight, on each of today's rows (`NextWeightStepper` in `NextWeightCard.tsx`) | `next-weight.ts` |
 | `client-history/` | Profile, Activity Archive: Calendar and Sessions | `README.md` |
 | `clinical-review/` | Profile, Activity Archive: Trends (the Kaizen Deep Dive) | `facts.ts` |
 | `progress-report/` | The Client Progress Report, the five-step conversation | `README.md` |

@@ -276,7 +276,7 @@ export const MACHINE_ANATOMY: Record<string, MachineAnatomyMap> = {
    * ALIAS of m-neck, not a second machine.
    *
    * Kept because two other data files reference this id directly —
-   * clinical-matrix.ts (affectedMachineIds) and routine-templates.ts — so
+   * clinical-matrix.ts (affectedMachineIds) and machine-database.ts — so
    * deleting it here would break lookups that have nothing to do with the
    * diagram. features/catalog/machine-identity.ts collapses it onto m-neck,
    * so the Catalog never shows it twice; anything else iterating this map
