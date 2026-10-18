@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Dumbbell, GraduationCap, LayoutGrid } from "lucide-react";
 import type { Machine, Trainer } from "../../types";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
@@ -13,6 +13,7 @@ import {
   type AcademyJump,
 } from "../academy/AcademyWikiView";
 import type { CatalogScope } from "../machine-db/ScopeSwitch";
+import { findQuoteElement } from "../ask-academy/find-quote";
 import { LearningHome } from "./LearningHome";
 import { LearningSearch } from "./LearningSearch";
 import { canWriteStudioPages } from "./permissions";
@@ -97,6 +98,9 @@ export function LearningView({
   const [catalogScope, setCatalogScope] = useState<CatalogScope | null>(null);
   const [academyJump, setAcademyJump] = useState<AcademyJump | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  /** A quote from an Ask the Academy answer, to scroll to once its page has drawn (AJ's 2a). */
+  const [pendingQuote, setPendingQuote] = useState<string | null>(null);
+  const pages = useRef<HTMLDivElement | null>(null);
 
   const canWritePages = canWriteStudioPages(authTrainer, activeStudioId);
 
@@ -152,11 +156,43 @@ export function LearningView({
     [onViewChange],
   );
 
-  /** The one door into a page, from inside the tab. */
+  /** The one door into a page, from inside the tab. `quote`: from an Ask the Academy answer. */
   const openRef = useCallback(
-    (ref: LearningRef) => through(() => openRefNow(ref)),
+    (ref: LearningRef, quote?: string) =>
+      through(() => {
+        openRefNow(ref);
+        setPendingQuote(quote ?? null);
+      }),
     [through, openRefNow],
   );
+
+  /*
+   * Ask the Academy (phase 2): the page a quote came from opens scrolled to the
+   * quote, highlighted. The page draws after its chunk arrives, so look for a
+   * few seconds; if the words never appear (a term opens as a card, say), the
+   * page simply stays at its top.
+   */
+  useEffect(() => {
+    if (!pendingQuote || searchOpen) return;
+    const started = Date.now();
+    let timer = 0;
+    const look = () => {
+      const root = pages.current;
+      const hit = root ? findQuoteElement(root, pendingQuote) : null;
+      if (hit) {
+        root?.querySelectorAll(".aa-quote-hit").forEach((el) => el.classList.remove("aa-quote-hit"));
+        hit.classList.add("aa-quote-hit");
+        hit.scrollIntoView({ block: "center" });
+        setPendingQuote(null);
+      } else if (Date.now() - started < 5000) {
+        timer = window.setTimeout(look, 150);
+      } else {
+        setPendingQuote(null);
+      }
+    };
+    timer = window.setTimeout(look, 0);
+    return () => window.clearTimeout(timer);
+  }, [pendingQuote, searchOpen]);
 
   // From outside the tab: AppContent's openLearning asked before it set this.
   useEffect(() => {
@@ -212,7 +248,7 @@ export function LearningView({
     <WikiSectionsProvider value={sections}>
       {/* Hidden, not unmounted, while search is open: closing search returns
           the trainer to the page they left, not to its section's index. */}
-      <div className={searchOpen ? "lv__stash" : "lv__pass"}>
+      <div ref={pages} className={searchOpen ? "lv__stash" : "lv__pass"}>
         {view === "learning" && (
           <LearningHome
             machines={machines}

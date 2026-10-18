@@ -34,6 +34,8 @@ export interface ShownQuote {
   pageId: string;
   /** Where it sits and its title, as a trainer reads it: "Mastery Series › Breathing". */
   page: string;
+  /** The page title alone; for a glossary term, the term (which is how Learning opens it). */
+  title: string;
 }
 
 export type AskResult =
@@ -67,7 +69,7 @@ const shown = (points: AnswerPoint[], sent: readonly AcademyPage[]) =>
     says: p.says,
     quotes: p.quotes.map((q) => {
       const page = sent.find((s) => s.id === q.pageId);
-      return { text: q.text, pageId: q.pageId, page: page ? documentTitle(page) : q.pageId };
+      return { text: q.text, pageId: q.pageId, page: page ? documentTitle(page) : q.pageId, title: page?.title ?? q.pageId };
     }),
   }));
 

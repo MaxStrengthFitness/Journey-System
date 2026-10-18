@@ -36,7 +36,7 @@ describe("askAcademy", () => {
     expect(result).toEqual({
       kind: "answered",
       health: false,
-      points: [{ says: "Keep them breathing.", quotes: [{ text: "Breathe freely throughout the set.", pageId: breathing.id, page: "Shelf › topic:mastery-breathing" }] }],
+      points: [{ says: "Keep them breathing.", quotes: [{ text: "Breathe freely throughout the set.", pageId: breathing.id, page: "Shelf › topic:mastery-breathing", title: "topic:mastery-breathing" }] }],
     });
     expect(cost).toBeGreaterThan(0);
   });

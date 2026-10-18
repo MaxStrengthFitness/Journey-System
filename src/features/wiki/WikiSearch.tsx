@@ -60,6 +60,8 @@ export interface WikiSearchProps {
   placeholder?: string;
   /** Shown before anything is typed — recent, or a hint about what is searchable. */
   idle?: ReactNode;
+  /** Shown first once something is typed, above the matches: Learning's Ask the Academy row. */
+  lead?: ReactNode;
 }
 
 export function WikiSearch({
@@ -70,6 +72,7 @@ export function WikiSearch({
   groups,
   placeholder = "Search…",
   idle,
+  lead,
 }: WikiSearchProps) {
   const field = useRef<HTMLInputElement | null>(null);
 
@@ -135,6 +138,8 @@ export function WikiSearch({
 
       <div className="wk__search-results">
         {!typed && idle}
+
+        {typed && lead}
 
         {typed && total === 0 && (
           <p className="wk__empty">

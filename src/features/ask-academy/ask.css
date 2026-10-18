@@ -1,0 +1,138 @@
+/*
+ * Ask the Academy (phase 2): the Ask row in Learning's search and the answer
+ * page. Learning's tokens only (wiki/wiki.tokens.css): blue acts and selects
+ * (--wk-live), plum is a clinical caution (--wk-warn), the Academy's words sit
+ * in the tray. No hex here.
+ */
+
+.aa__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: var(--wk-tap);
+  margin: 0.75rem 0 0.25rem;
+  padding: 0.7rem 0.9rem;
+  border: 1.5px solid var(--wk-live);
+  border-radius: var(--wk-radius);
+  background: var(--wk-live-fill);
+  color: var(--wk-ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: var(--wk-elev-1);
+}
+.aa__row:active { box-shadow: var(--wk-press); }
+.aa__row:focus-visible { outline: none; box-shadow: var(--wk-focus-ring); }
+.aa__row-icon, .aa__row-go { flex: none; color: var(--wk-live-text); }
+.aa__row-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.aa__row-title { font-weight: 700; color: var(--wk-live-text); overflow-wrap: anywhere; }
+.aa__row-q { font-weight: 600; color: var(--wk-ink); }
+.aa__row-meta { font-size: 13px; color: var(--wk-ink-muted); }
+
+.aa__bar-label {
+  font-family: var(--wk-font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+
+.aa__body {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  max-width: var(--wk-measure);
+}
+
+.aa__question {
+  margin: 0.75rem 0 0;
+  font-family: var(--wk-font-display);
+  font-weight: 700;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.aa__question:focus { outline: none; }
+
+.aa__status { margin: 0; color: var(--wk-ink-muted); font-size: 15px; }
+
+.aa__note {
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  padding: 14px 16px;
+  border-radius: var(--wk-radius);
+  background: var(--wk-tray);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.aa__note p { margin: 0; }
+
+.aa__retry {
+  min-height: var(--wk-tap);
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: var(--wk-radius);
+  background: var(--wk-live);
+  color: var(--wk-live-on);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.aa__retry:focus-visible { outline: none; box-shadow: var(--wk-focus-ring); }
+
+.aa__points { margin: 0; padding: 0; list-style: none; display: grid; gap: 1.1rem; }
+.aa__point { display: grid; gap: 0.5rem; }
+.aa__point--caution {
+  padding: 12px 14px;
+  border-left: 3px solid var(--wk-warn);
+  border-radius: var(--wk-radius);
+  background: var(--wk-warn-fill);
+}
+.aa__caution-tag {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wk-warn-strong);
+}
+.aa__says { margin: 0; font-weight: 600; font-size: 15px; line-height: 1.45; }
+
+.aa__quote {
+  margin: 0;
+  display: grid;
+  gap: 0.25rem;
+  padding: 10px 14px 4px;
+  border-radius: var(--wk-radius);
+  background: var(--wk-tray);
+}
+.aa__words { margin: 0; font-size: 15px; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.aa__page {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--wk-tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.aa__page:focus-visible { outline: none; box-shadow: var(--wk-focus-ring); border-radius: 6px; }
+
+.aa__foot { margin: 0 0 1.5rem; font-size: 13px; color: var(--wk-ink-muted); }
+
+/* The quote a page was opened at (LearningView marks it; AJ's 2a). */
+.aa-quote-hit {
+  background: var(--wk-live-fill);
+  box-shadow: 0 0 0 3px var(--wk-live-fill);
+  border-radius: 4px;
+  scroll-margin-top: 96px;
+}

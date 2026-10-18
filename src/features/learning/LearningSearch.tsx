@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Machine } from "../../types";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
+import { AskAnswer, AskRow } from "../ask-academy/AskAnswer";
 import { WikiSearch, type WikiSearchGroup } from "../wiki";
 import { learningRefKey, type LearningRef } from "./ref";
 import { searchLearning, type LearningSearchGroupKey } from "./search";
@@ -20,6 +21,8 @@ import { useLearningEntries } from "./useLearningEntries";
  *   - this studio's machines, by name, Academy code, muscle, category;
  *   - the Academy's machine documents, modules, topic titles, glossary terms;
  *   - this studio's own pages.
+ * And, once two words are typed, the Ask the Academy row (features/ask-academy):
+ * a question answered in the Academy's own words, asked only when tapped.
  * Not the text of the curriculum: that would mean downloading all 283,000
  * words to look inside them, on an iPad, mid-shift.
  *
@@ -31,13 +34,16 @@ export interface LearningSearchProps {
   /** The global machine list, for a studio whose roster is still empty. */
   machines: Machine[];
   onClose: () => void;
-  onOpen: (ref: LearningRef) => void;
+  /** `quote`: opened from an Ask the Academy answer, to be scrolled to and highlighted. */
+  onOpen: (ref: LearningRef, quote?: string) => void;
 }
 
 export function LearningSearch({ machines, onClose, onOpen }: LearningSearchProps) {
   const { activeStudioId, activeStudio } = useActiveStudio();
   const studioName = activeStudio?.name ?? "This studio";
   const [query, setQuery] = useState("");
+  /** The question being answered (Ask the Academy, phase 2); null while searching. */
+  const [asking, setAsking] = useState<string | null>(null);
 
   const entries = useLearningEntries({ machines, studioId: activeStudioId });
 
@@ -71,6 +77,10 @@ export function LearningSearch({ machines, onClose, onOpen }: LearningSearchProp
     return map;
   }, [results]);
 
+  if (asking) {
+    return <AskAnswer question={asking} onBack={() => setAsking(null)} onOpenQuote={(ref, quote) => onOpen(ref, quote)} />;
+  }
+
   return (
     <WikiSearch
       value={query}
@@ -81,6 +91,7 @@ export function LearningSearch({ machines, onClose, onOpen }: LearningSearchProp
         if (ref) onOpen(ref);
       }}
       groups={groups}
+      lead={<AskRow query={query} onAsk={() => setAsking(query.replace(/s+/g, " ").trim())} />}
       placeholder="Search machines, muscles, the Academy…"
       idle={
         <div className="wk__empty">
@@ -94,6 +105,11 @@ export function LearningSearch({ machines, onClose, onOpen }: LearningSearchProp
             muscle (<strong>glute</strong>, <strong>lat</strong>), a topic, or a
             term (<strong>turnaround</strong>). Topic titles are searched; the
             full text of the curriculum is not.
+          </p>
+          <p>
+            Or type a question, like <strong>my client holds their breath</strong>,
+            and tap <strong>Ask the Academy</strong> for an answer in the
+            Academy's own words.
           </p>
         </div>
       }

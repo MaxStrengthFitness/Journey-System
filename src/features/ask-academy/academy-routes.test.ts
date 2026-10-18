@@ -28,7 +28,7 @@ const signedInAs = (uid: string): RequestHandler => (_req, res, next) => {
   next();
 };
 
-const ANSWER: AskResult = { kind: "answered", health: false, points: [{ says: "Keep them breathing.", quotes: [{ text: "Breathe freely.", pageId: "topic:mastery-breathing", page: "Mastery Series › Breathing" }] }] };
+const ANSWER: AskResult = { kind: "answered", health: false, points: [{ says: "Keep them breathing.", quotes: [{ text: "Breathe freely.", pageId: "topic:mastery-breathing", page: "Mastery Series › Breathing", title: "Breathing" }] }] };
 
 async function mount(opts: { requireSignIn: RequestHandler; ask?: ((q: string) => Promise<{ result: AskResult; cost: number }>) | null }) {
   const ask = opts.ask === null ? null : vi.fn(opts.ask ?? (async () => ({ result: ANSWER, cost: 0.05 })));
