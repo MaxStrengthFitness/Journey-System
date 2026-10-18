@@ -35,7 +35,14 @@
    the names row became the soft edge plus the shelf's short navy cast, so the
    grid scrolls UNDER the row instead of being cut by a rule. z 8: under the
    Hub's top (10), over every card, the now line and the sticky axis (7 and
-   below). The shadow is never animated. */
+   below). The shadow is never animated.
+   The names row, its corner, the column heads and the time column are the
+   card colour in both modes (the colour build, Oct 17 2026: the light
+   round's phase 2 and the dark round's D2). As the well they stood 1.04:1
+   off the grid in light and 1.07 in dark, a band of fog over the day; as the
+   card they stand 1.13 and 1.16 off it, and the shelf and the soft edge stay.
+   Your own head keeps its blue (.hs-colhead[data-me="true"], below).
+   hub-head-row.test.ts holds it. */
 .hs-head {
   position: sticky;
   top: 0;
@@ -43,7 +50,7 @@
   display: flex;
   min-height: var(--hs-head);
   border-bottom: 1px solid var(--eq-edge);
-  background: var(--eq-surface-2);
+  background: var(--eq-surface);
   box-shadow: var(--eq-shelf);
 }
 
@@ -53,7 +60,7 @@
   z-index: 2;
   flex: none;
   width: var(--hs-axis);
-  background: var(--eq-surface-2);
+  background: var(--eq-surface);
   border-right: 1px solid var(--eq-border);
 }
 
@@ -67,7 +74,7 @@
   min-width: 0;
   padding: 6px 10px;
   border-right: 1px solid var(--eq-border);
-  background: var(--eq-surface-2);
+  background: var(--eq-surface);
 }
 
 /* A head that opens that trainer's bookings as a list (hub fixes, Oct 1
@@ -210,7 +217,7 @@ button.hs-colhead:focus-visible {
   z-index: 5;
   flex: none;
   width: var(--hs-axis);
-  background: var(--eq-surface-2);
+  background: var(--eq-surface);
   border-right: 1px solid var(--eq-border);
 }
 
@@ -277,7 +284,10 @@ button.hs-colhead:focus-visible {
   height: 10px;
   border-radius: 999px;
   border: 2px solid var(--eq-border-strong);
-  background: var(--eq-surface-2);
+  /* The time column's own colour, so a half hour's ring stays hollow over
+     the rail it covers (the colour build, Oct 17 2026: the column is the
+     card now). */
+  background: var(--eq-surface);
   transform: translateY(-50%);
 }
 

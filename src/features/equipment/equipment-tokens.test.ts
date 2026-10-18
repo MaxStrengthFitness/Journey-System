@@ -362,8 +362,10 @@ const WORDS: [string, string, string[]][] = [
   ["a card's name", "--eq-ink", CARD],
   ["a card's time", "--eq-ink-2", CARD],
   ["a card's #number and labels", "--eq-ink-muted", CARD],
-  ["names on a column head or the axis", "--eq-ink", ["--eq-surface-2"]],
-  ["quiet words on a column head or the axis", "--eq-ink-muted", ["--eq-surface-2"]],
+  // The head row, the corner and the time column are the card colour in both
+  // modes (the colour build, Oct 17 2026: they were the well, --eq-surface-2).
+  ["names on a column head or the axis", "--eq-ink", CARD],
+  ["quiet words on a column head or the axis", "--eq-ink-muted", CARD],
   ["quiet words on the grid", "--eq-ink-muted", ["--eq-bg"]],
   ["a name on hover, pressed, or on a colleague's avatar", "--eq-ink", ["--eq-surface-3"]],
   ["an in-session card's name", "--eq-ink", IN_SESSION],
@@ -414,7 +416,7 @@ const MARKS: [string, string, string[]][] = [
   ["the now line on the grid", "--eq-hero", ["--eq-bg"]],
   ["the now line over your lane", "--eq-hero", ["--eq-mine"]],
   ["the now line across a card", "--eq-hero", CARD],
-  ["the now dot on the axis", "--eq-hero", ["--eq-surface-2"]],
+  ["the now dot on the axis", "--eq-hero", CARD],
   ["the now line across an in-session card", "--eq-hero", IN_SESSION],
   ["today's ring, and today-and-picked's underline outside the chip, on the day header", "--eq-hero", CARD],
   ["a coming-up client card's edge (AJ's answer 2A)", "--eq-rail-booked", CARD],

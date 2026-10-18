@@ -94,6 +94,12 @@ AJ: "sharp white boxes all over the place ... borders and headers just needs a l
 
 `hub-depth.test.ts` holds the Hub's depth and type; `src/elevation.test.ts` keeps the state rails on its list of wide borders that stay (the card's, the strip's, the Key's swatches).
 
+### The colour build (Oct 17 2026, `docs/rounds/2026-10-17-colour-build.md`)
+
+AJ's answers on the light page (1A 2A 3A), the dark page (1b 2a) and the card page (1A 2A 3A). On the Hub:
+
+- **The head row is the card.** The trainer row, its corner, the column heads and the time column read `var(--eq-surface)` in both modes (the light round's phase 2, the dark round's D2). As the well they stood 1.04:1 off the grid in light and 1.07 in dark, a band of fog over the day; as the card, 1.13 and 1.16. The shelf and the soft edge under the row stay; your head keeps its blue (1.29:1 off a colleague's head in light, 1.18 in dark, was 1.19 and 1.29); a half hour's ring on the time column takes the column's colour, so it stays hollow. No token of its own: the plans' `--eq-head-fill` would only ever have been the card. `hub-head-row.test.ts` holds it.
+
 ## Reads
 
 Beyond what the Hub already streams: **one listener on the studio's standing weeks** (`useStandingWeeks`, `studios/{s}/standingWeeks`, for the hatching) and **the studio's package table** (`useRenewalSettings`, one document, for the peek's Package line — the read the profile and the directory make). No per-client query, no Mindbody call, no new index, no write.
