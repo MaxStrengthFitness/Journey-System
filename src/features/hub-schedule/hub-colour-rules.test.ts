@@ -172,8 +172,10 @@ describe("a coming-up client card (AJ's answer 2A)", () => {
     expect(open["box-shadow"]).toBe("0 0 0 2px var(--eq-live), var(--eq-elev-3)");
   });
 
-  it("is drawn the same way in the Key", () => {
-    expect(declared(TOP, '.hd-swatch[data-state="live"]')["border-left"]).toContain("var(--eq-rail-booked)");
+  it("is drawn the same way in the Key: the blue mark a straight band, never a border", () => {
+    const live = declared(TOP, '.hd-swatch[data-state="live"]');
+    expect(live.background).toBe("linear-gradient(var(--eq-rail-booked), var(--eq-rail-booked)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface)");
+    expect(live["border-left"]).toBeUndefined();
   });
 
   it("is drawn the same way on the Next 30 minutes strip, and an open or unlinked item there still wins", () => {
@@ -379,14 +381,26 @@ describe("words that must still read", () => {
     for (const part of [".hs-card-when", ".hs-card-rest", ".hs-card-num"]) expect(declared(CARD, part).color, part).toBe("var(--eq-ink-muted)");
   });
 
-  it("draws the Key's finished swatches as the cards are, with no opacity: done the recorded tile, left open the card with its plum band", () => {
-    const done = declared(TOP, '.hd-swatch[data-state="done"]');
-    const leftOpen = declared(TOP, '.hd-swatch[data-state="left-open"]');
-    expect(done.opacity).toBeUndefined();
-    expect(leftOpen.opacity).toBeUndefined();
-    expect(done.background).toBe("color-mix(in srgb, var(--eq-surface) var(--eq-done-mix), var(--eq-bg))");
-    expect(leftOpen["border-left"], "a band, never a 4px border on the rounded swatch").toBeUndefined();
-    expect(leftOpen.background).toBe("linear-gradient(var(--eq-unlogged-mark), var(--eq-unlogged-mark)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface)");
+  it("draws the Key's swatches as the cards are (C5): the outline, no opacity, no rail, each mark a straight band", () => {
+    const sw = (state: string) => declared(TOP, `.hd-swatch[data-state="${state}"]`);
+    const band = (mark: string, fill = "var(--eq-surface)") => `linear-gradient(var(${mark}), var(${mark})) 4px 4px / 3px calc(100% - 8px) no-repeat, ${fill}`;
+    // Drawn one way: no border, the card's 1px outline (the full edge: the swatches sit on the Key's sheet).
+    const base = declared(TOP, ".hd-swatch");
+    expect(base.border).toBe("0");
+    expect(base.outline).toBe("1px solid var(--eq-card-edge)");
+    for (const r of rules(TOP).filter((x) => x.selectors.some((s) => s.startsWith(".hd-swatch")))) {
+      for (const prop of ["opacity", "border-left", "border-left-width", "border-left-color", "border-left-style"]) {
+        expect(r.body[prop], `${r.selectors.join(", ")} ${prop}`).toBeUndefined();
+      }
+    }
+    expect(sw("now").background, "Now: the orange mark").toBe(band("--eq-now-mark"));
+    expect(sw("in-session").background).toBe(band("--eq-live", "var(--eq-live-fill)"));
+    expect(sw("done").background, "recorded: the pale tile").toBe("color-mix(in srgb, var(--eq-surface) var(--eq-done-mix), var(--eq-bg))");
+    for (const state of ["not-logged", "left-open"]) expect(sw(state).background, `${state}: the card with its plum band`).toBe(band("--eq-unlogged-mark"));
+    expect(sw("past").background, "over, no word: A2's flat fill").toBe("color-mix(in srgb, var(--eq-surface) 62%, var(--eq-bg))");
+    // Unlinked keeps its dashes and no outline, as its card does.
+    expect(sw("unlinked").outline).toBe("0");
+    expect(sw("unlinked").border).toBe("1px dashed var(--eq-border)");
   });
 });
 

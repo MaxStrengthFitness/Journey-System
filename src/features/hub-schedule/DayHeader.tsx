@@ -282,15 +282,34 @@ const MARKS: ReadonlyArray<{ family: MomentFamily; icon: Icon; name: string; mea
   },
 ];
 
+/*
+ * ON THE GRID (the cards round, Oct 17 2026; AJ's "Now, Next, Done"): one
+ * row per way a card looks, in the order a day runs, each swatch drawn as
+ * the card is (day-header.css). Now is "its time has come", never "its half
+ * hour": a 45-minute consult and the five minutes after a slot are Now too
+ * (`hubCardIsNow`). Not logged says what happens before the studio's Journey
+ * cutover (`loggingFrom`, hub-day.ts).
+ */
 const STATES: ReadonlyArray<{ state: string; name: string; means: string }> = [
-  { state: "live", name: "Coming up", means: "Every mark shows until the session is done." },
+  { state: "live", name: "Coming up", means: "Booked and still to come. Every mark shows until the session is done." },
+  { state: "now", name: "Now", means: "Its time has come and no session has started in Journey yet." },
   { state: "in-session", name: "In session", means: "A Journey session is open for this client." },
+  {
+    state: "done",
+    name: "Done · Late cancel",
+    means: "Recorded: a Journey session was finished (a check before the time), or the client late-cancelled. It steps back and goes quiet.",
+  },
+  {
+    state: "not-logged",
+    name: "Not logged",
+    means: "Its time is over and no session was finished in Journey: worth checking what happened. Before the studio starts logging in Journey, it steps back like Done and keeps its words.",
+  },
   {
     state: "left-open",
     name: "Left open · Paused · At End Session",
-    means: "Started but not finished, and nothing saved for an hour (the app’s one rule for an unfinished session). Tap it to resume it or close it.",
+    means: "Started but not finished, and nothing saved for an hour. Tap it to resume it or close it.",
   },
-  { state: "done", name: "Done or not logged", means: "It steps back and goes quiet. “Not logged” says nobody pressed End Session." },
+  { state: "past", name: "Over, no word", means: "Journey couldn’t check this one just now. It never says Not logged on a guess." },
   { state: "unlinked", name: "Not synced yet", means: "No Max Strength profile yet; the next Mindbody sync links it." },
   {
     state: "unlinked",

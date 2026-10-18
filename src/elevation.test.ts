@@ -691,11 +691,10 @@ function widthOf(value: string, side?: Side): number {
  */
 const KEPT_RAILS: Record<string, string> = {
   "features/phone/phone.css .ph-card": "the phone's machine card keeps the 4px rail it took from the Hub booking (phase 10)",
-  'features/hub-schedule/day-header.css .hd-swatch[data-state="live"]': "the Key's picture of a booking still to come, until the cards round's C5 draws its band",
-  'features/hub-schedule/day-header.css .hd-swatch[data-state="in-session"]': "the Key's picture of a booking in session, until the cards round's C5 draws its band",
   // The Hub booking (.hs-card), the Next 30 minutes item (.hn-item) and the
-  // Key's left-open swatch left the list in the cards round (Oct 17 2026):
-  // each draws its state as a straight 3px band painted as a background.
+  // Key's swatches (left open in C3, coming up and in session in C5) left
+  // the list in the cards round (Oct 17 2026): each draws its state as a
+  // straight 3px band painted as a background.
   // The calendar's .cal-block left with the swimlanes (the rooms round, Oct
   // 10 2026): the Calendar's Day draws the Hub's own card.
 };

@@ -6,6 +6,8 @@
  * loading, the chips that light the grid, the spotlight's bar, and the Key.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { StrictMode, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { DayHeader, DaySummary, KeySheet, type DayHeaderProps, type DaySummaryProps } from "./DayHeader";
@@ -160,6 +162,36 @@ describe("the Key", () => {
     expect(text).toContain("The Key");
     expect(text).toContain("No waiver signed.");
     expect(text).toContain("Not working.");
+  });
+
+  it("says the grid's states in the order a day runs, each with its swatch, and Now as \"its time has come\" (the cards round, Oct 17 2026)", () => {
+    render(<KeySheet open onClose={() => {}} />);
+    const lists = [...document.querySelectorAll(".hd-key-list")];
+    const grid = [...lists[lists.length - 1].querySelectorAll("li")];
+    expect(grid.map((li) => [li.querySelector(".hd-swatch")?.getAttribute("data-state"), li.querySelector("strong")?.textContent])).toEqual([
+      ["live", "Coming up."],
+      ["now", "Now."],
+      ["in-session", "In session."],
+      ["done", "Done · Late cancel."],
+      ["not-logged", "Not logged."],
+      ["left-open", "Left open · Paused · At End Session."],
+      ["past", "Over, no word."],
+      ["unlinked", "Not synced yet."],
+      ["unlinked", "Unassigned."],
+      ["staff", "Not a session."],
+      ["off", "Not working."],
+    ]);
+    const words = (name: string) => grid.find((li) => li.querySelector("strong")?.textContent === name)?.textContent ?? "";
+    // Not "its half hour": a 45-minute consult, and the five minutes after a slot, are Now too.
+    expect(words("Now.")).toContain("Its time has come and no session has started in Journey yet.");
+    expect(words("Now.")).not.toContain("half hour");
+    expect(words("Not logged.")).toContain("Before the studio starts logging in Journey, it steps back like Done and keeps its words.");
+    expect(words("Over, no word.")).toContain("It never says Not logged on a guess.");
+    // Every state the Key names has its swatch drawn in the stylesheet.
+    const css = readFileSync(resolve(__dirname, "day-header.css"), "utf8");
+    for (const state of new Set(grid.map((li) => li.querySelector(".hd-swatch")?.getAttribute("data-state")))) {
+      expect(css, String(state)).toContain(`.hd-swatch[data-state="${state}"]`);
+    }
   });
 
   it("explains the ✎ Ask about, and says its words stay off the card (wave 2 hub)", () => {

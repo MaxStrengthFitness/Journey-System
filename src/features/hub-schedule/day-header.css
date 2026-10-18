@@ -519,49 +519,69 @@
   color: var(--eq-ink-2);
 }
 
+/* Each swatch is drawn as its card is (the cards round, Oct 17 2026): no
+   border, the card's 1px outline, no opacity, and a state's mark a
+   straight 3px band painted as a background layer, 4px in from the left
+   and the top (a 4px border on the rounded swatch tapered into a crescent).
+   On the Key's sheet every swatch keeps the full edge, the pale tiles
+   included: the cards sit on the page, the swatches on the sheet. */
 .hd-swatch {
   width: 24px;
   height: 20px;
   border-radius: 6px;
-  border: 1px solid var(--eq-border-strong);
+  border: 0;
+  outline: 1px solid var(--eq-card-edge);
   background: var(--eq-surface);
+  background-clip: padding-box;
 }
 
-/* Coming up: the card's quiet blue edge (AJ's answer 2A, Oct 4 2026). */
+/* Coming up: the card's quiet blue mark (AJ's answer 2A, Oct 4 2026). */
 .hd-swatch[data-state="live"] {
-  border-left: 4px solid var(--eq-rail-booked);
+  background: linear-gradient(var(--eq-rail-booked), var(--eq-rail-booked)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface);
+}
+
+/* Now: the orange mark. */
+.hd-swatch[data-state="now"] {
+  background: linear-gradient(var(--eq-now-mark), var(--eq-now-mark)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface);
 }
 
 .hd-swatch[data-state="in-session"] {
-  border-left: 4px solid var(--eq-live);
-  background: var(--eq-live-fill);
+  background: linear-gradient(var(--eq-live), var(--eq-live)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-live-fill);
 }
 
-/* Over, drawn as the cards are (the cards round, Oct 17 2026; no opacity):
-   left open is a whole card with the plum mark, a straight 3px band
-   painted as a background layer (a 4px border on the rounded swatch
-   tapered into a crescent); done is the recorded tile, the card mixed
-   --eq-done-mix into the page, on the swatch's firm edge so the pale tile
-   still shows on the Key's sheet. The Key's other swatches and its new
-   rows are the round's C5. */
-.hd-swatch[data-state="left-open"] {
-  background: linear-gradient(var(--eq-unlogged-mark), var(--eq-unlogged-mark)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface);
-}
-
+/* Recorded: the pale tile, the card mixed --eq-done-mix into the page. */
 .hd-swatch[data-state="done"] {
   background: color-mix(in srgb, var(--eq-surface) var(--eq-done-mix), var(--eq-bg));
 }
 
+/* Not recorded: a whole card with the plum mark. */
+.hd-swatch[data-state="not-logged"],
+.hd-swatch[data-state="left-open"] {
+  background: linear-gradient(var(--eq-unlogged-mark), var(--eq-unlogged-mark)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface);
+}
+
+/* Over, no word: A2's flat fill, 62% card into the page. */
+.hd-swatch[data-state="past"] {
+  background: color-mix(in srgb, var(--eq-surface) 62%, var(--eq-bg));
+}
+
+/* Not synced yet and Unassigned: dashed all round in the hairline, no
+   outline, as the unlinked card is. */
 .hd-swatch[data-state="unlinked"] {
-  border-style: dashed;
+  outline: 0;
+  border: 1px dashed var(--eq-border);
   background: var(--eq-surface-2);
+  background-clip: padding-box;
 }
 
 .hd-swatch[data-state="staff"] {
   background: repeating-linear-gradient(135deg, var(--eq-surface-2) 0 4px, var(--eq-surface-3) 4px 8px);
 }
 
+/* Not working is the grid's hatching, not a card: its firm edge stays. */
 .hd-swatch[data-state="off"] {
+  outline: 0;
+  border: 1px solid var(--eq-border-strong);
   background: repeating-linear-gradient(135deg, transparent 0 4px, var(--eq-border-strong) 4px 5px);
 }
 
