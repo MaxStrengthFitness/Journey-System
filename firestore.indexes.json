@@ -1079,6 +1079,76 @@
       ]
     },
     {
+      "collectionGroup": "trainers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "primaryHomeStudioId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fullName",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "trainers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "accessibleStudioIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "fullName",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "trainers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "activeGuestStudioIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "fullName",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "trainers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ownedStudioIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "fullName",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "trainers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "managedStudioIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "fullName",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "journalEntries",
       "queryScope": "COLLECTION",
       "fields": [

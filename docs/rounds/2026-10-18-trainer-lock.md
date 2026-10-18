@@ -256,7 +256,19 @@ team, a client's history names its coaches; and nothing red.
 
 ## 9. AJ's answers
 
-*(recorded here when he answers)*
+**Oct 18 2026, in chat: "1a 2a 3a".**
+
+- **1a.** The lock stays strict. A Microsoft account whose sign-in carries no
+  email finds no profile made in advance; that person uses Request Access,
+  their leader lets them in from My Studio → Team, and a spare profile is an
+  administrator's to remove. Nothing about an unclaimed profile is open to
+  anyone signed in.
+- **2a.** This round: the studios a person runs (home, the grant, owned). The
+  corporate group rule (westlake, Strongsville and Willoughby seeing each
+  other's teams) waits for the bookings lock, for trainers and bookings
+  together.
+- **3a.** Two steps: the indexes, the push and Render first; the rules once
+  the iPads have the build (§8).
 
 ## 10. Gates
 

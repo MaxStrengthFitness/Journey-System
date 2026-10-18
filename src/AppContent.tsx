@@ -277,6 +277,8 @@ import { useActiveStudio } from "./contexts/ActiveStudioContext";
 import { useAutoSync } from "./features/admin/useAutoSync";
 import { useScheduleRefresh } from "./features/admin/useScheduleRefresh";
 import { useTrainers } from "./hooks/useTrainers";
+import { trainerScopeFor } from "./features/trainer-scope/scope";
+import { readTrainers } from "./features/trainer-scope/read";
 import { useStudios } from "./hooks/useStudios";
 import { useNetworks } from "./hooks/useNetworks";
 import { useMachines } from "./hooks/useMachines";
@@ -632,7 +634,10 @@ export default function AppContent({
 
   const isDataReady = !!authTrainer && !hasQuotaError;
 
-  useTrainers(isDataReady, setTrainers);
+  /* The trainers this iPad may hold: the person's studios, or everyone for
+     the company tier (the trainer lock, Oct 18 2026; features/trainer-scope). */
+  const trainerScope = useMemo(() => trainerScopeFor(authTrainer), [authTrainer]);
+  useTrainers(isDataReady, trainerScope, setTrainers);
   useStudios(isDataReady, setStudios);
   useNetworks(isDataReady, setNetworks);
 
@@ -1139,14 +1144,12 @@ export default function AppContent({
           { fromCache: snap.metadata.fromCache },
         );
       } else if (collectionName === "trainers") {
-        const snap = await getDocs(collection(db, "trainers"));
+        // The person's scope, as the live listener reads it (the trainer lock).
+        const scope = trainerScopeFor(authTrainer);
+        if (!scope) return;
+        const answer = await readTrainers(scope, "server");
         // Tombstoned placeholders are not people — see trainer-identity/claim.ts.
-        setTrainers(
-          withoutSuperseded(
-            snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Trainer),
-          ),
-          { fromCache: snap.metadata.fromCache },
-        );
+        setTrainers(withoutSuperseded(answer.docs), { fromCache: answer.fromCache });
       }
     } catch (e) {
       console.error("Manual refresh failed", e);

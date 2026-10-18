@@ -12,8 +12,11 @@ import {
   where,
   setDoc,
   updateDoc,
+  type Query,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
+import { trainerQueriesFor, uniqueDocs } from "../features/trainer-scope/read";
+import { trainerScopeFor } from "../features/trainer-scope/scope";
 import { SWITCHED_OFF_SENTENCE, isSwitchedOff } from "../features/sign-out/account-off";
 import { auth, db } from "../firebase";
 import { Trainer, Studio, FranchiseNetwork } from "../types";
@@ -258,8 +261,11 @@ export function useAuthInitialization() {
      * AppContent's live listener starts beside it and brings the server's
      * answer, which always wins (liveRef). A read that fails, or the server
      * unreachable with nothing stored, leaves the list unknown, never empty.
+     * The trainers are read through the person's scope (the trainer lock,
+     * Oct 18 2026: `features/trainer-scope`), several queries merged into
+     * one answer, from the cache only when every one of them has a copy.
      */
-    const bootRead = async (list: BootList, generation: number): Promise<void> => {
+    const bootRead = async (list: BootList, generation: number, queries: Query[] = [collection(db, list)]): Promise<void> => {
       const apply = (docs: QueryDocumentSnapshot[], level: ReadLevel) => {
         if (generation !== generationRef.current || liveRef.current[list]) return;
         if (list === "studios") {
@@ -271,20 +277,26 @@ export function useAuthInitialization() {
         }
         markKnown(list, level);
       };
-      const ref = collection(db, list);
+      if (queries.length === 0) {
+        /* Nothing to read (a scope naming no studio): the server's empty answer. */
+        if (answerCountsFor(list, 0, false)) apply([], "server");
+        return;
+      }
       try {
-        const cached = await getDocsFromCache(ref);
-        if (answerCountsFor(list, cached.size, true)) {
-          apply(cached.docs, "cache");
+        const cached = uniqueDocs(await Promise.all(queries.map((q) => getDocsFromCache(q))));
+        if (answerCountsFor(list, cached.length, true)) {
+          apply(cached, "cache");
           return;
         }
       } catch {
-        /* Nothing stored for it: ask the server. */
+        /* Nothing stored for one of them: ask the server. */
       }
       try {
-        const snap = await getDocs(ref);
-        if (!answerCountsFor(list, snap.size, snap.metadata.fromCache)) return;
-        apply(snap.docs, levelOf(snap.metadata.fromCache));
+        const snaps = await Promise.all(queries.map((q) => getDocs(q)));
+        const fromCache = snaps.some((s) => s.metadata.fromCache);
+        const docs = uniqueDocs(snaps);
+        if (!answerCountsFor(list, docs.length, fromCache)) return;
+        apply(docs, levelOf(fromCache));
       } catch (e) {
         console.warn(`Could not read the ${list} collection.`, e);
       }
@@ -603,9 +615,10 @@ export function useAuthInitialization() {
           setTrainerLookup("done");
           setIsAuthReady(true);
           markBoot("trainer-ready");
+          const scope = trainerScopeFor(record);
           void Promise.all([
             bootRead("studios", generation),
-            bootRead("trainers", generation),
+            bootRead("trainers", generation, scope ? trainerQueriesFor(scope) : []),
             bootRead("networks", generation),
           ]).then(() => {
             if (current()) setLookupStep(3);
