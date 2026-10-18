@@ -27,7 +27,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | Security rules and indexes | `firestore.rules`, tested in `tests/firestore.rules.test.ts`; `firestore.indexes.json`, held by `src/lib/firestore-indexes.test.ts`; long explanations in `docs/ops/RULES-NOTES.md` |
 | One-off scripts | `scripts/*.ts` — service-account auth, dry-run by default, `--commit` to write |
 | Architecture | `docs/ARCHITECTURE.md` — purpose and scope, the screen map, the data dictionary, the code SOP, the roadmap. **Read it before proposing anything** |
-| Orientation | `docs/START-HERE.md` — the project in fifteen minutes, for a non-programmer. `docs/ops/REPO-HYGIENE.md` is what is clutter in the working copy |
+| Orientation | `docs/START-HERE.md`; `docs/ops/REPO-HYGIENE.md` is what is clutter in the working copy |
 | Round documents | `docs/rounds/` (index `README.md`, journal `CHANGELOG.md`); `ROADMAP.md` the short list; `docs/ops/TESTING-CHECKLIST.md` the iPad walkthrough; runbooks in `docs/ops/` |
 | Launch, reset and deploys | In `docs/ops/`: `LAUNCH.md` (the launch checklist), `RESET-BEFORE-LAUNCH.md`, `DEPLOYS-AND-ROLLBACK.md`, `TRAINER-QUICK-START.md` |
 | Decisions in full | `docs/DECISIONS.md` — the history, files and tests behind each decision below |
@@ -81,6 +81,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | Journey on a phone | `src/features/phone/` — the same app laid out for a phone (`usePhone()`) |
 | Rooms and the Calendar | `src/features/rooms/` (the one room bar, each room's hue) and `src/features/calendar/` (Month · Week · Day, the first room) |
 | The PC build's mark | `src/features/environment-mark/` — "PC build · live data" on every screen of a development build, never in production |
+| Using Journey | `docs/using-journey/` — the trainers' guide to the app, a page per task, Claude's words with AJ's yes. Read its README |
 | The perf lab | `harness/perf-lab/` — Journey on a slow iPad, measured; it never ships |
 
 ## Environments
@@ -97,7 +98,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | Install | `npm ci` | `npm install` fails with an `edgesOut` error |
 | Run locally | `npm run dev` | Port 3000 |
 | Typecheck | `npx tsc --noEmit` | **0** errors since Oct 18 2026; CI holds it there (`.github/typecheck-baseline.txt`). History by round: `docs/KNOWN-TRAPS.md#baselines` |
-| Tests | `npx vitest run src` | **14,841** passing in 904 files (Oct 18 2026, the trainer lock). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
+| Tests | `npx vitest run src` | **14,880** passing in 906 files (Oct 18 2026, Using Journey). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
 | Build | `npx vite build` | Then `npm run check:bundle` (`scripts/check-bundle-budget.mjs`, a CI step since Oct 5 2026): the first screen at most 480 KB gzip, no charts, drag-and-drop or motion on it, and a PRODUCTION build (`NODE_ENV` unset or `production`; a `test` build ships React's development files and is refused). `src/first-screen.test.ts` names the import chain if the first screen reaches a heavy module |
 | Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken" means an old emulator still holds 8080 — stop it first. Runs in the cloud container too; AJ's run is the one that counts |
 
