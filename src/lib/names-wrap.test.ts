@@ -185,7 +185,11 @@ const NAME_RULES: { file: string; cls: string; exact?: string; what: string }[] 
   { file: "features/routine-plan/ui/routine-plan.css", cls: "rpl-focus__sub", what: "\"instead of Seated Dip\" under a weak area's Keep in B" },
   { file: "features/routine-plan/ui/routine-plan.css", cls: "rpl-focus__what", what: "a weak area's suggestion, \"Overhead Press for Seated Dip\" and \"Add Lateral Raise\"" },
   { file: "features/routine-plan/ui/routine-plan.css", cls: "rpl-focus__text", what: "the Academy's setting before a machine, naming the Triceps Extension" },
-  { file: "features/briefing/briefing.css", cls: "br-routine__touch", what: "\"Mind the limits on {machines}\" under the routine line and the plan card's Road" },
+  // Today's list on the briefing (the briefing round, Oct 17 2026).
+  { file: "features/briefing/briefing.css", cls: "br-today__name", what: "a machine on today's list on the briefing" },
+  { file: "features/briefing/briefing.css", cls: "br-pick__name", what: "a machine, or a set of them, in + Add a machine and Swap" },
+  { file: "features/briefing/briefing.css", cls: "br-today__undo", what: "\"{machine} out\" beside Undo" },
+  { file: "features/briefing/briefing.css", cls: "br-today__warning", what: "an order rule naming its machines, and its fix" },
   { file: "features/routines/routines.css", cls: "rt-row__name", what: "a machine in Routine A or B on Programming" },
   { file: "features/routines/routines.css", cls: "rt-row__plan", what: "the plan's word under a Routine A machine in the Lineup (\"instead of Seated Dip\")" },
 ];

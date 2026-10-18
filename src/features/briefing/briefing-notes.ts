@@ -27,6 +27,7 @@ import type { JournalEntry } from "../../types/journal";
 import { assembleThreads, zoneOf, type NoteThread } from "../client-notes/threads";
 import { threadCategoryOf } from "../client-notes/note-catalog";
 import { isDismissed, type NoteDismissals } from "../client-notes/dismissals";
+import { sessionStartMs } from "../client-notes/heads-up";
 
 export interface BriefingNotes {
   /** Critical threads that matter today, loudest first as they arrived. */
@@ -124,4 +125,50 @@ export function latestUpdateLine(thread: Pick<NoteThread, "updates">): string | 
   if (!last) return null;
   const body = (last.body || "").trim();
   return body ? body : null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Quieter once seen (the briefing round, Oct 17 2026; AJ's "2a").
+ * ------------------------------------------------------------------ */
+
+/** The session fields "seen" is read from: who trained it, when, and how it ended. */
+export interface SeenSession {
+  status?: unknown;
+  trainerId?: string | null;
+  startedByTrainerId?: string | null;
+  startTime?: unknown;
+  clientStartTime?: unknown;
+  date?: unknown;
+}
+
+/**
+ * Has THIS trainer trained the client since the thread's newest word? AJ's
+ * handoff, Oct 17 2026: "a shoulder issue is critical for a trainer who has
+ * never worked with the client, and background for a regular", and "once a
+ * trainer is familiar with a point, it becomes quieter, not invisible". His
+ * answer, "2a": a Heads up is a full card for a trainer who hasn't trained
+ * the client since it was written (or last updated), and one quiet line for
+ * one who has, still inside its four sessions.
+ *
+ * Only a finished session counts, and only one this trainer ran (a session
+ * stores the trainer record's id, `authTrainer.id`). A note with no readable
+ * date, or a session whose start can't be read, is never "seen": the
+ * cautious answer is the full card. Sessions that are a page rather than the
+ * whole list can only make a note louder, never quieter.
+ */
+export function seenSince(
+  thread: Pick<NoteThread, "lastActivityAt">,
+  sessions: readonly SeenSession[],
+  trainerIds: readonly (string | null | undefined)[],
+): boolean {
+  const since = thread.lastActivityAt ? thread.lastActivityAt.getTime() : NaN;
+  if (Number.isNaN(since)) return false;
+  const mine = new Set(trainerIds.filter((id): id is string => typeof id === "string" && id.length > 0));
+  if (mine.size === 0) return false;
+  return sessions.some((s) => {
+    if (s.status !== "Completed") return false;
+    if (!(s.trainerId && mine.has(s.trainerId)) && !(s.startedByTrainerId && mine.has(s.startedByTrainerId))) return false;
+    const start = sessionStartMs(s);
+    return start !== null && start > since;
+  });
 }

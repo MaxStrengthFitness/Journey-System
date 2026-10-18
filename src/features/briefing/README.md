@@ -10,6 +10,8 @@ briefing.css                   layout, one file, class names in the markup
 BriefingScreen.tsx             the screen
 BriefingScreen.render.test.tsx mounts it (jsdom, fake Firestore)
 briefing-facts.ts              the pure parts: carried-over regions, "last run"
+TodayList.tsx                  today's machines, one list: Swap, ×, + Add, Reorder, Rebuild
+today-list.ts                  its pure half (today-list.test.ts beside it)
 heads-up.test.ts               pins `isHeadsUpLive` (hooks/useClientJournal.ts)
 index.ts                       barrel — import from "../features/briefing"
 ```
@@ -43,7 +45,8 @@ Top to bottom (`stack.ts` is the pure half, `stack.test.ts` beside it):
    skip and its reason, a blood-flow set, a machine short of HER usual —
    the median of her last five performed sets, said only with at least
    three), the markers (a break, a milestone), heads ups, coaching focuses.
-4. **Something to ask about** — the FORD cue, unchanged.
+4. **Something to ask about** — the FORD cue; since Oct 17 2026 inside Since
+   last time's card, by the Hub's rule (see "What's different" below).
 5. **On the way in** — Dials (folded until tapped since the floor round, Oct
    9 2026, AJ's "2a": they're optional and Start is the job; they were open
    by default until then, and the chip counts what was tapped while folded) · Sore spot · Note · Update
@@ -53,19 +56,140 @@ Top to bottom (`stack.ts` is the pure half, `stack.test.ts` beside it):
    prop) and NOTHING is written until it is rated. Hand her the iPad opens
    Pulse's client mode (ClientCheckInPanel `startInClientMode`, as the
    codex's PulseCard does). Every write at Start is unchanged.
-6. **Today's routine** — A or B, then ONE line ("Routine A · 6 machines ·
-   suggested", the short names, and "Mind her limits on …" when one of her
-   flags names a machine in it); Edit opens the Routine Builder (AJ: "One
-   line, tap to edit"). A client with no routine sees how they start instead
-   (the first-session design round, Oct 8 2026: see "How the client starts"
-   below).
+   **Since the briefing round (Oct 17 2026, phase 2b):** no heading over the
+   chips, and four of them, Dials · Sore spot · Note · Pulse, Pulse holding
+   both its doors (You ask, Hand over the iPad: one more tap for the rarer
+   job, two fewer chips every day). A sore spot is saved by its Dial tap
+   (Sore spot → the body → how it is: three taps), a "Matters until" day
+   picked after is kept on it, and Done closes. **Head** is a spot (AJ's F20
+   note: a headache), tapped on the figure or picked from the list, lit on
+   the Sore spot figure (`soreAreaOfTag`), recorded like any other and read
+   by nothing that changes a machine; the codex's Body figure doesn't pin it
+   yet. "Under the weather" stays on the "How are you feeling?" dial.
+6. **Today's routine** — A, B or Other routine, then today's machines as
+   one list a trainer acts on (the briefing round, Oct 17 2026: see "Today's
+   list" below; it replaced the Oct 3 one line and Edit). A client with no
+   routine sees how they start instead (the first-session design round, Oct
+   8 2026: see "How the client starts" below).
 7. **Also today** — the InBody line and the renewal line, quiet, never in the
-   safety band; hidden when empty.
+   safety band; since Oct 17 2026 the foot of Since last time's card.
 8. **Start session** — a solid bar pinned to the bottom of the page; nothing
    scrolls under a see-through gradient any more.
 
 She may see the screen (AJ: "Everything — it's about her"), so nothing on it
 is hidden for privacy. The sections below are the history that led here.
+
+## Today's list (Oct 17 2026)
+
+The briefing round (`docs/rounds/2026-10-17-briefing.md`; AJ's handoff,
+question 2, "What are we doing today?"). AJ, Oct 16: adding one machine took
+"five or six clicks ... maybe two at max, three. But definitely not more than
+four." `TodayList.tsx` draws it, `today-list.ts` is the pure half.
+
+- **Today's machines are one list**: the position, the name (whole), last
+  time ("154 lb · 8 reps", under ONE "Last time" so the numbers never read as
+  a target), Swap and ×. + Add a machine opens the floor in its walking order
+  and one tap adds and closes (2 taps); Swap offers the Academy's substitutes
+  ("The same work"), then the floor, and keeps the place (2 taps); × takes it
+  out with Undo (1 tap). Reorder is a mode (drag, then Done), so nothing drags
+  by accident; Rebuild opens the Routine Builder for a bigger change.
+- **Show it, don't label it** (AJ, Oct 16): no count, no "suggested", no codes,
+  no Road and no meter here. The plan speaks only where a trainer acts on it:
+  Routine A's plan's next machine is first in + Add ("Next in the plan"), and
+  Routine B's next swap is first in Swap for the machine it replaces ("Next in
+  B's plan"). The weak area is one quiet line under the list ("Focus: Delts").
+  B's Road (what is on deck in B, a swap the client can't do) is on
+  Programming and the session's plan sheet, no longer here.
+- **The Academy's order rules show without a tap** (they hid behind Edit as
+  "⚠ 1"), each with its first fix, in this floor's ids; a fix that would bring
+  in a machine this floor lacks is not offered.
+- **Never offered**: a machine already on today's list, or one the client
+  can't do (Routine A's plan's marks, `activeCantDo`).
+- **Other routine** opens Start from a routine (`routine-plan/ui/
+  StartFromRoutineSheet`); the client's own A or B there is the same as its
+  button, anything else becomes today's list.
+- **Ids.** Today's ids are kept as they came; what the list adds is the
+  floor's own id, the one the session uses. Only the Academy's tables are
+  asked in canonical ids, and answered back in this floor's.
+- **Nothing written.** Every change goes up through `handleSequenceChange`,
+  exactly as the builder's did, and Start hands the list up as before.
+- **The preview**: `harness/briefing` (`node harness/briefing/shots.mjs`
+  photographs it at 820 x 1180, light and dark, and at 390 wide).
+
+## What's different about this person (Oct 17 2026)
+
+The briefing round, phase 2 (AJ's handoff, question 1; his answers "2a" and
+"3a", F4 "a" and F13 "2a").
+
+- **One card for what's new.** Since last time, the Heads ups, the team's
+  focuses, then the one thing to ask (FORD) and the InBody and renewal lines,
+  quiet, at its foot: it was four cards (Since last time, Something to ask,
+  Also today, and the routine's labels). No count beside its label. Gone when
+  nothing in it has anything to say (`.br-since:empty`).
+- **Quieter once seen** (`seenSince`, `briefing-notes.ts`): a Heads up is a
+  full card for a trainer who hasn't trained the client since its newest
+  word, and one quiet line ("Heads up · …") for one who has, still inside its
+  four sessions. Only a finished session this trainer ran counts (a session
+  stores the trainer record's id); a note or a session with no readable date
+  is never "seen". Critical notes are never quieter.
+- **The FORD line, the Hub's way** (`FordBriefingCue`, `askAboutFor` from
+  `hub-opportunities/get-to-know.ts`): what the Hub card's Get to know mark
+  is about, in the same words: a day coming up this week, then a Follow up
+  next time question, then one that just happened, then news; else the
+  soonest dated detail, a pinned fact, or a stock question. A follow-up is
+  cleared when its answer is saved here, or by "Nothing new, clear the
+  question" (`clearFollowUp`, never waited on). No "tap to note" lines.
+- **No "Mind the limits on …"** under the routine or the plan card (AJ's
+  "3a": no warning linking a note to today's routine). The flag's own
+  instructions in Before you start still name the machines.
+- **Back where Start was tapped** (`close-target.ts`; AppContent's
+  `sessionFrom`): "Back to the Hub", "Back to Calendar", "Back to Clients",
+  "Back to Robbin's profile"; an unknown screen goes to the profile, as the
+  close always did. Without words (a test, a host that doesn't say), the X.
+- **The last session names its routine** ("Last session · Oct 9, 2026 ·
+  Routine A"), never the session type ("Standard").
+
+## How have they been doing? (Oct 17 2026)
+
+The briefing round, phase 3 (AJ's handoff, question 3: "the last five to ten
+sessions on today's machines only. The most important data is the most recent
+session ... Keep the density low"). `PerformanceCard.tsx`, its pure half
+`performance.ts`.
+
+- **Brief by default**: how last time went, in sentences (`lastTimeLines`: a
+  machine short of the client's usual, a skip and why), moved here from
+  Since last time.
+- **Behind one tap, the last 8 sessions** (`PERFORMANCE_SESSIONS`) on today's
+  machines: FileMaker's grid of numbers, one column per session, newest
+  first, each cell the weight and the reps (or seconds). Only performed sets;
+  one per machine per session, the newest; a session is a column only when
+  one of the shown machines was done in it. **View all machines** adds every
+  other machine done in those sessions.
+- **The placeholder the handoff asked for** ("design the visualization in its
+  own round"): plain numbers, the newest column in the ink, nothing coloured
+  as good or bad, nothing that suggests a weight. A client with nothing in
+  Journey and nothing to say gets no card; an empty grid says "Nothing
+  recorded in Journey on today's machines yet", never "never done".
+- The handoff's "collapsed box below question 1" for a refresher is this
+  card: the performance history is in one place, question 3.
+
+## Just for me (Oct 17 2026)
+
+The briefing round, phase 4 (AJ: "Build phase 4, the just-for-me notes,
+now"; his handoff: "Personal notes show only to the trainer who wrote them, in
+the briefing and everywhere else. They carry a privacy toggle: 'this is just
+for me.'").
+
+- The Note drawer's **Just for me** switch: on, the note goes up at Start as
+  `onStart`'s `privateNote` (never the arrival note, never filed under a
+  category), and the tracker files it in the writer's own notebook,
+  `trainers/{uid}/notes`, through `relay/notes/client-jots.ts` `jotAbout`,
+  never waited on. The briefing still writes nothing.
+- **Only you** lines in Since last time's card: the signed-in trainer's own
+  newest three jots about this client (`useMyNotesAbout`, read with the Auth
+  uid). A failed read says so.
+- No new place in the database: the notebook is private by path, and the
+  profile's "Your working notes · only you" (Goals & Focus) reads the same.
 
 ## How the client starts (Oct 8 2026)
 

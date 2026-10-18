@@ -200,14 +200,22 @@ function tokenize(text: string): string[][] {
     .filter((chunk) => chunk.length > 0);
 }
 
-const COMPACT = /^([A-Za-z]{1,3})(\d+(?:\.\d+)?)$/;
+/** "S4", "S3.75", and "S4." with the full stop a line was ended with. */
+const COMPACT = /^([A-Za-z]{1,3})(\d+(?:\.\d+)?)\.?$/;
 const NUMBER = /^-?\d+(?:\.\d+)?$/;
+/**
+ * A value without the one full stop it was typed with: "Seat 4." is a seat of
+ * 4, never "4." (Oct 15 2026 code check). A decimal's point is inside the
+ * number, so "3.75" and "4.5" are untouched.
+ */
+const bare = (token: string): string => (token.length > 1 && token.endsWith(".") ? token.slice(0, -1) : token);
+const isNumber = (token: string): boolean => NUMBER.test(bare(token));
 /** FileMaker prints "WEIG" beside every machine's settings. It is the load, not a dial. */
 const WEIGHT_LABEL = /^(weig|weigh|weight|wt|lb|lbs)$/i;
 
 /** Does this look like something a setting is SET TO, rather than another label or a stray word? */
 function looksLikeValue(token: string, field: ShorthandField): boolean {
-  if (NUMBER.test(token)) return true;
+  if (isNumber(token)) return true;
   const lower = token.toLowerCase();
   if ((field.options ?? []).some((o) => o.toLowerCase().startsWith(lower))) return true;
   return token.length <= 4;
@@ -220,7 +228,8 @@ export function parseShorthand(text: string, fields: readonly ShorthandField[]):
 
   let weight: string | undefined;
 
-  const place = (label: string, raw: string, strict: boolean): boolean => {
+  const place = (label: string, typed: string, strict: boolean): boolean => {
+    const raw = bare(typed);
     if (WEIGHT_LABEL.test(label.trim()) && !matchField(label, fields, true).field) {
       if (!NUMBER.test(raw) || weight !== undefined) return false;
       weight = raw;
@@ -257,9 +266,17 @@ export function parseShorthand(text: string, fields: readonly ShorthandField[]):
       const twoWordLabel =
         chunk[i + 2] === SEP && chunk[i + 1] !== SEP && matchField(`${w} ${chunk[i + 1]}`, fields).field !== null;
       const oneWordLabel = chunk[i + 1] === SEP;
-      if (twoWordLabel || oneWordLabel) {
-        const label = twoWordLabel ? `${w} ${chunk[i + 1]}` : w;
-        const at = i + (twoWordLabel ? 3 : 2);
+      // "Back Pad Height: 4" — three words or more, by the same rule: the
+      // whole run up to the separator is the label only when a field answers
+      // to all of it; otherwise the first word is a stray one and the run is
+      // tried again from the next (Oct 15 2026 code check).
+      let sepAt = i + 1;
+      while (sepAt < chunk.length && chunk[sepAt] !== SEP) sepAt += 1;
+      const longLabel =
+        sepAt < chunk.length && sepAt - i >= 3 && matchField(chunk.slice(i, sepAt).join(" "), fields).field !== null;
+      if (longLabel || twoWordLabel || oneWordLabel) {
+        const label = longLabel ? chunk.slice(i, sepAt).join(" ") : twoWordLabel ? `${w} ${chunk[i + 1]}` : w;
+        const at = longLabel ? sepAt + 1 : i + (twoWordLabel ? 3 : 2);
         const value = chunk[at];
         // FileMaker prints empty fields ("Gap- "): a label whose "value" is
         // missing, or is itself the next label, is simply not set.
@@ -304,7 +321,7 @@ export function parseShorthand(text: string, fields: readonly ShorthandField[]):
       if (next !== undefined && next !== SEP) {
         // The grid's own form is "S  8": one letter, a space, a number. A
         // single letter is only trusted as a label when a NUMBER follows it.
-        const loose = w.length <= 2 && NUMBER.test(next);
+        const loose = w.length <= 2 && isNumber(next);
         const one = matchField(w, fields, !loose).field;
         // The grid prints a label even when the setting is empty — "Gap  S- 8"
         // is an empty gap and a seat of 8. So a "value" that is itself a label
@@ -316,7 +333,7 @@ export function parseShorthand(text: string, fields: readonly ShorthandField[]):
           if (nextIsLabel) {
             // Printed furniture is dropped, like FileMaker's empty "S-". A word
             // in a sentence ("no seat pad") is kept: nothing is thrown away.
-            const printed = afterNext === SEP || (afterNext !== undefined && NUMBER.test(afterNext)) || WEIGHT_LABEL.test(next);
+            const printed = afterNext === SEP || (afterNext !== undefined && isNumber(afterNext)) || WEIGHT_LABEL.test(next);
             if (!printed) leftovers.push(w);
             i += 1;
             continue;
@@ -327,7 +344,7 @@ export function parseShorthand(text: string, fields: readonly ShorthandField[]):
           i += 2;
           continue;
         }
-        if (WEIGHT_LABEL.test(w) && NUMBER.test(next) && place(w, next, true)) {
+        if (WEIGHT_LABEL.test(w) && isNumber(next) && place(w, next, true)) {
           i += /^lbs?$/i.test(afterNext ?? "") ? 3 : 2;
           continue;
         }

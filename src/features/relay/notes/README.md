@@ -108,3 +108,14 @@ AJ rebuilt Relay's Board, Tracker and Journal on one look ("Board, Tracker and J
 - **Day logs**, **On this day** and the **Studio shelf** (the studio's Playbook, as it always was) were chips among the shelves; they are tabs now.
 - The Journal comes back to the tab you were on (module memory per person, Today for someone new).
 
+## Your own notes about one client, from the briefing (Oct 17 2026)
+
+`client-jots.ts` holds what the record's working-notes strip
+(`ClientJotStrip`) did inline: the read of the signed-in trainer's own notes
+about one client (`useMyNotesAbout`, `clientIds array-contains`, no order
+clause, so no index), where a jot lands (`jotHome`), the newest jots
+(`recentJots`) and the jot itself (`jotAbout`). The briefing round's "Just
+for me" (phase 4) uses the same three: the briefing shows "Only you" lines
+from it, and its Start files a just-for-me note with `jotAbout`, which reads
+once itself and, when the read fails, starts a note rather than lose the words
+(Start never waits and never refuses). Private by path, as every note here.

@@ -222,6 +222,8 @@ export function toBodySlugs(ids: MuscleId[]): string[] {
  * has.
  */
 const BODY_AREA_SLUGS: Record<string, readonly string[]> = {
+  // The briefing's Sore spot (the briefing round, Oct 17 2026): a headache.
+  head: ['head'],
   neck: ['neck'],
   shoulder: ['deltoids'],
   upper_back: ['upper-back', 'trapezius'],

@@ -198,3 +198,34 @@ describe("sessions left open, across every studio (the Atlas answers, Oct 2 2026
     expect([...failed.items, ...failed.more].find((i) => i.id === "unknown")?.say).toContain("the sessions left open");
   });
 });
+
+describe("people waiting to be let in, every studio (Oct 16 2026)", () => {
+  const person = (key: string, name: string, studioName: string | null) => ({ key, name, studioName });
+
+  it("comes first, names the person and the studio, and opens the page", () => {
+    const { items } = needItems({ ...base(), waiting: { state: "ok", people: [person("req:r1", "Nia New", "Solon")] } });
+    expect(items[0].id).toBe("waiting");
+    expect(items[0].say).toBe("Nia New is waiting to be let in at Solon.");
+    expect(items[0].door).toEqual({ label: "Open Waiting to be let in", page: "waiting" });
+  });
+
+  it("counts several by studio, A to Z, with any that named no studio last", () => {
+    const { items } = needItems({
+      ...base(),
+      waiting: {
+        state: "ok",
+        people: [person("req:a", "Ann", "Strongsville"), person("req:b", "Bo", "Solon"), person("req:c", "Cy", "Solon"), person("req:d", "Di", null)],
+      },
+    });
+    expect(items[0].say).toBe("4 people are waiting to be let in: Solon (2), Strongsville (1) and no studio named (1).");
+    expect(items[0].condition).toBe("req:a,req:b,req:c,req:d");
+  });
+
+  it("is nothing when nobody waits, and couldn't-check when the read failed", () => {
+    const calm = needItems({ ...base(), waiting: { state: "ok", people: [] } });
+    expect([...calm.items, ...calm.more].some((i) => i.id === "waiting")).toBe(false);
+    const failed = needItems({ ...base(), waiting: { state: "failed", people: [] } });
+    expect([...failed.items, ...failed.more].some((i) => i.id === "waiting")).toBe(false);
+    expect([...failed.items, ...failed.more].find((i) => i.id === "unknown")?.say).toContain("who is waiting to be let in");
+  });
+});

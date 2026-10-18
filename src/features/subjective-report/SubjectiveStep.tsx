@@ -513,7 +513,8 @@ export function PainMapCard({
         region,
         side,
         type: prev?.type ?? "unsure",
-        severity: prev?.severity ?? 5,
+        // Not rated until its Dial is touched (AJ's F20 "a"): never a made-up 5.
+        severity: null,
         frequency: prev?.frequency ?? "during_training",
         since: prev?.since ?? null,
         aggravatingMachineIds: prev?.aggravatingMachineIds ?? [],
@@ -626,7 +627,7 @@ function PainPointEditor({
         <h4 className="sr-pain__title">
           {BODY_REGION_LABELS[point.region]}
           <small>{BODY_SIDE_LABELS[point.side]}</small>
-          {previous && <small>· was {intensityWord(previous.severity)} last time</small>}
+          {previous && previous.severity !== null && <small>· was {intensityWord(previous.severity)} last time</small>}
         </h4>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Seg
@@ -647,11 +648,11 @@ function PainPointEditor({
 
       <div className="sr-field-row">
         <div className="sr-field" style={{ flex: 1, minWidth: 220 }}>
-          {/* A pain point always has a severity (the type requires one), so a
-              cleared Dial is a no-op here rather than a made-up number. */}
+          {/* Not rated until touched (AJ's F20 "a"); a second tap on the same
+              word clears it back to not rated. */}
           <Range10
             value={point.severity}
-            onChange={(severity) => severity !== null && set({ severity })}
+            onChange={(severity) => set({ severity })}
             ariaLabel="How bad is it?"
           />
         </div>

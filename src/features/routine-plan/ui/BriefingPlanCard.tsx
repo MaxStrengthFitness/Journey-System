@@ -16,8 +16,7 @@
  *   still empty ("kept"): today is the plan's day one, the same Road and
  *   Change today.
  *
- * The host's safety line for today's machines ("Mind the limits on …")
- * sits under the Road (`limits`). While a start is still to pick, the card
+ * While a start is still to pick, the card
  * says Start without one keeps no plan.
  *
  * Beside it, the two other doors' words: `BriefingJourneyLine` for a client
@@ -26,7 +25,7 @@
  * none of them holds Start: a trainer can always press Start and add
  * machines as they go.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft, ClipboardList, DoorOpen, Info, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Machine } from "../../../types";
@@ -52,16 +51,9 @@ export interface BriefingPlanCardProps {
   todayYmd: string;
   /** Back to both doors, when the trainer picked this one. */
   onBack?: () => void;
-  /**
-   * The briefing's own safety line for today's machines ("Mind the limits on
-   * …"), drawn under the Road: the routine line it sits in is not drawn for
-   * a plan card, and these are the clients whose start was matched on the
-   * same intake. The host words it, in its own caution tone.
-   */
-  limits?: ReactNode;
 }
 
-export function BriefingPlanCard({ state, view, firstName, nameOf, floor, todayYmd, onBack, limits }: BriefingPlanCardProps) {
+export function BriefingPlanCard({ state, view, firstName, nameOf, floor, todayYmd, onBack }: BriefingPlanCardProps) {
   const first = firstName.trim() || "the client";
   // A title starts with a capital, "the client" included.
   const First = first.charAt(0).toUpperCase() + first.slice(1);
@@ -127,7 +119,6 @@ export function BriefingPlanCard({ state, view, firstName, nameOf, floor, todayY
           {today.length === 0 && <p className="rpl-line">Nothing picked for today. Start and add machines as you go.</p>}
           <RoadStrip groups={groups} nameOf={nameOf} label={`${first}'s plan, today first`} />
           {view === "starting" && state.notOnFloor && <p className="rpl-meta">{state.notOnFloor}</p>}
-          {limits}
           {effect && (
             <ul className="rpl-list rpl-list--flush" aria-label="Today's order">
               <OrderNote effect={effect} />

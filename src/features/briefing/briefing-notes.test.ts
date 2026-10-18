@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { JournalEntry } from "../../types/journal";
 import { assembleThreads } from "../client-notes/threads";
-import { briefingNotes, latestUpdateLine, standingHealth } from "./briefing-notes";
+import { briefingNotes, latestUpdateLine, seenSince, standingHealth } from "./briefing-notes";
 
 const at = (iso: string) => new Date(iso);
 
@@ -128,5 +128,34 @@ describe("standingHealth — known, not news (Oct 3 2026)", () => {
     // "fresh" is still being read out, "crit" is Critical (above, with the news); "thinners" went quiet.
     const live = new Set(["fresh", "crit"]);
     expect(standingHealth(threads, "2026-10-03", undefined, live).map((t) => t.id)).toEqual(["thinners"]);
+  });
+});
+
+describe("quieter once seen (AJ's 2a, Oct 17 2026)", () => {
+  const thread = { lastActivityAt: at("2026-10-10T15:00:00Z") };
+  const done = (over: Record<string, unknown>) => ({ status: "Completed", trainerId: "t-aj", startTime: at("2026-10-12T14:00:00Z"), ...over });
+
+  it("is seen once this trainer has trained the client since the newest word", () => {
+    expect(seenSince(thread, [done({})], ["t-aj"])).toBe(true);
+  });
+
+  it("is not seen from a session before the note, another trainer's, or one still running", () => {
+    expect(seenSince(thread, [done({ startTime: at("2026-10-09T14:00:00Z") })], ["t-aj"])).toBe(false);
+    expect(seenSince(thread, [done({ trainerId: "t-sam" })], ["t-aj"])).toBe(false);
+    expect(seenSince(thread, [done({ status: "In-Progress" })], ["t-aj"])).toBe(false);
+  });
+
+  it("counts the session's first trainer too, and the day when no start time was kept", () => {
+    expect(seenSince(thread, [done({ trainerId: "t-sam", startedByTrainerId: "t-aj" })], ["t-aj"])).toBe(true);
+    expect(seenSince(thread, [done({ startTime: undefined, date: "2026-10-13" })], ["t-aj"])).toBe(true);
+  });
+
+  it("is never seen off a note with no date, or with nobody signed in", () => {
+    expect(seenSince({ lastActivityAt: null }, [done({})], ["t-aj"])).toBe(false);
+    expect(seenSince(thread, [done({})], [null, undefined, ""])).toBe(false);
+  });
+
+  it("an update after the session makes it loud again", () => {
+    expect(seenSince({ lastActivityAt: at("2026-10-13T09:00:00Z") }, [done({})], ["t-aj"])).toBe(false);
   });
 });

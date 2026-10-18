@@ -31,11 +31,18 @@ export interface SearchResultsProps {
   matches: ReadonlyMap<string, NameMatch>;
   /** Firestore is still being asked for names the studio list doesn't hold. */
   searching: boolean;
+  /**
+   * That ask didn't finish: it failed, or only the iPad's own copy answered.
+   * A failed read is unknown, never empty, so the line never says "No client
+   * matches" then (Oct 15 2026 code check); the matches found still show.
+   */
+  incomplete: boolean;
   onOpen: (clientId: string) => void;
   onStart: (clientId: string) => void;
 }
 
-export function SearchResults({ term, rows, matches, searching, onOpen, onStart }: SearchResultsProps) {
+export function SearchResults({ term, rows, matches, searching, incomplete, onOpen, onStart }: SearchResultsProps) {
+  const said = `\u201c${term.trim()}\u201d`;
   return (
     <div className="cd" data-view="hub-search">
       <header className="cd-head">
@@ -43,8 +50,12 @@ export function SearchResults({ term, rows, matches, searching, onOpen, onStart 
           {rows.length === 0
             ? searching
               ? "Searching\u2026"
-              : `No client matches \u201c${term.trim()}\u201d.`
-            : `${rows.length} ${rows.length === 1 ? "client matches" : "clients match"} \u201c${term.trim()}\u201d${searching ? " \u00b7 still searching\u2026" : ""}`}
+              : incomplete
+                ? `Couldn\u2019t search every client for ${said}. Check the connection and try again.`
+                : `No client matches ${said}.`
+            : `${rows.length} ${rows.length === 1 ? "client matches" : "clients match"} ${said}${
+                searching ? " \u00b7 still searching\u2026" : incomplete ? " \u00b7 couldn\u2019t search every client" : ""
+              }`}
         </p>
       </header>
       {rows.length === 0 && searching ? (

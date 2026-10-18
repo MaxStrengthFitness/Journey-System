@@ -31,10 +31,18 @@ import { mergeRequests, requestQueryPlan, type RequestReader } from "./request-r
 const MINDBODY_PER_STUDIO =
   "The Mindbody match is per studio: choose one studio above to see who is on its Mindbody staff list and who has no match.";
 
+/**
+ * Whether the pending requests have been read (Oct 16 2026, for Admins →
+ * Waiting to be let in): "none" when this reader may not read them, so a
+ * screen can tell "nobody is waiting" from "not read yet" and "couldn't read".
+ */
+export type RequestsRead = "loading" | "ok" | "failed" | "none";
+
 export interface StaffRosterState {
   rows: StaffRow[];
   summary: ReturnType<typeof summariseRoster>;
   requests: AccessRequest[];
+  requestsRead: RequestsRead;
   mindbodyStaff: MindbodyStaff[];
   /** Plain English about the Mindbody side: loading, offline, no site id, an error. Empty when fine. */
   staffStatus: string;
@@ -68,6 +76,7 @@ export function useStaffRoster({
   studioIds?: readonly string[] | null;
 }): StaffRosterState {
   const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [requestsRead, setRequestsRead] = useState<RequestsRead>("loading");
   const [mindbodyStaff, setMindbodyStaff] = useState<MindbodyStaff[]>([]);
   const [staffStatus, setStaffStatus] = useState("");
   const [mindbodyChecked, setMindbodyChecked] = useState(false);
@@ -91,23 +100,38 @@ export function useStaffRoster({
   useEffect(() => {
     if (plan.kind === "none") {
       setRequests([]);
+      setRequestsRead("none");
       return;
     }
+    setRequestsRead("loading");
     const toRequests = (docs: { id: string; data: () => unknown }[]): AccessRequest[] =>
       docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AccessRequest, "id">) }));
-    const onError = (err: unknown) => handleFirestoreError(err, OperationType.GET, "access_requests");
+    const onError = (err: unknown) => {
+      setRequestsRead("failed");
+      handleFirestoreError(err, OperationType.GET, "access_requests");
+    };
     if (plan.kind === "all") {
       const unsub = onSnapshot(
         query(collection(db, "access_requests"), where("status", "==", "Pending")),
-        (snap) => setRequests(toRequests(snap.docs)),
+        (snap) => {
+          setRequests(toRequests(snap.docs));
+          setRequestsRead("ok");
+        },
         onError,
       );
       return () => unsub();
     }
-    // One slot per listener, merged by id on every snapshot.
+    // One slot per listener, merged by id on every snapshot; read once every
+    // listener has answered.
     const groups: AccessRequest[][] = [];
     const unsubs: (() => void)[] = [];
-    const publish = () => setRequests(mergeRequests(groups));
+    const answered = new Set<number>();
+    const listeners = plan.chunks.length * 2;
+    const publish = (slot: number) => {
+      answered.add(slot);
+      setRequests(mergeRequests(groups));
+      if (answered.size === listeners) setRequestsRead("ok");
+    };
     plan.chunks.forEach((chunk, i) => {
       groups[2 * i] = [];
       groups[2 * i + 1] = [];
@@ -116,7 +140,7 @@ export function useStaffRoster({
           query(collection(db, "access_requests"), where("status", "==", "Pending"), where("requestedStudioId", "in", chunk)),
           (snap) => {
             groups[2 * i] = toRequests(snap.docs);
-            publish();
+            publish(2 * i);
           },
           onError,
         ),
@@ -126,7 +150,7 @@ export function useStaffRoster({
           query(collection(db, "access_requests"), where("status", "==", "Pending"), where("studioId", "in", chunk)),
           (snap) => {
             groups[2 * i + 1] = toRequests(snap.docs);
-            publish();
+            publish(2 * i + 1);
           },
           onError,
         ),
@@ -210,5 +234,5 @@ export function useStaffRoster({
   );
   const summary = useMemo(() => summariseRoster(rows), [rows]);
 
-  return { rows, summary, requests, mindbodyStaff, staffStatus, mindbodyChecked };
+  return { rows, summary, requests, requestsRead, mindbodyStaff, staffStatus, mindbodyChecked };
 }

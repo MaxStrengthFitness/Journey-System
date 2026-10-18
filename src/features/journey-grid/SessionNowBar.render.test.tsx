@@ -177,6 +177,86 @@ describe("SessionNowBar's Blood flow (Oct 3 2026)", () => {
   });
 });
 
+describe("The pain skip keeps the skip and its words when the trainer moves on (F22, AJ's \"a\", Oct 16 2026)", () => {
+  const buttonNamed = (t: string) => [...host!.querySelectorAll("button")].find((b) => b.textContent?.trim() === t);
+  const where = () => host!.querySelector<HTMLInputElement>('input[aria-label="Where is the pain? Optional."]');
+  function draw(r: JourneyRow, changes: [string, Partial<LiveSet>][], onCommit = vi.fn(), onNext = vi.fn()) {
+    if (!host) {
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      root = createRoot(host);
+    }
+    act(() => {
+      root!.render(
+        <SessionNowBar row={r} history={[]} onChange={(id, p) => changes.push([id, p])} onCommit={onCommit} onNext={onNext} nextName="Chest Press" />,
+      );
+    });
+    return { onCommit, onNext };
+  }
+  const toPain = () => {
+    act(() => buttonNamed("Skip")!.click());
+    act(() => buttonNamed("Pain or injury")!.click());
+  };
+
+  it("writes the pain skip the moment Pain or injury is tapped, and stays to ask where", () => {
+    const changes: [string, Partial<LiveSet>][] = [];
+    const { onNext } = draw(row, changes);
+    toPain();
+    expect(changes.at(-1)).toEqual(["leg_press", { outcome: "skipped", skipReason: "pain_injury", skipNote: null }]);
+    expect(onNext).not.toHaveBeenCalled();
+    expect(where()).not.toBeNull();
+  });
+
+  it("sends the words as they are typed, through the typing queue, and commits when the field is left", () => {
+    const changes: [string, Partial<LiveSet>][] = [];
+    const { onCommit } = draw(row, changes);
+    toPain();
+    act(() => where()!.focus());
+    type(where()!, "left kn");
+    type(where()!, "left knee ");
+    expect(changes.at(-1)).toEqual(["leg_press", { skipNote: "left knee" }]);
+    expect(onCommit).not.toHaveBeenCalled();
+    act(() => where()!.blur());
+    expect(onCommit).toHaveBeenCalledWith("leg_press");
+  });
+
+  it("moving on to another machine leaves the skip and the words written, with nothing taken back", () => {
+    const changes: [string, Partial<LiveSet>][] = [];
+    draw(row, changes);
+    toPain();
+    type(where()!, "left knee");
+    const before = changes.length;
+    draw({ ...row, machine: { ...row.machine, id: "chest_press", name: "CHEST PRESS" } }, changes);
+    expect(where(), "the strip belongs to the machine it was opened on").toBeNull();
+    expect(changes.length, "moving on undoes nothing").toBe(before);
+    expect(changes.filter(([id]) => id === "leg_press").map(([, p]) => p)).toEqual([
+      { outcome: "skipped", skipReason: "pain_injury", skipNote: null },
+      { skipNote: "left knee" },
+    ]);
+  });
+
+  it("Back takes the pain skip off again, to what the machine had", () => {
+    const changes: [string, Partial<LiveSet>][] = [];
+    draw(row, changes);
+    toPain();
+    type(where()!, "left knee");
+    act(() => buttonNamed("Back")!.click());
+    expect(changes.at(-1)).toEqual(["leg_press", { outcome: null, bloodFlow: null, skipReason: null, skipNote: null }]);
+    expect(buttonNamed("Pain or injury")).toBeDefined();
+    expect(where()).toBeNull();
+  });
+
+  it("Save and next still writes the skip with its words and moves on", () => {
+    const changes: [string, Partial<LiveSet>][] = [];
+    const { onNext } = draw(row, changes);
+    toPain();
+    type(where()!, "left knee");
+    act(() => buttonNamed("Save and next")!.click());
+    expect(changes.at(-1)).toEqual(["leg_press", { outcome: "skipped", skipReason: "pain_injury", skipNote: "left knee" }]);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("SessionNowBar's start and gain (Oct 3 2026; the machine menu's one figure since Oct 4 2026)", () => {
   const sessions = [
     { id: "a", sessionNumber: 1, date: "2026-08-01", trainerInitials: "AJ" },

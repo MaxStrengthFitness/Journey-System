@@ -12,6 +12,12 @@
  * derived from the dial (below the centre → stiff) so every older reader
  * still works; `until` is omitted, never `undefined`, because Firestore
  * refuses undefined. Chips read the Dial's word, never a number.
+ *
+ * THE DIAL TAP IS THE SAVE (the briefing round, Oct 17 2026; AJ: adding one
+ * thing should take "two at max, three"). Sore spot → the body → how it is
+ * today: three taps, and it is on the list. Tapping another word changes it;
+ * a "Matters until" day picked after is kept on it too; Done closes. Nothing
+ * is written before a word is tapped, as before.
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { Plus, ChevronLeft, ChevronDown, X, Check } from 'lucide-react';
@@ -123,21 +129,28 @@ export function BodyStateTracker({
     setView('state');
   };
 
-  const handleSave = () => {
-    if (!pendingRegion || pendingDial === null) return;
+  /** The region on the list as rated: replaced if it was there, taken off when the word is untapped. */
+  const commit = (region: string, dial: DialValue | null, until: string) => {
     // Dedupe: if region already tagged, replace it.
-    const next = value.filter((t) => t.region !== pendingRegion);
-    const tag: BodyStateTag = {
-      region: pendingRegion,
-      state: regionStateFromDial(pendingDial),
-      dial: pendingDial,
-    };
-    // "Matters until" only makes sense for something that is wrong today,
-    // and the key is OMITTED when empty — Firestore refuses `undefined`.
-    if (pendingDial < 0 && /^\d{4}-\d{2}-\d{2}$/.test(pendingUntil)) tag.until = pendingUntil;
-    next.push(tag);
+    const next = value.filter((t) => t.region !== region);
+    if (dial !== null) {
+      const tag: BodyStateTag = { region, state: regionStateFromDial(dial), dial };
+      // "Matters until" only makes sense for something that is wrong today,
+      // and the key is OMITTED when empty — Firestore refuses `undefined`.
+      if (dial < 0 && /^\d{4}-\d{2}-\d{2}$/.test(until)) tag.until = until;
+      next.push(tag);
+    }
     onChange(next);
-    closePopover();
+  };
+
+  const pickDial = (dial: DialValue | null) => {
+    setPendingDial(dial);
+    if (pendingRegion) commit(pendingRegion, dial, pendingUntil);
+  };
+
+  const pickUntil = (until: string) => {
+    setPendingUntil(until);
+    if (pendingRegion && pendingDial !== null) commit(pendingRegion, pendingDial, until);
   };
 
   useEffect(() => {
@@ -296,7 +309,7 @@ export function BodyStateTracker({
                     scale={REGION_SCALE}
                     sub={pendingRegion ?? undefined}
                     value={pendingDial}
-                    onChange={setPendingDial}
+                    onChange={pickDial}
                     legend="all"
                   />
 
@@ -309,7 +322,7 @@ export function BodyStateTracker({
                         type="date"
                         min={todayKey}
                         value={pendingUntil}
-                        onChange={(e) => setPendingUntil(e.target.value)}
+                        onChange={(e) => pickUntil(e.target.value)}
                         className="h-11 px-3 rounded-lg border border-input bg-(--well) shadow-(--elev-0) text-ink-d1 text-[14px]"
                         aria-label="Matters until"
                       />
@@ -319,12 +332,12 @@ export function BodyStateTracker({
 
                   <button
                     type="button"
-                    onClick={handleSave}
+                    onClick={closePopover}
                     disabled={pendingDial === null}
                     className="inline-flex w-full h-12 items-center justify-center gap-2 rounded-xl bg-primary text-[14px] font-bold text-primary-foreground shadow-(--solid-lift) disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed active:translate-y-px active:shadow-(--press) transition-[background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <Check className="w-4 h-4" aria-hidden />
-                    {pendingDial === null ? 'Tap how it is today' : `Save · ${dialWord(REGION_SCALE, pendingDial)}`}
+                    {pendingDial === null ? 'Tap how it is today' : `Done · saved as ${dialWord(REGION_SCALE, pendingDial)}`}
                   </button>
                 </div>
               </div>

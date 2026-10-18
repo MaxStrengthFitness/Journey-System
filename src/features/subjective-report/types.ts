@@ -195,8 +195,14 @@ export interface PainPoint {
   region: BodyRegion;
   side: BodySide;
   type: PainType;
-  /** 0 = none, 10 = worst imaginable. */
-  severity: number;
+  /**
+   * 0 = none, 10 = worst imaginable. Null: not rated yet (AJ's F20 "a", Oct
+   * 16 2026): a spot tapped on the map starts with no number until its Dial
+   * is touched. It used to start at 5, "Moderate", and was saved as that
+   * untouched. Nothing averages, compares or flags an unrated spot; it shows
+   * as "Not rated".
+   */
+  severity: number | null;
   frequency: PainFrequency;
   /** ISO date, or free text like "since the fall in March". */
   since?: string | null;

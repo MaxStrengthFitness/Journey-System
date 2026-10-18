@@ -29,6 +29,7 @@ export type AdminsPage =
   | "home"
   | "studios"
   | "studio"
+  | "waiting"
   | "launches"
   | "franchises"
   | "machines"
@@ -66,6 +67,8 @@ export const ADMINS_NAV: readonly AdminsNavGroup[] = [
     label: "Studios",
     items: [
       { page: "studios", label: "All studios" },
+      // Every studio's pending sign-ups on one list (AJ, Oct 16 2026: "I should be able to just see all the requests from admin").
+      { page: "waiting", label: "Waiting to be let in" },
       // The studios opening (the second wave, Sep 28 2026): "Launches", so it never clashes with My Studio → Openings.
       { page: "launches", label: "Launches" },
       { page: "franchises", label: "Franchises" },

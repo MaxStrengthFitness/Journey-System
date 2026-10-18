@@ -21,6 +21,11 @@
  * answers by scanning. Which of them are LEFT open is the Hub's own rule
  * (admin/overview/left-open.ts, over isSessionValid).
  *
+ * And the pending sign-ups (Oct 16 2026): access_requests where status ==
+ * "Pending", the administrators' query Operations → Setup → People & access
+ * already listens to (admin/staff/useStaffRoster.ts), read once here so Home
+ * can say who is waiting to be let in.
+ *
  * Each says whether it was read: a read that failed is "failed", which Home
  * says as "couldn't check", never as nothing waiting. No listener, no timer.
  */
@@ -33,6 +38,7 @@ import { fetchRecentReports } from "../../admin/bugs/fetch-reports";
 import type { ReportView } from "../../admin/bugs/reportView";
 import { fetchShareOffers } from "../../machine-db/fetch-share-offers";
 import type { ShareOffer } from "../../machine-db/offers";
+import type { AccessRequest } from "../../admin/staff/roster";
 
 export type ReadState = "loading" | "ok" | "failed";
 
@@ -62,6 +68,8 @@ export interface HomeSignals {
   openSessions: { state: ReadState; sessions: WorkoutSession[] };
   /** Waiting for review: notes, tips and machines offered to every studio. */
   shares: { state: ReadState; pending: PendingShare[] };
+  /** Pending sign-ups and studio-access requests, every studio (Oct 16 2026). */
+  access: { state: ReadState; requests: AccessRequest[] };
 }
 
 const LOADING: HomeSignals = {
@@ -70,7 +78,13 @@ const LOADING: HomeSignals = {
   offers: { state: "loading", pending: [] },
   openSessions: { state: "loading", sessions: [] },
   shares: { state: "loading", pending: [] },
+  access: { state: "loading", requests: [] },
 };
+
+async function fetchPendingRequests(): Promise<AccessRequest[]> {
+  const snap = await getDocs(query(collection(db, "access_requests"), where("status", "==", "Pending")));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AccessRequest, "id">) }));
+}
 
 function pendingShareOf(o: ShareOffer): PendingShare {
   return {
@@ -148,6 +162,10 @@ export function useHomeSignals(refreshKey: unknown): HomeSignals {
       (offers) =>
         !cancelled && setSignals((s) => ({ ...s, shares: { state: "ok", pending: offers.map(pendingShareOf) } })),
       () => !cancelled && setSignals((s) => ({ ...s, shares: { state: "failed", pending: [] } })),
+    );
+    fetchPendingRequests().then(
+      (requests) => !cancelled && setSignals((s) => ({ ...s, access: { state: "ok", requests } })),
+      () => !cancelled && setSignals((s) => ({ ...s, access: { state: "failed", requests: [] } })),
     );
     return () => {
       cancelled = true;

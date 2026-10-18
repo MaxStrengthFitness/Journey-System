@@ -32,6 +32,7 @@ import type { OverdueRead } from "./overdue-setup";
 import { dayLabel } from "../studios/stages";
 import type { WorkoutSession } from "../../../types";
 import { leftOpenSessions } from "../../admin/overview/left-open";
+import { waitingWhere } from "../studios/waiting";
 
 export type NeedTone = "watch" | "unknown" | "live";
 
@@ -77,6 +78,12 @@ export interface NeedInputs {
   launches: OverdueRead;
   /** In-Progress sessions across every studio (Oct 2 2026); absent: not asked. */
   openSessions?: { state: ReadState; sessions: readonly WorkoutSession[] };
+  /**
+   * Who is waiting to be let in, every studio (Oct 16 2026): the pending
+   * requests already filtered by the staff roster's own rule (studios/
+   * waiting.ts), so a stale one never counts. Absent: not asked.
+   */
+  waiting?: { state: ReadState; people: readonly { key: string; name: string; studioName: string | null }[] };
   now: number;
 }
 
@@ -106,6 +113,29 @@ function waitingWords(since: number | null, now: number): string | null {
 /** Everything that needs a person right now, worst first; `more` is what didn't fit. */
 export function needItems(input: NeedInputs): { items: NeedItem[]; more: NeedItem[] } {
   const out: NeedItem[] = [];
+
+  // 0. People waiting to be let in (Oct 16 2026): someone signed in and is
+  // stood at the door, so it comes first. The studios let their own people in
+  // too; this is the administrators' list of every one of them.
+  if (input.waiting?.state === "ok" && input.waiting.people.length > 0) {
+    const people = input.waiting.people;
+    const one = people[0];
+    out.push({
+      id: "waiting",
+      kind: "Waiting to be let in",
+      tone: "watch",
+      say:
+        people.length === 1
+          ? one.studioName
+            ? `${one.name} is waiting to be let in at ${one.studioName}.`
+            : `${one.name} is waiting to be let in, with no studio named.`
+          : `${people.length} people are waiting to be let in: ${names(waitingWhere(people))}.`,
+      proof: "They signed in and asked to join. Approving gives each an account, a role and a home studio.",
+      door: { label: "Open Waiting to be let in", page: "waiting" },
+      clears: "Clears itself when each is let in.",
+      condition: people.map((p) => p.key).sort().join(","),
+    });
+  }
 
   // 1. Pulls that keep failing.
   const failing = input.sync.filter((r) => r.kind === "failing" && r.failures >= FAILURES_FOR_HOME);
@@ -328,6 +358,7 @@ export function needItems(input: NeedInputs): { items: NeedItem[]; more: NeedIte
     ...(input.shares?.state === "failed" ? ["what is waiting for review"] : []),
     ...(input.bugs.state === "failed" ? ["the bug reports"] : []),
     ...(input.openSessions?.state === "failed" ? ["the sessions left open"] : []),
+    ...(input.waiting?.state === "failed" ? ["who is waiting to be let in"] : []),
   ];
   if (unknownReads.length) {
     out.push({

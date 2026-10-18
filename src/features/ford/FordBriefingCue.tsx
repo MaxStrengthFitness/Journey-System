@@ -13,6 +13,11 @@
  * the critical strip, and gone entirely when there is nothing worth saying.
  *
  * WHAT IT PICKS
+ *   0. What the Hub card's Get to know mark is about, in the same words, by
+ *      the Hub's one rule (`askAboutFor`; the briefing round, Oct 17 2026,
+ *      AJ's F13 "2a"): a day coming up this week, then a Follow up next time
+ *      question, then one that just happened, then news. A follow-up is
+ *      cleared when its answer is saved here, or by "Nothing new".
  *   1. The soonest dated detail — a graduation eight days out, an anniversary
  *      next week. The highest-value thing a trainer can open with.
  *   2. Failing that, the most recent standing fact, so a trainer who has never
@@ -51,7 +56,9 @@ import { FORD_META, FORD_PILLARS, type FordEntry, type FordPillar } from "./type
 import { useClientFord } from "./useClientFord";
 import { FordMark, WhenChip, pillarPrompt } from "./ui";
 import { FordQuickCapture } from "./FordQuickCapture";
-import { fordStudioIdOf, type FordAuthor } from "./ford-write";
+import { clearFollowUp, fordStudioIdOf, type FordAuthor } from "./ford-write";
+import { askAboutFor, type AskAbout } from "../hub-opportunities/get-to-know";
+import { studioTodayKey } from "../../lib/studio-time";
 import { clientFirstName } from "../../lib/client-name";
 import { pronounsFor } from "../client-codex/kit/pronouns";
 import { isRetiredClient } from "../client-life/life";
@@ -70,6 +77,7 @@ export interface FordBriefingCueProps {
 }
 
 type Cue =
+  | { kind: "ask"; entry: FordEntry; ask: AskAbout }
   | { kind: "detail"; entry: FordEntry }
   | { kind: "prompt"; pillar: FordPillar }
   | { kind: "unread"; reason: "failed" | "denied" };
@@ -84,6 +92,14 @@ export function FordBriefingCue({ client, author = null, studioId = "" }: FordBr
   const cue = useMemo<Cue | null>(() => {
     if (status === "loading") return null;
     if (status === "failed" || status === "denied") return { kind: "unread", reason: status };
+
+    /* One rule with the Hub (the briefing round, Oct 17 2026; AJ's F13,
+       "2a"): what the Hub card's Get to know mark is about is what the
+       briefing says, in the same words. A day coming up this week, then a
+       Follow up next time question, then one that just happened, then news. */
+    const ask = askAboutFor(entries, studioTodayKey());
+    const asked = ask ? entries.find((e) => e.id === ask.entryId) : undefined;
+    if (ask && asked) return { kind: "ask", entry: asked, ask };
 
     const soonest = upcoming[0];
     if (soonest) return { kind: "detail", entry: soonest.entry };
@@ -108,10 +124,25 @@ export function FordBriefingCue({ client, author = null, studioId = "" }: FordBr
   const canCapture = Boolean(author && client.id) && !refused;
   // An unread cue opens the capture unfiled — the floor path, a letter later.
   const pillar: FordPillar | null =
-    cue.kind === "detail" ? cue.entry.pillar : cue.kind === "prompt" ? cue.pillar : null;
+    cue.kind === "detail" || cue.kind === "ask" ? cue.entry.pillar : cue.kind === "prompt" ? cue.pillar : null;
+  /* A Follow up next time question: saving the answer clears it, as the FORD
+     page's "Asked it" does, and "Nothing new" clears it without one. Never
+     waited on: a tap on the floor moves on. */
+  const followUp = cue.kind === "ask" && cue.ask.reason === "follow-up" && client?.id ? { clientId: client.id, fordId: cue.entry.id } : null;
+  const clearQuestion = () => {
+    if (followUp) void clearFollowUp(followUp.clientId, followUp.fordId);
+  };
 
   const body =
-    cue.kind === "unread" ? (
+    cue.kind === "ask" ? (
+      <>
+        <FordMark pillar={cue.entry.pillar} size={30} />
+        <span className="ford-upnext__body">
+          <span className="ford-upnext__text">{cue.ask.sentence}</span>
+          {cue.entry.opportunity?.idea ? <span className="ford-upnext__meta">{cue.entry.opportunity.idea}</span> : null}
+        </span>
+      </>
+    ) : cue.kind === "unread" ? (
       <>
         <span className="ford-mark ford-mark--unfiled" style={{ width: 30, height: 30 }}>
           <Info size={15} strokeWidth={2.5} />
@@ -136,13 +167,7 @@ export function FordBriefingCue({ client, author = null, studioId = "" }: FordBr
         <FordMark pillar={cue.entry.pillar} size={30} />
         <span className="ford-upnext__body">
           <span className="ford-upnext__text">{cue.entry.body}</span>
-          <span className="ford-upnext__meta">
-            {cue.entry.opportunity?.idea
-              ? cue.entry.opportunity.idea
-              : canCapture
-                ? "Worth asking about today · tap to note what they say"
-                : "Worth asking about today"}
-          </span>
+          {cue.entry.opportunity?.idea ? <span className="ford-upnext__meta">{cue.entry.opportunity.idea}</span> : null}
         </span>
         <WhenChip date={cue.entry.eventDate} recurrence={cue.entry.recurrence} />
       </>
@@ -155,11 +180,7 @@ export function FordBriefingCue({ client, author = null, studioId = "" }: FordBr
           <span className="ford-upnext__text">
             “{pillarPrompt(cue.pillar, undefined, { retired: isRetiredClient(client) })}”
           </span>
-          <span className="ford-upnext__meta">
-            {canCapture
-              ? `Nothing on file under ${FORD_META[cue.pillar].label} yet — tap to note the answer`
-              : `Nothing on file under ${FORD_META[cue.pillar].label} yet — catch the answer with Remember this`}
-          </span>
+          <span className="ford-upnext__meta">{`Nothing on file under ${FORD_META[cue.pillar].label} yet`}</span>
         </span>
       </>
     );
@@ -204,7 +225,21 @@ export function FordBriefingCue({ client, author = null, studioId = "" }: FordBr
             author={author}
             origin="briefing"
             defaultPillar={pillar}
+            onSaved={followUp ? clearQuestion : undefined}
           />
+          {followUp ? (
+            <button
+              type="button"
+              className="ford-btn ford-upnext__clear"
+              data-testid="ford-briefing-clear"
+              onClick={() => {
+                clearQuestion();
+                setOpen(false);
+              }}
+            >
+              Nothing new, clear the question
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
