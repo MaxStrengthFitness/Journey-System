@@ -404,6 +404,14 @@ const studioCtx = vi.hoisted(() => ({
  * while the menu is open), so counting the calls counts the tracker's
  * renders; toJourneyRows is what rebuilds every row of the grid.
  */
+/* The trainer's own notebook (Just for me), caught here: what it was handed. */
+const jotted = vi.hoisted(() => [] as { clientId: string; text: string }[]);
+vi.mock("../features/relay/notes/client-jots", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../features/relay/notes/client-jots")>()),
+  jotAbout: async (input: { clientId: string; text: string }) => {
+    jotted.push(input);
+  },
+}));
 const renders = vi.hoisted(() => ({ tracker: 0, rows: 0 }));
 vi.mock("../features/session-record/useSendState", async (importOriginal) => {
   const realMod = await importOriginal<typeof import("../features/session-record/useSendState")>();
@@ -943,7 +951,12 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(label).toBeDefined();
     const box = document.getElementById(label!.getAttribute("for")!);
     expect(box?.tagName).toBe("TEXTAREA");
-    expect(document.getElementById(box!.getAttribute("aria-describedby")!)?.textContent).toBe("On the next four briefings.");
+    // The same note box as the Wrap-up's (the Wrap-up round, Oct 18 2026, "n2 a"): at Next time, and it says where it lands.
+    expect(document.getElementById(box!.getAttribute("aria-describedby")!)?.textContent).toMatch(/· read out on the next 4 briefings$/);
+    const goes = document.querySelector('[data-testid="next-trainer-box"] [role="radiogroup"][aria-label="Goes to"]')!;
+    expect(goes.querySelector('[aria-checked="true"]')!.textContent).toBe("Next time");
+    expect(label!.textContent).toBe("Note for the next trainer");
+    expect(document.body.textContent).not.toContain("(optional)");
     // "Wrap-up" is the post-session screen's name now, not this box's.
     expect(document.body.textContent).not.toContain("Wrap-up note");
   });
@@ -998,17 +1011,34 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(buttons.some((t) => t?.includes("Discard"))).toBe(false);
   });
 
+  it("keeps a just-for-me note at Finish to the trainer's own notebook: never the journal, never the session's copy (n2 a)", async () => {
+    jotted.length = 0;
+    await openEndSession();
+    const box = document.getElementById("next-trainer-note") as HTMLTextAreaElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "Ask how the move went, quietly.");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => (document.querySelector('[data-testid="next-trainer-box"] [data-testid="note-box-just-for-me"]') as HTMLButtonElement).click());
+    expect(document.querySelector('[data-testid="next-trainer-box"] [data-testid="note-box-where"]')!.textContent).toMatch(/^Your own notebook/);
+    await act(async () => finishButton()!.click());
+    await settle();
+    await settle();
+    expect(jotted).toEqual([expect.objectContaining({ clientId: expect.any(String), text: "Ask how the move went, quietly." })]);
+    expect(journalDocs).toHaveLength(0);
+    expect(completedWrites()[0].data.notes ?? "").toBe("");
+  });
+
   it("files the Note for the next trainer as it is written when a kind is picked, so it never waits in the tray (Oct 3 2026)", async () => {
     await openEndSession();
-    // Nothing typed: no extra row.
-    expect(document.querySelector('[data-testid="next-trainer-file-as"]')).toBeNull();
+    // What it's for shows before a word is typed (the Wrap-up round, Oct 18 2026).
+    const row = document.querySelector(`[data-testid="next-trainer-box"] [role="group"][aria-label="What it's for"]`)!;
+    expect(row).toBeTruthy();
     const box = document.getElementById("next-trainer-note") as HTMLTextAreaElement;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "Mentioned she may not renew in May.");
       box.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    const row = document.querySelector('[data-testid="next-trainer-file-as"]')!;
-    expect(row).toBeTruthy();
     const retention = Array.from(row.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Retention")!;
     await act(async () => retention.click());
     await act(async () => finishButton()!.click());

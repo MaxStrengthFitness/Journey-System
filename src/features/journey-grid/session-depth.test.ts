@@ -609,8 +609,11 @@ describe("the session's dialogs and sheets speak the same voice", () => {
     // New client, Keep training, Scrap's Resume session, and Try again while Finish waits for the sets (F22, Oct 17 2026).
     expect(outlines.length).toBe(4);
     for (const list of outlines) expect(list).not.toMatch(/border-slate-|border-2\b|hover:bg-slate-/);
-    const note = /<Textarea\s+id="next-trainer-note"[\s\S]*?className="([^"]*)"/.exec(dialogs)?.[1];
+    // The note field is the note box's since the Wrap-up round (Oct 18 2026, "n2 a"): the same rule, read where it is drawn.
+    expect(dialogs).toMatch(/<NoteBox\s+id="next-trainer-note"/);
+    const note = /<textarea\s+className="([^"]*)"/.exec(read("features/client-notes/NoteBox.tsx"))?.[1];
     expect(note).toBeDefined();
+    expect(note).toContain("border-input");
     expect(note).not.toMatch(/border-slate-|border-2\b|bg-card|text-slate-/);
     const contents = [...dialogs.matchAll(/<DialogContent className="([^"]*)"/g)].map((m) => m[1]);
     expect(contents.length).toBe(2);

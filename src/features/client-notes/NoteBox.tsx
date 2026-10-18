@@ -24,18 +24,23 @@ export interface NoteBoxProps {
   onChange: (next: NoteBoxValue) => void;
   /** The client's first name, for the line ("Robbin's profile → Notes → …"). */
   firstName: string;
-  /** The box's accessible name. */
-  label: string;
+  /** The box's accessible name, when no <label> outside names it (`id`). */
+  label?: string;
+  /** The words' id, for a <label htmlFor> outside; the line under it describes them. */
+  id?: string;
   placeholder?: string;
   autoFocus?: boolean;
 }
 
-export function NoteBox({ value, onChange, firstName, label, placeholder, autoFocus = false }: NoteBoxProps) {
+export function NoteBox({ value, onChange, firstName, label, id, placeholder, autoFocus = false }: NoteBoxProps) {
+  const whereId = id ? `${id}-where` : undefined;
   return (
     <div className="flex flex-col gap-2.5" data-testid="note-box">
       <textarea
         className="w-full bg-(--well) border border-input shadow-(--elev-0) rounded-[10px] p-2.5 px-3 min-h-16 text-[14px] text-ink-d1 placeholder:text-ink-d3 placeholder:italic resize-none outline-none focus:border-(--eq-focus-ring) transition-colors"
+        id={id}
         aria-label={label}
+        aria-describedby={whereId}
         placeholder={placeholder}
         value={value.text}
         autoFocus={autoFocus}
@@ -67,7 +72,7 @@ export function NoteBox({ value, onChange, firstName, label, placeholder, autoFo
           />
         </div>
       )}
-      <p className="text-[12px] text-ink-d2 break-words" role="status" aria-live="polite" data-testid="note-box-where">
+      <p id={whereId} className="text-[12px] text-ink-d2 break-words" role="status" aria-live="polite" data-testid="note-box-where">
         {whereItLands(value, firstName)}
       </p>
     </div>
