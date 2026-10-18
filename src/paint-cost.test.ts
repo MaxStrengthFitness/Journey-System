@@ -281,11 +281,18 @@ describe("4. the Hub's cards: no container each, no layer each, and the hatching
     // The card's inside is the column over its lanes, less the slot's sides and the card's edge and padding.
     const slotPad = decl(rulesOf(GRID).find((r) => r.selector === ".hs-slot")!.body, "padding");
     expect(slotPad).toBe("0 3px");
+    // Since the cards round (Oct 17 2026) the card has no border: its edge is
+    // a 1px outline, which takes no room, and its padding took the old 1px
+    // edge and 4px rail (7 9 7 14), so the inside, and every width below, is
+    // where it was. An unlinked card's 1px dash comes out of its padding.
     const card = rulesOf(CARD).find((r) => r.selector === ".hs-card")!.body;
-    expect(decl(card, "padding")).toBe("6px 8px 6px 10px");
-    expect(decl(card, "border")).toBe("1px solid var(--eq-edge)");
-    expect(decl(card, "border-left")).toBe("4px solid var(--eq-ink-faint)");
-    const chrome = 3 * 2 + (4 + 10) + (8 + 1);
+    expect(decl(card, "padding")).toBe("7px 9px 7px 14px");
+    expect(decl(card, "border")).toBe("0");
+    expect(decl(card, "outline")).toBe("1px solid var(--eq-card-edge)");
+    const unlinked = rulesOf(CARD).find((r) => r.selector === '.hs-card[data-kind="unlinked"]')!.body;
+    expect(decl(unlinked, "border")).toBe("1px dashed var(--eq-border)");
+    expect(decl(unlinked, "padding")).toBe("6px 8px 6px 13px");
+    const chrome = 3 * 2 + (0 + 14) + (9 + 0);
     for (const m of text.matchAll(/@container hs-col \(min-width: (\d+)px\) \{\s*\.hs-slot\[data-lanes="(\d)"\] (\.hs-g:first-child|\.hs-card\[data-words="all"\]) \.hs-g-word/g)) {
       const inside = m[3] === ".hs-g:first-child" ? 176 : 280;
       expect(Number(m[1]), `${m[3]}, ${m[2]} lane(s)`).toBe(Number(m[2]) * (inside + chrome));

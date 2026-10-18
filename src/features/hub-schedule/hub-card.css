@@ -3,11 +3,36 @@
    Colour comes from equipment.tokens.css (light and dark); no hex below.
 
    One channel, one meaning (research-hub §4, pattern 3):
-     the LEFT EDGE is the booking's state (upcoming, in session, over),
-     the GLYPH colour is its family (Watch plum, Welcome blue, Celebrate
-     orange, Renew green), and crimson is the Critical triangle alone.
+     the MARK, a short band inside the left edge, is the booking's state
+     (coming up, now, in session, nobody recorded it), the GLYPH colour is
+     its family (Watch plum, Welcome blue, Celebrate orange, Renew green),
+     and crimson is the Critical triangle alone.
    Names are whole and wrap; nothing tappable under 40px (the card is at
    least 64px, a 30-minute booking at 2.2px a minute less its gap).
+
+   THE CARDS ROUND (Oct 17 2026; AJ's 1A 2A 3A, with the light round's
+   calmer Hub, A1-A4, and the dark round's rim, D5). AJ: a past session
+   "a little bit more out of the way ... apparent that like hey this
+   session was passed and recorded", and one "passed and not recorded" easy
+   to tell apart: "oh hey what happened here". So:
+     coming up      the card, its lift, the quiet blue mark;
+     now            its time has come and no session has started: the
+                    orange mark and the word "Now" before the time;
+     in session     the blue fill and the blue mark;
+     recorded       done or a late cancel: a pale flat tile, no mark, every
+                    word in the muted ink: out of the way, still readable;
+     not recorded   Not logged or Left open: a whole card, flat (it is
+                    over), the plum mark, its name and "Not logged" in the
+                    ink, "Left open" in plum;
+     past           over, nothing to claim (a failed read, a cancellation):
+                    a flat fill a step off the ground, no mark, no word;
+     before the     the studio does not log in Journey yet, so Not logged
+     cutover        lies down with the recorded past and keeps its words.
+   Every card is drawn ONE way: no border, a 1px outline outside it (the
+   full edge on a card in play or not recorded, the quiet edge on one that
+   is over), and the mark a straight 3px band painted as a background, so
+   nothing tapers round a corner. No opacity, no blur, no veil: what is
+   over is a solid colour, which WebKit paints without a layer per card.
    ========================================================================== */
 @import "../equipment/equipment.tokens.css";
 
@@ -23,17 +48,21 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: 6px 8px 6px 10px;
-  /* Type and depth, phase 11 (Oct 4 2026; AJ: "borders and headers just
-     needs a little bit of weight and depth"): a booking is told from the
-     grid by an edge seen from OUTSIDE it, the soft --eq-edge with the fill
-     clipped to the padding box, so the edge sits over the grid rather than
-     over the card's own fill. The 4px state rail on the left is untouched.
-     Radius 12, the Hub card's own. The lift is below, on the bookings that
-     lift; the opacity is the only thing that ever animates. */
-  border: 1px solid var(--eq-edge);
-  border-left: 4px solid var(--eq-ink-faint);
+  /* The inside is exactly where the old 1px edge and 4px rail left it
+     (7 = 1 + 6, 9 = 1 + 8, 14 = 4 + 10), so every width the words and the
+     word "Now" are measured against below still holds. */
+  padding: 7px 9px 7px 14px;
+  /* Drawn one way (A1 and D5): no border; the edge is a 1px outline
+     outside the card (Gemini's hairline in light, 2A; dark's rim), which
+     takes no room and never meets the mark. Radius 12, the Hub card's own.
+     The lift is below, on the bookings that lift; the opacity is the only
+     thing that ever animates. A rule that changes the outline on a state
+     is written :not(:focus-visible), so a focused card always keeps its
+     3px ring whatever comes later in this file. */
+  border: 0;
   border-radius: 12px;
+  outline: 1px solid var(--eq-card-edge);
+  --hs-mark: var(--eq-ink-faint);
   background: var(--eq-surface);
   background-clip: padding-box;
   color: var(--eq-ink);
@@ -42,6 +71,21 @@
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
   transition: opacity 150ms ease;
+}
+
+/* The mark: a straight 3px band with square ends, 5px in from the left
+   and 8px from the top and bottom, painted as a background (never a border
+   on a rounded box, which tapers into a crescent). Each state sets
+   --hs-mark; transparent is no mark. */
+.hs-card::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: var(--hs-mark);
+  pointer-events: none;
 }
 
 /* Lifted: a client's booking that isn't over. A list item's one contact
@@ -62,26 +106,34 @@
 }
 
 /* Coming up (AJ's answer 2A, Oct 4 2026): a client card still to come
-   carries a quiet logo-blue edge instead of the grey one (3.13:1 on the
+   carries a quiet logo-blue mark instead of the grey one (3.13:1 on the
    card light, 3.64 dark), so the Hub has colour before the first session.
-   In session keeps the full blue edge and its fill; over, left open,
-   staff and unlinked keep theirs, so the edge still says the state.
    HubCard always sets data-kind, data-state and data-recede, and "live" is
    hubCardState's word for still to come or under way, not logged: a rule
    keyed on a MISSING attribute would match nothing. */
 .hs-card[data-kind="client"][data-state="live"] {
-  border-left-color: var(--eq-rail-booked);
+  --hs-mark: var(--eq-rail-booked);
 }
 
-/* The one being looked at (its peek is open): blue all round, its edge
-   included, over the coming-up edge above, and lifted higher (--eq-elev-3,
-   an open card). The third selector outranks the lift above (0,4,0 over
-   0,3,0) and touches only the shadow, so a rail keeps its colour. A card
-   that is over keeps today's flat look when open (its rule below says
-   none). */
+/* NOW (the cards round): its time has come and no session has started in
+   Journey (HubCard's data-now, from hubCardIsNow, until the five minutes
+   after its end at which it turns Not logged). Orange is now and go: the
+   orange mark (3.89:1 on the card light, 4.96 dark), and the word "Now" in
+   the deep orange below. Open, it keeps the blue mark the open card has
+   (picked is blue), so the rule steps aside for an open card. */
+.hs-card[data-kind="client"][data-state="live"][data-now="true"]:not([data-open="true"]) {
+  --hs-mark: var(--eq-now-mark);
+}
+
+/* The one being looked at (its peek is open): the blue ring and the blue
+   mark, lifted higher (--eq-elev-3, an open card). The third selector
+   outranks the lift above (0,4,0 over 0,3,0) and touches only the shadow.
+   A recorded or past card that is open keeps no mark (its rules below come
+   later or weigh more) and a card nobody recorded keeps its plum; the ring
+   for a card that is over is at the end of this block. */
 .hs-card[data-open="true"],
 .hs-card[data-kind="client"][data-state="live"][data-open="true"] {
-  border-color: var(--eq-live);
+  --hs-mark: var(--eq-live);
   box-shadow: 0 0 0 2px var(--eq-live), var(--eq-elev-3);
 }
 
@@ -89,104 +141,138 @@
   box-shadow: 0 0 0 2px var(--eq-live), var(--eq-elev-3);
 }
 
-/* A state that repaints the fill restates the clip: the background shorthand
-   resets background-clip to border-box, and the soft edge would then sit
-   over the card's own fill instead of the grid (phase 11). */
+/* A state that repaints the fill restates the clip: the background
+   shorthand resets background-clip to border-box (phase 11). */
 .hs-card[data-state="in-session"] {
-  border-left-color: var(--eq-live);
+  --hs-mark: var(--eq-live);
   background: var(--eq-live-fill);
   background-clip: padding-box;
 }
 
-/* Over: done, not logged, or nothing to claim. It recedes and drops its
-   marks, the triangle included (AJ, Sep 28: "once the session is done it
-   should make a lot less noise"). At 70% its name still reads on the
-   calmer light grid (4.96:1; 62% would be 3.96, Oct 4 2026). The Key's
-   swatches recede by the same amount (day-header.css).
-
-   HOW it recedes (the iPad round, Oct 6 2026, audit W12): it was
-   opacity 0.70 on the card, and every translucent card makes WebKit paint
-   it into a layer of its own and blend it, which by the afternoon is most
-   of the day's cards on every scroll. Now the same arithmetic in colour: a
-   veil of the ground under the card (--hs-ground, the grid's or your
-   lane's, hub-grid.css) at 30% over its content, and its edges mixed 70%
-   into the ground (the veil stops at the edge, which overflow clips). The
-   pixels are the ones opacity 0.70 drew; only the hatching an off-hours
-   card sat over no longer shows through it. */
+/* Over: done, a late cancel, not logged, left open, or nothing to claim.
+   It lies flat and drops its marks, the triangle included (AJ, Sep 28:
+   "once the session is done it should make a lot less noise"), and takes
+   the quiet edge. A card that is over and says nothing (past: a failed
+   read is unknown, never "not logged"; a cancellation) is this alone, the
+   light round's A2: a flat fill 62% card into its own ground (--hs-ground,
+   the grid's or your lane's, hub-grid.css), its name in ink-2 and its
+   words in the muted ink (light 7.85 and 5.57:1 at the least, dark 9.07
+   and 6.63). The states below draw the rest. */
 .hs-card[data-recede="true"] {
-  border-color: color-mix(in srgb, var(--eq-edge) 70%, transparent);
-  border-left-color: color-mix(in srgb, var(--eq-border-strong) 70%, var(--hs-ground, var(--eq-bg)));
-  background: var(--eq-surface-2);
+  --hs-mark: transparent;
+  background: color-mix(in srgb, var(--eq-surface) 62%, var(--hs-ground, var(--eq-bg)));
   background-clip: padding-box;
   box-shadow: none;
 }
 
-.hs-card[data-recede="true"]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--hs-ground, var(--eq-bg)) 30%, transparent);
-  pointer-events: none;
+.hs-card[data-recede="true"]:not(:focus-visible) {
+  outline-color: var(--eq-card-edge-quiet);
 }
 
-/* Open while over: the blue edge the open card has, receded with it, round
-   three sides. Its left rail keeps the receded grey it had before the iPad
-   round (opacity used to recede the open card's rail to grey too). */
-.hs-card[data-recede="true"][data-open="true"] {
-  border-top-color: color-mix(in srgb, var(--eq-live) 70%, var(--hs-ground, var(--eq-bg)));
-  border-right-color: color-mix(in srgb, var(--eq-live) 70%, var(--hs-ground, var(--eq-bg)));
-  border-bottom-color: color-mix(in srgb, var(--eq-live) 70%, var(--hs-ground, var(--eq-bg)));
+.hs-card[data-recede="true"] .hs-card-name {
+  color: var(--eq-ink-2);
 }
 
-/* Its quiet words still read at arm's length (the colour round's review,
-   Oct 4 2026): at 0.70 the muted ink would be 2.9:1 on the light grid and
-   ink-2 3.5:1, so on a card that is over they lift to the ink (4.96:1 light,
-   7.00 dark) rather than the card fading less. Size and weight keep the name
-   first. */
-.hs-card[data-recede="true"] .hs-card-when,
-.hs-card[data-recede="true"] .hs-card-when strong,
-.hs-card[data-recede="true"] .hs-card-rest,
-.hs-card[data-recede="true"] .hs-card-rest strong,
-.hs-card[data-recede="true"] .hs-card-num,
-.hs-card[data-recede="true"] .hs-card-staff,
-.hs-card[data-recede="true"][data-kind="staff"] .hs-card-name,
-.hs-card[data-recede="true"][data-kind="unlinked"] .hs-card-name {
+/* RECORDED: done, and a late cancel. A pale tile, the card mixed
+   --eq-done-mix (30%) into its own ground: two steps further back than a
+   card still to come (light 1.09:1 against it on the grid, dark 1.12), no
+   mark (open included), and every word in the muted ink, which still reads
+   on the tile (light 5.58:1 on the grid, 5.20 on your lane; dark 7.22 and
+   6.72). Done keeps its check; the late cancel says "Late cancel". */
+.hs-card[data-kind="client"][data-state="done"],
+.hs-card[data-kind="client"][data-state="didnt-come"] {
+  --hs-mark: transparent;
+  background: color-mix(in srgb, var(--eq-surface) var(--eq-done-mix), var(--hs-ground, var(--eq-bg)));
+  background-clip: padding-box;
+}
+
+.hs-card[data-kind="client"][data-state="done"] .hs-card-name,
+.hs-card[data-kind="client"][data-state="done"] .hs-card-when strong,
+.hs-card[data-kind="client"][data-state="done"] .hs-card-rest strong,
+.hs-card[data-kind="client"][data-state="didnt-come"] .hs-card-name,
+.hs-card[data-kind="client"][data-state="didnt-come"] .hs-card-when strong,
+.hs-card[data-kind="client"][data-state="didnt-come"] .hs-card-rest strong {
+  color: var(--eq-ink-muted);
+}
+
+/* NOT RECORDED: Not logged, and Left open (hub fixes, Oct 1 2026: a
+   session started and gone quiet for an hour, which anyone at the studio
+   can close; Paused and At End Session are its words too). A whole card,
+   flat because it is over, with the full edge and the plum mark, the app's
+   caution, never the red kaizen mark (5.55:1 on the card light, 5.97
+   dark). Its name and "Not logged" in the ink; "Left open" in plum, a real
+   Journey session still open on an iPad. Before the studio's cutover, Not
+   logged steps back (below). */
+.hs-card[data-kind="client"][data-state="not-logged"],
+.hs-card[data-kind="client"][data-state="left-open"] {
+  --hs-mark: var(--eq-unlogged-mark);
+  background: var(--eq-surface);
+  background-clip: padding-box;
+}
+
+.hs-card[data-kind="client"][data-state="not-logged"]:not(:focus-visible),
+.hs-card[data-kind="client"][data-state="left-open"]:not(:focus-visible) {
+  outline-color: var(--eq-card-edge);
+}
+
+.hs-card[data-kind="client"][data-state="not-logged"] .hs-card-name,
+.hs-card[data-kind="client"][data-state="left-open"] .hs-card-name,
+.hs-card[data-kind="client"][data-state="not-logged"] .hs-card-when strong {
   color: var(--eq-ink);
 }
 
-/* Left open (hub fixes, Oct 1 2026): a session started and gone quiet for an
-   hour. It recedes like any card that is over, and its edge is plum, the
-   app's caution, so it reads apart from "done" — never the red kaizen mark. */
-.hs-card[data-state="left-open"] {
-  border-left-color: var(--eq-warn);
+.hs-card[data-kind="client"][data-state="left-open"] .hs-card-when strong {
+  color: var(--eq-warn);
 }
 
-/* Receded, its plum edge recedes with it (the veil above stops at the edge). */
-.hs-card[data-recede="true"][data-state="left-open"] {
-  border-left-color: color-mix(in srgb, var(--eq-warn) 70%, var(--hs-ground, var(--eq-bg)));
+/* BEFORE THE STUDIO'S JOURNEY CUTOVER (data-logging="not-yet" on the grid
+   or the phone's list while the day shown is before the studio's Journey
+   cutover date, or none is set; the cards round's C4 sets it). Nobody logs
+   in Journey yet, so Not logged is the normal state: it lies down with the
+   recorded past and KEEPS its words (AJ, Sep 24: a grey card with no word
+   reads as done). Left open still stands out: it is a Journey session
+   really left open. The outline rule steps aside for an open card, so the
+   ring's rule at the end wins it. */
+.hs-scroll[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"],
+.ph-day[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"] {
+  --hs-mark: transparent;
+  background: color-mix(in srgb, var(--eq-surface) var(--eq-done-mix), var(--hs-ground, var(--eq-bg)));
+  background-clip: padding-box;
 }
 
-/* No Max Strength profile yet: the next sync links it. Inert. Its dashes
-   keep today's hairline (--eq-border), as the Next 30 minutes strip's
-   unlinked item does: the soft edge would fade a dash to nothing, and the
-   3:1 edge would make a booking that isn't a client louder than one that
-   is. Its left keeps whatever edge its state gives it. */
+.hs-scroll[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"]:not(:focus-visible):not([data-open="true"]),
+.ph-day[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"]:not(:focus-visible):not([data-open="true"]) {
+  outline-color: var(--eq-card-edge-quiet);
+}
+
+.hs-scroll[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"] .hs-card-name,
+.hs-scroll[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"] .hs-card-when strong,
+.ph-day[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"] .hs-card-name,
+.ph-day[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"] .hs-card-when strong {
+  color: var(--eq-ink-muted);
+}
+
+/* No Max Strength profile yet: the next sync links it. Inert. Dashed all
+   round in today's hairline (--eq-border), as the Next 30 minutes strip's
+   unlinked item is, with no mark and no outline: the soft edge would fade
+   a dash to nothing, and a firmer one would make a booking that isn't a
+   client louder than one that is. The 1px dash comes out of the padding,
+   so the inside stays where the other cards have it. */
 .hs-card[data-kind="unlinked"] {
-  border-style: dashed;
-  border-left-width: 1px;
-  border-top-color: var(--eq-border);
-  border-right-color: var(--eq-border);
-  border-bottom-color: var(--eq-border);
+  border: 1px dashed var(--eq-border);
+  padding: 6px 8px 6px 13px;
   background: var(--eq-surface-2);
   background-clip: padding-box;
   box-shadow: none;
   cursor: default;
 }
 
-.hs-card[data-recede="true"][data-kind="unlinked"] {
-  border-top-color: color-mix(in srgb, var(--eq-border) 70%, var(--hs-ground, var(--eq-bg)));
-  border-right-color: color-mix(in srgb, var(--eq-border) 70%, var(--hs-ground, var(--eq-bg)));
-  border-bottom-color: color-mix(in srgb, var(--eq-border) 70%, var(--hs-ground, var(--eq-bg)));
+.hs-card[data-kind="unlinked"]::before {
+  content: none;
+}
+
+.hs-card[data-kind="unlinked"]:not(:focus-visible) {
+  outline: 0;
 }
 
 /* The roster that would hold her hasn't arrived yet. */
@@ -209,23 +295,36 @@
 /* Time that isn't a session (Mindbody's "Unavailable": lunch, a one-on-one).
    Never counted, never tapped. */
 .hs-card[data-kind="staff"] {
-  border-left-color: var(--eq-ink-faint);
+  --hs-mark: var(--eq-ink-faint);
   background: repeating-linear-gradient(135deg, var(--eq-surface-2) 0 8px, var(--eq-surface-3) 8px 16px);
   background-clip: padding-box;
   box-shadow: none;
   cursor: default;
 }
 
-/* The day summary's spotlight: the rest stand back. */
-.hs-card[data-dim="true"] {
-  opacity: 0.22;
+/* Not a client's booking, so the quiet edge, like a card that is over. */
+.hs-card[data-kind="pending"]:not(:focus-visible),
+.hs-card[data-kind="unknown"]:not(:focus-visible),
+.hs-card[data-kind="staff"]:not(:focus-visible) {
+  outline-color: var(--eq-card-edge-quiet);
 }
 
-/* Dimmed, a card that is over drops its veil: the dim's opacity already
-   gives it a layer, and veil plus dim drew it about 30% fainter than a
-   dimmed card still to come (it was 0.22 for both before the iPad round). */
-.hs-card[data-dim="true"]::after {
-  content: none;
+/* OPEN WHILE OVER: the blue ring on every client card, a card that is over
+   included (with no border there is no other sign it is open). The value
+   is the open card's own. The outline steps aside under the ring, for
+   every kind; it is last, so it wins at its weight. */
+.hs-card[data-kind="client"][data-recede="true"][data-open="true"] {
+  box-shadow: 0 0 0 2px var(--eq-live), var(--eq-elev-3);
+}
+
+.hs-card[data-kind][data-open="true"]:not(:focus-visible) {
+  outline-color: transparent;
+}
+
+/* The day summary's spotlight: the rest stand back. A card that is over is
+   a solid colour, so the dim's 0.22 is its whole fade, as for any card. */
+.hs-card[data-dim="true"] {
+  opacity: 0.22;
 }
 
 .hs-card-top {
@@ -266,12 +365,14 @@
   white-space: nowrap;
 }
 
-/* Whole, wrapping onto a second line: never "Lobelia S…" (research-hub §6.0). */
+/* Whole, wrapping onto a second line: never "Lobelia S…" (research-hub §6.0).
+   Lighter Hub type (the light round's A4, both modes): a name is a row
+   label, 600; a figure is a title, 700; nothing on the Hub is 800. */
 .hs-card-name {
   flex: 0 1 auto;
   min-width: 0;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 17px;
   overflow-wrap: anywhere;
   color: var(--eq-ink);
@@ -279,7 +380,6 @@
 
 .hs-card[data-kind="staff"] .hs-card-name,
 .hs-card[data-kind="unlinked"] .hs-card-name {
-  font-weight: 600;
   color: var(--eq-ink-2);
 }
 
@@ -319,7 +419,7 @@
 
 .hs-card-when strong,
 .hs-card-rest strong {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--eq-ink-2);
 }
 
@@ -351,8 +451,9 @@
    card before its start: the time whole exactly where it was whole, the
    word on one line or not shown, the marks, the name and the card's height
    unchanged. It shows from a lane of about 92px with no marks. A span (a
-   consult's "10:00 – 10:45 AM") never carries the word (HubCard). The
-   colour is the round's C3; until then it is the bold ink above. */
+   consult's "10:00 – 10:45 AM") never carries the word (HubCard): there
+   the orange mark says it alone. The word is the deep orange of words
+   (5.72:1 on the card light, 6.80 dark); the time stays in its ink. */
 .hs-card-when[data-now="true"] {
   flex: 0 1 auto;
   min-width: min-content;
@@ -370,6 +471,10 @@
   margin-right: 4px;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+.hs-card-when .hs-card-now {
+  color: var(--eq-now-text);
 }
 
 /* The words after them ("New to Journey", a service) give way first when the
@@ -409,7 +514,7 @@
 
 .hs-card[data-state="in-session"] .hs-card-when {
   color: var(--eq-live-text);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .hs-live-dot {
@@ -467,7 +572,7 @@
   justify-content: center;
   border-radius: 6px;
   font-size: 11.5px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   white-space: nowrap;
 }

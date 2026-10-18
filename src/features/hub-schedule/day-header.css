@@ -136,13 +136,14 @@
   white-space: nowrap;
 }
 
-/* The day's numeral is a headline figure: the display face, upright, 17 at
-   800 with tabular digits (type and depth, phase 11). Its line is about 3px
-   taller than at 14, and the pill still fits its 44px. */
+/* The day's numeral is a headline figure: the display face, upright, 17
+   with tabular digits (type and depth, phase 11), at 700 since the light
+   round's A4 (lighter Hub type). Its line is about 3px taller than at 14,
+   and the pill still fits its 44px. */
 .hd-day-name strong {
   font-family: var(--font-display);
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--eq-ink);
 }
@@ -153,7 +154,7 @@
   gap: 3px;
   min-height: 14px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   color: var(--eq-ink-muted);
   font-variant-numeric: tabular-nums;
@@ -178,14 +179,16 @@
   color: var(--eq-hero-text);
 }
 
-/* The picked day lifts as a solid blue does: a blue-tinted drop and a top
-   light (type and depth, phase 11). Today AND picked keeps exactly its
-   orange underline below instead (that rule outranks this one). */
+/* The picked day is the solid blue chip with its top light (type and
+   depth, phase 11), without the blue glow under it since the light round's
+   A3 (both modes): the week is calmer, and the chip still stands out by
+   its fill. Today AND picked keeps exactly its orange underline below
+   instead (that rule outranks this one). */
 .hd-day[aria-selected="true"] {
   border-color: var(--eq-live);
   background: var(--eq-live);
   color: var(--eq-live-on);
-  box-shadow: var(--eq-glow-live), var(--eq-solid-light);
+  box-shadow: var(--eq-solid-light);
 }
 
 .hd-day[aria-selected="true"] .hd-day-name strong,
@@ -202,10 +205,10 @@
    OUTSIDE the blue chip (an outset shadow, never inset), on the day
    header: 3.68:1 light, 4.96 dark. Inside the chip it would be carried by
    hue alone (1.98 / 1.22 on the blue). The week's gap and the top's bottom
-   padding leave it room. */
+   padding leave it room. 2px since the light round's A3 (it was 3). */
 .hd-day[data-today="true"][aria-selected="true"] {
   border-color: var(--eq-live);
-  box-shadow: 0 3px 0 var(--eq-hero);
+  box-shadow: 0 2px 0 var(--eq-hero);
 }
 
 .hd-day[data-today="true"][aria-selected="true"] .hd-day-name strong {
@@ -242,13 +245,13 @@
   color: var(--eq-ink-2);
   font: inherit;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .hd-btn strong {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--eq-ink);
   font-variant-numeric: tabular-nums;
 }
@@ -298,7 +301,7 @@
   background: var(--eq-live-fill);
   color: var(--eq-live-text);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 18px;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -327,7 +330,7 @@
 }
 
 .hd-sum-words strong {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--eq-ink);
 }
 
@@ -357,13 +360,13 @@
   color: var(--eq-ink-2);
   font: inherit;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .hd-chip-n {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--eq-ink);
   font-variant-numeric: tabular-nums;
 }
@@ -534,16 +537,19 @@
   background: var(--eq-live-fill);
 }
 
-/* Over: the swatches recede as the cards do (hub-card.css, 0.70). */
+/* Over, drawn as the cards are (the cards round, Oct 17 2026; no opacity):
+   left open is a whole card with the plum mark, a straight 3px band
+   painted as a background layer (a 4px border on the rounded swatch
+   tapered into a crescent); done is the recorded tile, the card mixed
+   --eq-done-mix into the page, on the swatch's firm edge so the pale tile
+   still shows on the Key's sheet. The Key's other swatches and its new
+   rows are the round's C5. */
 .hd-swatch[data-state="left-open"] {
-  border-left: 4px solid var(--eq-warn);
-  background: var(--eq-surface-2);
-  opacity: 0.7;
+  background: linear-gradient(var(--eq-unlogged-mark), var(--eq-unlogged-mark)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface);
 }
 
 .hd-swatch[data-state="done"] {
-  background: var(--eq-surface-2);
-  opacity: 0.7;
+  background: color-mix(in srgb, var(--eq-surface) var(--eq-done-mix), var(--eq-bg));
 }
 
 .hd-swatch[data-state="unlinked"] {

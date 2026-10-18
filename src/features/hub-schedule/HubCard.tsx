@@ -9,7 +9,8 @@
  *   - the time, and the service only when it isn't the usual session;
  *   - her number in words ("#264"), only when it may be quoted, or "New to
  *     Journey" when her story began before the studio's cutover;
- *   - the left edge says the booking's state; the glyphs say what is worth
+ *   - the mark inside its left edge says the booking's state (hub-card.css,
+ *     since the cards round a 3px band); the glyphs say what is worth
  *     knowing, from the SAME moments as the Opportunities list
  *     (hub-opportunities/moments-today); crimson is the Critical triangle
  *     alone;

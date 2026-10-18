@@ -23,7 +23,9 @@ import { describe, expect, it } from "vitest";
  *      transition-shadow with a shadow (nor a plain transition with a shadow
  *      that changes on hover, press or focus). A press is a transform.
  *  11. No coloured rule tapers into a crescent: no side border wider than
- *      the rest on a rounded corner. The Hub's state rails stay on purpose.
+ *      the rest on a rounded corner. The few rails that stay are listed
+ *      (the Hub's bookings and the Next 30 minutes strip draw their state
+ *      as a straight band since the cards round, Oct 17 2026).
  *  12. Nothing tappable under 40px: no button rule sets a height under 40.
  *  13. A raised control keeps a 3:1 edge (AJ's 2A): a button, segment or
  *      filter that reads an elev-1 lift draws its border in a 3:1 control
@@ -688,14 +690,14 @@ function widthOf(value: string, side?: Side): number {
  * The list is exact both ways: an entry that no longer tapers fails too.
  */
 const KEPT_RAILS: Record<string, string> = {
-  "features/hub-schedule/hub-card.css .hs-card": "the Hub booking's 4px state rail; the plan's section 6 keeps the Hub's state rails",
-  "features/hub-schedule/next-strip.css .hn-item": "Next 30 minutes draws the Hub booking's rail, so the two read as one",
-  "features/phone/phone.css .ph-card": "the phone's machine card keeps the rail it shares with the Hub booking (phase 10)",
-  'features/hub-schedule/day-header.css .hd-swatch[data-state="live"]': "the Key's picture of a booking draws the card's rail as it is",
-  'features/hub-schedule/day-header.css .hd-swatch[data-state="in-session"]': "the Key's picture of a booking in session, with its rail",
-  'features/hub-schedule/day-header.css .hd-swatch[data-state="left-open"]': "the Key's picture of a booking left open, with its rail",
+  "features/phone/phone.css .ph-card": "the phone's machine card keeps the 4px rail it took from the Hub booking (phase 10)",
+  'features/hub-schedule/day-header.css .hd-swatch[data-state="live"]': "the Key's picture of a booking still to come, until the cards round's C5 draws its band",
+  'features/hub-schedule/day-header.css .hd-swatch[data-state="in-session"]': "the Key's picture of a booking in session, until the cards round's C5 draws its band",
+  // The Hub booking (.hs-card), the Next 30 minutes item (.hn-item) and the
+  // Key's left-open swatch left the list in the cards round (Oct 17 2026):
+  // each draws its state as a straight 3px band painted as a background.
   // The calendar's .cal-block left with the swimlanes (the rooms round, Oct
-  // 10 2026): the Calendar's Day draws the Hub's own card, held above.
+  // 10 2026): the Calendar's Day draws the Hub's own card.
 };
 
 function crescents(): string[] {

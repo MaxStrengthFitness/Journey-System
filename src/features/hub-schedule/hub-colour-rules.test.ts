@@ -18,12 +18,15 @@ import { describe, expect, it } from "vitest";
  *     the blue rule under your name; colleagues' circles are quiet;
  *   - every morning today IS the picked day, so its orange underline is drawn
  *     OUTSIDE the blue chip, where it measures 3:1 (inside, hue alone);
- *   - a coming-up client card has the quiet blue edge, by attributes HubCard
+ *   - a coming-up client card has the quiet blue mark, by attributes HubCard
  *     always sets (a rule keyed on a missing attribute matches nothing);
  *   - Start session and every orange chip with words are the logo orange with
  *     navy words, the fill restated on :hover (an iPad keeps hover after a
  *     tap), and nothing on these screens reads a white "hero-on" word colour;
- *   - words are never in the faint ink, and a card that is over still reads.
+ *   - words are never in the faint ink, and a card that is over still reads:
+ *     since the cards round (Oct 17 2026; AJ's 1A 2A 3A) a recorded card is
+ *     a pale tile with muted words, a card nobody recorded a whole card
+ *     with a plum mark, and a past card the light round's flat fill.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -98,10 +101,10 @@ describe("the week", () => {
     expect(picked.color).toBe("var(--eq-live-on)");
   });
 
-  it("underlines today in orange OUTSIDE the blue chip when today is the picked day", () => {
+  it("underlines today in orange OUTSIDE the blue chip when today is the picked day, 2px since the light round's A3", () => {
     const both = declared(TOP, '.hd-day[data-today="true"][aria-selected="true"]');
     expect(both["border-color"]).toBe("var(--eq-live)");
-    expect(both["box-shadow"]).toMatch(/^0 3px 0 var\(--eq-hero\)$/);
+    expect(both["box-shadow"]).toMatch(/^0 2px 0 var\(--eq-hero\)$/);
     expect(both["box-shadow"]).not.toMatch(/inset/);
     expect(declared(TOP, '.hd-day[data-today="true"][aria-selected="true"] .hd-day-name strong').color).toBe("var(--eq-live-on)");
   });
@@ -142,8 +145,11 @@ describe("your column", () => {
 describe("a coming-up client card (AJ's answer 2A)", () => {
   const COMING_UP = '.hs-card[data-kind="client"][data-state="live"]';
 
-  it("has the quiet blue edge", () => {
-    expect(declared(CARD, COMING_UP)["border-left-color"]).toBe("var(--eq-rail-booked)");
+  // Since the cards round (Oct 17 2026) a card's state is its mark, a 3px
+  // band inside the left edge painted from --hs-mark (--hn-mark on the
+  // strip), not its left border: the same colours, one property over.
+  it("has the quiet blue mark", () => {
+    expect(declared(CARD, COMING_UP)["--hs-mark"]).toBe("var(--eq-rail-booked)");
   });
 
   it("is keyed on attributes HubCard always sets, never on a missing one", () => {
@@ -153,15 +159,17 @@ describe("a coming-up client card (AJ's answer 2A)", () => {
     expect(CARD).not.toMatch(/\.hs-card[^{,]*:not\(\[data-(state|kind|recede)\]\)/);
   });
 
-  it("comes before in session, which keeps the full blue edge and its fill", () => {
+  it("comes before in session, which keeps the full blue mark and its fill", () => {
     expect(position(CARD, COMING_UP)).toBeLessThan(position(CARD, '.hs-card[data-state="in-session"]'));
     const live = declared(CARD, '.hs-card[data-state="in-session"]');
-    expect(live["border-left-color"]).toBe("var(--eq-live)");
+    expect(live["--hs-mark"]).toBe("var(--eq-live)");
     expect(live.background).toBe("var(--eq-live-fill)");
   });
 
-  it("stays blue all round while its peek is open", () => {
-    expect(declared(CARD, `${COMING_UP}[data-open="true"]`)["border-color"]).toBe("var(--eq-live)");
+  it("turns blue while its peek is open: the blue mark and the blue ring", () => {
+    const open = declared(CARD, `${COMING_UP}[data-open="true"]`);
+    expect(open["--hs-mark"]).toBe("var(--eq-live)");
+    expect(open["box-shadow"]).toBe("0 0 0 2px var(--eq-live), var(--eq-elev-3)");
   });
 
   it("is drawn the same way in the Key", () => {
@@ -171,10 +179,12 @@ describe("a coming-up client card (AJ's answer 2A)", () => {
   it("is drawn the same way on the Next 30 minutes strip, and an open or unlinked item there still wins", () => {
     const STRIP = stylesheet("features/hub-schedule/next-strip.css");
     const SOON = '.hn-item[data-when="soon"]';
-    expect(declared(STRIP, SOON)["border-left-color"]).toBe("var(--eq-rail-booked)");
-    // Same specificity, so the later rule wins: unlinked keeps the grid's
-    // unlinked edge and an open item is blue all round.
-    expect(declared(STRIP, '.hn-item[data-kind="unlinked"]')["border-left-color"]).toBe("var(--eq-ink-faint)");
+    expect(declared(STRIP, SOON)["--hn-mark"]).toBe("var(--eq-rail-booked)");
+    // Same specificity, so the later rule wins: unlinked has no mark, as on
+    // the grid, and an open item takes the blue mark.
+    expect(declared(STRIP, '.hn-item[data-kind="unlinked"]::before').content).toBe("none");
+    expect(declared(CARD, '.hs-card[data-kind="unlinked"]::before').content).toBe("none");
+    expect(declared(STRIP, '.hn-item[data-open="true"]')["--hn-mark"]).toBe("var(--eq-live)");
     expect(position(STRIP, SOON)).toBeLessThan(position(STRIP, '.hn-item[data-kind="unlinked"]'));
     expect(position(STRIP, SOON)).toBeLessThan(position(STRIP, '.hn-item[data-open="true"]'));
   });
@@ -255,20 +265,28 @@ const contrast = (a: [number, number, number], b: [number, number, number]) => {
 };
 
 /**
- * How much of a finished card still shows (0.70): the card is veiled in its
- * own ground at the rest (hub-card.css, the iPad round, Oct 6 2026), which
- * draws the pixels opacity 0.70 drew without a layer per card.
+ * A card that is over is a SOLID colour since the cards round (Oct 17 2026;
+ * it was a veil of the ground over the card, the pixels opacity 0.70 drew):
+ * the card mixed into its own ground (--hs-ground, the grid's or your
+ * lane's), 62% card for a past card (the light round's A2) and
+ * --eq-done-mix for a recorded one. How much of the card a rule's fill
+ * keeps, in a mode:
  */
-function recedeStrength(): number {
-  const veil = declared(CARD, '.hs-card[data-recede="true"]::after').background;
-  const m = /^color-mix\(in srgb, var\(--hs-ground, var\(--eq-bg\)\) (\d+)%, transparent\)$/.exec(veil);
-  expect(m, veil).not.toBeNull();
-  return 1 - Number(m![1]) / 100;
+function cardShare(selector: string, mode: keyof typeof THEMES): number {
+  const fill = declared(CARD, selector).background;
+  const m = /^color-mix\(in srgb, var\(--eq-surface\) (var\(--eq-done-mix\)|\d+%), var\(--hs-ground, var\(--eq-bg\)\)\)$/.exec(fill ?? "");
+  expect(m, `${selector}: ${fill}`).not.toBeNull();
+  const share = m![1] === "var(--eq-done-mix)" ? THEMES[mode]["--eq-done-mix"] : m![1];
+  return Number(/^(\d+)%$/.exec(share)![1]) / 100;
 }
 
-/** A colour drawn at opacity `o` over `under`. */
-const faded = (c: [number, number, number], o: number, under: [number, number, number]) =>
-  c.map((v, i) => v * o + under[i] * (1 - o)) as [number, number, number];
+/** color-mix(in srgb, a share, b): each channel mixed as stored. */
+const mixed = (a: [number, number, number], share: number, b: [number, number, number]) =>
+  a.map((v, i) => v * share + b[i] * (1 - share)) as [number, number, number];
+
+const RECORDED = ["done", "didnt-come"].map((st) => `.hs-card[data-kind="client"][data-state="${st}"]`);
+const NOT_RECORDED = ["not-logged", "left-open"].map((st) => `.hs-card[data-kind="client"][data-state="${st}"]`);
+const PAST = '.hs-card[data-recede="true"]';
 
 describe("words that must still read", () => {
   it("never sets the Hub's words in the faint ink", () => {
@@ -278,26 +296,37 @@ describe("words that must still read", () => {
     expect(declared(GRID, ".hs-rest-head").color).toBe("var(--eq-ink-muted)");
   });
 
-  it("recedes a finished card without opacity: a veil of its own ground, set per column (the iPad round, Oct 6 2026)", () => {
-    expect(declared(CARD, '.hs-card[data-recede="true"]').opacity, "no translucent layer per card").toBeUndefined();
+  it("draws a card that is over in a solid colour, no opacity and no veil, mixed into its own ground set per column (the iPad round, Oct 6 2026; the cards round)", () => {
+    for (const sel of [PAST, ...RECORDED, ...NOT_RECORDED]) expect(declared(CARD, sel).opacity, `${sel}: no translucent layer per card`).toBeUndefined();
+    expect(CARD, "no veil drawn over a card").not.toMatch(/::after/);
     expect(declared(GRID, ".hs-col")["--hs-ground"]).toBe("var(--eq-bg)");
     expect(declared(GRID, '.hs-col[data-me="true"]')["--hs-ground"]).toBe("var(--eq-mine)");
     expect(declared(GRID, '.hs-col[data-me="true"]').background).toBe("var(--eq-mine)");
-    expect(recedeStrength()).toBeCloseTo(0.7, 5);
+    for (const mode of ["light", "dark"] as const) {
+      expect(cardShare(PAST, mode), `${mode}: past, A2's flat fill`).toBeCloseTo(0.62, 5);
+      for (const sel of RECORDED) expect(cardShare(sel, mode), `${mode}: ${sel}, the recorded tile`).toBeCloseTo(0.3, 5);
+    }
+    // Not recorded is the whole card, flat.
+    for (const sel of NOT_RECORDED) expect(declared(CARD, sel).background, sel).toBe("var(--eq-surface)");
+    expect(declared(CARD, PAST)["box-shadow"]).toBe("none");
   });
 
-  it("keeps an open finished card's left rail grey, and a dimmed finished card as faint as any dimmed card (the review, Oct 6 2026)", () => {
-    // Open while over: blue round three sides only. A border-color shorthand
-    // here would outrank the receded rail and turn it blue.
-    const openOver = declared(CARD, '.hs-card[data-recede="true"][data-open="true"]');
-    expect(openOver["border-color"]).toBeUndefined();
-    expect(openOver["border-left-color"]).toBeUndefined();
-    for (const side of ["top", "right", "bottom"]) expect(openOver[`border-${side}-color`], side).toContain("var(--eq-live) 70%");
-    expect(declared(CARD, '.hs-card[data-recede="true"]')["border-left-color"]).toContain("var(--eq-border-strong) 70%");
-    // Dimmed: the veil goes, so the dim's 0.22 is the whole fade, as before.
+  it("rings an open card that is over in blue with the outline aside, keeps a recorded one markless, and dims a card that is over as far as any (the review, Oct 6 2026)", () => {
+    // A1's no border left an open finished card with no sign it was open:
+    // the open card's own ring, on every client card that is over.
+    expect(declared(CARD, '.hs-card[data-kind="client"][data-recede="true"][data-open="true"]')["box-shadow"]).toBe("0 0 0 2px var(--eq-live), var(--eq-elev-3)");
+    const aside = '.hs-card[data-kind][data-open="true"]:not(:focus-visible)';
+    expect(declared(CARD, aside)["outline-color"]).toBe("transparent");
+    // Last of the outline rules, so at equal weight it wins.
+    const outlines = rules(CARD).filter((r) => r.body["outline-color"] !== undefined || r.body.outline !== undefined);
+    expect(Math.max(...outlines.map((r) => r.at))).toBe(position(CARD, aside));
+    // An open recorded or past card shows no mark: their rules clear it after
+    // (or over) the open card's blue mark; a card nobody recorded keeps its plum.
+    for (const sel of [PAST, ...RECORDED]) expect(declared(CARD, sel)["--hs-mark"], sel).toBe("transparent");
+    expect(position(CARD, '.hs-card[data-open="true"]')).toBeLessThan(position(CARD, PAST));
+    for (const sel of NOT_RECORDED) expect(declared(CARD, sel)["--hs-mark"], sel).toBe("var(--eq-unlogged-mark)");
+    // Dimmed: a solid colour, so the dim's 0.22 is the whole fade, as for any card.
     expect(declared(CARD, '.hs-card[data-dim="true"]').opacity).toBe("0.22");
-    expect(declared(CARD, '.hs-card[data-dim="true"]::after').content).toBe("none");
-    expect(position(CARD, '.hs-card[data-recede="true"]::after')).toBeLessThan(position(CARD, '.hs-card[data-dim="true"]::after'));
   });
 
   it("lifts the column holding focus over its neighbours, under your column and the axis", () => {
@@ -306,33 +335,58 @@ describe("words that must still read", () => {
     expect(position(GRID, ".hs-col:focus-within")).toBeLessThan(position(GRID, '.hs-col[data-me="true"]'));
   });
 
-  it("keeps a finished card's name at 4.5:1 over the grid and over your lane, in both modes", () => {
-    const opacity = recedeStrength();
-    expect(opacity).toBeGreaterThan(0);
-    for (const [mode, t] of Object.entries(THEMES)) {
+  it("keeps every word on a card that is over at 4.5:1 over the grid and over your lane, in both modes (the cards round's C6)", () => {
+    // Each state's words in the inks its rules draw them in, on the fill as
+    // drawn. A recorded name is the muted ink on the pale tile: the cards
+    // plan measured 5.20 light and 6.72 dark at the least, on your lane.
+    const ink = (sel: string, part: string) => declared(CARD, `${sel} ${part}`).color.replace(/^var\((--[\w-]+)\)$/, "$1");
+    for (const [mode, t] of Object.entries(THEMES) as [keyof typeof THEMES, Record<string, string>][]) {
       for (const ground of ["--eq-bg", "--eq-mine"]) {
         const under = rgb(t[ground]);
-        const card = faded(rgb(t["--eq-surface-2"]), opacity, under);
-        const name = faded(rgb(t["--eq-ink"]), opacity, under);
-        const ratio = contrast(name, card);
-        expect({ mode, ground, pass: ratio >= 4.5 }).toEqual({ mode, ground, pass: true });
+        const card = rgb(t["--eq-surface"]);
+        const cases: [string, [number, number, number], string][] = [
+          ...RECORDED.flatMap((sel) => [".hs-card-name", ".hs-card-when strong"].map((p) => [`${sel} ${p}`, mixed(card, cardShare(sel, mode), under), ink(sel, p)] as [string, [number, number, number], string])),
+          [`${PAST} .hs-card-name`, mixed(card, cardShare(PAST, mode), under), ink(PAST, ".hs-card-name")],
+          [`${PAST} .hs-card-when`, mixed(card, cardShare(PAST, mode), under), "--eq-ink-muted"],
+          ...NOT_RECORDED.map((sel) => [`${sel} .hs-card-name`, card, ink(sel, ".hs-card-name")] as [string, [number, number, number], string]),
+          [`${NOT_RECORDED[0]} .hs-card-when strong`, card, ink(NOT_RECORDED[0], ".hs-card-when strong")],
+          [`${NOT_RECORDED[1]} .hs-card-when strong`, card, ink(NOT_RECORDED[1], ".hs-card-when strong")],
+        ];
+        for (const [what, fill, token] of cases) {
+          const ratio = contrast(rgb(t[token]), fill);
+          expect({ mode, ground, what, pass: ratio >= 4.5 }).toEqual({ mode, ground, what, pass: true });
+        }
+        // The pins the plan names, with their margins.
+        const tile = mixed(card, cardShare(RECORDED[0], mode), under);
+        expect(contrast(rgb(t["--eq-ink-muted"]), tile), `${mode} ${ground}: a recorded name`).toBeGreaterThanOrEqual(mode === "light" ? 5.1 : 6.6);
       }
     }
   });
 
-  it("lifts a finished card's quiet words (the time, Not logged, the rest, the number, a staff name) to the ink", () => {
-    for (const words of [".hs-card-when", ".hs-card-when strong", ".hs-card-rest", ".hs-card-rest strong", ".hs-card-num", ".hs-card-staff"]) {
-      expect(declared(CARD, `.hs-card[data-recede="true"] ${words}`).color, words).toBe("var(--eq-ink)");
+  it("says what happened in its own voice: recorded words muted, Not logged in the ink, Left open in plum, a past card's name in ink-2", () => {
+    for (const sel of RECORDED) {
+      for (const part of [".hs-card-name", ".hs-card-when strong", ".hs-card-rest strong"]) {
+        expect(declared(CARD, `${sel} ${part}`).color, `${sel} ${part}`).toBe("var(--eq-ink-muted)");
+      }
     }
-    for (const kind of ["staff", "unlinked"]) {
-      expect(declared(CARD, `.hs-card[data-recede="true"][data-kind="${kind}"] .hs-card-name`).color, kind).toBe("var(--eq-ink)");
-    }
+    for (const sel of NOT_RECORDED) expect(declared(CARD, `${sel} .hs-card-name`).color, sel).toBe("var(--eq-ink)");
+    expect(declared(CARD, `${NOT_RECORDED[0]} .hs-card-when strong`).color, "Not logged").toBe("var(--eq-ink)");
+    expect(declared(CARD, `${NOT_RECORDED[1]} .hs-card-when strong`).color, "Left open").toBe("var(--eq-warn)");
+    expect(declared(CARD, `${PAST} .hs-card-name`).color).toBe("var(--eq-ink-2)");
+    // The words of a card that is over are no longer lifted to the ink: the
+    // base rules' muted ink reads on every fill above.
+    expect(rules(CARD).some((r) => r.selectors.some((x) => x.startsWith('.hs-card[data-recede="true"] .hs-card-when')))).toBe(false);
+    for (const part of [".hs-card-when", ".hs-card-rest", ".hs-card-num"]) expect(declared(CARD, part).color, part).toBe("var(--eq-ink-muted)");
   });
 
-  it("recedes the Key's swatches as far as the cards", () => {
-    const opacity = String(recedeStrength());
-    expect(declared(TOP, '.hd-swatch[data-state="done"]').opacity).toBe(opacity);
-    expect(declared(TOP, '.hd-swatch[data-state="left-open"]').opacity).toBe(opacity);
+  it("draws the Key's finished swatches as the cards are, with no opacity: done the recorded tile, left open the card with its plum band", () => {
+    const done = declared(TOP, '.hd-swatch[data-state="done"]');
+    const leftOpen = declared(TOP, '.hd-swatch[data-state="left-open"]');
+    expect(done.opacity).toBeUndefined();
+    expect(leftOpen.opacity).toBeUndefined();
+    expect(done.background).toBe("color-mix(in srgb, var(--eq-surface) var(--eq-done-mix), var(--eq-bg))");
+    expect(leftOpen["border-left"], "a band, never a 4px border on the rounded swatch").toBeUndefined();
+    expect(leftOpen.background).toBe("linear-gradient(var(--eq-unlogged-mark), var(--eq-unlogged-mark)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface)");
   });
 });
 
