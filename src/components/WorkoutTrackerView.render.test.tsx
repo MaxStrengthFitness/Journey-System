@@ -989,7 +989,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
 
     // It is back on the Wrap-up, in the To-file tray: said for what it is,
     // fileable, and with no Discard (a discard would take it off the briefing).
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const card = document.querySelector('[data-testid="sweep-j-1"]')!;
     expect(card).toBeTruthy();
     expect(card.textContent).toContain("Note for the next trainer · on the next briefing");
@@ -1035,7 +1035,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
     await settle();
     await settle();
 
-    expect(document.body.textContent).toContain("Wrap-up · session saved on this iPad");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
     // The writes were made, on the iPad, before anything waited.
     expect(completedWrites()).toHaveLength(1);
     expect(totalsWrites()).toHaveLength(1);
@@ -1051,7 +1051,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
     expect(totalsWrites()).toHaveLength(0);
     expect(completedWrites()).toHaveLength(0);
     expect(document.body.textContent).toContain("already finished on another iPad");
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
   });
 
   it("finishes once when Finish session is tapped twice at once", async () => {
@@ -1066,7 +1066,7 @@ describe("Finish never hangs and never counts a session twice (session record, S
 
     expect(totalsWrites()).toHaveLength(1);
     expect(completedWrites()).toHaveLength(1);
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(document.body.textContent).not.toContain("saved on this iPad");
   });
 });
@@ -1150,7 +1150,7 @@ describe("Finish waits for a resumed session's sets, and never stamps sets it ha
     await act(async () => buttonNamed("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved on this iPad");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
     expect(completed()).toHaveLength(1);
   });
 
@@ -2760,7 +2760,7 @@ describe("session writes never wait on the network (speed round, Oct 5 2026; R9)
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved on this iPad");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toBe("Wrap-up · saved on this iPad");
     const box = document.querySelector<HTMLTextAreaElement>('textarea[placeholder^="Profile note"]');
     expect(box).not.toBeNull();
     await act(async () => {
@@ -3224,7 +3224,7 @@ describe("the Wrap-up's Next time, from Finish to the routine (Oct 8 2026)", () 
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     return host;
   };
   const card = () => document.querySelector('[data-testid="next-time"]');
@@ -3473,7 +3473,7 @@ describe("the Wrap-up's Next time, from Finish to the routine (Oct 8 2026)", () 
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(card()).toBeNull();
     writes.length = 0;
     await backToHub();
@@ -3510,7 +3510,7 @@ describe("the Wrap-up's Next time, from Finish to the routine (Oct 8 2026)", () 
     await act(async () => finish.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(card()!.textContent).toContain("Tick the ones that start Routine A.");
     expect(tickFor("Leg Press (Hoist)").getAttribute("aria-checked")).toBe("false");
     expect(tickFor("Rear Delt Hoist")).toBeTruthy();
@@ -3909,7 +3909,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await settle();
     await settle();
 
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(setViewSpy).not.toHaveBeenCalledWith("profile");
     const finished = writes.find((w) => w.path === `sessions/${OPEN_ID}` && w.data?.status === "Completed")!;
     expect(finished.data.clientId).toBe(CLIENT_ID);
@@ -4024,7 +4024,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const assign = sessionAssignWrite()!;
     const finished = writes.find((w) => w.path === `sessions/${OPEN_ID}` && w.data?.status === "Completed")!;
     expect(assign, "the assign").toBeTruthy();
@@ -4046,7 +4046,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const setting = writes.find((w) => w.path === `clientMachineSettings/${CLIENT_ID}_m-leg-press`)!;
     expect(setting, "today's weight is still written").toBeTruthy();
     expect(setting.data.currentWeight).toBe(100);
@@ -4135,14 +4135,14 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     // The assign's batch is refused, late.
     await act(async () => {
       netCtl.refusals[0](new Error("permission-denied"));
     });
     await settle();
     expect(document.body.textContent).not.toContain("press Who's this? again");
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
   });
   /* SETTINGS HELD ON THE SESSION (the open session round, Oct 9 2026; AJ's
      "3a": "Settings typed before the client is chosen are kept on the
@@ -4273,7 +4273,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     const session = sessionAssignWrite()!;
     expect(isDelete(session.data.heldSetup)).toBe(true);
     const setting = writes.find((w) => w.path === `clientMachineSettings/${CLIENT_ID}_sm-solon-rear-delt` && w.batch === session.batch)!;
@@ -4381,7 +4381,7 @@ describe("Who's this? gives an open session its client (the open session round, 
     await act(async () => button("Finish session")!.click());
     await settle();
     await settle();
-    expect(document.body.textContent).toContain("Wrap-up · session saved");
+    expect(document.querySelector('[data-testid="wrapup-eyebrow"]')?.textContent).toMatch(/^Wrap-up( · saved on this iPad)?$/);
     expect(document.querySelector('[data-testid="next-time"]'), "never a guess before the routines answer").toBeNull();
     await act(async () => netCtl.release("routines"));
     await settle();

@@ -146,6 +146,36 @@ export function sessionNumberWords(
 }
 
 /**
+ * THIS session's number in her total (the Wrap-up round, F6 = c, AJ, Oct 16
+ * 2026: "That should definitely read the session from MindBody, not the
+ * recorded session"): the sessions before Journey plus this session's number
+ * in Journey (`session.sessionNumber`, Journey's count + 1 at Start), so it
+ * says the same "#112" the briefing promised ("This is session #112"),
+ * whether or not the Finish has reached her count yet. Null when nothing
+ * before Journey is known: the client reads the Wrap-up, and Journey's own
+ * "#4" would tell a client of twelve years she is new (AJ, Sep 22 2026; "a
+ * confident wrong number is worse than a missing one"). Null with no session
+ * number.
+ */
+export function thisSessionWords(
+  client: SessionTotalClient | null | undefined,
+  coverage: HistoryCoverage,
+  sessionNumber: number | null | undefined,
+): string | null {
+  const n = whole(sessionNumber);
+  if (n === null || n < 1) return null;
+  const t = sessionTotalOf(client, coverage);
+  if (t.basis === "journey-only" || t.before === null) return null;
+  if (t.basis === "whole-story") return sessionNumberWords(n, t.basis);
+  // Once the profile's reconciler has folded a confirmed record into her
+  // count, Start's number already holds it: read the same way as
+  // sessionTotalOf (a count below the record has not been folded yet).
+  const count = whole(client?.sessionCount);
+  const folded = t.basis === "confirmed" && count !== null && count >= t.before;
+  return sessionNumberWords(folded ? n : t.before + n, t.basis);
+}
+
+/**
  * The guess a trainer is asked to confirm on Account: "about 306 (from
  * Mindbody)". Null when there is nothing to confirm — the total is already
  * confirmed or whole, or Mindbody has not said.

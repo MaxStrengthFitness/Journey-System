@@ -9,7 +9,6 @@ import type { DialValue, Studio } from "../types";
 import {
   Client,
   WorkoutSession,
-  ExerciseLog,
   Trainer,
   ScheduleEntry,
   Machine,
@@ -33,10 +32,9 @@ import {
   renewalOf,
   renewalPromptDue,
 } from "../features/renewals";
-import { getBroadMuscleGroup } from "../lib/clinical-review-utils";
 import { SEND_SETS_NOW_EVENT } from "../features/session-record/sign-out-check";
 import { wrapUpRefusedLine, type FinishRefused } from "../features/session-record/finish-once";
-import { performedOnly, SKIP_REASON_SHORT } from "../lib/set-outcome";
+import { SKIP_REASON_SHORT } from "../lib/set-outcome";
 import { studioTodayKey } from "../lib/studio-time";
 import {
   congratulation,
@@ -44,8 +42,8 @@ import {
   nextBookingAnswer,
   nextBookingFor,
   nextBookingSentence,
+  rowGainWords,
   timesDoor,
-  todayHeadline,
   type JourneyRead,
   type NextBookingAnswer,
   type TodayLine,
@@ -56,16 +54,16 @@ import { TimesWithRoomSheet, hasTimesToOffer } from "../features/openings/ui/Tim
 import { isCacheOnly, serverRead, type ServerRead } from "../features/standing-week/server-read";
 import { useServerWait } from "../features/standing-week/useServerWait";
 
-import { canQuoteLifetime, type HistoryCoverage } from "../lib/prior-history";
-import { canQuoteSessionNumber } from "../lib/client-coverage";
-import { firstTimeTag, sessionNumberTag } from "../lib/history-claims";
+import type { HistoryCoverage } from "../lib/prior-history";
+import { firstTimeTag } from "../lib/history-claims";
+import { thisSessionWords } from "../lib/session-total";
 import { clientFirstName } from "../lib/client-name";
 import { packageStanding } from "../features/packages/package-standing";
 import { usePackagesDoor } from "../features/packages/usePackagesDoor";
 import { bookedWeekdays } from "../features/packages/booked-days";
 import { DOOR_BUTTON, sheetTitle } from "../features/packages/package-copy";
 import { PackagesSheet } from "../features/packages/PackagesSheet";
-import { NextWeightCard, type SaveNextWeight } from "../features/next-weight/NextWeightCard";
+import { NextWeightStepper, takesNextWeight, type SaveNextWeight } from "../features/next-weight/NextWeightCard";
 import { nextTimeOffer, sameTicks, tickedInOrder, type NextTimeSnapshot } from "../features/routine-plan/next-time";
 import { NextTimeCard } from "../features/routine-plan/ui/NextTimeCard";
 import { pronounsFor } from "../features/client-codex/kit/pronouns";
@@ -79,6 +77,29 @@ import { pronounsFor } from "../features/client-codex/kit/pronouns";
  * Stored values keep their old words: notes filed here still carry
  * `origin: "post_session"`, and the tracker still calls this face
  * "post-session" in code.
+ *
+ * THE WRAP-UP ROUND (AJ, Oct 18 2026, "1a 2a", on the round's sketch: "this
+ * is exactly what i was thinking"; docs/rounds/2026-10-18-wrap-up.md). One
+ * page in the order the trainer acts, with what they act on on the first
+ * screen:
+ *   - TODAY'S MACHINES ONCE. Each row: the machine's name (a door to its
+ *     card), today's weight × reps, the change since last time, the gain
+ *     since the start ("+28% since Mar", the Now Bar's green figure:
+ *     `TodayLine.gain`, worked out at Finish), and next time's weight with −
+ *     and + beside it (NextWeightStepper). It was three lists: Today, Next
+ *     session's weights ("Today 154 lb" beside 154) and Next time.
+ *   - HOW IT WENT is the one sentence under the list. The biggest-gain line,
+ *     the region chips, Where the work went and the three lifetime tiles
+ *     left this screen (2a): the rows say each gain.
+ *   - The session's number is her total (F6 = c, `thisSessionWords`), the
+ *     "#112" the briefing promised, never Journey's own count.
+ *   - SHOW IT, DON'T LABEL IT (AJ, Oct 16 2026). The captions that said what
+ *     the screen shows went ("vs last time on each machine", "The session is
+ *     saved. Anything you add here saves on its own.", the card heads). Words
+ *     stay only for what the screen can't show: saved on this iPad, a refused
+ *     Finish, the booking's sentence.
+ *   - BACK TO HUB is pinned under the page, as the briefing's Start is.
+ * The account of each card below is its story as it was written.
  *
  * Since the floor round (AJ, Oct 9 2026, 3a) the cards run in the order the
  * trainer acts: TODAY; HOW IT WENT (the journey's sentence, read out while
@@ -291,10 +312,15 @@ export interface WrapUpScreenProps {
   coverage?: HistoryCoverage;
   client: Client;
   session: WorkoutSession;
-  /** Today's logs as they were committed (outcomes stamped). */
-  logs: ExerciseLog[];
-  allLogs?: ExerciseLog[];
+  /** Today's machines, as Finish read them (lib/post-session.ts `todayLines`, with each gain). */
   lines: TodayLine[];
+  /**
+   * Opens a machine's card from its row (the Wrap-up round, Oct 18 2026,
+   * "1a": "Tap a machine's name and its card opens on the settings"): the one
+   * machine card, on top of this screen, Save closing it. Without it the name
+   * is only a name.
+   */
+  onOpenMachine?: (machineId: string) => void;
   journey: JourneyRead;
   schedules?: ScheduleEntry[];
   authTrainer: Trainer | null;
@@ -377,25 +403,6 @@ export interface WrapUpScreenProps {
   onStudioClick?: () => void;
 }
 
-/* Where the work went: one colour per body region, each reading in both
-   themes. Two of the chart palette's five (`--chart-*`, index.css) are brand
-   colours, so neither is used: chart-2 is the hero orange, kept for the one
-   loud action of a screen, and chart-1 is the brand blue of action and
-   selection in the light theme. Nor the meaning colours: green is "done" and
-   plum a caution, and a muscle group is neither. So sky (chart-4), indigo
-   (chart-5) and the strong neutral ink, with the chart palette's own grey
-   (chart-3) for "Other". chart-5 was amber until the floor round (Oct 9
-   2026, F4): beside the Navy Frame it read as the orange of now and go. The
-   region's name and share are written beside every bar, so the colour is
-   never the only way to tell. */
-const GROUP_TONE: Record<string, string> = {
-  "Lower Body": "bg-chart-4",
-  "Upper Body": "bg-chart-5",
-  "Core & Spine": "bg-ink-d2",
-  Other: "bg-chart-3",
-};
-const OTHER_TONE = GROUP_TONE.Other;
-
 /** A card's head: the label voice, 14/700 in ink-2, in its own
  *  capitalisation (type and depth review, Oct 5 2026; it was 12px capitals,
  *  the pattern the round took out everywhere else). The page's one eyebrow,
@@ -425,7 +432,26 @@ function fmtLb(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function TodayRow({ line, coverage }: { line: TodayLine; coverage: HistoryCoverage }) {
+/**
+ * One of today's machines (the Wrap-up round, Oct 18 2026, "1a"): its name, a
+ * door to its card when the host offers one; today's weight × reps, the
+ * change since last time and the gain since the start, on one line; and next
+ * time's weight beside it. A machine not performed says what happened instead
+ * (Practice, Skipped · Pain, Not reached) and takes no next weight.
+ */
+function WrapUpRow({
+  line,
+  coverage,
+  todayYmd,
+  onNextWeight,
+  onOpenMachine,
+}: {
+  line: TodayLine;
+  coverage: HistoryCoverage;
+  todayYmd: string;
+  onNextWeight?: SaveNextWeight;
+  onOpenMachine?: (machineId: string) => void;
+}) {
   const performed = line.outcome === "performed";
   const word =
     line.outcome === "practice"
@@ -448,27 +474,69 @@ function TodayRow({ line, coverage }: { line: TodayLine; coverage: HistoryCovera
     if (line.loadDelta < 0) return { text: `▼ ${fmtLb(line.loadDelta)} lb`, tone: "text-ink-d2" };
     if ((line.countDelta ?? 0) > 0) return { text: `▲ +${line.countDelta} ${line.isTSC ? "s" : "rep" + (line.countDelta === 1 ? "" : "s")}`, tone: "text-(--eq-live-text)" };
     if ((line.countDelta ?? 0) < 0) return { text: `▼ ${line.countDelta} ${line.isTSC ? "s" : "rep" + (line.countDelta === -1 ? "" : "s")}`, tone: "text-ink-d2" };
-    return { text: "Held", tone: "text-ink-d3" };
+    return { text: "Held", tone: "text-ink-d2" };
   })();
+  // The Now Bar's green figure, only when it is up (progress-figure.ts).
+  const gain = performed ? rowGainWords(line.gain, todayYmd) : null;
+  const star =
+    performed && line.quality === 3 ? (
+      // The journey grid's own gold star for a max-strength set.
+      <Star size={14} className="inline-block ml-1 -mt-0.5 text-(--jg-q-star) fill-current" aria-label="Max-strength set" />
+    ) : null;
+  const name = (
+    <>
+      {line.name}
+      {star}
+    </>
+  );
   return (
-    <li className={`flex items-center gap-3 min-h-11 py-1 border-b border-div-d last:border-b-0 ${performed ? "" : "opacity-60"}`}>
-      <span className="flex-1 min-w-0 text-[14px] font-semibold text-ink-d1 break-words">{line.name}</span>
-      {performed ? (
-        <>
-          <span className="tabular-nums text-[14px] font-bold text-ink-d1 whitespace-nowrap">
-            {line.weight !== null ? fmtLb(line.weight) : "–"}
-            <span className="text-[11px] font-semibold text-ink-d3 ml-0.5">lb</span>
-            <span className="text-ink-d3 mx-1">×</span>
-            {line.count ?? "–"}
-            {line.isTSC && <span className="text-[11px] font-semibold text-ink-d3 ml-0.5">s</span>}
-          </span>
-          {/* The journey grid's own gold star for a max-strength set. */}
-          {line.quality === 3 && <Star size={14} className="text-(--jg-q-star) fill-current shrink-0" aria-label="Max-strength set" />}
-          {delta && <span className={`w-20 text-right text-[11px] font-bold whitespace-nowrap ${delta.tone}`}>{delta.text}</span>}
-        </>
-      ) : (
-        <span className="text-[12px] font-semibold text-ink-d3 whitespace-nowrap">{word}</span>
-      )}
+    <li
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 border-b border-div-d last:border-b-0"
+      data-testid="wrapup-row"
+      data-machine={line.machineId}
+      data-outcome={line.outcome}
+    >
+      <div className={`flex-1 min-w-[10rem] flex flex-col ${performed ? "" : "opacity-60"}`}>
+        {onOpenMachine ? (
+          <button
+            type="button"
+            onClick={() => onOpenMachine(line.machineId)}
+            className="self-start min-h-10 text-left font-display text-[17px] font-bold leading-tight text-ink-d1 underline decoration-(--input) underline-offset-4 break-words rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
+            data-testid="wrapup-machine-door"
+          >
+            {name}
+          </button>
+        ) : (
+          <span className="font-display text-[17px] font-bold leading-tight text-ink-d1 break-words">{name}</span>
+        )}
+        <span className="text-[12px] text-ink-d2 tabular-nums break-words" data-testid="wrapup-row-today">
+          {performed ? (
+            <>
+              <b className="font-bold text-ink-d1">
+                {line.weight !== null ? fmtLb(line.weight) : "–"} × {line.count ?? "–"}
+                {line.isTSC ? "s" : ""}
+              </b>
+              {delta && (
+                <>
+                  {" · "}
+                  <span className={`font-bold ${delta.tone}`}>{delta.text}</span>
+                </>
+              )}
+              {gain && (
+                <>
+                  {" · "}
+                  <span className="font-bold text-(--jg-pf-gain)" data-testid="wrapup-row-gain">
+                    {gain}
+                  </span>
+                </>
+              )}
+            </>
+          ) : (
+            <span className="font-semibold">{word}</span>
+          )}
+        </span>
+      </div>
+      {onNextWeight && takesNextWeight(line) && <NextWeightStepper line={line} onSave={onNextWeight} />}
     </li>
   );
 }
@@ -480,9 +548,8 @@ export function WrapUpScreen({
   trainers = [],
   client,
   session,
-  logs,
-  allLogs = [],
   lines,
+  onOpenMachine,
   journey,
   schedules = [],
   authTrainer,
@@ -769,31 +836,13 @@ export function WrapUpScreen({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* --- today ------------------------------------------------------------ */
-  const performed = useMemo(() => performedOnly(logs), [logs]);
-  const load = (l: ExerciseLog) => parseFloat(l.loadLb || l.weight || "0") || 0;
-  const reps = (l: ExerciseLog) => {
-    if (l.isTSC || l.isStaticHold) return ((parseFloat(l.seconds || "0") || 0) / 30) * 2;
-    return parseFloat(l.outcomeReps || l.reps || "0") || 0;
-  };
-  const tonnage = useMemo(() => performed.reduce((s, l) => s + load(l) * reps(l), 0), [performed]);
-  const byRegion = useMemo(() => {
-    const acc: Record<string, number> = {};
-    for (const l of performed) {
-      const m = machines.find((x) => x.id === l.machineId);
-      const g = getBroadMuscleGroup(m?.anatomicalRegion || "Unknown", m?.name || "");
-      acc[g] = (acc[g] ?? 0) + load(l) * reps(l);
-    }
-    return Object.entries(acc)
-      .filter(([, v]) => v > 0)
-      .sort((a, b) => b[1] - a[1]);
-  }, [performed, machines]);
-
   const startD = safeToDate(session.startTime) || safeToDate(session.createdAt);
   const endD = safeToDate(session.endTime) || new Date();
   const minutes = startD ? Math.max(0, Math.round((endD.getTime() - startD.getTime()) / 60000)) : null;
-  // "session #12" only through the Hub card's gate: the client reads this
-  // screen, and Journey's own count would tell a twelve-year client "#4".
-  const sessionTag = sessionNumberTag(session.sessionNumber, canQuoteSessionNumber(client, coverage));
+  // Her total, the "#112" the briefing promised (F6 = c): Mindbody's count
+  // before Journey plus Journey's, never Journey's own alone ("#4" to a
+  // client of twelve years). "#6 in Journey" when nothing else is known.
+  const sessionWords = thisSessionWords(client, coverage, session.sessionNumber);
 
   /* --- next ------------------------------------------------------------- */
   // Openings' reads for the door (the summary by id, the standing weeks, the
@@ -823,20 +872,10 @@ export function WrapUpScreen({
   const door = timesDoor(next, hasTimesToOffer(openings));
   const [timesOpen, setTimesOpen] = useState(false);
 
-  /* --- lifetime (the client's own running counters; allLogs is the fallback) */
-  const lifetime = useMemo(() => {
-    const sessions = client.sessionCount ?? new Set(allLogs.map((l) => l.sessionId)).size;
-    const lifetimeReps = client.lifetimeReps ?? performedOnly(allLogs).reduce((s, l) => s + (parseFloat(l.reps || "0") || 0), 0);
-    const volume = client.lifetimeWeight ?? performedOnly(allLogs).reduce((s, l) => s + load(l) * reps(l), 0);
-    return { sessions, reps: lifetimeReps, volume };
-  }, [client, allLogs]);
-
   /* Everything under Today waits for the first frame to be drawn: a
      deferred value is false on the first render and true on the next, which
      React renders after the browser has had the chance to paint. */
   const restDrawn = useDeferredValue(true, false);
-
-  const fmtBig = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 10_000 ? `${Math.round(n / 1000)}k` : Math.round(n).toLocaleString());
 
   return (
     <div className="w-full h-full min-h-screen bg-bg-dark font-sans flex flex-col overflow-hidden relative">
@@ -857,14 +896,18 @@ export function WrapUpScreen({
         <div className="flex-1 overflow-y-auto no-scrollbar relative z-10 flex flex-col gap-3 pb-6">
           {/* title */}
           <div className="wu-drop px-6 pt-4 pb-1">
-            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-ink-d2 break-words">
+            {/* The page's eyebrow says only what the screen can't show: the
+                Finish not saved, not finished here, or saved on this iPad
+                alone. Saved is the plain case, and the screen says it by
+                being here (show it, don't label it, Oct 16 2026). */}
+            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-ink-d2 break-words" data-testid="wrapup-eyebrow">
               {refused === "gone" || refused === "refused"
                 ? "Wrap-up · not saved"
                 : refused === "taken"
                   ? "Wrap-up · not finished here"
                   : savedOnThisIpad && !refused
-                  ? "Wrap-up · session saved on this iPad"
-                  : "Wrap-up · session saved"}
+                  ? "Wrap-up · saved on this iPad"
+                  : "Wrap-up"}
             </div>
             <h1 className="font-display font-extrabold text-ink-d1 text-[30px] leading-[1.04] mt-2 mb-2 break-words">
               {congratulation(session.id ?? `${client.id}-${todayKey}`, clientFirstName(client))}
@@ -886,91 +929,47 @@ export function WrapUpScreen({
                 It sends to the studio's records when the connection is back. Nothing more to do.
               </p>
             )}
-            <div className="text-ink-d2 text-[14px]">
-              {todayHeadline(lines, coverage)}
-              {minutes !== null ? ` · ${minutes} min` : ""}
-              {sessionTag ? ` · session ${sessionTag}` : ""}
-            </div>
+            {(minutes !== null || sessionWords) && (
+              <div className="text-ink-d2 text-[14px]" data-testid="wrapup-session-line">
+                {[minutes !== null ? `${minutes} min` : null, sessionWords].filter(Boolean).join(" · ")}
+              </div>
+            )}
           </div>
 
-          {/* 1 · today */}
+          {/* 1 · today's machines, once (the Wrap-up round, Oct 18 2026,
+                 "1a"), and how it went under them, the one sentence the
+                 trainer reads out ("2a"). Drawn in the first frame. */}
           <Card delay={0.05}>
-            <div className="flex items-baseline justify-between gap-3">
-              <Kicker>Today</Kicker>
-              <span className="text-[12px] text-ink-d3 font-medium">vs last time on each machine</span>
-            </div>
-            <ol className="flex flex-col">
+            <ol className="flex flex-col" data-testid="wrapup-list" aria-label="Today's machines">
               {lines.map((l) => (
-                <TodayRow key={l.machineId} line={l} coverage={coverage} />
+                <WrapUpRow
+                  key={l.machineId}
+                  line={l}
+                  coverage={coverage}
+                  todayYmd={todayKey}
+                  onNextWeight={onNextWeight}
+                  onOpenMachine={onOpenMachine}
+                />
               ))}
             </ol>
+            <p
+              className={`text-[14px] leading-snug ${journey.enough ? "text-ink-d1 font-semibold" : "text-ink-d2"}`}
+              data-testid="journey-sentence"
+            >
+              {journeySentence(journey, clientFirstName(client))}
+            </p>
           </Card>
 
           {/* The rest of the screen a frame later (the iPad round, Oct 6 2026):
-                 the first frame is the title and Today, so the Wrap-up is on
-                 screen at once, and the cards below arrive with the next
-                 render, already rising in as they always did.
+                 the first frame is the title and today's machines, so the
+                 Wrap-up is on screen at once, and the cards below arrive with
+                 the next render, already rising in as they always did.
 
                  In the order the trainer acts (AJ, Oct 9 2026, the floor
-                 round's 3a): How it went, read out while the client is still
-                 there; then what the trainer does — the next session's
-                 weights, Next time, Effort, the profile note and Pulse — and
-                 last the next booking. */}
+                 round's 3a; Oct 18 2026, "1a"): Next time, Effort, the note
+                 and Pulse, and last the next booking. */}
           {restDrawn && (
           <>
-          {/* 2 · how it went: the journey, the sentence the trainer reads out,
-                 and where today's work went, one card (3a; they were the
-                 journey card and a block under Today). */}
-          <Card delay={0.08}>
-            <Kicker>How it went</Kicker>
-            <p className={`text-[14px] leading-snug ${journey.enough ? "text-ink-d1 font-semibold" : "text-ink-d3"}`}>
-              {journeySentence(journey, clientFirstName(client))}
-            </p>
-            {journey.standout && (
-              <p className="text-[12px] text-ink-d2">
-                Biggest gain: <b className="text-ink-d1">{journey.standout.name}</b>, {fmtLb(journey.standout.startWeight)} → {fmtLb(journey.standout.nowWeight)} lb (+{journey.standout.pct}%).
-              </p>
-            )}
-            {journey.byGroup.length > 1 && (
-              <div className="flex flex-wrap gap-1.5">
-                {journey.byGroup.map((g) => (
-                  <span key={g.group} className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-bg-dark-3 border border-div-d text-ink-d2">
-                    {g.group} <span className={g.pct > 0 ? "text-(--eq-live-text)" : "text-ink-d3"}>{g.pct > 0 ? "+" : ""}{g.pct}%</span>
-                  </span>
-                ))}
-              </div>
-            )}
-            {byRegion.length > 0 && (
-              <div className="pt-2 border-t border-div-d" data-testid="where-the-work-went">
-                <div className="flex items-baseline justify-between mb-2">
-                  <span className="text-[12px] font-semibold text-ink-d3">Where the work went</span>
-                  <span className="tabular-nums text-[12px] text-ink-d2">{Math.round(tonnage).toLocaleString()} lb moved</span>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {byRegion.map(([g, v]) => (
-                    <div key={g} className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${GROUP_TONE[g] ?? OTHER_TONE}`} />
-                      <span className="w-24 text-[12px] text-ink-d2">{g}</span>
-                      <span className="flex-1 h-1.5 rounded-full bg-bg-dark-3 overflow-hidden">
-                        <span className={`block h-full ${GROUP_TONE[g] ?? OTHER_TONE}`} style={{ width: `${Math.round((100 * v) / tonnage)}%` }} />
-                      </span>
-                      <span className="w-10 text-right tabular-nums text-[11px] text-ink-d3">{Math.round((100 * v) / tonnage)}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </Card>
-
-          {/* 1b · the next session's weights (the Atlas answers, Oct 2 2026):
-                 the trainer sets what the next session loads, up or down; the
-                 app never suggests one. Silent when nothing was performed. */}
-          {onNextWeight && lines.some((l) => l.outcome === "performed" && l.weight !== null) && (
-            <Card delay={0.1}>
-              <Kicker>Next session's weights</Kicker>
-              <NextWeightCard lines={lines} onSave={onNextWeight} />
-            </Card>
-          )}
 
           {/* 1c · next time (the first-session design round, Oct 8 2026,
                  §4.7): today's performed machines the routine lacks, ticked
@@ -979,13 +978,11 @@ export function WrapUpScreen({
                  for a Free session, or when there is nothing to offer. */}
           {nextTime && nextRows.length > 0 && (
             <Card delay={0.12}>
-              <Kicker>Next time</Kicker>
               <NextTimeCard
                 snapshot={nextTime}
                 rows={nextRows}
                 ticked={nextTicked}
                 onTicked={setNextTicked}
-                firstName={clientFirstName(client)}
                 todayYmd={todayKey}
               />
             </Card>
@@ -1164,7 +1161,6 @@ export function WrapUpScreen({
 
           {/* 4 · next: the next booking, last (3a), and its door to Times with room. */}
           <Card delay={0.18}>
-            <Kicker>Next</Kicker>
             {/* Booked is done (green); nothing booked is a caution (plum);
                 checking and can't-check are neither. The line keeps room for
                 two lines of the sentence, or the 44px door, in every state,
@@ -1270,48 +1266,24 @@ export function WrapUpScreen({
             />
           )}
 
-          {/* 4 · lifetime — quiet, at the bottom, and only when it is hers.
-                 These three run off Journey's own rollups, which start the day
-                 Journey first saw her. For a migration client they are a small
-                 number in front of somebody who has been coming for years, so
-                 they are not drawn at all until her prior total is recorded
-                 (canQuoteLifetime, lib/prior-history.ts). Today's numbers
-                 above are unaffected: those really did happen today. */}
-          {canQuoteLifetime(coverage) && (
-          <div className="wu-fade mx-5 grid grid-cols-3 gap-2" style={{ "--wu-delay": "0.3s" } as React.CSSProperties}>
-            {[
-              { label: "Sessions", value: lifetime.sessions.toLocaleString() },
-              /* FileMaker history came in (the import's mark on the client):
-                 the sets whose reps were never written down count for neither,
-                 so the two say "recorded", as the progress report does (AJ,
-                 Oct 12 2026, "2a"). */
-              { label: client.legacy_filemaker_id ? "Lifetime volume (recorded)" : "Lifetime volume", value: `${fmtBig(lifetime.volume)} lb` },
-              { label: client.legacy_filemaker_id ? "Lifetime reps (recorded)" : "Lifetime reps", value: fmtBig(lifetime.reps) },
-            ].map((t) => (
-              <div key={t.label} className="rounded-xl border border-(--edge) bg-clip-padding bg-bg-dark-2 shadow-(--panel-lift) px-3 py-2">
-                <div className="text-[12px] font-semibold text-ink-d3">{t.label}</div>
-                <div className="tabular-nums text-[14px] font-bold text-ink-d2">{t.value}</div>
-              </div>
-            ))}
-          </div>
-          )}
-
           </>
           )}
 
-          {/* leave */}
-          <div className="mx-5 mt-2 flex flex-col items-center gap-2">
-            <button
-              type="button"
-              onClick={leave}
-              disabled={leaving}
-              className="w-full min-h-[52px] rounded-2xl bg-(--raised) shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) border border-input text-ink-d1 text-[14px] font-bold flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-60 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
-            >
-              <ArrowLeft size={16} />
-              {leaving ? "Leaving…" : "Back to Hub"}
-            </button>
-            <span className="text-[11px] text-ink-d3">The session is saved. Anything you add here saves on its own.</span>
-          </div>
+        </div>
+
+        {/* Back to Hub, pinned under the page (the Wrap-up round, Oct 18
+            2026, "1a"), as the briefing's Start is: always in reach, never
+            at the end of a scroll. Every way out files what is here. */}
+        <div className="shrink-0 relative z-20 px-5 py-3 border-t border-div-d bg-bg-dark" data-testid="wrapup-leave">
+          <button
+            type="button"
+            onClick={leave}
+            disabled={leaving}
+            className="w-full min-h-[52px] rounded-2xl bg-(--raised) shadow-(--raised-lift) active:translate-y-px active:shadow-(--press) border border-input text-ink-d1 text-[14px] font-bold flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-60 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--eq-focus-ring)"
+          >
+            <ArrowLeft size={16} />
+            {leaving ? "Leaving…" : "Back to Hub"}
+          </button>
         </div>
       </div>
 

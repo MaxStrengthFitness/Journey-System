@@ -164,7 +164,6 @@ import { quietKindOf } from "../lib/session-quiet";
 interface PostSessionSnapshot {
   session: WorkoutSession;
   client: Client;
-  logs: ExerciseLog[];
   lines: TodayLine[];
   journey: JourneyRead;
   /** A mid-session note the trainer started and never saved (fluidity round). */
@@ -298,8 +297,10 @@ import {
   todayLines,
   type JourneyRead,
   type PriorSet,
+  type RowGain,
   type TodayLine,
 } from "../lib/post-session";
+import { progressFigure } from "../features/machine-menu/progress-figure";
 import { NOW_BAR_SIDE_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 import { usePhone } from "../features/phone/device";
 import { PhoneSessionStage } from "../features/phone/PhoneSessionStage";
@@ -3754,7 +3755,31 @@ export function WorkoutTrackerView({
           : undefined;
       };
       const machineName = (id: string) => floorMachines.find((m) => m.id === id)?.name || id;
-      const lines = todayLines({ order: activeMachineIds, logs: finalLogs, nameOf: machineName, priorOf, priorKnown });
+      /* Each row's gain (the Wrap-up round, AJ, Oct 18 2026, "2a"): the Now
+         Bar's green figure from the same rule (machine-menu/progress-figure.ts)
+         — today's load against the starting weight on file, or against the
+         first counted set once every session has been read — and the day it
+         counts from. Said only when up; never a target. */
+      const everyRead = priorKnown && (createdHere || sessionsAllRead);
+      const gainOf = (machineId: string, today: number | null): RowGain | null => {
+        const row = gridRows.find((r) => r.machine.id === machineId);
+        if (!row || today === null) return null;
+        const sets = orderedSets(row, gridHistory);
+        const fig = progressFigure({
+          startingWeight: row.startingWeight,
+          firstCounted: sets[0]?.weight ?? today,
+          lastCounted: today,
+          everythingRead: everyRead,
+          coverage: clientCoverage,
+        });
+        if (!fig?.up || fig.gain === null) return null;
+        const since =
+          fig.source === "on-file" ? (row.startingWeightDate ?? null) : (computeRowStats(row, gridHistory).first?.session.date ?? null);
+        return { pct: fig.gain, since };
+      };
+      const lines = todayLines({ order: activeMachineIds, logs: finalLogs, nameOf: machineName, priorOf, priorKnown }).map((l) =>
+        l.outcome === "performed" ? { ...l, gain: gainOf(l.machineId, l.weight) } : l,
+      );
       const todayWeight = new Map(lines.filter((l) => l.outcome === "performed").map((l) => [l.machineId, l.weight]));
       const journey = strengthJourney(
         (priorKnown ? gridRows : []).map((row) => {
@@ -3836,7 +3861,6 @@ export function WorkoutTrackerView({
       setPostSession({
         session: { ...currentSession, status: "Completed", endTime: new Date() },
         client: selectedClient,
-        logs: finalLogs,
         lines,
         journey,
         draft: hasDraftText(noteDraft) ? noteDraft : null,
@@ -5076,7 +5100,9 @@ export function WorkoutTrackerView({
    * sets itself, only on a tap. Watching another trainer's session, the
    * card reads only.
    */
-  const menuSession = currentSession ?? watchedSession;
+  /* On the Wrap-up (the Wrap-up round, Oct 18 2026: a machine's name opens
+     its card), the session just finished: a note added there links to it. */
+  const menuSession = currentSession ?? watchedSession ?? (isPostSessionMode && postSession ? postSession.session : null);
   const menuReadIds = useMemo(() => (logsWindow ? new Set(logsWindow.ids) : new Set<string>()), [logsWindow]);
   /* The sessions the machine card knows: the window, and the older pages its
      Load older fetched. More may wait on the server while the window came
@@ -5455,6 +5481,9 @@ export function WorkoutTrackerView({
      did: the change comes from the sessions listener, so there is no moment
      to ask. */
   useEffect(() => {
+    // The Wrap-up opens it too (its rows' names, Oct 18 2026), so a card
+    // carried over from the session closes as the Wrap-up comes up, and one
+    // opened there closes when the Wrap-up goes.
     if (screen !== "tracker" && screen !== "watch") setMenuMachineId(null);
     // And it opens as an ordinary card next time, never as Set up's.
     if (screen !== "tracker" && screen !== "watch") setMenuQuickFor(null);
@@ -5462,6 +5491,7 @@ export function WorkoutTrackerView({
 
   if (screen === "post-session" && postSession) {
     return (
+      <>
       <WrapUpScreen
         studioName={activeStudio?.name}
         // Times with room (Openings round): the studio the iPad is in, every
@@ -5472,9 +5502,8 @@ export function WorkoutTrackerView({
         client={postSession.client}
         coverage={clientCoverage}
         session={postSession.session}
-        logs={postSession.logs}
-        allLogs={Object.values(logs).filter((l: any) => l.clientId === postSession.client.id) as any}
         lines={postSession.lines}
+        onOpenMachine={openMachineMenu}
         journey={postSession.journey}
         schedules={schedules}
         authTrainer={authTrainer}
@@ -5498,6 +5527,10 @@ export function WorkoutTrackerView({
         trainerDropdown={trainerDropdown}
         onStudioClick={onStudioClick}
       />
+      {/* A row's name opens the machine's one card on top of the Wrap-up
+          (the Wrap-up round, Oct 18 2026, "1a"): the settings, then Save. */}
+      <MachineMenu open={!!menuMachineId} machineId={menuMachineId} onClose={closeMachineMenu} host={machineMenuHost} />
+      </>
     );
   }
 

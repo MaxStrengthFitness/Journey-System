@@ -7,13 +7,12 @@
  * weights. One line that asks, the machines performed today that the
  * routine lacks, each a 40px tick on the firm edge (blue when on) with its
  * name, whole, and why it is here ("Day one", "Next in the plan", "Added
- * today · not in the plan"), then the Road for next time, live as the ticks
- * change: what the next visit runs under the "Next time" bracket (a machine
- * joining marked "Joins"), the rest of the plan hollow with the next stop,
- * and the progress line ("0 of 6 · day one: …" while nothing is ticked on
- * an empty Routine A). When two machines side by side in it trip one of the
- * Academy's sequencing rules, one of them joining now, the order effect says
- * so under the Road, quietly (`nextTimeEffects`), live as the ticks change.
+ * today · not in the plan"). When two machines side by side in the routine
+ * trip one of the Academy's sequencing rules, one of them joining now, the
+ * order effect says so under the ticks, quietly (`nextTimeEffects`), live as
+ * the ticks change. The Road for next time and its "3 of 6" line left this
+ * card in the Wrap-up round (AJ, Oct 18 2026, "1a"; his Oct 16 rule, "show
+ * it, don't label it"), as they left the briefing: the ticks say what joins.
  *
  * When the routine was empty at the end of the session, or there is none
  * (AJ's "3a", Oct 8 2026: "this also counts with the consult visit,
@@ -36,15 +35,12 @@ import {
   nextTimeAskWords,
   nextTimeBLine,
   nextTimeEffects,
-  nextTimeProgressLine,
-  nextTimeRoad,
   nextTimeWhyWords,
   tickedInOrder,
   type NextTimeSnapshot,
 } from "../next-time";
 import type { NextTimeRow } from "../plan";
 import { OrderNote, TickRow } from "./parts";
-import { RoadStrip } from "./RoadStrip";
 import "./routine-plan.css";
 
 export interface NextTimeCardProps {
@@ -54,17 +50,14 @@ export interface NextTimeCardProps {
   /** The ticked machines. */
   ticked: readonly string[];
   onTicked: (ticked: string[]) => void;
-  firstName?: string | null;
   /** The studio's day, `YYYY-MM-DD`: a can't-do mark that has ended is not drawn on the bench. */
   todayYmd: string;
 }
 
-export function NextTimeCard({ snapshot, rows, ticked, onTicked, firstName, todayYmd }: NextTimeCardProps) {
+export function NextTimeCard({ snapshot, rows, ticked, onTicked, todayYmd }: NextTimeCardProps) {
   const nameOf = useMemo(() => (id: string) => snapshot.names[id] || id, [snapshot.names]);
   const picked = useMemo(() => tickedInOrder(rows, ticked), [rows, ticked]);
   const after = useMemo(() => nextTimeAfter(snapshot, picked), [snapshot, picked]);
-  const groups = useMemo(() => nextTimeRoad(after, picked, { todayYmd, firstName, nameOf }), [after, picked, todayYmd, firstName, nameOf]);
-  const line = useMemo(() => nextTimeProgressLine(after, nameOf), [after, nameOf]);
   // A Routine B planned with the starting lineup starts with Routine A (the studio's "A and B together").
   const bLine = useMemo(() => nextTimeBLine(snapshot, after, todayYmd), [snapshot, after, todayYmd]);
   // The order effects the ticks bring: the first, quietly, as the briefing says one.
@@ -100,16 +93,6 @@ export function NextTimeCard({ snapshot, rows, ticked, onTicked, firstName, toda
           </li>
         ))}
       </ul>
-      {groups.length > 0 && (
-        <RoadStrip
-          groups={groups}
-          nameOf={nameOf}
-          progressLine={line}
-          progress={after.progress}
-          label={`${snapshot.routineName}, next time`}
-          inWords="next time"
-        />
-      )}
       {effect && (
         <ul className="rpl-list rpl-list--flush" aria-label="Order effects">
           <OrderNote effect={effect} />

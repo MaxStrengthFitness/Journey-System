@@ -8,6 +8,7 @@
  *   import type { WorkoutSession, ExerciseLog, Machine, ClientMachineSetting } from "../../types";
  */
 import { outcomeOf, skipReasonOf, type SetOutcome, isBloodFlow, isRepsNotRecorded } from "../../lib/set-outcome";
+import { studioDayKeyOf, type DateLike } from "../../lib/studio-time";
 import type { JourneyMachine, JourneyRow, JourneySession, JourneySet, MovementGroup, RepQuality } from "./types";
 
 export interface SessionLike {
@@ -159,10 +160,14 @@ export function toJourneyRows(
         settings: setting?.settings && Object.keys(setting.settings).length ? setting.settings : undefined,
         starred: starredMachineIds.has(id),
       };
+      // The day the starting weight was set, as a studio day: the Wrap-up's
+      // "+28% since Mar" and the journey's "since" count from it (Oct 18 2026).
+      const startedOn = studioDayKeyOf(setting?.startingWeightDate as DateLike);
       return {
         machine,
         sets,
         startingWeight: setting?.startingWeight,
+        ...(startedOn ? { startingWeightDate: startedOn } : {}),
         prescribedWeight: setting?.currentWeight,
       };
     });

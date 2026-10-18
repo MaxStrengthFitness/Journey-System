@@ -255,7 +255,6 @@ function Screen({
     <WrapUpScreen
       client={who}
       session={session}
-      logs={[]}
       lines={[]}
       journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
       schedules={[]}
@@ -369,7 +368,10 @@ describe("the post-session screen mounts", () => {
 
   it("is headed Wrap-up: briefing is pre-session, wrap-up is post-session (voice-review round)", async () => {
     const host = await mount(<Screen />);
-    expect(host.textContent).toContain("Wrap-up · session saved");
+    // Saved is the plain case, and the screen says it by being here (the
+    // Wrap-up round, Oct 18 2026: show it, don't label it).
+    expect(host.querySelector('[data-testid="wrapup-eyebrow"]')!.textContent).toBe("Wrap-up");
+    expect(host.textContent).not.toContain("session saved");
     expect(host.textContent).not.toContain("Session complete");
     // A plain congratulation picked for this session (Oct 2 2026), never a
     // judgement of how she did.
@@ -388,7 +390,6 @@ describe("the post-session screen mounts", () => {
         <WrapUpScreen
           client={client}
           session={session}
-          logs={[]}
           lines={[]}
           journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
           schedules={[]}
@@ -404,8 +405,8 @@ describe("the post-session screen mounts", () => {
     };
     const elsewhere = await at("elsewhere");
     expect(elsewhere.textContent).toContain("Already finished on another iPad · it counts once");
-    expect(elsewhere.textContent).toContain("Wrap-up · session saved");
-    expect(elsewhere.textContent).not.toContain("session saved on this iPad");
+    expect(elsewhere.querySelector('[data-testid="wrapup-eyebrow"]')!.textContent).toBe("Wrap-up");
+    expect(elsewhere.textContent).not.toContain("saved on this iPad");
     expect(elsewhere.textContent).not.toContain("when the connection is back");
 
     const gone = await at("gone");
@@ -543,7 +544,6 @@ describe("the Note for the next trainer in the Wrap-up's To-file tray", () => {
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -640,7 +640,6 @@ describe("the post-session screen and a client's history", () => {
         client={who}
         coverage={coverage}
         session={{ ...session, sessionNumber: 4 }}
-        logs={[]}
         lines={[firstLine]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -655,8 +654,7 @@ describe("the post-session screen and a client's history", () => {
   it("calls a machine her first time, and numbers the session, when Journey holds her whole story", async () => {
     const host = await mount(<HistoryScreen coverage="complete" />);
     expect(host.textContent).toContain("First time");
-    expect(host.textContent).toContain("1 new machine");
-    expect(host.textContent).toContain("session #4");
+    expect(host.querySelector('[data-testid="wrapup-session-line"]')!.textContent).toContain("#4");
   });
 
   it("says neither to a migrating client nobody has recorded a total for", async () => {
@@ -664,20 +662,21 @@ describe("the post-session screen and a client's history", () => {
       const host = await mount(<HistoryScreen coverage={coverage} />);
       expect(host.textContent).not.toContain("First time");
       expect(host.textContent).not.toMatch(/new machine/);
-      expect(host.textContent).not.toContain("session #");
+      expect(host.textContent).not.toMatch(/#\d/);
       // What actually happened today is still there.
       expect(host.textContent).toContain("Leg Press");
-      expect(host.textContent).toContain("1 of 1 machine");
+      expect(host.querySelector('[data-testid="wrapup-row-today"]')!.textContent).toContain("120 × 8");
     }
   });
 
-  it("numbers the session once somebody has recorded her total, and still claims no first time", async () => {
+  it("numbers the session in her total once somebody has recorded it (F6 = c), and still claims no first time", async () => {
     const recorded = {
       ...client,
       priorHistory: { sessions: 412, importedCount: 0, through: "2026-09-12", source: "filemaker" },
     } as Client;
     const host = await mount(<HistoryScreen coverage="partial" who={recorded} />);
-    expect(host.textContent).toContain("session #4");
+    // 412 before Journey, and today is Journey's 4th: the "#416" the briefing promised, never "#4".
+    expect(host.querySelector('[data-testid="wrapup-session-line"]')!.textContent).toContain("#416");
     expect(host.textContent).not.toContain("First time");
   });
 });
@@ -845,7 +844,6 @@ describe("the packages card (consultation round, Sep 2026)", () => {
       <WrapUpScreen
         client={{ ...client, ...who } as Client}
         session={{ ...session, hostedAtStudioId: "s1" } as WorkoutSession}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -941,7 +939,6 @@ describe("the post-session screen's small honesty fixes (packages round)", () =>
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[{ machineId: "m1", name: "Seated Leg Press With A Long Studio Name", outcome: "performed", weight: 180, count: 9 } as any]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -989,7 +986,6 @@ describe("a carried draft for the studio's floor notes", () => {
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -1040,7 +1036,6 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
       <WrapUpScreen
         client={{ ...client, renewal: { cycleKey: "9001", situation: "on-track", flags: [], dataGaps: [] } } as any}
         session={session}
-        logs={[{ id: "l1", machineId: "m1", sessionId: "sess1", weight: "180", reps: "9", outcome: "performed" } as any]}
         lines={[
           { machineId: "m1", name: "Leg Press", outcome: "performed", weight: 180, count: 9, isTSC: false, quality: 3, loadDelta: 5, countDelta: 0, first: false },
         ] as any}
@@ -1130,7 +1125,7 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
     expect(save.className.split(/\s+/)).toEqual(expect.arrayContaining(["shadow-(--solid-lift)", "active:translate-y-px", "disabled:shadow-none"]));
   });
 
-  it("heads its cards in the label voice, and titles the page in the codex voice", async () => {
+  it("titles the page in the codex voice, and slants no card head", async () => {
     const host = await mount(<FullScreen />);
     const title = host.querySelector("h1")!;
     // Moved on purpose (type and depth, phase 12, Oct 4 2026; AJ's 1A): the
@@ -1140,16 +1135,12 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
     expect(titleClasses).toEqual(expect.arrayContaining(["font-display", "font-extrabold", "text-[30px]", "break-words"]));
     expect(titleClasses).not.toContain("italic");
     expect(titleClasses).not.toContain("uppercase");
-    // Moved on purpose (type and depth review, Oct 5 2026; AJ's 1A and 3B):
-    // a card's head was 12px capitals, the pattern the round took out
-    // everywhere else. It is the label voice now, 14/700 in ink-2.
-    // "The journey" became "How it went" (the floor round, Oct 9 2026, 3a).
-    const head = Array.from(host.querySelectorAll("div")).find((d) => d.textContent === "How it went")!;
-    const cls = head.className.split(/\s+/);
-    expect(cls).toEqual(expect.arrayContaining(["text-[14px]", "font-bold", "text-ink-d2"]));
-    expect(cls).not.toContain("uppercase");
-    expect(cls).not.toContain("italic");
-    expect(cls).not.toContain("font-display");
+    // The Wrap-up round (Oct 18 2026): the list's card heads ("Today", "How
+    // it went", "Next session's weights") went with the show-don't-label
+    // rule. No card head on the list is in capitals or slanted.
+    for (const head of Array.from(host.querySelectorAll("section > div:first-child"))) {
+      expect(head.className, head.textContent ?? "").not.toMatch(/\buppercase\b|\bitalic\b/);
+    }
   });
 
   it("keeps every text size in its source on the scale, and no cyan focus left: the Wrap-up and the Times with room sheet it opens", () => {
@@ -1167,57 +1158,6 @@ describe("the Wrap-up follows the theme, and keeps its confetti", () => {
       // the code typeface drew "lb moved", the shares, today's lines and the lifetime tiles until then.
       expect(src, f).not.toMatch(/\bfont-mono\b/);
     }
-  });
-
-  // The floor round, Oct 9 2026, F4: Upper Body's bar was amber (chart-5), which beside the Navy
-  // Frame read as the orange of now and go. chart-5 is a cool data colour in both themes.
-  it("draws no region's bar in an orange", () => {
-    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../index.css"), "utf8");
-    const values = [...css.matchAll(/--chart-5:\s*(#[0-9A-Fa-f]{6})/g)].map((m) => m[1]);
-    expect(values).toHaveLength(2);
-    for (const hex of values) {
-      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-      expect(b > r && b > g, `${hex} is a cool colour, never amber or orange`).toBe(true);
-    }
-  });
-
-  /* Where the work went: hero orange (chart-2, the same colour as --cta) is
-     the one loud action of a screen and chart-1 is the brand blue in the
-     light theme, so neither colours a muscle group. */
-  it("colours where the work went with neither of the brand's two colours, one colour per region", async () => {
-    const machines = [
-      { id: "m1", name: "Leg Press", anatomicalRegion: "Lower Body" },
-      { id: "m2", name: "Chest Press", anatomicalRegion: "Chest" },
-      { id: "m3", name: "Lower Back", anatomicalRegion: "Lumbar" },
-      { id: "m4", name: "Mystery Machine", anatomicalRegion: "" },
-    ];
-    const logs = machines.map((m, i) => ({ id: `l${i}`, machineId: m.id, sessionId: "sess1", weight: "100", reps: String(5 + i), outcome: "performed" }));
-    const host = await mount(
-      <WrapUpScreen
-        client={client}
-        session={session}
-        logs={logs as any}
-        lines={[]}
-        journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
-        schedules={[]}
-        authTrainer={trainer}
-        onEffort={vi.fn()}
-        onLeave={vi.fn()}
-        machines={machines as any}
-      />,
-    );
-    const label = Array.from(host.querySelectorAll("span")).find((s) => s.textContent === "Where the work went")!;
-    const block = label.parentElement!.parentElement!;
-    for (const region of ["Lower Body", "Upper Body", "Core & Spine", "Other"]) expect(block.textContent).toContain(region);
-    const classes = Array.from(block.querySelectorAll("[class]")).flatMap((el) => el.className.split(/\s+/));
-    expect(classes).not.toContain("bg-chart-1");
-    expect(classes).not.toContain("bg-chart-2");
-    expect(classes).not.toContain("bg-cta");
-    const dotTones = Array.from(block.querySelectorAll("span.rounded-full.shrink-0")).map((d) =>
-      d.className.split(/\s+/).find((c) => c.startsWith("bg-")),
-    );
-    expect(dotTones).toHaveLength(4);
-    expect(new Set(dotTones).size).toBe(4);
   });
 
   it("bursts its confetti once as it opens, out of the way of every tap", async () => {
@@ -1250,7 +1190,6 @@ describe("the post-session screen says where the session is saved (session recor
     <WrapUpScreen
       client={client}
       session={session}
-      logs={[]}
       lines={[]}
       journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
       schedules={[]}
@@ -1262,16 +1201,16 @@ describe("the post-session screen says where the session is saved (session recor
     />
   );
 
-  it("says 'saved' once the studio's records have the session", async () => {
+  it("says 'saved' only by being here once the studio's records have the session", async () => {
     const host = await mount(screen());
-    expect(host.textContent).toContain("Wrap-up · session saved");
+    expect(host.querySelector('[data-testid="wrapup-eyebrow"]')!.textContent).toBe("Wrap-up");
     expect(host.textContent).not.toContain("saved on this iPad");
     expect(host.textContent).not.toContain("when the connection is back");
   });
 
   it("says 'saved on this iPad' while the database has not answered, and that it will send", async () => {
     const host = await mount(screen(true));
-    expect(host.textContent).toContain("Wrap-up · session saved on this iPad");
+    expect(host.querySelector('[data-testid="wrapup-eyebrow"]')!.textContent).toBe("Wrap-up · saved on this iPad");
     expect(host.textContent).toContain("It sends to the studio's records when the connection is back. Nothing more to do.");
   });
 });
@@ -1350,7 +1289,6 @@ describe("Next: her next booking, and the door to Times with room", () => {
         trainers={[SAM, PAT]}
         client={client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={schedules as any}
@@ -1498,19 +1436,25 @@ describe("Next: her next booking, and the door to Times with room", () => {
     expect(effortCard(noDoor).compareDocumentPosition(nextLine(noDoor)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("lays its cards out in the order the trainer acts (AJ, Oct 9 2026, the floor round's 3a)", async () => {
+  it("lays its cards out in the order the trainer acts (AJ, Oct 9 2026, 3a; Oct 18 2026, 1a)", async () => {
     const host = await mount(<NextScreen />);
     await settle();
-    const heads = Array.from(host.querySelectorAll("section > div:first-child")).map((d) => d.textContent?.trim());
-    const order = ["Today", "How it went", "Effort · profile note · Pulse", "Next"];
-    // Today's head row also says "vs last time on each machine".
-    const at = order.map((h) => heads.findIndex((t) => t === h || (h === "Today" && t?.startsWith("Today"))));
-    expect(at.every((i) => i >= 0), heads.join(" | ")).toBe(true);
-    expect([...at].sort((a, b) => a - b)).toEqual(at);
-    expect(heads).not.toContain("The journey");
-    // Where the work went moved out of Today into How it went.
-    const where = host.querySelector('[data-testid="where-the-work-went"]');
-    if (where) expect(where.closest("section")!.querySelector("div")!.textContent).toBe("How it went");
+    const list = host.querySelector('[data-testid="wrapup-list"]')!;
+    const sentence = host.querySelector('[data-testid="journey-sentence"]')!;
+    const effort = host.querySelector('[data-testid="effort-card"]')!;
+    const next = host.querySelector('[data-testid="next-booking"]')!;
+    const leave = host.querySelector('[data-testid="wrapup-leave"]')!;
+    // How it went is the one sentence under the list, in the same card.
+    expect(sentence.closest("section")).toBe(list.closest("section"));
+    const order = [list, effort, next, leave];
+    for (let i = 1; i < order.length; i++) {
+      expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    // Back to Hub is outside the scrolling page, pinned under it.
+    expect(leave.closest(".overflow-y-auto")).toBeNull();
+    for (const gone of ["How it went", "Where the work went", "Biggest gain", "Next session's weights", "vs last time on each machine", "The session is saved"]) {
+      expect(host.textContent).not.toContain(gone);
+    }
   });
 
   it("opens Times with room on top of the Wrap-up, naming no client, and closes back to it", async () => {
@@ -1573,7 +1517,6 @@ describe("the renewal prompt follows the auto-renewal mark", () => {
       <WrapUpScreen
         client={{ ...client, renewal: warning, ...who } as Client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -1654,7 +1597,6 @@ describe("Next time: the machines that carry into the routine", () => {
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -1671,7 +1613,6 @@ describe("Next time: the machines that carry into the routine", () => {
   const card = (host: ParentNode) => host.querySelector('[data-testid="next-time"]') as HTMLElement | null;
   const ticks = (host: ParentNode) => Array.from(card(host)!.querySelectorAll<HTMLButtonElement>('[role="checkbox"]'));
   const tickFor = (host: ParentNode, name: string) => ticks(host).find((t) => t.textContent?.includes(name))!;
-  const bracket = (host: ParentNode) => card(host)!.querySelector(".rpl-road__group--bracket");
   const setHidden = (hidden: boolean) => {
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (hidden ? "hidden" : "visible") });
     document.dispatchEvent(new Event("visibilitychange"));
@@ -1680,12 +1621,11 @@ describe("Next time: the machines that carry into the routine", () => {
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
   });
 
-  it("sits after the next session's weights, headed Next time in the label voice", async () => {
+  it("sits after today's machines, with no head of its own", async () => {
     const host = await mount(
       <WrapUpScreen
         client={client}
         session={session}
-        logs={[]}
         lines={[{ machineId: "m-ext", name: NAMES["m-ext"], outcome: "performed", weight: 40, count: 10 } as any]}
         journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
         schedules={[]}
@@ -1698,11 +1638,12 @@ describe("Next time: the machines that carry into the routine", () => {
         machines={[]}
       />,
     );
+    const list = host.querySelector('[data-testid="wrapup-list"]')!;
+    const next = card(host)!;
+    expect(list.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(next.closest("section")).not.toBe(list.closest("section"));
     const heads = Array.from(host.querySelectorAll("section > div:first-child")).map((d) => d.textContent);
-    expect(heads.indexOf("Next time")).toBe(heads.indexOf("Next session's weights") + 1);
-    const head = Array.from(host.querySelectorAll("div")).find((d) => d.textContent === "Next time")!;
-    expect(head.className.split(/\s+/)).toEqual(expect.arrayContaining(["text-[14px]", "font-bold", "text-ink-d2"]));
-    expect(head.className).not.toMatch(/uppercase/);
+    expect(heads).not.toContain("Next time");
   });
 
   /*
@@ -1734,9 +1675,9 @@ describe("Next time: the machines that carry into the routine", () => {
     expect(ticks(host).map((t) => t.getAttribute("aria-checked"))).toEqual(["false", "false", "false", "false"]);
     expect(tickFor(host, "Leg Press").textContent).toContain("Day one");
     expect(tickFor(host, "Leg Extension").textContent).toContain("Next in the plan");
-    // Nothing ticked: the next visit runs day one again, and the line says so.
-    expect(bracket(host)!.textContent).toContain("Next time · 3");
-    expect(c.querySelector(".rpl-road__progress")!.textContent).toBe("0 of 5 · day one: Leg Press, Compound Row and Lumbar");
+    // No Road and no "0 of 5" under the ticks (the Wrap-up round, Oct 18 2026).
+    expect(c.querySelector(".rpl-road")).toBeNull();
+    expect(c.textContent).not.toMatch(/\d+ of \d+/);
     await click(buttonByText(c, "Tick all"));
     expect(ticks(host).every((t) => t.getAttribute("aria-checked") === "true")).toBe(true);
     expect(buttonByText(c, "Untick all")).toBeTruthy();
@@ -1759,20 +1700,12 @@ describe("Next time: the machines that carry into the routine", () => {
     expect(ticks(host).every((t) => t.getAttribute("aria-checked") === "false")).toBe(true);
   });
 
-  it("the Road for next time follows the ticks, live", async () => {
+  it("draws no Road for next time, whatever is ticked (the Wrap-up round, Oct 18 2026)", async () => {
     const host = await mount(<NextScreen next={consult()} onNextTime={vi.fn()} />);
     await click(tickFor(host, "Lumbar"));
     expect(tickFor(host, "Lumbar").getAttribute("aria-checked")).toBe("true");
-    expect(bracket(host)!.textContent).toContain("Next time · 1");
-    expect(bracket(host)!.textContent).toContain("Joins");
-    expect(card(host)!.querySelector(".rpl-road__progress")!.textContent).toBe("1 of 5 · next: Leg Press");
-    await click(tickFor(host, "Leg Press"));
-    expect(bracket(host)!.textContent).toContain("Next time · 2");
-    // The road's order, not the order ticked.
-    const names = Array.from(bracket(host)!.querySelectorAll(".rpl-road__name")).map((n) => n.textContent);
-    expect(names).toEqual(["Leg Press", "Lumbar"]);
-    await click(tickFor(host, "Lumbar"));
-    expect(bracket(host)!.textContent).toContain("Next time · 1");
+    expect(card(host)!.querySelector(".rpl-road")).toBeNull();
+    expect(card(host)!.textContent).not.toMatch(/\d+ of \d+/);
   });
 
   it("writes nothing per tick, and once on Back to Hub with the ticked ids in today's order", async () => {
@@ -1904,10 +1837,10 @@ describe("Next time: the machines that carry into the routine", () => {
     expect(buttonByText(c, "Tick all")).toBeTruthy();
     expect(c.textContent).not.toContain("not in the plan");
     expect(tickFor(host, "Leg Curl").textContent).toContain("Added today");
-    // Nothing ticked, nothing to draw for next time.
     expect(c.querySelector(".rpl-road")).toBeNull();
     await click(tickFor(host, "Leg Curl"));
-    expect(bracket(host)!.textContent).toContain("Next time · 1");
+    expect(tickFor(host, "Leg Curl").getAttribute("aria-checked")).toBe("true");
+    expect(c.querySelector(".rpl-road")).toBeNull();
   });
 
   it("no card for a Free session (no snapshot), or when nothing is left to offer", async () => {
@@ -1933,5 +1866,80 @@ describe("Next time: the machines that carry into the routine", () => {
     // No orange here: orange is Start session and Finish.
     const src = readFileSync(join(here, "../features/routine-plan/ui/NextTimeCard.tsx"), "utf8");
     expect(src).not.toMatch(/--eq-hero|--eq-go|orange/);
+  });
+});
+
+/*
+ * THE WRAP-UP ROUND (AJ, Oct 18 2026, "1a 2a"): today's machines once. Each
+ * row says today's weight × reps, the change since last time and the gain
+ * since the start, with next time's weight beside it; a machine's name opens
+ * its card.
+ */
+describe("today's machines, once (the Wrap-up round, Oct 18 2026)", () => {
+  const rows = [
+    { machineId: "m1", name: "Hip Adduction", outcome: "performed", weight: 154, count: 9, isTSC: false, quality: 2, loadDelta: 0, countDelta: 1, first: false, gain: { pct: 28, since: "2026-03-02" } },
+    { machineId: "m2", name: "Leg Press", outcome: "performed", weight: 142, count: 10, isTSC: false, quality: 3, loadDelta: 2, countDelta: 0, first: false, gain: null },
+    { machineId: "m3", name: "Seated Dip", outcome: "skipped", skipReason: "pain_injury", weight: 60, count: null, isTSC: false, quality: null, loadDelta: null, countDelta: null, first: false },
+  ] as any[];
+
+  function ListScreen({ onNextWeight, onOpenMachine }: { onNextWeight?: any; onOpenMachine?: (id: string) => void }) {
+    return (
+      <WrapUpScreen
+        client={client}
+        session={session}
+        lines={rows}
+        journey={{ enough: false, pct: null, machines: 0, since: null, byGroup: [], standout: null } as any}
+        schedules={[]}
+        authTrainer={trainer}
+        onEffort={vi.fn()}
+        onLeave={vi.fn()}
+        onNextWeight={onNextWeight}
+        onOpenMachine={onOpenMachine}
+        machines={[]}
+      />
+    );
+  }
+  const rowOf = (host: ParentNode, id: string) => host.querySelector(`[data-testid="wrapup-row"][data-machine="${id}"]`) as HTMLElement;
+
+  it("says today, the change since last time and the gain since the start on one line, the gain only when up", async () => {
+    const host = await mount(<ListScreen onNextWeight={vi.fn(async () => true)} />);
+    const adduction = rowOf(host, "m1").querySelector('[data-testid="wrapup-row-today"]')!.textContent;
+    expect(adduction).toContain("154 × 9");
+    expect(adduction).toContain("▲ +1 rep");
+    expect(adduction).toMatch(/\+28% since Mar( 2026)?$/);
+    const press = rowOf(host, "m2");
+    expect(press.querySelector('[data-testid="wrapup-row-today"]')!.textContent).toBe("142 × 10 · ▲ +2 lb");
+    expect(press.querySelector('[data-testid="wrapup-row-gain"]')).toBeNull();
+    // The max-strength star sits with the name.
+    expect(press.querySelector('[aria-label="Max-strength set"]')).toBeTruthy();
+    // The gain is the Now Bar's green, never the brand blue.
+    expect(rowOf(host, "m1").querySelector('[data-testid="wrapup-row-gain"]')!.className).toContain("text-(--jg-pf-gain)");
+  });
+
+  it("puts next time's weight on each performed row, and none on a machine not performed", async () => {
+    const onNextWeight = vi.fn(async () => true);
+    const host = await mount(<ListScreen onNextWeight={onNextWeight} />);
+    expect((rowOf(host, "m1").querySelector('[data-testid="next-weight-row"] input') as HTMLInputElement).value).toBe("154");
+    expect(rowOf(host, "m2").querySelector('[data-testid="next-weight-row"]')).toBeTruthy();
+    const dip = rowOf(host, "m3");
+    expect(dip.querySelector('[data-testid="next-weight-row"]')).toBeNull();
+    expect(dip.textContent).toContain("Skipped · pain");
+    await click(rowOf(host, "m1").querySelector('button[aria-label^="Raise"]'));
+    expect(onNextWeight).toHaveBeenLastCalledWith("m1", 156, 154);
+    // One list: the old "Today 154 lb" line of the next weights' card is gone.
+    expect(host.textContent).not.toContain("Today 154 lb");
+  });
+
+  it("opens a machine's card from its name, and leaves the name a name without a door", async () => {
+    const onOpenMachine = vi.fn();
+    const host = await mount(<ListScreen onOpenMachine={onOpenMachine} />);
+    const door = rowOf(host, "m2").querySelector('[data-testid="wrapup-machine-door"]') as HTMLButtonElement;
+    expect(door.textContent).toBe("Leg Press");
+    expect(door.className).toContain("min-h-10");
+    await click(door);
+    expect(onOpenMachine).toHaveBeenCalledWith("m2");
+    const plain = await mount(<ListScreen />);
+    expect(plain.querySelector('[data-testid="wrapup-machine-door"]')).toBeNull();
+    expect(rowOf(plain, "m2").textContent).toContain("Leg Press");
   });
 });
