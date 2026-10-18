@@ -68,4 +68,19 @@ Steps for the PC, in PowerShell from the project folder:
   - **Dry run:** 202 pages and 173,079 words, with 5 duplicate pages folded in. The page list Haiku picks from is about 3,800 tokens. Twenty questions would cost about $2.64.
   - **Typecheck:** 2, the baseline.
   - **Tests:** 14,720 of 14,721 in 897 files; this round adds 34 in 5. The one failure is `WorkoutTrackerView.render.test.tsx`, "a colleague's: the server is asked first…". It fails the same way on `50c56d4d` without this round, so it was there before. It may depend on the time of day: it failed at about 10:30 PM Eastern.
-- **Waiting on AJ:** the API key, and his 10 questions.
+- **Oct 18 2026: the trial ran, and it passed.** AJ explained his ten reasons a trainer opens the Academy one at a time: studying a machine; the protocol and clients' problems; routines; problem-solving; maintenance; sales; saying it simply; the community; and using Journey (9 and 10). They became 37 questions in his words, beside Claude's 20. Three rules came out of it:
+  - **Loyal to what we teach** (AJ: "I don't really just want the AI to just be searching willy-nilly information"). Pages that disagree come back `CONFLICTING`, for admins to decide. Ken Hutchins' *The Renaissance of Exercise* never goes in the app; it is only for drafting Academy pages that an admin approves.
+  - **The clearance line** (AJ: "we always need to have the Academy's medical clearance line on any pages that need it"). A health question is also sent the TSC page's surgery-and-clearance line, and the point that quotes a clearance line is read out first.
+  - **Not the method:** the Journey app, Mindbody, prices, marketing and machine repair.
+- **The run** (`a75a6a99`): 57 questions, $4.20, 147 s.
+  - Picks hit an expected page 50 times out of 52.
+  - A clearance line led all 7 of the health answers, from both models. No answer quoted the trap page.
+  - Every "not the method" question came back not covered.
+  - No refusals and no errors.
+- **AJ's grading:** Sonnet better 8, Opus better 4, the same 28; no answer marked No. **AJ: "the answered ones pass, use Sonnet 5.5, plan phase 1."**
+- **His notes for later:**
+  - q05: describe the four P's with real examples.
+  - a19: neck pain should be answered ("what wrong form on some machines could cause this?").
+  - a23: "we need to build a maintainer log".
+  - Retention, upgrades, renewals, lateness and the city: "studios will build this".
+  - Marketing: "admins and claude will research this".
