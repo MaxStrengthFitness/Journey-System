@@ -61,6 +61,7 @@ import {
   Compass,
   Crosshair,
   HeartPulse,
+  Lock,
   History,
   Lightbulb,
   PenLine,
@@ -156,6 +157,8 @@ import { BriefingDoors, BriefingJourneyLine, BriefingPlanCard } from "../routine
 import { StartFromRoutineSheet } from "../routine-plan/ui/StartFromRoutineSheet";
 import { floorMachinesOf, machineNamer } from "../routine-plan/ui/host";
 import { TodayList } from "./TodayList";
+import { recentJots, useMyNotesAbout } from "../relay/notes/client-jots";
+import { whenLabel } from "../relay/notes/notes";
 import { PerformanceCard } from "./PerformanceCard";
 
 /** Her limits on the figure: the briefing's caution tone, never the kaizen red. */
@@ -205,6 +208,12 @@ export interface BriefingScreenProps {
      * an EMPTY Routine A.
      */
     startPlan?: StartPlanAtStart | null,
+    /**
+     * The note marked "Just for me" (the briefing round, phase 4): never the
+     * arrival note and never on the client's record. The tracker files it in
+     * the trainer's own notebook (relay/notes/client-jots.ts), never waited on.
+     */
+    privateNote?: string | null,
   ) => void;
   onClose: () => void;
   /**
@@ -273,6 +282,11 @@ export function BriefingScreen({
   // acts on it (Health, Incident and Retention reach the studio's leaders);
   // left alone, it waits in the To-file tray as before.
   const [arrivalCategory, setArrivalCategory] = useState<FilingCategory | null>(null);
+  /* "Just for me" (AJ's handoff, Oct 17 2026: "Personal notes show only to
+     the trainer who wrote them ... They carry a privacy toggle: 'this is
+     just for me.'"). On, the note goes to the trainer's own notebook at
+     Start instead of the client's record. */
+  const [justForMe, setJustForMe] = useState(false);
   const [isAdjusting, setIsAdjusting] = useState(false);
   /** Update Pulse — the living assessment, one area at a time, from here. */
   const [showPulse, setShowPulse] = useState(false);
@@ -507,6 +521,13 @@ export function BriefingScreen({
     () => briefingNotes(journal.threads, criticalEntries, headsUpEntries, dismissals, showHushed),
     [journal.threads, criticalEntries, headsUpEntries, dismissals, showHushed],
   );
+  /* Your own notes about this client (the briefing round, phase 4; AJ's
+     handoff: "Personal relationship notes: the trainer's own memories with
+     this client"). trainers/{uid}/notes, read with the Auth uid the rules
+     pin it to: only ever the signed-in trainer's, never anyone else's. */
+  const myAuthUid = auth.currentUser?.uid ?? null;
+  const mine = useMyNotesAbout(myAuthUid, client.id ?? null);
+  const myJots = useMemo(() => recentJots(mine.notes, client.id ?? null, 3), [mine.notes, client.id]);
   const hush = uid
     ? (thread: NoteThread) => {
         void dismissThread(uid, thread.id);
@@ -647,7 +668,7 @@ export function BriefingScreen({
   const headsUpQuiet = notes.headsUp.filter((t) => seenSince(t, sessions, myTrainerIds));
   const headsUpLoud = notes.headsUp.filter((t) => !headsUpQuiet.includes(t));
   /* How last time went is question 3's now (PerformanceCard), not news. */
-  const sinceCount = notes.headsUp.length + markers.length + activeJournalFocuses.length;
+  const sinceCount = notes.headsUp.length + markers.length + activeJournalFocuses.length + myJots.length;
 
   /* On the way in: every drawer folded until a trainer opens it, the Dials
      too (AJ, Oct 9 2026, the floor round's 2a: they're optional, and Start
@@ -821,7 +842,10 @@ export function BriefingScreen({
     const tapped = compactReadiness(readiness);
     if (tapped) checkIn.readiness = tapped;
     if (bodyStates.length > 0) checkIn.bodyStates = bodyStates;
-    const category = adjustmentNote.trim() ? arrivalCategory : null;
+    // A note "just for me" is never the arrival note, and is never filed on the record.
+    const privateNote = justForMe && adjustmentNote.trim() ? adjustmentNote : null;
+    const arrivalNote = privateNote ? "" : adjustmentNote;
+    const category = arrivalNote.trim() ? arrivalCategory : null;
 
     if (planView === "starting" || planView === "kept") {
       /* Today as the card has it. A starting plan goes up with today's
@@ -831,12 +855,12 @@ export function BriefingScreen({
       const { plan, today, changed, startPlan } = briefingPlan;
       const sendStartPlan = planView === "starting" ? startPlan : null;
       const custom = sendStartPlan || planView === "kept" ? (changed ? today : undefined) : plan ? today : undefined;
-      onStart("A", custom, adjustmentNote, checkIn, category, sendStartPlan);
+      onStart("A", custom, arrivalNote, checkIn, category, sendStartPlan, privateNote);
       return;
     }
     if (planView === "journey" || planView === "doors") {
       // Start and add machines as you go: an empty session, never the floor.
-      onStart("A", undefined, adjustmentNote, checkIn, category, null);
+      onStart("A", undefined, arrivalNote, checkIn, category, null, privateNote);
       return;
     }
     onStart(
@@ -849,9 +873,11 @@ export function BriefingScreen({
         ["Free", "TodayOnly_A", "TodayOnly_B"].includes(selectedRoutineType)
         ? adjustedMachineIds
         : undefined,
-      adjustmentNote,
+      arrivalNote,
       checkIn,
       category,
+      undefined,
+      privateNote,
     );
   };
 
@@ -1141,6 +1167,22 @@ export function BriefingScreen({
                 </ul>
               )}
 
+              {/* Only you: your own notes about this client (phase 4). A read
+                  that failed says so; it is never "nothing". */}
+              {(myJots.length > 0 || mine.state === "failed") && (
+                <ul className="br__mine" data-testid="briefing-mine">
+                  {mine.state === "failed" ? (
+                    <li className="br__mine-unread">Couldn't load your own notes about {sentenceName}.</li>
+                  ) : (
+                    myJots.map(({ entry }) => (
+                      <li key={entry.id}>
+                        <b>Only you</b> · {entry.text} <span className="br__mine-when">{whenLabel(new Date(entry.at))}</span>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              )}
+
               {activeJournalFocuses.map((f) => {
                 const visual = FOCUS_VISUALS[f.category] || FOCUS_VISUALS.Posture;
                 return (
@@ -1309,7 +1351,19 @@ export function BriefingScreen({
                     placeholder="Anything they mentioned — how they slept, an ache, a trip coming up, a new diet, the grandkids are in town…"
                     className="br__textarea"
                   />
-                  {adjustmentNote.trim() ? (
+                  {/* Just for me: the trainer's own notebook, shown to nobody
+                      else in any form (the handoff's privacy rule). */}
+                  <button
+                    type="button"
+                    className="br-cap__chip br__mine-toggle"
+                    aria-pressed={justForMe}
+                    onClick={() => setJustForMe((v) => !v)}
+                    data-testid="briefing-just-for-me"
+                  >
+                    <Lock className="w-4 h-4" aria-hidden />
+                    Just for me
+                  </button>
+                  {adjustmentNote.trim() && !justForMe ? (
                     <div className="br__file-as" data-testid="arrival-file-as">
                       <span className="nc-kicker">File it as (optional)</span>
                       <NoteCategoryChips

@@ -173,6 +173,24 @@ session ... Keep the density low"). `PerformanceCard.tsx`, its pure half
 - The handoff's "collapsed box below question 1" for a refresher is this
   card: the performance history is in one place, question 3.
 
+## Just for me (Oct 17 2026)
+
+The briefing round, phase 4 (AJ: "Build phase 4, the just-for-me notes,
+now"; his handoff: "Personal notes show only to the trainer who wrote them, in
+the briefing and everywhere else. They carry a privacy toggle: 'this is just
+for me.'").
+
+- The Note drawer's **Just for me** switch: on, the note goes up at Start as
+  `onStart`'s `privateNote` (never the arrival note, never filed under a
+  category), and the tracker files it in the writer's own notebook,
+  `trainers/{uid}/notes`, through `relay/notes/client-jots.ts` `jotAbout`,
+  never waited on. The briefing still writes nothing.
+- **Only you** lines in Since last time's card: the signed-in trainer's own
+  newest three jots about this client (`useMyNotesAbout`, read with the Auth
+  uid). A failed read says so.
+- No new place in the database: the notebook is private by path, and the
+  profile's "Your working notes · only you" (Goals & Focus) reads the same.
+
 ## How the client starts (Oct 8 2026)
 
 The first-session design round (`docs/rounds/2026-10-08-first-session-screens.md`,

@@ -26,7 +26,12 @@ const writes: { path: string; data: any }[] = [];
 const sets: { path: string; data: any }[] = [];
 /* FORD on file for the client (the briefing round's follow-up test), and the
    updates a test can see. Empty unless a test fills it. */
-const ford = vi.hoisted(() => ({ docs: [] as Record<string, unknown>[], updates: [] as { path: string; data: any }[] }));
+const ford = vi.hoisted(() => ({
+  docs: [] as Record<string, unknown>[],
+  updates: [] as { path: string; data: any }[],
+  /* The signed-in trainer's own notebook (phase 4's "just for me"). */
+  mine: [] as Record<string, unknown>[],
+}));
 
 vi.mock("firebase/firestore", async (importOriginal) => {
   const real = await importOriginal<typeof import("firebase/firestore")>();
@@ -45,6 +50,10 @@ vi.mock("firebase/firestore", async (importOriginal) => {
     onSnapshot: (q: any, next?: unknown) => {
       if (typeof q?.__path === "string" && q.__path.endsWith("/ford") && typeof next === "function") {
         const docs = ford.docs.map((d) => ({ id: String(d.id), data: () => d }));
+        next({ docs, size: docs.length, empty: docs.length === 0 });
+      }
+      if (q?.__path === "trainers/uid-aj/notes" && typeof next === "function") {
+        const docs = ford.mine.map((d) => ({ id: String(d.id), data: () => d }));
         next({ docs, size: docs.length, empty: docs.length === 0 });
       }
       return () => {};
@@ -196,6 +205,7 @@ beforeEach(() => {
   opened.calls.length = 0;
   ford.docs = [];
   ford.updates.length = 0;
+  ford.mine = [];
 });
 
 afterEach(async () => {
@@ -556,6 +566,59 @@ describe("the pre-session briefing mounts", () => {
     it("draws nothing for a client with nothing recorded in Journey and nothing to say", async () => {
       const host = await mount(<Screen last={null} />);
       expect(host.querySelector('[aria-label="How they\'ve been doing"]')).toBeNull();
+    });
+  });
+
+  /* The briefing round, phase 4 (Oct 17 2026; AJ: "Build phase 4, the
+     just-for-me notes, now"). */
+  describe("just for me", () => {
+    it("a note marked Just for me goes up on its own at Start, never as the arrival note or filed", async () => {
+      const onStart = vi.fn();
+      const host = await mount(<Screen onStart={onStart} />);
+      await click(buttonByText(host.querySelector('[aria-label="What to fill in"]')!, "Note"));
+      await typeInto(host.querySelector(".br__textarea"), "Guardians bet: ask how it went");
+      expect(host.querySelector('[data-testid="arrival-file-as"]')).toBeTruthy();
+      await click(host.querySelector('[data-testid="briefing-just-for-me"]'));
+      // A private note isn't filed: no category chips.
+      expect(host.querySelector('[data-testid="arrival-file-as"]')).toBeNull();
+      await click(buttonByText(host, "Start session"));
+      const call = onStart.mock.calls[0];
+      expect(call[2]).toBe("");
+      expect(call[4]).toBeNull();
+      expect(call[6]).toBe("Guardians bet: ask how it went");
+      // The briefing itself writes nothing: the tracker files it.
+      expect(writes).toEqual([]);
+    });
+
+    it("without the switch, the note is the arrival note, as before", async () => {
+      const onStart = vi.fn();
+      const host = await mount(<Screen onStart={onStart} />);
+      await click(buttonByText(host.querySelector('[aria-label="What to fill in"]')!, "Note"));
+      await typeInto(host.querySelector(".br__textarea"), "Late from work");
+      await click(buttonByText(host, "Start session"));
+      expect(onStart.mock.calls[0][2]).toBe("Late from work");
+      expect(onStart.mock.calls[0][6]).toBeNull();
+    });
+
+    it("shows your own notes about this client, only you, in Since last time", async () => {
+      ford.mine = [
+        {
+          id: "n1",
+          title: "Judy Daus — working notes",
+          body: "",
+          kind: "note",
+          folderId: null,
+          clientIds: ["c1"],
+          clientNames: { c1: "Judy Daus" },
+          pinned: false,
+          sharedWith: null,
+          log: [{ id: "j1", at: Date.now() - DAY, text: "Guardians bet: ask how it went", clientId: "c1" }],
+        },
+      ];
+      const host = await mount(<Screen />);
+      const mine = host.querySelector('[aria-label="Since last time"] [data-testid="briefing-mine"]')!;
+      expect(mine.textContent).toContain("Only you");
+      expect(mine.textContent).toContain("Guardians bet: ask how it went");
     });
   });
 

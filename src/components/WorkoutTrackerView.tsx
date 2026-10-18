@@ -345,6 +345,7 @@ const ClientCheckInPanel = React.lazy(loadClientCheckInPanel);
 import { SessionJournalSidebar } from "./journal/SessionJournalSidebar";
 import { BriefingScreen } from "../features/briefing";
 import { closeTargetOf } from "../features/briefing/close-target";
+import { jotAbout } from "../features/relay/notes/client-jots";
 import { WrapUpScreen } from "./WrapUpScreen";
 import { studioTodayKey } from "../lib/studio-time";
 import { sessionLinkOf } from "../features/client-notes/session-link";
@@ -5667,7 +5668,19 @@ export function WorkoutTrackerView({
              cache answer is not "no routine"): the briefing claims nothing
              about a client starting out until it is. */
           routinesKnown={routinesKnown}
-          onStart={(routineType, customMachines, note, checkIn, noteCategory, startPlan) =>
+          onStart={(routineType, customMachines, note, checkIn, noteCategory, startPlan, privateNote) => {
+            /* "Just for me" (the briefing round, phase 4): the trainer's own
+               notebook, under their Auth uid, never the client's record.
+               Never waited on; a refusal comes back as a toast. */
+            const mineUid = user?.uid ?? null;
+            if (privateNote?.trim() && mineUid && selectedClient?.id) {
+              jotAbout({ uid: mineUid, clientId: selectedClient.id, name: clientDisplayName(selectedClient), text: privateNote }).catch(
+                (err) => {
+                  console.warn("[briefing] a just-for-me note was refused:", err);
+                  toastError("Your just-for-me note didn't save. Add it again from the profile's working notes.");
+                },
+              );
+            }
             startNewSession(
               routineType,
               undefined,
@@ -5676,8 +5689,8 @@ export function WorkoutTrackerView({
               checkIn,
               noteCategory,
               startPlan,
-            )
-          }
+            );
+          }}
           /* Back where Start was tapped, and says so (AJ's F4 "a", the
              briefing round, Oct 17 2026; features/briefing/close-target.ts). */
           closeWords={closeTargetOf(sessionFrom, clientFirstName(selectedClient, "")).words}

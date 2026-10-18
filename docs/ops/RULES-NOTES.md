@@ -1029,6 +1029,8 @@ the path, exactly like the private task lists above.
 <a id="trainers-trainerid-notes-noteid"></a>
 ### `match /trainers/{trainerId}/notes/{noteId}`
 
+**The briefing's "just for me" notes live here (the briefing round, Oct 17 2026).** AJ's handoff asked for notes only their writer sees, "in the briefing and everywhere else". This tree already is that: private by path, read and written only under the writer's Auth uid, never opened to a colleague, a studio owner or an administrator, and its notes name their clients. So a just-for-me note is a jot on the writer's own working note about the client, read on the briefing with one query (`clientIds array-contains`). No rule changed; `tests/firestore.rules.test.ts` adds that an administrator reads neither the note nor that query.
+
 ```text
 WAVE 2 RELAY: the Journal's notes. trainers/{trainerId}/notes/{noteId}
 may carry the Journal's three optional fields: `noteType` (one of six),

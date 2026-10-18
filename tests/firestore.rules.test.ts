@@ -1500,6 +1500,26 @@ describe("Firestore Security Rules", () => {
     }
   });
 
+  /* The briefing round's "just for me" (Oct 17 2026, phase 4): a note the
+     trainer marks just for them is a jot in this notebook. Its writer reads
+     their own notes about one client (the briefing's one query, clientIds
+     array-contains); nobody else does, an administrator included. */
+  it("keeps a just-for-me note to its writer alone, an administrator included", async () => {
+    await seedNotes();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "trainers", "adminJfm"), { fullName: "Ada Admin", initials: "AA", role: "Admin" });
+    });
+    const mine = testEnv.authenticatedContext("trainerA", { email: "trainera@test.com" }).firestore();
+    await assertSucceeds(
+      getDocs(query(collection(mine, "trainers", "trainerA", "notes"), where("clientIds", "array-contains", "notesClient"))),
+    );
+    const admin = testEnv.authenticatedContext("adminJfm", { email: "adminjfm@test.com", role: "Admin" }).firestore();
+    await assertFails(getDoc(doc(admin, "trainers", "trainerA", "notes", "n1")));
+    await assertFails(
+      getDocs(query(collection(admin, "trainers", "trainerA", "notes"), where("clientIds", "array-contains", "notesClient"))),
+    );
+  });
+
   it("refuses a note the Planner could not read back", async () => {
     await seedNotes();
     const db = testEnv.authenticatedContext("trainerA", { email: "trainera@test.com" }).firestore();

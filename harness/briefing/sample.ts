@@ -106,6 +106,24 @@ export function PREVIEW_DOCS(path: string): Record<string, unknown>[] {
       },
     ];
   }
+  /* Sam's own notebook (the briefing's "Just for me", phase 4). */
+  if (path === "trainers/uid-preview/notes") {
+    return [
+      {
+        id: "n1",
+        title: "Dana Sample — working notes",
+        body: "",
+        kind: "note",
+        folderId: null,
+        clientIds: ["c-sample"],
+        clientNames: { "c-sample": "Dana Sample" },
+        pinned: false,
+        sharedWith: null,
+        log: [{ id: "j1", at: ago(4).getTime(), text: "Guardians bet: ask how it went", clientId: "c-sample" }],
+        updatedAt: ago(4),
+      },
+    ];
+  }
   if (path === "clients/c-sample/ford") {
     return [
       {

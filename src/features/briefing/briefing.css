@@ -1511,3 +1511,25 @@
 .br-perf__table [data-newest] { color: var(--br-ink); }
 .br-perf__table td[data-newest] b { color: var(--br-ink); }
 .br-perf__gap { color: var(--br-ink-faint); }
+
+/* --- just for me (the briefing round, phase 4) ---------------------------- */
+
+/* The switch under the note: the chip's firm edge; pressed, the picked blue. */
+.br__mine-toggle { align-self: flex-start; }
+/* Your own notes about this client, in Since last time's card: quiet lines,
+   private to you (trainers/{uid}/notes). */
+.br__mine {
+  margin: 0;
+  padding: 0 2px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--br-ink-2);
+  overflow-wrap: anywhere;
+}
+.br__mine b { font-weight: 700; color: var(--br-live-text); }
+.br__mine-when { color: var(--br-ink-muted); font-size: 12px; }
+.br__mine-unread { color: var(--br-ink-muted); }
