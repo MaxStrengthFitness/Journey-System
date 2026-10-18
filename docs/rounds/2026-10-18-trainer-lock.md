@@ -273,3 +273,73 @@ team, a client's history names its coaches; and nothing red.
 ## 10. Gates
 
 *(filled in on the final commit)*
+
+## 11. Phase 3: every screen that reads the list
+
+A helper walked every consumer of the `trainers` prop from `AppContent.tsx`
+and the hooks beneath them (about ninety places), asking what each does when
+an id it holds is not on the list. **Nothing crashes**: every lookup already
+reads through `?.` or a guard. What was wrong, and what changed:
+
+**Named the wrong person** (an initials fallback that, with a scoped list,
+would hand a session to the one trainer HERE who shares the initials):
+
+- `client-history/trainers.ts` (History's rows, the session pop-up, Notes): by
+  id, then an older account's sign-in uid; initials only for a session with no
+  id at all (an import), and only when one person on the list has them.
+- `hooks/useClientJournal.ts` (the legacy journal's authors): the same.
+- `admin/data/useStudioExports.ts` (the payroll CSV): the same; the name is
+  the session's own when the list can't name the coach.
+
+**Wrote a placeholder into a record:** `client-profile/useTopTrainer.ts`'s
+one-time backfill wrote `topTrainerName: "Unknown trainer"` to the client
+when the top trainer's record was missing. `lib/client-rollups.ts` now names
+a coach the list doesn't hold by what Start stamped on the sessions
+(`storedNamesFromSessions`), says "A trainer from another studio" only on
+screen (`named: false`), and writes only a name that names the person.
+
+**Showed a raw id:** `routines/routine-rows.ts` (Programming's change log)
+showed the trainer's document id as the name and its first two letters as
+initials. Now "A trainer from another studio" and "?".
+
+**Signed by the wrong trainer:** a kept set-up handed over in Who's this?
+(`WorkoutTrackerView.tsx`, `queueHeldMoves`'s `authorOf`) was signed by the
+trainer finishing now when the keeper's record wasn't on the list. It is
+signed by the keeper's id, named as a trainer from another studio.
+
+**Lost a pairing:** `routine-plan/changes-list.ts` pairs the drawer's one save
+(a plan change and an adjustment) by the person's key; with no record there
+was no key, so one save showed twice. Both now key by the id they carry.
+
+**A select that lied:** the Renewal Brief's "Leading the conversation"
+showed "Nobody yet" for a lead the list doesn't hold. The lead stays in the
+options as "A trainer from another studio".
+
+**Placeholders that said the wrong thing** ("Unknown trainer", "Unnamed
+trainer", "A former trainer"): the session pop-up's coach, the profile
+header's top trainer and "every trainer who trained her", Operations' Hours,
+Insights and the month tally rows, the renewal outcomes by trainer, Team's
+renewal counts. Each now says "A trainer from another studio"
+(`trainer-scope/names.ts`), after the name the record carries where there
+is one. "Started by …" on a taken-over session says "a trainer from another
+studio" rather than dropping the line (`session-record/watch.ts`). The
+journey list's win-back case says "her usual trainer is from another
+studio" rather than "no usual trainer on record" (`usualElsewhere`).
+
+**Left as they are, on purpose** (an omission, not a wrong word): the Hub and
+the Calendar put a booking whose trainer isn't on this studio's team in the
+Unassigned column with Mindbody's own staff name (`hub-schedule/columns.ts`,
+as before); Ahead's trainer filter offers chips only for trainers it can
+name (a client of someone elsewhere is under Everyone); "set by", "measured
+by", "offered by" and a notice author's role are left off when the record
+is missing; a network notice's "N of M have read it" counts the people the
+reader can see; My Studio → Team's roster can't tell that a sign-up request
+belongs to someone who already has an account at another studio, so such a
+request reads as awaiting approval and the approval is refused by the
+rules (the account's home is elsewhere); the trainer-profile screen for an
+id outside the list renders nothing, but nothing opens it with one (Team's
+roster comes from the list).
+
+Tests: `client-history/trainers.test.ts`, `lib/client-rollups.names.test.ts`,
+`trainer-scope/names.test.ts`, and the changed cases in `routine-rows`,
+`changes-list`, `watch` and `metrics` tests.

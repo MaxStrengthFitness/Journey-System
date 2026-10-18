@@ -44,6 +44,7 @@
  * never disagree with the raw read's. month-tally.test.ts.
  */
 import type { WorkoutSession } from "../../../types";
+import { ANOTHER_STUDIOS_TRAINER } from "../../trainer-scope/names";
 import { addDays } from "../../client-history/model";
 import {
   hoursTally,
@@ -386,7 +387,7 @@ export function hoursTallyFromDoc(doc: HoursMonthDoc, opts: { sessionMinutes: nu
     month = add(month, total);
     return {
       trainerKey: t.key,
-      label: names[t.key] ?? (t.key.startsWith("initials:") ? t.key.slice("initials:".length) : "Unnamed trainer"),
+      label: names[t.key] ?? (t.key.startsWith("initials:") ? t.key.slice("initials:".length) : ANOTHER_STUDIOS_TRAINER),
       weeks,
       month: total,
       measured: { sessions: t.measuredSessions, minutes: t.measuredMinutes },

@@ -14,6 +14,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { ANOTHER_STUDIOS_TRAINER } from "../../trainer-scope/names";
 import { BarChart3, Info } from "lucide-react";
 import {
   AdminField,
@@ -93,7 +94,7 @@ export function RenewalOutcomesPanel({ studioId, settings, studios, trainers }: 
 
   const packageLabel = (key: string | null) =>
     settings.packages.find((p) => p.key === key)?.label ?? "Package not recognized";
-  const trainerName = (id: string | null) => trainers.find((t) => t.id === id)?.fullName ?? "A former trainer";
+  const trainerName = (id: string | null) => trainers.find((t) => t.id === id || t.authUid === id)?.fullName ?? ANOTHER_STUDIOS_TRAINER;
   const studioName = (id: string | null) => studios.find((s) => s.id === id)?.name ?? "A studio";
 
   return (

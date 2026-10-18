@@ -13,6 +13,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { ANOTHER_STUDIOS_TRAINER } from "../../trainer-scope/names";
 import { createPortal } from "react-dom";
 import { MessageSquarePlus, Search, X } from "lucide-react";
 import {
@@ -147,12 +148,14 @@ export function RenewalBrief({
   }, [clinical.status, clinical.data, client, machines, trainers]);
 
   // Whoever is leading stays in the list even if they've since moved studio,
-  // so the picker never shows "Nobody yet" for a conversation someone owns.
+  // so the picker never shows "Nobody yet" for a conversation someone owns:
+  // by their record, or as "A trainer from another studio" when the list
+  // doesn't hold it (the trainer lock, Oct 18 2026).
   const leadOptions = useMemo(() => {
     const leadId = cycle?.leadTrainerId ?? null;
     if (!leadId || studioTrainers.some((t) => t.id === leadId)) return studioTrainers;
-    const lead = trainers.find((t) => t.id === leadId);
-    return lead ? [...studioTrainers, lead] : studioTrainers;
+    const lead = trainers.find((t) => t.id === leadId) ?? ({ id: leadId, fullName: ANOTHER_STUDIOS_TRAINER } as Trainer);
+    return [...studioTrainers, lead];
   }, [cycle?.leadTrainerId, studioTrainers, trainers]);
 
   const setCycle = async (patch: Parameters<typeof updateCycleAsLeader>[3]) => {

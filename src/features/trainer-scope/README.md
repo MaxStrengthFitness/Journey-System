@@ -29,6 +29,7 @@ group rule waits for the bookings lock. `firestore.rules`'
 | `scope.ts` | `trainerScopeFor(record)`: `all`, or the studios (`readableStudioIds` plus the grant plus `demo-studio`, capped at 30). `scopeKey` for effects. `inScope` for a screen with an id in hand. `SCOPE_FIELDS`, the five fields |
 | `read.ts` | `trainerQueriesFor(scope)`: the five queries, written out so the index guard reads each; `readTrainers(scope, "cache" \| "server")` for a one-off read; `uniqueDocs` |
 | `merge.ts` | `mergeAnswers`: one list from several listeners, nothing until every one has answered, from the cache while any is; `inListOrder`, the app's order (`order`, then the name) |
+| `names.ts` | `trainerNameFor`, `trainerShortNameFor`, `trainerInitialsFor`: the record's name, else the name the document carries, else "A trainer from another studio" (`ANOTHER_STUDIOS_TRAINER`), never nothing |
 | `src/hooks/useTrainers.ts` | the live listeners, one per query, restarted only when the studios change |
 | `src/hooks/useAuthInitialization.ts` | the boot's read of the list, the same queries, the iPad's copy first |
 | `src/AppContent.tsx` | the scope from the signed-in record (`useMemo`), and the Operations / Admins refresh |

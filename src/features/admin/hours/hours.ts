@@ -33,6 +33,7 @@
  * that is what a wall calendar does; a pay week is not a wall calendar.
  */
 import type { Studio, WorkoutSession } from "../../../types";
+import { ANOTHER_STUDIOS_TRAINER } from "../../trainer-scope/names";
 import { addDays, daysInMonth, keyOf, parseKey, weekdayOf, type DayKey } from "../../client-history/model";
 import { activeMinutes, sessionDay, trainerKeyOf, type TrainerNames } from "../insights/metrics";
 import { studioDayBoundsForKey, studioTodayKey } from "../../../lib/studio-time";
@@ -226,7 +227,7 @@ export function hoursTally(
     if (!row) {
       row = {
         trainerKey: key,
-        label: names[key] ?? (key.startsWith("initials:") ? key.slice("initials:".length) : "Unnamed trainer"),
+        label: names[key] ?? (key.startsWith("initials:") ? key.slice("initials:".length) : ANOTHER_STUDIOS_TRAINER),
         weeks: {},
         month: EMPTY,
         measured: { sessions: 0, minutes: 0 },
