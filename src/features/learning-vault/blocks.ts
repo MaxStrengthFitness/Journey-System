@@ -96,10 +96,23 @@ function kindOf(kind: string): VaultBlockKind {
 }
 
 /**
+ * Markdown emphasis as plain words (review fix, Oct 19 2026). The machine
+ * definitions write cue *"ease out... do not speed up"* and relax the ankles
+ * *before* lowering; a few Academy topics write **bold**. A page draws plain
+ * words, so a paired asterisk (or pair of them) goes and what it wrapped
+ * stays, quotes and all. A lone asterisk, or one with a space just inside it
+ * ("5 * 6"), is not emphasis and is left alone.
+ */
+export function plainEmphasis(text: string): string {
+  return text.replace(/\*\*(\S(?:[^*\n]*?\S)?)\*\*/g, "$1").replace(/\*(\S(?:[^*\n]*?\S)?)\*/g, "$1");
+}
+
+/**
  * The corpus's blocks (`{ kind, text }`) as vault blocks: heading, subheading
  * and bullet kept, body and para a paragraph, the vault's own kinds kept,
- * anything else a paragraph. A block with no words is not a line and is
- * left out. `source` says where the words come from, on every block.
+ * anything else a paragraph, Markdown emphasis drawn as plain words. A block
+ * with no words is not a line and is left out. `source` says where the words
+ * come from, on every block.
  */
 export function toVaultBlocks(
   blocks: { kind: string; text: string }[],
@@ -107,7 +120,7 @@ export function toVaultBlocks(
 ): VaultBlock[] {
   const out: VaultBlock[] = [];
   for (const b of blocks ?? []) {
-    const text = typeof b?.text === "string" ? b.text.trim() : "";
+    const text = typeof b?.text === "string" ? plainEmphasis(b.text).trim() : "";
     if (!text) continue;
     const block: VaultBlock = { key: blockKeyFor(text), kind: kindOf(String(b.kind)), text };
     if (opts?.source) block.source = opts.source;

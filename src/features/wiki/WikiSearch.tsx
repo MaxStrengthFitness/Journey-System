@@ -114,7 +114,11 @@ export function WikiSearch({
             autoCapitalize="none"
             spellCheck={false}
             onKeyDown={(e) => {
-              if (e.key === "Escape") onClose();
+              if (e.key !== "Escape") return;
+              // Escape is search's: used up here, so a page hidden under
+              // search (Learning stashes it) never also acts on the key.
+              e.preventDefault();
+              onClose();
             }}
           />
           {typed && (

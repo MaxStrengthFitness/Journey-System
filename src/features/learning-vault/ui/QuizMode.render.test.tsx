@@ -123,7 +123,12 @@ describe("the quiz, played", () => {
     expect(host.textContent).toContain("The repetition");
 
     await click(q('[data-qz-deck="rep"]'));
-    expect(host.textContent).toContain("Question 1 of 3");
+    // The pips say where the round is; their words are a screen reader's
+    // (said once: never "Question 1 of 3" written beside three pips).
+    const pips = () => q(".qz__pips");
+    expect(pips()?.getAttribute("role")).toBe("img");
+    expect(pips()?.getAttribute("aria-label")).toBe("Question 1 of 3");
+    expect(host.textContent).not.toContain("Question 1 of 3");
     expect(qa(".qz__pip")).toHaveLength(3);
 
     const seen: string[] = [];
@@ -159,7 +164,7 @@ describe("the quiz, played", () => {
       const next = q("[data-qz-next]");
       expect(next?.textContent).toContain(n === 2 ? "See the round" : "Next question");
       await click(next);
-      if (n < 2) expect(host.textContent).toContain(`Question ${n + 2} of 3`);
+      if (n < 2) expect(pips()?.getAttribute("aria-label")).toBe(`Question ${n + 2} of 3`);
     }
     expect(new Set(seen).size).toBe(3);
 
@@ -176,7 +181,7 @@ describe("the quiz, played", () => {
 
     // Play again deals a fresh round of the same deck; Another deck goes back.
     await click(q("[data-qz-again]"));
-    expect(host.textContent).toContain("Question 1 of 3");
+    expect(pips()?.getAttribute("aria-label")).toBe("Question 1 of 3");
     expect(q("[data-qz-end]")).toBeNull();
     await click(byText("button", "Other decks"));
     expect(q('[data-qz-deck="rep"]')).toBeTruthy();

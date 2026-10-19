@@ -49,6 +49,29 @@ export function parseDesign(raw: unknown): LearningDesign | null {
 
 export const DESIGN_KEY = "journey.learning.design.v1";
 
+/**
+ * Who sees the prototype bar (review fix, Oct 19 2026): an administrator or
+ * the founder (the Admins dashboard's own gate, useActiveStudio().isAdmin),
+ * or anyone on a development build (the PC build AJ walks; EnvironmentMark's
+ * import.meta.env.DEV). Never every signed-in trainer: work goes to master,
+ * master is what every iPad gets at the next deploy, and a Life Transformer
+ * must not find a "Prototype" strip, or "View as: Head office", on the floor.
+ * Everyone else is on today's Learning, whatever this iPad last picked.
+ */
+export function mayPickPrototypes(who: { isAdmin?: boolean | null; dev?: boolean }): boolean {
+  return Boolean(who.isAdmin) || Boolean(who.dev);
+}
+
+/**
+ * The Learning a viewer sees: today's for anyone who may not pick a
+ * prototype, whatever this iPad last picked; the picked one otherwise. Read
+ * at every render, so an administrator whose role arrives a moment after the
+ * screen still gets their pick, and a trainer never does.
+ */
+export function shownDesign(mayPick: boolean, picked: LearningDesign): LearningDesign {
+  return mayPick ? picked : "current";
+}
+
 /** The design last picked on this iPad, or null (never picked, or storage unreadable). */
 export function rememberedDesign(): LearningDesign | null {
   try {

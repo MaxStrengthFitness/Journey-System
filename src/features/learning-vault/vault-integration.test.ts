@@ -210,6 +210,21 @@ describe("the vault's parts fit, on the real corpus", () => {
     expect(off).toEqual([]);
   });
 
+  it("says a machine's lede once, and draws no Markdown asterisks on any page (review fix, Oct 19 2026)", () => {
+    const off: string[] = [];
+    for (const r of ALL_ROUTES) {
+      const page = pageFor(r, DATA);
+      if (typeof page === "string") continue;
+      const where = routeKey(page.route);
+      const lines = page.sections.flatMap((s) => s.blocks);
+      if (page.route.kind === "machine" && page.lede && lines.some((b) => b.text.trim() === page.lede!.trim())) {
+        off.push(`${where}: the lede again in a tier`);
+      }
+      for (const b of lines) if (/\*\S[^*]*\*/.test(b.text)) off.push(`${where}: ${b.text.slice(0, 60)}`);
+    }
+    expect(off).toEqual([]);
+  });
+
   it("deals a full round from every deck it offers, from the real bank", () => {
     for (const deck of playableDecks(quizBank)) {
       const round = buildRound(quizBank, deck.id, 7);

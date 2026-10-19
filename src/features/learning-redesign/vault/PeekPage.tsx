@@ -4,10 +4,10 @@ import { LoadingMark } from "../../../components/LoadingMark";
 import { pageFor } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
 import type { VaultPage, VaultRoute, VaultSection } from "../../learning-vault/types";
-import { ArticleBlocks } from "../../learning-vault/ui/ArticleBlocks";
+import { ArticleBlocks, pageAccent } from "../../learning-vault/ui/ArticleBlocks";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { LocalConstellation } from "../../learning-vault/ui/LocalConstellation";
-import { useVaultScreen } from "./shell";
+import { DidNotLoad, stuckReason, useVaultScreen } from "./shell";
 import "./vault-map.css";
 
 /**
@@ -51,6 +51,13 @@ export function PeekPage({ route }: { route: VaultRoute }) {
   }
 
   if (route.kind === "map" && route.focus) {
+    if (!data.graph && data.referenceFailed) {
+      return (
+        <div className="vm__peek">
+          <DidNotLoad retry={data.retryReference} onPanel />
+        </div>
+      );
+    }
     return (
       <div className="vm__peek">
         <LocalConstellation graph={data.graph} nodeId={route.focus} onOpen={peekAt} variant="pills" max={12} />
@@ -59,16 +66,25 @@ export function PeekPage({ route }: { route: VaultRoute }) {
   }
 
   if (state === "loading") {
-    const failed = route.kind === "topic" && data.moduleFailed(route.moduleId);
-    if (failed) {
+    // Waiting that will not end on its own is said, with the reader's own Try again.
+    const stuck = stuckReason(route, data);
+    if (stuck === "floor") {
       return (
         <div className="vm__peek">
-          <p className="vm__quiet">This part of the Academy didn't load.</p>
-          {data.retryModule && (
-            <button type="button" className="vm__btn" onClick={() => data.retryModule?.(route.moduleId)}>
-              Try again
-            </button>
-          )}
+          <p className="vm__quiet">Can't read the studio's floor right now, so this machine's page can't open.</p>
+        </div>
+      );
+    }
+    if (stuck) {
+      const retry =
+        stuck === "module" && route.kind === "topic" && data.retryModule
+          ? () => data.retryModule?.(route.moduleId)
+          : stuck === "reference"
+            ? data.retryReference
+            : undefined;
+      return (
+        <div className="vm__peek">
+          <DidNotLoad retry={retry} onPanel />
         </div>
       );
     }
@@ -106,23 +122,30 @@ export function PeekPage({ route }: { route: VaultRoute }) {
   }
 
   const sections = focusedSections(route, page);
+  // One term or one moment is part of a page: a mark on another line of it
+  // is not a "line that changed" (it is right where it was), so the foot of
+  // changed lines is the whole page's alone.
+  const whole = sections === page.sections;
   return (
     <div className="vm__peek">
       {page.draft && <p className="vm__draft">{PLAYBOOK_DRAFT_LINE}</p>}
-      {page.lede && sections === page.sections && (
+      {page.lede && whole && (
         <p className="vm__peek-lede">
           <LinkedText text={page.lede} />
         </p>
       )}
+      {/* Inline: a gutter never pays for itself in a column this narrow. */}
       <ArticleBlocks
         target={page.target}
         sections={sections}
-        annotate="gutter"
+        annotate="inline"
         compact
         headingLevel={3}
+        accent={pageAccent(page)}
+        showOrphans={whole}
         renderText={renderText}
       />
-      {page.nodeId && sections !== page.sections && (
+      {page.nodeId && !whole && (
         <div className="vm__peek-links">
           <LocalConstellation graph={data.graph} nodeId={page.nodeId} onOpen={peekAt} variant="pills" max={8} />
         </div>

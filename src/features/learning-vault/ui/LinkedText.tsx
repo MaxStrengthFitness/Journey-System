@@ -6,10 +6,20 @@
  * longest first, first appearance and six a passage), over every kind of
  * thing the vault knows, not the glossary alone (entities.ts).
  *
- * Inside a ConceptLayer with an index, a linked word is a button that opens
- * its card beside it. Without one (the index still loading, a harness, a
- * design that does not link), the passage is plain words: the same text,
- * nothing missing, nothing waiting.
+ * Inside a ConceptLayer with an index, a linked word opens its card beside
+ * it. Without one (the index still loading, a harness, a design that does
+ * not link), the passage is plain words: the same text, nothing missing,
+ * nothing waiting.
+ *
+ * A WORD, NOT A BOX (review fix, Oct 19 2026)
+ * -------------------------------------------
+ * A linked word is a span with the button role (TermButton), never a
+ * <button>: a button is laid out as one unbreakable box even when told to be
+ * inline, so a line could break between "(Valsalva" and its ")", stranding
+ * the bracket at the start of the next line, and a long term could not wrap
+ * inside itself. A span wraps exactly like the words around it. It is still
+ * a real control: focusable, Enter and Space press it, and it says it opens
+ * a card.
  *
  * A tap on a linked word is the word's, not the line's: ArticleBlocks selects
  * a line on a click, so the word stops its click there (and carries
@@ -19,6 +29,7 @@
 import { Fragment, useMemo } from "react";
 import { linkText } from "../entities";
 import { useConcepts } from "./ConceptLayer";
+import { TermButton } from "./TermButton";
 import "../../wiki/wiki.css";
 import "./concept.css";
 
@@ -41,23 +52,9 @@ export function LinkedText(props: { text: string; skip?: string; maxLinks?: numb
         const id = s.entityId;
         if (!id) return <Fragment key={`t-${i}`}>{s.text}</Fragment>;
         return (
-          <button
-            key={`${id}-${i}`}
-            type="button"
-            className="vtc__term"
-            data-vault-term=""
-            aria-haspopup="dialog"
-            onClick={(e) => {
-              e.stopPropagation();
-              concepts.open(id, e.currentTarget);
-            }}
-            onKeyDown={(e) => {
-              // Enter and Space are the word's own press, not the line's.
-              if (e.key === "Enter" || e.key === " ") e.stopPropagation();
-            }}
-          >
+          <TermButton key={`${id}-${i}`} popup onPress={(el) => concepts.open(id, el)}>
             {s.text}
-          </button>
+          </TermButton>
         );
       })}
     </>

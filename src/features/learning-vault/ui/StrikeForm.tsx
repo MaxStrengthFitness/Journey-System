@@ -60,7 +60,15 @@ export function StrikeForm({
     reasonRef.current?.focus();
   }, []);
 
-  const ready = vault.studio.id !== null && reasonIsEnough(reason) && instead.trim().length <= REPLACEMENT_MAX;
+  // Only on the studio's own version, and only a leader (a form left open
+  // across a switch to the MSF original or View as never writes: belt and
+  // braces, ArticleBlocks already closes it).
+  const ready =
+    vault.lens === "studio" &&
+    vault.viewer.canStrike &&
+    vault.studio.id !== null &&
+    reasonIsEnough(reason) &&
+    instead.trim().length <= REPLACEMENT_MAX;
 
   const crossOut = () => {
     const studioId = vault.studio.id;

@@ -71,13 +71,14 @@ import { CLINICAL_FLAGS_MATRIX } from "../../data/clinical-matrix";
 import type { ClinicalSafetyFlag } from "../../types";
 import type { MachineCatalogEntry } from "../../types/machines";
 import { blockKeyFor, toVaultBlocks, vaultSection } from "./blocks";
-import { codexTiers, scriptSections, workoutWords } from "./codex-reader";
+import { codexTiers, EMPTY_TIER_LINE, scriptSections, workoutWords } from "./codex-reader";
 import { nodeIdForRoute } from "./graph";
 import { vaultTarget } from "./learning-link";
 import { playbookSourceLabel, playbookSourcesLine } from "./playbooks";
 import { cueMomentLabel } from "./cue-label";
 import { CUE_SOURCE_LABEL, isCuePhrase } from "./rep-phases";
 import type {
+  CodexTier,
   PlaybookPage,
   VaultBlock,
   VaultBlockKind,
@@ -410,10 +411,14 @@ function machinePage(route: Extract<VaultRoute, { kind: "machine" }>, data: Vaul
   const script = am?.scriptId ? (data.scripts.find((s) => s.id === am.scriptId) ?? null) : null;
   const ov = am?.overviewId ? data.overviews.find((o) => o.id === am.overviewId) : undefined;
 
-  const tiers = codexTiers(
-    def,
-    { card, script, overview: ov ? { id: ov.id, title: ov.title, blocks: ov.blocks } : null, cues: data.cues },
-    { substitutes: substituteNames(id, data), clinical: clinicalFlagsFor(id), machineName: name },
+  const lede = (def.clinicalNote ?? "").trim();
+  const tiers = withoutLede(
+    codexTiers(
+      def,
+      { card, script, overview: ov ? { id: ov.id, title: ov.title, blocks: ov.blocks } : null, cues: data.cues },
+      { substitutes: substituteNames(id, data), clinical: clinicalFlagsFor(id), machineName: name },
+    ),
+    lede,
   );
 
   const code = codeOf(id, am);
@@ -439,10 +444,50 @@ function machinePage(route: Extract<VaultRoute, { kind: "machine" }>, data: Vaul
     facts,
     related: machineRelated(id, am, data),
   };
-  const lede = (def.clinicalNote ?? "").trim();
   if (lede) page.lede = lede;
   return withNode(page);
 }
+
+/**
+ * The tiers without a line that only repeats the page's lede (review fix,
+ * Oct 19 2026): a machine's clinical note is its lede, under the title in
+ * every design, and Deep science opened by saying the same sentence again
+ * under "Clinical note". Said once, at the top. A section left with no lines
+ * goes; a tier left with none keeps codexTiers' honest empty line.
+ */
+export function withoutLede(tiers: CodexTier[], lede: string): CodexTier[] {
+  const said = lede.trim();
+  if (!said) return tiers;
+  return tiers.map((tier) => {
+    let changed = false;
+    const sections: VaultSection[] = [];
+    for (const s of tier.sections) {
+      const blocks = s.blocks.filter((b) => b.text.trim() !== said);
+      if (blocks.length === s.blocks.length) {
+        sections.push(s);
+        continue;
+      }
+      changed = true;
+      if (blocks.length > 0 || (s.note ?? "").trim()) sections.push({ ...s, blocks });
+    }
+    if (!changed) return tier;
+    if (sections.length === 0) sections.push(vaultSection(`${tier.id}-empty`, tier.title, [], EMPTY_TIER_LINE));
+    return { ...tier, sections };
+  });
+}
+
+/**
+ * A machine page that cannot be drawn because the studio's floor could not
+ * be read (review fix, Oct 19 2026): a studio's own machine has no standard,
+ * so it is a page only once the floor is read, and "unreadable" is final.
+ * pageFor still answers "loading" for it (the floor may yet arrive on a
+ * retry); a design asks this before it draws a spinner, and says "Can't read
+ * {Studio}'s floor right now" with its way back instead of spinning forever.
+ */
+export function floorUnreadableFor(route: VaultRoute, data: Pick<VaultData, "defs" | "floor" | "floorState">): boolean {
+  return route.kind === "machine" && !data.defs[route.id] && data.floor === null && data.floorState === "unreadable";
+}
+
 
 /** A machine a studio made itself: its name and code, and the honest "nothing written yet" of each tier. */
 function ownMachinePage(
@@ -743,7 +788,7 @@ function cueingPage(route: Extract<VaultRoute, { kind: "cueing" }>, data: VaultD
         "The same phrases, with the Academy's notes on when to say them.",
       ),
       { route: { kind: "glossary" }, title: "Glossary", why: "The exact words the Academy asks trainers to use." },
-      { route: { kind: "quiz", deck: "cues" }, title: "What would you say?", why: "Try the phrases as a quiz. Nothing is kept." },
+      { route: { kind: "quiz", deck: "cues" }, title: "What would you say?", why: "Try the phrases as a quiz." },
     ],
   });
 }

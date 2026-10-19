@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentType } from "react";
+import { useMemo, useRef, useState, type ComponentType } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -24,18 +24,29 @@ import { pageFor, titleOf } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE, playbooksForPillar } from "../../learning-vault/playbooks";
 import { DECKS } from "../../learning-vault/quiz/decks";
 import { strikeSignals } from "../../learning-vault/submissions";
-import type { GraphDomain, QuizDeckId, VaultGraph, VaultPage, VaultRoute, VaultSection } from "../../learning-vault/types";
-import { ArticleBlocks, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
+import type { GraphDomain, QuizDeckId, StudioMarkup, VaultGraph, VaultPage, VaultRoute, VaultSection } from "../../learning-vault/types";
+import { ArticleBlocks, OrphanMarks, pageAccent, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { DOMAIN_ICON } from "../../learning-vault/ui/LocalConstellation";
+import { machineAccentStyle } from "../../learning-vault/ui/page-accent";
 import { QuizMode } from "../../learning-vault/ui/QuizMode";
 import { SubmissionQueue, queueLead } from "../../learning-vault/ui/SubmissionQueue";
-import { useAllMarkup, useSubmissions, useVault } from "../../learning-vault/ui/VaultProvider";
+import { useAllMarkup, useStudioMarkup, useSubmissions, useVault } from "../../learning-vault/ui/VaultProvider";
 import { VersionToggle } from "../../learning-vault/ui/VersionToggle";
-import { backlinksOf, connectionCounts, pathDots, shownIds, withoutShown, type Backlink } from "./map-model";
+import {
+  backlinksOf,
+  bodySections,
+  connectionCounts,
+  letterIndex,
+  pathDots,
+  shownIds,
+  whoSaid,
+  withoutShown,
+  type Backlink,
+} from "./map-model";
 import { MapExplorer, domainVars } from "./RumorMap";
 import { MiniOrbit } from "./MiniOrbit";
-import { Frame, useVaultScreen } from "./shell";
+import { DidNotLoad, Frame, stuckReason, useVaultScreen } from "./shell";
 import "./vault-map.css";
 
 /**
@@ -99,23 +110,35 @@ function domainOfRoute(route: VaultRoute, graph: VaultGraph | null): GraphDomain
 
 export function LoadingScreen({ route }: { route: VaultRoute }) {
   const { data } = useVaultScreen();
-  const failed = route.kind === "topic" && route.moduleId !== "" && data.moduleFailed(route.moduleId);
+  const stuck = stuckReason(route, data);
   return (
     <Frame>
-      {failed ? (
-        <div className="vm__gone">
-          <p className="vm__gone-title">This part of the Academy didn't load.</p>
-          <p className="vm__gone-body">The connection may have dropped. Nothing you marked is lost.</p>
-          {data.retryModule && route.kind === "topic" && (
-            <button type="button" className="vm__btn vm__btn--go" onClick={() => data.retryModule?.(route.moduleId)}>
-              Try again
-            </button>
-          )}
-        </div>
+      {stuck === "floor" ? (
+        <FloorUnreadable />
+      ) : stuck === "module" ? (
+        <DidNotLoad retry={data.retryModule && route.kind === "topic" ? () => data.retryModule?.(route.moduleId) : undefined} />
+      ) : stuck === "reference" ? (
+        <DidNotLoad retry={data.retryReference} />
       ) : (
         <LoadingArea label="Opening the page…" />
       )}
     </Frame>
+  );
+}
+
+/** One of the studio's own machines, while its floor cannot be read: said, with the way back. */
+function FloorUnreadable() {
+  const { nav, rootLabel } = useVaultScreen();
+  const { studio } = useVault();
+  const name = studio.name.trim() || "this studio";
+  return (
+    <div className="vm__gone" role="status">
+      <p className="vm__gone-title">Can't read {floorTitle(name)} right now.</p>
+      <p className="vm__gone-body">This machine is one of {name}'s own, so its page waits for the floor. The MSF machines are all in the Catalog.</p>
+      <button type="button" className="vm__btn" onClick={() => nav.reset(nav.stack[0])}>
+        Back to {rootLabel}
+      </button>
+    </div>
   );
 }
 
@@ -157,7 +180,7 @@ export function HomeScreen() {
                 <li key={t.id}>
                   <button type="button" className="vm__track" onClick={() => open({ kind: "track", id: t.id })}>
                     <span className="vm__track-title">{t.title}</span>
-                    <span className="vm__track-who">{t.who}</span>
+                    {!whoSaid(t.title, t.who) && <span className="vm__track-who">{t.who}</span>}
                     <span className="vm__track-path" aria-hidden="true">
                       {Array.from({ length: dots }, (_, i) => (
                         <span key={i} className="vm__track-dot" />
@@ -195,7 +218,8 @@ function PlayCard() {
           <h2 className="vm__h3" id="vm-play">
             Play
           </h2>
-          <p className="vm__play-line">Ten questions from the Academy and the floor. Nothing is kept.</p>
+          {/* "Nothing is kept" is said once, by the quiz's own deck picker. */}
+          <p className="vm__play-line">Ten questions from the Academy and the floor.</p>
         </div>
       </div>
       <ul className="vm__play-decks">
@@ -355,7 +379,12 @@ function FloorRow({ n, id, name, code, onOpen }: { n?: number; id: string; name:
   return (
     <button type="button" className="vm__floor-row" onClick={onOpen} aria-label={said ? `${name}. Connects to ${said}.` : name}>
       {n !== undefined && <span className="vm__floor-n">{n}</span>}
-      {code && <span className="vm__code">{code}</span>}
+      {/* The tag in the machine's category colour, as the Catalog draws it. */}
+      {code && (
+        <span className="vm__code" style={machineAccentStyle(id)}>
+          {code}
+        </span>
+      )}
       <span className="vm__floor-text">
         <span className="vm__floor-name">{name}</span>
         {counts.length > 0 && (
@@ -561,7 +590,8 @@ export function TrackScreen({ id }: { id: string }) {
         <header className="vm__head">
           <p className="wk__eyebrow">Reading path</p>
           <h1 className="wk__h1">{track.title}</h1>
-          <p className="wk__lede">For {lowerFirst(track.who)}.</p>
+          {/* Who it is for, unless the title already says so ("For a head trainer"). */}
+          {!whoSaid(track.title, track.who) && <p className="wk__lede">For {lowerFirst(track.who)}.</p>}
         </header>
         <ol className="vm__path">
           {track.steps.map((s, i) => {
@@ -599,6 +629,14 @@ function lowerFirst(text: string): string {
 
 export function QuizScreen({ deck }: { deck?: QuizDeckId }) {
   const { data, peekAt, nav } = useVaultScreen();
+  // The bank is built from the reference chunks: one that cannot arrive is said, never shuffled forever.
+  if (data.quizBank === null && data.referenceFailed) {
+    return (
+      <Frame>
+        <DidNotLoad retry={data.retryReference} />
+      </Frame>
+    );
+  }
   return (
     <Frame>
       <div className="vm__quiz">
@@ -639,6 +677,7 @@ export function MapScreen({ focus }: { focus?: string }) {
 export function PageScreen({ route }: { route: VaultRoute }) {
   const { data } = useVaultScreen();
   const state = useMemo(() => pageFor(route, data), [route, data]);
+  // LoadingScreen says when waiting will not help (a chunk that failed, an unreadable floor).
   if (state === "loading") return <LoadingScreen route={route} />;
   if (state === "gone") return <GoneScreen />;
   if (route.kind === "module") return <ModuleScreen page={state} />;
@@ -681,12 +720,59 @@ export function orderedSections(route: VaultRoute, sections: VaultSection[]): Va
   return sections;
 }
 
+/** The line keys this studio has marked on a page (crossed out or noted). */
+function markedKeys(markup: StudioMarkup | null): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const s of markup?.strikes ?? []) out.add(s.blockKey);
+  for (const n of markup?.notes ?? []) out.add(n.blockKey);
+  return out;
+}
+
+/**
+ * The glossary's row of letters: each a jump to its letter's words, inside
+ * Learning's one scroller (smooth only when motion is welcome). Never throws.
+ */
+function jumpToLetter(body: HTMLElement | null, letter: string) {
+  try {
+    if (!body) return;
+    const head = [...body.querySelectorAll<HTMLElement>("h2, h3")].find((h) => h.textContent?.trim() === letter);
+    const target = head?.closest("section") ?? head;
+    if (!target) return;
+    const still = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const scroller = target.closest(".wk__scroll");
+    if (scroller instanceof HTMLElement && typeof scroller.scrollTo === "function") {
+      const top = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 12;
+      scroller.scrollTo({ top: Math.max(0, top), behavior: still ? "auto" : "smooth" });
+    } else if (typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({ block: "start" });
+    }
+  } catch {
+    /* a page that cannot be measured stays where it is */
+  }
+}
+
 function ArticleScreen({ route, page }: { route: VaultRoute; page: VaultPage }) {
   const { data, peekAt } = useVaultScreen();
   const phone = usePhone();
   const sections = useMemo(() => orderedSections(route, page.sections), [route, page.sections]);
   const applied = useAppliedMarkup(page.target, sections);
   const toggle = <VersionToggle struck={applied.struck} />;
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  // The body: a machine's spoken script and deep dive are peeks under Read
+  // alongside, not eleven more screens (a line this studio marked in them
+  // keeps its section, so no mark ever goes missing).
+  const markup = useStudioMarkup(page.target.key);
+  const marked = useMemo(() => markedKeys(applied.studioLens ? markup : null), [applied.studioLens, markup]);
+  const body = useMemo(() => bodySections(route.kind, sections, marked), [route.kind, sections, marked]);
+  const partial = body !== sections;
+  // The gutter is where this design keeps a studio's marks, so it is drawn
+  // only where a mark can show: the studio's version. The MSF original reads
+  // at the page's own edge, and so does a phone, where 58px of a 358px
+  // column is too much to give a gutter (as in the peek): its marks sit
+  // under their lines.
+  const annotate = applied.studioLens && !phone ? "gutter" : "inline";
+  const letters = route.kind === "glossary" ? letterIndex(body) : [];
 
   // A glossary term and a cue moment are pages of their own here: titled by
   // the term or the moment, with its own constellation.
@@ -701,8 +787,13 @@ function ArticleScreen({ route, page }: { route: VaultRoute; page: VaultPage }) 
 
   const orbitMax = phone ? 6 : ORBIT_MAX;
   const shown = useMemo(() => shownIds(data.graph, page.nodeId, orbitMax), [data.graph, page.nodeId, orbitMax]);
-  const backlinks = useMemo(() => backlinksOf(data.graph, page.nodeId ?? null), [data.graph, page.nodeId]);
-  // Say it once: a related page the orbit draws, or "Linked here" lists, is not listed again.
+  // Say it once: "Linked here" says the rest, never what the orbit at the
+  // top already draws; a related page the orbit draws, or "Linked here"
+  // lists, is not listed again under Read alongside.
+  const backlinks = useMemo(
+    () => backlinksOf(data.graph, page.nodeId ?? null).filter((b) => !shown.has(b.node.id)),
+    [data.graph, page.nodeId, shown],
+  );
   const related = useMemo(() => {
     const said = new Set(shown);
     for (const b of backlinks) said.add(b.node.id);
@@ -749,13 +840,35 @@ function ArticleScreen({ route, page }: { route: VaultRoute; page: VaultPage }) 
         </div>
 
         <div className="vm__main">
-          <div className="vm__body">
+          <div className="vm__body" ref={bodyRef} data-annotate={annotate}>
+            {letters.length > 0 && (
+              <nav aria-label="Jump to a letter">
+                <ul className="vm__letters">
+                  {letters.map((l) => (
+                    <li key={l.letter}>
+                      <button
+                        type="button"
+                        className="vm__letter-btn"
+                        aria-label={`Words under ${l.letter}`}
+                        onClick={() => jumpToLetter(bodyRef.current, l.letter)}
+                      >
+                        {l.letter}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )}
             <ArticleBlocks
               target={page.target}
-              sections={sections}
-              annotate="gutter"
+              sections={body}
+              annotate={annotate}
+              accent={pageAccent(page)}
+              showOrphans={!partial}
               renderText={(t) => <LinkedText text={t} skip={page.nodeId} />}
             />
+            {/* A body that leaves sections out says the page's own changed lines once, over the whole page. */}
+            {partial && <OrphanMarks target={page.target} orphans={applied.orphans} />}
             {/* A source a reader would recognise; a topic's file path is not one (its lines name their topic). */}
             {page.source && !page.source.startsWith("docs/") && <p className="vm__source">From {page.source}</p>}
           </div>

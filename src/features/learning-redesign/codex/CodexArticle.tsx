@@ -4,25 +4,28 @@ import { accentStyle } from "../../wiki/categories";
 import { DOMAIN_NOUN, cueNodeId, nodeById, termNodeId } from "../../learning-vault/graph";
 import { pageFor } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
-import { moduleOfTopic, pageKey } from "../../learning-vault/routes";
-import { useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
+import { pageKey } from "../../learning-vault/routes";
+import { pageAccent, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
-import { LocalConstellation } from "../../learning-vault/ui/LocalConstellation";
+import { LocalConstellation, categoryNodeStyle } from "../../learning-vault/ui/LocalConstellation";
 import { OrphanMarks } from "../../learning-vault/ui/OrphanMarks";
 import type { VaultPage, VaultRoute } from "../../learning-vault/types";
 import { useCodex } from "./codex-context";
 import {
+  PIECE_WORDS,
   domainWords,
   isEquipmentTerm,
+  isPiece,
   machineAccent,
   momentSections,
+  pieceMachineId,
   termSections,
   topicCueMoments,
   topicLayers,
   wordIndex,
 } from "./codex-model";
 import { Blocks, DeeperDoor, FactLine, PageHead, ReadNext, TierBar, useLayer, useVersionSlot } from "./CodexBits";
-import { CodexFailed, CodexFrame, CodexGone, CodexLoading } from "./CodexFrame";
+import { CodexFrame, CodexGone, CodexWaiting } from "./CodexFrame";
 import "./codex.css";
 
 /* ------------------------------------------------------------------ *
@@ -30,19 +33,16 @@ import "./codex.css";
  * ------------------------------------------------------------------ */
 
 /**
- * An Academy topic, adapted to the Codex honestly: 1 In one minute (its
- * headings and the first line under each), 2 Say it (the phrasebook's
- * moments that use its words; their marks are the phrasebook's), 4 Full
- * text. A tier that would be empty is left out.
+ * An Academy topic, adapted to the Codex honestly: In one minute (its
+ * headings and the first line under each), Say it (the phrasebook's moments
+ * that use its words; their marks are the phrasebook's), Full text. A tier
+ * that would be empty is left out, and the bar numbers what is left 1, 2, 3.
  */
 export function TopicPage({ route }: { route: Extract<VaultRoute, { kind: "topic" }> }) {
   const { data } = useCodex();
   const page = useMemo(() => pageFor(route, data), [route, data]);
-  if (page === "loading") {
-    const mod = moduleOfTopic(route.topicId) ?? route.moduleId;
-    if (mod && data.moduleFailed(mod)) return <CodexFailed moduleId={mod} />;
-    return <CodexLoading label="Opening the Academy…" />;
-  }
+  // A module that failed says so, with Try again (CodexWaiting).
+  if (page === "loading") return <CodexWaiting route={route} label="Opening the Academy…" />;
   if (page === "gone") return <CodexGone />;
   return <TopicArticle page={page} topicId={route.topicId} />;
 }
@@ -110,34 +110,54 @@ function TopicArticle({ page, topicId }: { page: VaultPage; topicId: string }) {
 export function ArticlePage({ route }: { route: Extract<VaultRoute, { kind: "card" | "script" | "overview" | "playbook" }> }) {
   const { data } = useCodex();
   const page = useMemo(() => pageFor(route, data), [route, data]);
-  if (page === "loading") return <CodexLoading label="Opening the page…" />;
+  if (page === "loading") return <CodexWaiting route={route} label="Opening the page…" />;
   if (page === "gone") return <CodexGone />;
   return <PlainArticle page={page} />;
 }
 
-/** The machine a card, script or deep dive belongs to: its first related link. */
-function machineOf(page: VaultPage): string | null {
-  const m = page.related.find((r) => r.route.kind === "machine");
-  return m && m.route.kind === "machine" ? m.route.id : null;
-}
-
+/**
+ * A quick card, a script, a deep dive or a playbook: head, facts, every
+ * line, Read next. A machine's piece is titled by the piece ("Quick card",
+ * the word on the bento's door that opened it), with the machine's code and
+ * name above it as the machine page's own kicker, so the three pieces never
+ * read as the machine's page, or as each other. Its spoken lines take the
+ * machine's category, as on the machine's page.
+ */
 function PlainArticle({ page }: { page: VaultPage }) {
+  const { data } = useCodex();
   const applied = useAppliedMarkup(page.target, page.sections);
   const { actions, inline } = useVersionSlot(applied.struck);
-  const machine = page.route.kind === "playbook" ? null : machineOf(page);
+  const machine = pieceMachineId(page.route, data.machines);
+  const piece = machine && isPiece(page.route) ? PIECE_WORDS[page.route.kind] : null;
   const style = machine ? accentStyle(machineAccent(machine)) : undefined;
-  const facts = page.facts.filter((f) => f.label !== "Category");
+  const code = machine
+    ? (data.machines.find((m) => m.machineId === machine)?.abbr ?? page.facts.find((f) => f.label === "Code")?.value ?? null)
+    : null;
+  const kicker =
+    piece && machine ? (
+      <p className="cdx__eyebrow cdx__eyebrow--machine">
+        {code && <span className="wk__row-code">{code}</span>}
+        <span>{data.names(machine)}</span>
+      </p>
+    ) : undefined;
+  // The kicker shows the code; the category is the machine's page's to say.
+  const facts = page.facts.filter((f) => f.label !== "Category" && !(kicker && f.label === "Code"));
 
   return (
     <CodexFrame actions={actions}>
       <article className="cdx__article">
-        <PageHead eyebrow={page.eyebrow} title={page.title} lede={page.lede} style={style}>
+        <PageHead eyebrow={page.eyebrow} kicker={kicker} title={piece ?? page.title} lede={page.lede} style={style}>
           {page.draft && <p className="cdx__draft">{PLAYBOOK_DRAFT_LINE}</p>}
           <FactLine facts={facts} />
           {inline}
         </PageHead>
         <div className="cdx__tierpanel">
-          <Blocks target={page.target} sections={page.sections} skip={page.nodeId} />
+          <Blocks
+            target={page.target}
+            sections={page.sections}
+            skip={page.nodeId}
+            accent={machine ? pageAccent(page) : undefined}
+          />
         </div>
         <ReadNext items={page.related} mode="open" />
       </article>
@@ -152,7 +172,7 @@ function PlainArticle({ page }: { page: VaultPage }) {
 export function GlossaryPage({ route }: { route: Extract<VaultRoute, { kind: "glossary" }> }) {
   const { data } = useCodex();
   const page = useMemo(() => pageFor({ kind: "glossary" }, data), [data]);
-  if (page === "loading") return <CodexLoading label="Opening the glossary…" />;
+  if (page === "loading") return <CodexWaiting route={route} label="Opening the glossary…" />;
   if (page === "gone") return <CodexGone />;
   const entry = route.term ? termSections(page, route.term) : [];
   return entry.length > 0 ? <TermEntry page={page} sections={entry} /> : <GlossaryList page={page} />;
@@ -178,7 +198,7 @@ function TermEntry({ page, sections }: { page: VaultPage; sections: VaultPage["s
           <Blocks target={page.target} sections={shown} partial skip={termNodeId(term)} />
         </div>
         <section className="cdx__entry-links" aria-label={`What connects to ${term}`}>
-          <LocalConstellation graph={data.graph} nodeId={termNodeId(term)} onOpen={peek} variant="pills" max={10} />
+          <LocalConstellation graph={data.graph} nodeId={termNodeId(term)} onOpen={peek} variant="pills" max={10} nodeStyle={categoryNodeStyle} />
         </section>
         <button type="button" className="cdx__wide-door" onClick={() => open({ kind: "glossary" })}>
           Every word in the glossary
@@ -244,7 +264,7 @@ function GlossaryList({ page }: { page: VaultPage }) {
 export function CueingPage({ route }: { route: Extract<VaultRoute, { kind: "cueing" }> }) {
   const { data } = useCodex();
   const page = useMemo(() => pageFor({ kind: "cueing" }, data), [data]);
-  if (page === "loading") return <CodexLoading label="Opening the phrasebook…" />;
+  if (page === "loading") return <CodexWaiting route={route} label="Opening the phrasebook…" />;
   if (page === "gone") return <CodexGone />;
   const entry = typeof route.moment === "number" ? momentSections(page, [route.moment]) : [];
   return entry.length > 0 && typeof route.moment === "number" ? (
@@ -271,7 +291,7 @@ function MomentEntry({ page, sections, moment }: { page: VaultPage; sections: Va
           <Blocks target={page.target} sections={shown} partial skip={cueNodeId(moment)} />
         </div>
         <section className="cdx__entry-links" aria-label={`What connects to ${section.title}`}>
-          <LocalConstellation graph={data.graph} nodeId={cueNodeId(moment)} onOpen={peek} variant="pills" max={10} />
+          <LocalConstellation graph={data.graph} nodeId={cueNodeId(moment)} onOpen={peek} variant="pills" max={10} nodeStyle={categoryNodeStyle} />
         </section>
         <button type="button" className="cdx__wide-door" onClick={() => open({ kind: "cueing" })}>
           Every moment in the phrasebook
@@ -343,7 +363,8 @@ export function MapEntryPage({ route }: { route: Extract<VaultRoute, { kind: "ma
   const { data } = useCodex();
   const focus = route.focus ?? null;
   if (!focus) return <CodexGone />;
-  if (!data.graph && !data.entities) return <CodexLoading label="Finding what connects…" />;
+  // Its links come with the graph (every reference chunk), its words with the glossary.
+  if (!data.graph && !data.entities) return <CodexWaiting route={route} label="Finding what connects…" />;
   const node = data.graph ? nodeById(data.graph, focus) : null;
   const entity = data.entities?.byId.get(focus) ?? null;
   if (!node && !entity) return <CodexGone />;
@@ -363,7 +384,7 @@ function MapEntry({ focus, label, noun, summary }: { focus: string; label: strin
           )}
         </PageHead>
         <section className="cdx__entry-links" aria-label={`What connects to ${label}`}>
-          <LocalConstellation graph={data.graph} nodeId={focus} onOpen={open} variant="pills" max={12} />
+          <LocalConstellation graph={data.graph} nodeId={focus} onOpen={open} variant="pills" max={12} nodeStyle={categoryNodeStyle} />
         </section>
       </article>
     </CodexFrame>

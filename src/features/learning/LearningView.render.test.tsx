@@ -24,8 +24,9 @@ import { createRoot, type Root } from "react-dom/client";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("../../firebase", () => ({ db: {}, auth: { currentUser: null } }));
+const studioFx = vi.hoisted(() => ({ isAdmin: false }));
 vi.mock("../../contexts/ActiveStudioContext", () => ({
-  useActiveStudio: () => ({ activeStudioId: "solon", activeStudio: { id: "solon", name: "Solon" } }),
+  useActiveStudio: () => ({ activeStudioId: "solon", activeStudio: { id: "solon", name: "Solon" }, isAdmin: studioFx.isAdmin }),
 }));
 vi.mock("../comments", () => ({
   CommentsProvider: ({ children }: { children: React.ReactNode }) => children,
@@ -166,6 +167,7 @@ let host: HTMLDivElement;
 beforeEach(() => {
   // The prototype bar remembers its pick on this iPad: every test starts on Current.
   localStorage.clear();
+  studioFx.isAdmin = false;
   fx.jumps.length = 0;
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -174,6 +176,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
+  vi.unstubAllEnvs();
 });
 
 /** AppContent, as far as Learning sees it: a guarded screen and the outside door. */
@@ -342,6 +345,32 @@ const bar = (label: string) =>
     b.click();
   });
 const redesign = () => screen("redesign");
+
+describe("who sees the prototype bar (review fix, Oct 19 2026)", () => {
+  it("a trainer on a production build never does, and opens on today's Learning whatever the iPad last picked", async () => {
+    vi.stubEnv("DEV", false);
+    localStorage.setItem(DESIGN_KEY, "codex");
+    await mount("machine-anatomy", null, "vault");
+    expect(host.querySelector(".ld")).toBeNull();
+    expect(redesign()).toBeNull();
+    expect(screen("catalog")).not.toBeNull();
+  });
+
+  it("an administrator or the founder does, on production too", async () => {
+    vi.stubEnv("DEV", false);
+    studioFx.isAdmin = true;
+    localStorage.setItem(DESIGN_KEY, "course");
+    await mount("learning");
+    expect(host.querySelector(".ld")).not.toBeNull();
+    expect(redesign()?.getAttribute("data-design")).toBe("course");
+  });
+
+  it("anyone does on a development build (the PC build AJ walks)", async () => {
+    vi.stubEnv("DEV", true);
+    await mount("learning");
+    expect(host.querySelector(".ld")).not.toBeNull();
+  });
+});
 
 describe("the prototype bar", () => {
   it("sits above Learning with Current picked, and today's sections under it", async () => {

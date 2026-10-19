@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { ArrowRight, ChevronRight, Compass, Inbox, MessageCircle, Play, Repeat, Shuffle } from "lucide-react";
 import { studioTodayKey } from "../../../lib/studio-time";
-import { accentForAcademyCategory, accentStyle, type WikiAccent } from "../../wiki/categories";
+import { accentForAcademyCategory, accentStyle } from "../../wiki/categories";
 import { MACHINE_CATEGORY } from "../../routine-builder/academy";
 import { pageFor } from "../../learning-vault/pages";
 import { strikeSignals } from "../../learning-vault/submissions";
@@ -9,10 +9,10 @@ import { useAllMarkup, useSubmissions, useVault } from "../../learning-vault/ui/
 import { useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
 import { RepScrubber } from "../../learning-vault/ui/RepScrubber";
 import { deckById } from "../../learning-vault/quiz/decks";
-import type { QuizDeckId, Track, VaultPage, VaultRoute } from "../../learning-vault/types";
+import type { QuizDeckId, RepShape, Track, VaultPage, VaultRoute } from "../../learning-vault/types";
 import { CueDrillCard } from "./CueDrill";
-import { cueDrillsIn, dayIndex } from "./drills";
-import { CourseShell, SectionHead, useCourse } from "./shell";
+import { cueDrillsIn, dayIndex, drillsForTheDay, scrubberOpeningMoment } from "./drills";
+import { CourseShell, PeekFailed, SectionHead, useCourse } from "./shell";
 import { vaultEntries } from "./vault";
 import graphIndexJson from "../../learning-vault/graph-index.json";
 import "./course.css";
@@ -25,20 +25,18 @@ import "./course.css";
  * Transformer 101, its first lessons showing), the other courses, a round
  * to play and a moment to cue, the repetition to scrub, the floor's machines
  * as a field manual, and the glossary as a vault. No progress anywhere:
- * nothing is kept, so nothing is counted (decision 11 of the round).
+ * nothing is kept, so nothing is counted (decision 11 of the round); the
+ * quiz says so once, on its own picker, and nowhere here.
+ *
+ * Colour keeps its one meaning: a course is not a machine category, so the
+ * courses wear one neutral band (the deck edges under them already say
+ * "course"); the category colours are the floor's machines' alone.
  */
 
-/** Each course's band, assigned (a colour that moves between visits teaches nothing). */
-const COURSE_ACCENT: Record<string, WikiAccent> = {
-  "equipment-and-cueing": "push",
-  "programming-and-adapting": "legs",
-  "consultations-and-packages": "pull",
-  "relationships-and-renewals": "hips",
-  "head-trainer": "trunk",
-  "studio-leader": "posterior",
-};
-
 const PLAY_DECKS: QuizDeckId[] = ["cues", "rep", "hutchins"];
+
+/** The Overview's scrubber opens on this shape (the drill of the day leaves its opening moment out). */
+const HOME_SHAPE: RepShape = "endStop";
 
 const TERM_TOPICS = (graphIndexJson as unknown as { termTopics: Record<string, string[]> }).termTopics;
 
@@ -68,7 +66,7 @@ export function HomePage() {
       </section>
 
       <section className="crs__sec">
-        <RepScrubber cues={data.cues} onOpenSource={peekAt} className="crs__scrubber" />
+        <RepScrubber shape={HOME_SHAPE} cues={data.cues} onOpenSource={peekAt} className="crs__scrubber" />
       </section>
 
       <FloorTeaser />
@@ -93,7 +91,6 @@ function FeaturedCourse({ track }: { track: Track }) {
         <h1 className="crs__title" id="crs-hero-title">
           {track.title}
         </h1>
-        <p className="crs__lede">{track.steps.length} lessons, one card at a time. Nothing is kept or scored.</p>
       </div>
       <ol className="crs__hero-steps">
         {firstSteps.map((s, i) => (
@@ -136,9 +133,8 @@ function saysWho(track: Track): boolean {
 
 function CourseCard({ track }: { track: Track }) {
   const { open } = useCourse();
-  const accent = accentStyle(COURSE_ACCENT[track.id] ?? "other") as CSSProperties;
   return (
-    <button type="button" className="crs__course" style={accent} onClick={() => open({ kind: "track", id: track.id })}>
+    <button type="button" className="crs__course" onClick={() => open({ kind: "track", id: track.id })}>
       <span className="crs__course-title">{track.title}</span>
       {!saysWho(track) && <span className="crs__course-who">{track.who}</span>}
       <span className="crs__course-meta">
@@ -176,7 +172,7 @@ function PlayCard() {
       <h2 className="crs__play-title" id="crs-play-title">
         Play a round
       </h2>
-      <p className="crs__play-words">Ten cards from the Academy and the floor. Nothing is kept.</p>
+      <p className="crs__play-words">Ten cards from the Academy and the floor.</p>
       <button type="button" className="crs__btn crs__btn--primary crs__btn--big" onClick={() => open({ kind: "quiz", deck: "mixed" })}>
         <Play size={18} aria-hidden />
         Quick ten
@@ -199,6 +195,13 @@ function PlayCard() {
 function DailyDrill() {
   const { data } = useCourse();
   const state = pageFor({ kind: "cueing" }, data);
+  if (state === "loading" && data.referenceFailed) {
+    return (
+      <div className="crs__drill crs__drill--wait">
+        <PeekFailed onRetry={data.retryReference} />
+      </div>
+    );
+  }
   if (state === "loading" || state === "gone") {
     return <div className="crs__drill crs__drill--wait" aria-hidden />;
   }
@@ -206,9 +209,12 @@ function DailyDrill() {
 }
 
 function DailyDrillBody({ page }: { page: VaultPage }) {
-  const { peekAt } = useCourse();
+  const { data, peekAt } = useCourse();
   const applied = useAppliedMarkup(page.target, page.sections);
-  const drills = useMemo(() => cueDrillsIn(page.sections, { min: 3 }), [page.sections]);
+  const drills = useMemo(
+    () => drillsForTheDay(cueDrillsIn(page.sections, { min: 3 }), scrubberOpeningMoment(data.cues, HOME_SHAPE)),
+    [page.sections, data.cues],
+  );
   const today = useMemo(() => dayIndex(studioTodayKey(), drills.length), [drills.length]);
   const [step, setStep] = useState(0);
   if (drills.length === 0) return null;
@@ -223,6 +229,7 @@ function DailyDrillBody({ page }: { page: VaultPage }) {
       onAll={drill.moment !== null ? () => peekAt({ kind: "cueing", moment: drill.moment ?? undefined }) : undefined}
       another={() => setStep((s) => s + 1)}
       startOpen={step > 0}
+      focusLines={step > 0}
     />
   );
 }

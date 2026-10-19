@@ -50,8 +50,6 @@ const QUIZ_TITLE: Partial<Record<QuizDeckId, string>> = {
 const quiz = (deck: QuizDeckId, why: string): Step =>
   step({ kind: "quiz", deck }, QUIZ_TITLE[deck] ?? "Quiz", why);
 
-const NOTHING_KEPT = "Nothing is kept.";
-
 export const TRACKS: Track[] = [
   {
     id: "life-transformer-101",
@@ -76,7 +74,7 @@ export const TRACKS: Track[] = [
       play(THE_KIT, "The clicker, the stopwatch and the iPad, and how each is used."),
       machine("m-leg-press", "Leg Press", "The first machine nearly every new client meets."),
       step({ kind: "glossary" }, "Glossary", "The exact words the Academy asks you to use."),
-      quiz("mixed", `Ten questions to see what stuck. ${NOTHING_KEPT}`),
+      quiz("mixed", "Ten questions to see what stuck."),
     ],
   },
   {
@@ -101,7 +99,7 @@ export const TRACKS: Track[] = [
       topic("mastery", "mastery-lower-turnarounds", "Lower Turnarounds", "The bottom of every rep."),
       topic("mastery", "mastery-squeeze-technique", "Squeeze Technique", "The pause and the squeeze at the top."),
       step({ kind: "cueing" }, "Cueing phrasebook", "What to say at each moment of the set."),
-      quiz("cues", `Match a cue to its moment. ${NOTHING_KEPT}`),
+      quiz("cues", "Match a cue to its moment."),
     ],
   },
   {
@@ -142,7 +140,7 @@ export const TRACKS: Track[] = [
         "Workout Progressions",
         "What to look at when a client stalls, before the weight.",
       ),
-      quiz("method", `A round on the method. ${NOTHING_KEPT}`),
+      quiz("method", "A round on the method."),
     ],
   },
   {
@@ -176,7 +174,7 @@ export const TRACKS: Track[] = [
         "Initial Consultation and Articles - Internalization Its All Inside",
         "An article written to be read to a client.",
       ),
-      quiz("playbooks", `A round on the floor and the conversation. ${NOTHING_KEPT}`),
+      quiz("playbooks", "A round on the floor and the conversation."),
     ],
   },
   {
@@ -189,7 +187,7 @@ export const TRACKS: Track[] = [
       play(PROGRESS_REPORT, "Showing them their progress, in the right order."),
       play(RENEWALS_PAGE, "The conversation before the last session."),
       play(PACKAGES_PAGE, "The math that answers \"can I afford this\"."),
-      quiz("playbooks", `See what stuck. ${NOTHING_KEPT}`),
+      quiz("playbooks", "See what stuck."),
     ],
   },
   {
@@ -224,7 +222,7 @@ export const TRACKS: Track[] = [
       ),
       play(PROGRESS_REPORT, "Showing a client their progress, honestly."),
       play(RENEWALS_PAGE, "You step in when price or progress is the worry."),
-      quiz("method", `A round on the method. ${NOTHING_KEPT}`),
+      quiz("method", "A round on the method."),
     ],
   },
   {
@@ -243,7 +241,7 @@ export const TRACKS: Track[] = [
       play(FORD, "Every gesture the studio owes is on the Delight queue."),
       play(FIRST_SESSIONS, "How a new client starts. Your studio chooses its starting routines."),
       play(THE_TWENTY_MINUTES, "The session your team runs, as Journey understands it."),
-      quiz("mixed", `Ten questions across Learning. ${NOTHING_KEPT}`),
+      quiz("mixed", "Ten questions across Learning."),
     ],
   },
 ];

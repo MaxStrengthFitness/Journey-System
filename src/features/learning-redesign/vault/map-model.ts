@@ -25,7 +25,7 @@
  * many things a row connects to; none is a measure of anyone.
  */
 
-import { constellationOf, DOMAIN_ORDER, KIND_PRIORITY, nodeById, nodeIdForRoute } from "../../learning-vault/graph";
+import { constellationOf, DOMAIN_ORDER, KIND_PRIORITY, linkHeading, nodeById, nodeIdForRoute } from "../../learning-vault/graph";
 import type { PlacedNode } from "../../learning-vault/layout";
 import { labelPlacement, MAP_LABEL_WIDTH } from "../../learning-vault/layout";
 import type { EdgeKind, GraphDomain, GraphEdge, GraphNode, VaultGraph, VaultRoute } from "../../learning-vault/types";
@@ -38,19 +38,48 @@ import type { VaultData } from "../../learning-vault/useVaultData";
 /** Never shorter than this: below it the rings hold too few nodes to read as a map. */
 export const MAP_MIN_H = 340;
 
+/** Room kept under the map, inside the scroller, for its "N more in the list" door. */
+export const MAP_DOOR_ROOM = 56;
+
 /**
  * How tall the map is. The Overview's map takes most of an upright iPad's
  * screen (the brief: about 60%); a lens map inside the Catalog or the Academy
  * a little less. Never taller than it is wide (layoutMap is a circle: the
  * extra height would be empty), never shorter than MAP_MIN_H.
+ *
+ * `roomH` is how much of the page's scroller is left below the map's top
+ * (scrollerRoom), when it could be measured: the map never runs past it, so
+ * on an iPad held sideways its lower ring and its door stay above the
+ * bottom bar (review fix, Oct 19 2026: 60% of the window ignored the ~300px
+ * of bars above the map). Still never under MAP_MIN_H.
  */
-export function mapHeight(width: number, viewportH: number, kind: "home" | "lens"): number {
+export function mapHeight(width: number, viewportH: number, kind: "home" | "lens", roomH?: number | null): number {
   const w = Math.max(0, Math.round(width));
   const vh = Math.max(0, Math.round(viewportH));
   const share = kind === "home" ? 0.6 : 0.5;
   const cap = kind === "home" ? 700 : 560;
   const wanted = Math.min(Math.round(w * (kind === "home" ? 0.86 : 0.74)), Math.round(vh * share), cap);
-  return Math.max(MAP_MIN_H, Math.min(Math.max(w, MAP_MIN_H), wanted));
+  const base = Math.max(MAP_MIN_H, Math.min(Math.max(w, MAP_MIN_H), wanted));
+  if (roomH === undefined || roomH === null || !Number.isFinite(roomH)) return base;
+  return Math.min(base, Math.max(MAP_MIN_H, Math.round(roomH)));
+}
+
+/**
+ * The scroller's room below a point, in the scroller's own content
+ * coordinates (so a page restored half-scrolled measures the same), less
+ * the door's room. `topInViewport` and `scrollerTopInViewport` are
+ * getBoundingClientRect().top of the map and of the scroller.
+ */
+export function scrollerRoom(input: {
+  scrollerHeight: number;
+  scrollerTopInViewport: number;
+  scrollTop: number;
+  topInViewport: number;
+}): number | null {
+  const { scrollerHeight, scrollerTopInViewport, scrollTop, topInViewport } = input;
+  if (![scrollerHeight, scrollerTopInViewport, scrollTop, topInViewport].every(Number.isFinite) || scrollerHeight <= 0) return null;
+  const top = topInViewport - scrollerTopInViewport + scrollTop;
+  return Math.round(scrollerHeight - top - MAP_DOOR_ROOM);
 }
 
 /* ------------------------------------------------------------------ *
@@ -65,6 +94,15 @@ const PAD_X = 6;
 const PAD_Y = 2;
 /** Two labels never come closer than this (a guessed width can be a few px short). */
 const LABEL_GAP = 6;
+/**
+ * How much wider than its guessed box a drawn label may run (the renderer's
+ * max-width is the box plus this, RumorMap anchorStyle): a guess from
+ * character counts is a little short for some words, and a label one word
+ * too narrow would strand that word on a line of its own. placeLabels keeps
+ * this much clear on the label's free side, so the extra can never cover a
+ * star or another label (review fix, Oct 19 2026).
+ */
+export const LABEL_SLACK = 28;
 
 export interface Box {
   x: number;
@@ -129,9 +167,29 @@ export interface PlacedLabel {
   text: string;
   sub?: string;
   big: boolean;
-  /** The pill's box, inside the map. */
+  /** The pill's box, inside the map: where it is anchored. */
   box: Box;
+  /** Everything the pill may cover once drawn: the box and its slack on the free side. Kept clear of every star and label. */
+  reach: Box;
   side: "left" | "right" | "above" | "below";
+}
+
+/**
+ * A label's box with the slack its renderer may use: on the right for a
+ * label right of its star, on the left for one left of it, half each way for
+ * one centred above or below. The anchored edge never moves.
+ */
+export function reachOf(box: Box, side: PlacedLabel["side"], slack = LABEL_SLACK): Box {
+  if (slack <= 0) return box;
+  switch (side) {
+    case "right":
+      return { ...box, w: box.w + slack };
+    case "left":
+      return { ...box, x: box.x - slack, w: box.w + slack };
+    case "above":
+    case "below":
+      return { ...box, x: box.x - slack / 2, w: box.w + slack };
+  }
 }
 
 function sizeOf(req: LabelRequest, maxPx: number): { w: number; h: number } {
@@ -174,17 +232,22 @@ function inside(box: Box, bounds: { w: number; h: number }): Box | null {
  * The labels that fit, in priority order. Each tries its natural side first
  * (outwards along its angle, layout.ts labelPlacement), then below, then
  * above; a label that overlaps one already placed, or any obstacle (a dot
- * that must stay visible), on every side, is left off. Deterministic.
+ * that must stay visible), on every side, is left off: a star with no room
+ * for its name stays a target, named in the list and the card, rather than
+ * hidden under another star's name. Every test is on the label's REACH (its
+ * box and the slack its renderer may use, `opts.slack`), so a pill drawn a
+ * little wider than guessed still covers nothing. Deterministic.
  */
 export function placeLabels(
   requests: readonly LabelRequest[],
   bounds: { w: number; h: number },
   obstacles: readonly Box[] = [],
-  opts: { maxPx?: number; bigMaxPx?: number; gap?: number } = {},
+  opts: { maxPx?: number; bigMaxPx?: number; gap?: number; slack?: number } = {},
 ): PlacedLabel[] {
   const maxPx = opts.maxPx ?? MAP_LABEL_WIDTH;
   const bigMaxPx = opts.bigMaxPx ?? 160;
   const gap = opts.gap ?? 6;
+  const slack = Math.max(0, opts.slack ?? 0);
   const placed: PlacedLabel[] = [];
   const order = requests
     .map((r, i) => ({ r, i }))
@@ -202,19 +265,65 @@ export function placeLabels(
     for (const side of sides) {
       const box = inside(boxOn(req.node, side, size, gap), bounds);
       if (!box) continue;
-      if (placed.some((p) => overlaps(p.box, box, LABEL_GAP))) continue;
-      if (obstacles.some((o) => overlaps(o, box, 1))) continue;
-      placed.push({ id: req.id, text: req.text, sub: req.sub, big: Boolean(req.big), box, side });
+      const reach = reachOf(box, side, slack);
+      if (placed.some((p) => overlaps(p.reach, reach, LABEL_GAP))) continue;
+      if (obstacles.some((o) => overlaps(o, reach, 1))) continue;
+      placed.push({ id: req.id, text: req.text, sub: req.sub, big: Boolean(req.big), box, reach, side });
       break;
     }
   }
   return placed;
 }
 
+/**
+ * How many links the card under the map lists. The map names only these
+ * (review fix, Oct 19 2026: it asked for 16 while the card listed 14, so it
+ * could name a star the card never mentions), so a name on the map is
+ * always a pill in the card.
+ */
+export const CARD_LINKS = 14;
+
+/**
+ * The names the map asks to draw around a focus: the focus itself (a size
+ * up), then exactly the links its card lists, in the card's order, each
+ * with why it connects. A link whose star is not on the map is skipped.
+ */
+export function focusLabelRequests(
+  graph: VaultGraph,
+  focus: string,
+  at: ReadonlyMap<string, PlacedNode>,
+  max = CARD_LINKS,
+): LabelRequest[] {
+  const out: LabelRequest[] = [];
+  const centre = at.get(focus);
+  if (centre) out.push({ id: centre.id, node: centre, text: centre.label, priority: 0, big: true });
+  const links = constellationOf(graph, focus, max)?.links ?? [];
+  links.forEach((link, i) => {
+    const p = at.get(link.node.id);
+    if (p) out.push({ id: p.id, node: p, text: p.label, sub: linkHeading(link), priority: 10 + i });
+  });
+  return out;
+}
+
 /** A dot as a box, for placeLabels' obstacles. */
 export function dotBox(node: Pick<PlacedNode, "x" | "y" | "r">, pad = 2): Box {
   const r = node.r + pad;
   return { x: node.x - r, y: node.y - r, w: 2 * r, h: 2 * r };
+}
+
+/**
+ * The stars no label may cover. At rest, EVERY star (review fix, Oct 19
+ * 2026: only the big ones were, so a name could sit on a small star and read
+ * as that star's name). With a focus, every star that is not dimmed: the
+ * focus and its neighbours stay visible; a dimmed star may sit under a name.
+ */
+export function labelObstacles(
+  nodes: readonly Pick<PlacedNode, "id" | "x" | "y" | "r">[],
+  dimmed: (id: string) => boolean = () => false,
+): Box[] {
+  const out: Box[] = [];
+  for (const n of nodes) if (!dimmed(n.id)) out.push(dotBox(n, 3));
+  return out;
 }
 
 /* ------------------------------------------------------------------ *
@@ -401,4 +510,73 @@ export function nodeSummary(
 /** Each step of a path as a dot, for the small picture on a track card: never more than `max`. */
 export function pathDots(count: number, max = 9): number {
   return Math.max(0, Math.min(max, Math.floor(count)));
+}
+
+/* ------------------------------------------------------------------ *
+ * Say it once, on the pages
+ * ------------------------------------------------------------------ */
+
+/** Lower case, no leading "for", no leading article, no end stop: "For a head trainer." → "head trainer". */
+function whoWords(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?]+$/, "")
+    .replace(/^for\s+/, "")
+    .replace(/^(a|an|the)\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Whether a reading path's title already says who it is for (review fix,
+ * Oct 19 2026): "For a head trainer" over "A head trainer" said it twice. The
+ * card's who line and the page's "For …" lede show only when this is false.
+ */
+export function whoSaid(title: string, who: string): boolean {
+  const w = whoWords(who);
+  if (!w) return true;
+  return whoWords(title).includes(w);
+}
+
+/**
+ * A machine page's sections the reader would rather PEEK than scroll past:
+ * the Academy's spoken script, beat by beat, and its deep dive. Both are
+ * pages of their own ("Full spoken script", "Deep dive" under Read
+ * alongside), and printed in the machine's body they made it eleven screens
+ * long with nothing to jump with (review fix, Oct 19 2026).
+ */
+export function peekOnlySection(id: string): boolean {
+  return /^beat-\d+$/.test(id) || id === "deep-dive";
+}
+
+/**
+ * The sections a page's body draws. A machine page leaves out its peek-only
+ * sections, except one carrying a mark of this studio's (a line crossed out
+ * or noted on this page in another design stays where it was marked: no
+ * mark ever disappears). Any other page draws every section. Returns the
+ * same array when nothing is left out.
+ */
+export function bodySections<S extends { id: string; blocks: readonly { key: string }[] }>(
+  routeKind: VaultRoute["kind"],
+  sections: S[],
+  markedKeys: ReadonlySet<string>,
+): S[] {
+  if (routeKind !== "machine") return sections;
+  const kept = sections.filter((s) => !peekOnlySection(s.id) || s.blocks.some((b) => markedKeys.has(b.key)));
+  return kept.length === sections.length ? sections : kept;
+}
+
+/**
+ * The glossary's letters, for its row of jumps: each section titled with one
+ * letter or digit, in the page's order, with where it is in that order.
+ * Empty unless there are enough letters to be worth jumping between.
+ */
+export function letterIndex(sections: readonly { title: string }[], min = 4): { letter: string; at: number }[] {
+  const out: { letter: string; at: number }[] = [];
+  sections.forEach((s, at) => {
+    const t = s.title.trim();
+    if (/^[A-Za-z0-9#]$/.test(t)) out.push({ letter: t.toUpperCase(), at });
+  });
+  return out.length >= min ? out : [];
 }

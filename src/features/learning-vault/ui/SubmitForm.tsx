@@ -96,7 +96,9 @@ export function SubmitForm({
           Sent to head office.
         </p>
         <p className="vta__hint">
-          They read it beside {block ? "this line" : "this page"} and say whether the MSF original changes.
+          {block && hasStudio
+            ? `Their answer shows under this line on ${possessive(studio)} version.`
+            : "Head office reads it in Waiting for review."}
         </p>
         <div className="vta__form-actions">
           <button type="button" ref={doneRef} className="vta__btn" onClick={onDone}>

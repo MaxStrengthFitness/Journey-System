@@ -12,12 +12,13 @@
  * PURE MODULE: no React.
  */
 
-import { cueExamples } from "../../learning-vault/rep-phases";
+import { cueExamples, cuesForPhase, phaseAt, repModel } from "../../learning-vault/rep-phases";
 import { dealQuestion, mulberry32, shuffled } from "../../learning-vault/quiz/round";
 import { calmCaps } from "../../learning-vault/pages";
 import { routeKey, samePage } from "../../learning-vault/routes";
 import type { QuizQuestion, Track, VaultPage, VaultRoute, VaultSection } from "../../learning-vault/types";
-import type { AcademyIndex } from "../../academy/types";
+import type { AcademyIndex, CueMoment } from "../../academy/types";
+import type { RepShape } from "../../learning-vault/types";
 
 /* ------------------------------------------------------------------ *
  * A number from a word, without storage
@@ -84,6 +85,25 @@ export function cueDrillsIn(sections: VaultSection[], opts?: { min?: number }): 
     });
   });
   return out;
+}
+
+/**
+ * The phrasebook moment a scrubber opens on: the lines it shows before the
+ * thumb is moved (its first phase, at the start of the rep). The Overview's
+ * drill of the day leaves that moment out, or the answer to "What would you
+ * cue?" would already be on screen in the scrubber beside it.
+ */
+export function scrubberOpeningMoment(cues: readonly CueMoment[] | null | undefined, shape: RepShape): number | null {
+  if (!cues || cues.length === 0) return null;
+  const opening = cuesForPhase(cues, phaseAt(repModel(shape), 0), shape);
+  return opening ? opening.index : null;
+}
+
+/** The drills a day can ask: all but `skip`'s moment (never none: with only that one, it stays). */
+export function drillsForTheDay(drills: CueDrill[], skip: number | null): CueDrill[] {
+  if (skip === null) return drills;
+  const kept = drills.filter((d) => d.moment !== skip);
+  return kept.length > 0 ? kept : drills;
 }
 
 /** "Leg press, chest press, overhead" — the examples as one line, first word capitalised. */

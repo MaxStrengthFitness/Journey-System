@@ -4,13 +4,14 @@ import { pageFor } from "../../learning-vault/pages";
 import { moduleOfTopic } from "../../learning-vault/routes";
 import { ArticleBlocks, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
+import { termNodeId } from "../../learning-vault/graph";
 import graphIndexJson from "../../learning-vault/graph-index.json";
 import type { MarkedBlock, VaultPage, VaultRoute } from "../../learning-vault/types";
 import { CueDrillCard } from "./CueDrill";
 import { CourseBar, ModeSwitch } from "./LessonPage";
 import { courseContextOf, cueDrillsIn } from "./drills";
-import { CourseShell, GonePage, LoadingPage, MarkedLine, PageHead, ReadNext, useCourse, useVersionPlacement, type LessonMode } from "./shell";
-import { byLetter, filterVault, lettersOf, vaultEntries, type VaultEntry, type VaultFilter } from "./vault";
+import { CourseShell, FailedPage, GonePage, LoadingPage, MarkedLine, PageHead, ReadNext, scrollMotion, useCourse, useVersionPlacement, type LessonMode } from "./shell";
+import { byLetter, filterVault, letterOf, lettersOf, vaultEntries, type VaultEntry, type VaultFilter } from "./vault";
 import "./course.css";
 
 /**
@@ -24,6 +25,12 @@ import "./course.css";
  * the topic. The drills: every moment of a set as "What would you cue?".
  * Both keep "Read it all", the page whole through ArticleBlocks, where a
  * line is crossed out, noted, disputed or shared.
+ *
+ * A word is never a link inside its own definition (the card you are on is
+ * not a door). With every word showing, the vault is grouped by letter; a
+ * filter or a search flows its matches into one grid (a letter over every
+ * lone card made a long ragged column), and the letters then jump to the
+ * first card of each.
  */
 
 const TERM_TOPICS = (graphIndexJson as unknown as { termTopics: Record<string, string[]> }).termTopics;
@@ -45,7 +52,10 @@ function termId(term: string): string {
 export function GlossaryPage({ route }: { route: Extract<VaultRoute, { kind: "glossary" }> }) {
   const { data } = useCourse();
   const state = pageFor(route, data);
-  if (state === "loading") return <LoadingPage label="Opening the vault…" />;
+  if (state === "loading") {
+    if (data.referenceFailed) return <FailedPage onRetry={data.retryReference} />;
+    return <LoadingPage label="Opening the vault…" />;
+  }
   if (state === "gone") return <GonePage />;
   return <GlossaryBody page={state} focus={route.term ?? null} />;
 }
@@ -68,7 +78,10 @@ function GlossaryBody({ page, focus }: { page: VaultPage; focus: string | null }
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set(focus ? [focus] : []));
   const shown = useMemo(() => filterVault(entries, { kind, query }), [entries, kind, query]);
   const searching = query.trim() !== "";
-  const groups = useMemo(() => (searching ? [{ letter: "", entries: shown }] : byLetter(shown)), [searching, shown]);
+  // Letters head the groups only while every word shows; filtered or found,
+  // the matches are one grid.
+  const grouped = !searching && kind === "all";
+  const groups = useMemo(() => (grouped ? byLetter(shown) : [{ letter: "", entries: shown }]), [grouped, shown]);
   const letters = useMemo(() => lettersOf(shown), [shown]);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -116,9 +129,12 @@ function GlossaryBody({ page, focus }: { page: VaultPage; focus: string | null }
       return next;
     });
 
+  // A letter's heading when the vault is grouped; its first card when not.
   const toLetter = (letter: string) => {
     try {
-      document.getElementById(`crs-letter-${letter}`)?.scrollIntoView({ block: "start", behavior: "smooth" });
+      const first = grouped ? null : shown.find((e) => letterOf(e.term) === letter);
+      const id = first ? termId(first.term) : `crs-letter-${letter}`;
+      document.getElementById(id)?.scrollIntoView({ block: "start", behavior: scrollMotion() });
     } catch {
       /* the letter is still there to scroll to */
     }
@@ -133,7 +149,12 @@ function GlossaryBody({ page, focus }: { page: VaultPage; focus: string | null }
 
       {mode === "all" ? (
         <div className="crs__whole">
-          <ArticleBlocks target={page.target} sections={page.sections} annotate="inline" renderText={(t) => <LinkedText text={t} />} />
+          <ArticleBlocks
+            target={page.target}
+            sections={page.sections}
+            annotate="inline"
+            renderText={(t, b) => <LinkedText text={t} skip={b.label ? termNodeId(b.label) : undefined} />}
+          />
         </div>
       ) : (
         <div className="crs__vault" ref={rootRef} data-phone={phone ? "" : undefined}>
@@ -182,7 +203,7 @@ function GlossaryBody({ page, focus }: { page: VaultPage; focus: string | null }
             <p className="crs__empty">No word in the glossary matches “{query.trim()}”.</p>
           ) : (
             groups.map((g) => (
-              <section key={g.letter || "found"} className="crs__vault-group" aria-label={g.letter ? `Words under ${g.letter}` : "Words found"}>
+              <section key={g.letter || "found"} className="crs__vault-group" aria-label={g.letter ? `Words under ${g.letter}` : searching ? "Words found" : `${FILTERS.find((f) => f.id === kind)?.label ?? ""} words`.trim()}>
                 {g.letter && (
                   <h2 className="crs__vault-letter" id={`crs-letter-${g.letter}`}>
                     {g.letter}
@@ -247,7 +268,11 @@ function VaultCard({
         <p className="crs__vcard-first">{struck ? <s className="crs__struck">{entry.summary}</s> : entry.summary}</p>
       ) : (
         <div className="crs__vcard-full">
-          {block ? <MarkedLine block={{ ...block, label: undefined }} studioLens={studioLens} /> : <p className="crs__vcard-first">{entry.definition}</p>}
+          {block ? (
+            <MarkedLine block={{ ...block, label: undefined }} studioLens={studioLens} skip={termNodeId(entry.term)} />
+          ) : (
+            <p className="crs__vcard-first">{entry.definition}</p>
+          )}
           {topics.length > 0 && (
             <div className="crs__taught">
               <h4 className="crs__taught-title">Where it's taught</h4>
@@ -282,7 +307,10 @@ function VaultCard({
 export function CueingPage({ route }: { route: Extract<VaultRoute, { kind: "cueing" }> }) {
   const { data } = useCourse();
   const state = pageFor(route, data);
-  if (state === "loading") return <LoadingPage label="Opening the phrasebook…" />;
+  if (state === "loading") {
+    if (data.referenceFailed) return <FailedPage onRetry={data.retryReference} />;
+    return <LoadingPage label="Opening the phrasebook…" />;
+  }
   if (state === "gone") return <GonePage />;
   return <CueingBody page={state} focus={route.moment ?? null} />;
 }

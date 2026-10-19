@@ -20,7 +20,14 @@ import type { LearningRef } from "./ref";
 import type { LearningDesign } from "../learning-vault/types";
 import { DesignSwitcher } from "../learning-redesign/DesignSwitcher";
 import { LearningRedesign } from "../learning-redesign/LearningRedesign";
-import { naturalViewAs, rememberDesign, rememberedDesign, type ViewAs } from "../learning-redesign/design";
+import {
+  mayPickPrototypes,
+  naturalViewAs,
+  rememberDesign,
+  rememberedDesign,
+  shownDesign,
+  type ViewAs,
+} from "../learning-redesign/design";
 import "./learning.css";
 
 /**
@@ -63,8 +70,11 @@ import "./learning.css";
  * -------------------------------------------------------------------------
  * A strip above the masthead picks one of three prototype designs, or today's
  * Learning ("Current", the default, so nothing changes for anyone who never
- * taps it). With a prototype on, LearningRedesign is drawn in place of the
- * three sections, inside the same comments and masthead, and every door
+ * taps it). Only an administrator or the founder sees it, or anyone on a
+ * development build (mayPickPrototypes): a trainer never does, and is on
+ * today's Learning whatever the iPad last picked (review fix, Oct 19 2026).
+ * With a prototype on, LearningRedesign is drawn in place of the three
+ * sections, inside the same comments and masthead, and every door
  * above that would open a page here (search, a jump from outside) hands the
  * design that page as its `jump` instead. Picking a design or "View as" asks
  * the gate first and changes only inside the answer, like every door. The
@@ -124,9 +134,15 @@ export function LearningView({
   const [academyJump, setAcademyJump] = useState<AcademyJump | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  /* The prototype bar: which Learning, as whom, and the page a prototype is
-     asked to open (its own `jump`, cleared once it has opened it). */
-  const [design, setDesign] = useState<LearningDesign>(() => initialDesign ?? rememberedDesign() ?? "current");
+  /* The prototype bar: who may see it, which Learning, as whom, and the page
+     a prototype is asked to open (its own `jump`, cleared once it has opened
+     it). */
+  const showPrototypes = mayPickPrototypes({ isAdmin, dev: import.meta.env.DEV });
+  const [picked, setDesign] = useState<LearningDesign>(() => initialDesign ?? rememberedDesign() ?? "current");
+  // Through the gate at every render: someone who may not pick is on
+  // today's Learning whatever was picked, and an administrator whose role
+  // arrives a moment late still gets theirs.
+  const design: LearningDesign = shownDesign(showPrototypes, picked);
   const [viewAs, setViewAs] = useState<ViewAs | null>(initialViewAs);
   const [designJump, setDesignJump] = useState<LearningRef | null>(null);
   const clearDesignJump = useCallback(() => setDesignJump(null), []);
@@ -282,7 +298,9 @@ export function LearningView({
   return (
     <CommentsProvider value={comments}>
     <WikiSectionsProvider value={sections}>
-      <DesignSwitcher design={design} onDesign={pickDesign} viewAs={shownViewAs} onViewAs={pickViewAs} />
+      {showPrototypes && (
+        <DesignSwitcher design={design} onDesign={pickDesign} viewAs={shownViewAs} onViewAs={pickViewAs} />
+      )}
       {/* Hidden, not unmounted, while search is open: closing search returns
           the trainer to the page they left, not to its section's index. */}
       <div className={searchOpen ? "lv__stash" : "lv__pass"}>

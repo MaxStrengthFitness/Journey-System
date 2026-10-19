@@ -7,6 +7,7 @@ import type { VaultRoute } from "../../learning-vault/types";
 import type { VaultData } from "../../learning-vault/useVaultData";
 import type { VaultNav } from "../../learning-vault/useVaultNav";
 import type { WikiCrumb } from "../../wiki";
+import { pieceLabel } from "./codex-model";
 
 /**
  * What every Codex screen reads: the vault's data, the trail, the two ways
@@ -41,14 +42,17 @@ export function useCodex(): CodexValue {
 
 /**
  * A route's name in a crumb or the peek's head. The vault's own titleOf,
- * except where it has only a kind to offer: a map entry (a clinical flag)
- * is named by its node.
+ * except where it has only a kind to offer, or names a page after something
+ * else: a map entry (a clinical flag) is named by its node, and a machine's
+ * quick card, script or deep dive by the piece first ("Quick card · LEG
+ * PRESS"; "Quick card" alone right after its machine in the trail), so the
+ * three never read as the machine's own page.
  */
-export function crumbLabel(route: VaultRoute, data: VaultData): string {
+export function crumbLabel(route: VaultRoute, data: VaultData, parent?: VaultRoute | null): string {
   if (route.kind === "map" && route.focus) {
     const node = data.graph ? nodeById(data.graph, route.focus) : null;
     const entity = data.entities?.byId.get(route.focus);
     return node?.label ?? entity?.label ?? "Connections";
   }
-  return titleOf(route, data);
+  return pieceLabel(route, data.machines, data.names, parent) ?? titleOf(route, data);
 }

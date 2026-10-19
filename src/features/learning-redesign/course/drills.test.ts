@@ -7,12 +7,17 @@ import {
   courseContextOf,
   cueDrillsIn,
   dayIndex,
+  drillsForTheDay,
   examplesLine,
   hashOf,
   lessonContextOf,
   orderDrillOf,
   sameLesson,
+  scrubberOpeningMoment,
+  type CueDrill,
 } from "./drills";
+import cuesFile from "../../academy/content/cues.json";
+import type { CueMoment } from "../../academy/types";
 
 const b = (kind: VaultBlock["kind"], text: string): VaultBlock => ({ key: `k-${text}`, kind, text });
 
@@ -203,5 +208,25 @@ describe("checkQuestions", () => {
   it("asks nothing with no bank, or a page no question comes from", () => {
     expect(checkQuestions(null, route)).toEqual([]);
     expect(checkQuestions(bank, { kind: "glossary" })).toEqual([]);
+  });
+});
+
+describe("the drill of the day and the scrubber beside it", () => {
+  const cues = (cuesFile as unknown as { cues: CueMoment[] }).cues;
+
+  it("knows the moment the Overview's scrubber opens on: the gradual load-up", () => {
+    const at = scrubberOpeningMoment(cues, "endStop");
+    expect(at).not.toBeNull();
+    expect(cues[at!].moment).toMatch(/^to begin the exercise/i);
+    expect(scrubberOpeningMoment(null, "endStop")).toBeNull();
+    expect(scrubberOpeningMoment([], "squeeze")).toBeNull();
+  });
+
+  it("leaves that moment out of the day's drills, never all of them", () => {
+    const d = (moment: number | null): CueDrill => ({ section: moment ?? 99, title: `m${moment}`, examples: [], cues: [0, 1, 2], notes: [], moment });
+    const drills = [d(1), d(2), d(3), d(null)];
+    expect(drillsForTheDay(drills, 2).map((x) => x.moment)).toEqual([1, 3, null]);
+    expect(drillsForTheDay(drills, null)).toBe(drills);
+    expect(drillsForTheDay([d(2)], 2).map((x) => x.moment)).toEqual([2]);
   });
 });

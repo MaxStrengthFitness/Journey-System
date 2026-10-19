@@ -6,7 +6,9 @@ import {
   SECTION_LABEL,
   VIEW_AS,
   designById,
+  mayPickPrototypes,
   naturalViewAs,
+  shownDesign,
   parseDesign,
   parseViewAs,
   rememberDesign,
@@ -96,6 +98,21 @@ describe("the remembered design", () => {
     vi.stubGlobal("localStorage", undefined);
     expect(() => rememberDesign("codex")).not.toThrow();
     expect(rememberedDesign()).toBeNull();
+  });
+});
+
+describe("who may pick a prototype (review fix, Oct 19 2026)", () => {
+  it("an administrator or the founder, or anyone on a development build; never a trainer on production", () => {
+    expect(mayPickPrototypes({ isAdmin: true, dev: false })).toBe(true);
+    expect(mayPickPrototypes({ isAdmin: false, dev: true })).toBe(true);
+    expect(mayPickPrototypes({ isAdmin: false, dev: false })).toBe(false);
+    expect(mayPickPrototypes({ isAdmin: null })).toBe(false);
+  });
+
+  it("shows someone who may not today's Learning, whatever was picked or remembered; anyone else their pick", () => {
+    expect(shownDesign(false, "vault")).toBe("current");
+    expect(shownDesign(true, "vault")).toBe("vault");
+    expect(shownDesign(true, "current")).toBe("current");
   });
 });
 

@@ -3,7 +3,7 @@ import type { LearningRef } from "../../learning/ref";
 import { usePhone } from "../../phone/device";
 import type { WikiCrumb } from "../../wiki";
 import { titleOf as vaultTitleOf } from "../../learning-vault/pages";
-import { routeForRef, routeKey, sameRoute } from "../../learning-vault/routes";
+import { isPageRoute, routeForRef, routeKey, sameRoute } from "../../learning-vault/routes";
 import { useVaultData, type VaultData } from "../../learning-vault/useVaultData";
 import { useVaultNav } from "../../learning-vault/useVaultNav";
 import { ConceptLayer } from "../../learning-vault/ui/ConceptLayer";
@@ -42,6 +42,14 @@ import "./course.css";
  * about any typing before any of them reached here (AppContent's guarded
  * screen, LearningView's doors), so the trail is replaced with useVaultNav's
  * `set`, which does not ask twice, and the peek lets go.
+ *
+ * WHAT A PEEK CAN HOLD
+ * --------------------
+ * Every "peek this" on every page (a related link, a quiz's source, a
+ * concept card's Peek) asks one question, decided once here: a page, or a
+ * clinical flag's connections, peeks; anything else (the quiz, a course) is
+ * not a page to hold under the thumb, so it opens in the trail instead of a
+ * sheet that would only say "This page has moved".
  */
 export default function CourseLearning({
   section,
@@ -136,6 +144,13 @@ function CourseTrail({
 
   const titleOf = useCallback((r: VaultRoute) => vaultTitleOf(r, data), [data]);
 
+  const { push: peekPush } = peek;
+  const { push: navPush } = nav;
+  const peekOrOpen = useCallback(
+    (r: VaultRoute) => (isPageRoute(r) || r.kind === "map" ? peekPush(r) : navPush(r)),
+    [peekPush, navPush],
+  );
+
   const crumbs = useMemo<WikiCrumb[]>(() => {
     const out: WikiCrumb[] = [];
     const stack = nav.stack;
@@ -174,17 +189,17 @@ function CourseTrail({
       section,
       onSection,
       open: nav.push,
-      peekAt: peek.push,
+      peekAt: peekOrOpen,
       openLesson,
       renderPeek: (r: VaultRoute): ReactNode => <PeekBody route={r} />,
       titleOf,
     }),
-    [data, nav, peek, crumbs, studioName, phone, lessonMode, setLessonMode, section, onSection, openLesson, titleOf],
+    [data, nav, peek, crumbs, studioName, phone, lessonMode, setLessonMode, section, onSection, openLesson, titleOf, peekOrOpen],
   );
 
   return (
     <CourseProvider value={value}>
-      <ConceptLayer index={data.entities} onOpen={nav.push} onPeek={peek.push}>
+      <ConceptLayer index={data.entities} onOpen={nav.push} onPeek={peekOrOpen}>
         <Page route={nav.route} />
       </ConceptLayer>
     </CourseProvider>

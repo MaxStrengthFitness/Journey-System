@@ -1,20 +1,32 @@
 import { describe, expect, it } from "vitest";
+import { constellationOf } from "../../learning-vault/graph";
 import type { PlacedNode } from "../../learning-vault/layout";
 import type { GraphEdge, GraphNode, VaultGraph, VaultRoute } from "../../learning-vault/types";
 import {
+  CARD_LINKS,
+  LABEL_SLACK,
+  MAP_DOOR_ROOM,
+  focusLabelRequests,
   MAP_MIN_H,
   backlinksOf,
+  bodySections,
   connectionCounts,
   dotBox,
   hubsOf,
+  labelObstacles,
+  letterIndex,
   mapHeight,
   nodeSummary,
   overlaps,
   pathDots,
+  peekOnlySection,
   placeLabels,
+  reachOf,
+  scrollerRoom,
   sectorPoints,
   shownIds,
   startNodes,
+  whoSaid,
   withoutShown,
   wrapLabel,
   type LabelRequest,
@@ -65,6 +77,29 @@ describe("mapHeight", () => {
   it("never drops under the minimum, even on a phone or with no room measured", () => {
     expect(mapHeight(358, 844, "home")).toBe(MAP_MIN_H);
     expect(mapHeight(0, 0, "home")).toBe(MAP_MIN_H);
+  });
+  it("never runs past the room the scroller has below it (an iPad held sideways), and never under the minimum", () => {
+    // 1180 x 820: 60% of the window is 492, but the scroller has 485 left under the map.
+    expect(mapHeight(760, 820, "home")).toBe(492);
+    expect(mapHeight(760, 820, "home", 485)).toBe(485);
+    expect(mapHeight(760, 820, "home", 120)).toBe(MAP_MIN_H);
+    // Room to spare changes nothing; no measure changes nothing.
+    expect(mapHeight(788, 1180, "home", 2000)).toBe(mapHeight(788, 1180, "home"));
+    expect(mapHeight(788, 1180, "home", null)).toBe(mapHeight(788, 1180, "home"));
+    expect(mapHeight(788, 1180, "home", Number.NaN)).toBe(mapHeight(788, 1180, "home"));
+  });
+});
+
+describe("scrollerRoom", () => {
+  it("measures in the scroller's own content, so a page restored half-scrolled measures the same", () => {
+    const top = scrollerRoom({ scrollerHeight: 557, scrollerTopInViewport: 183, scrollTop: 0, topInViewport: 199 });
+    const scrolled = scrollerRoom({ scrollerHeight: 557, scrollerTopInViewport: 183, scrollTop: 300, topInViewport: -101 });
+    expect(top).toBe(557 - 16 - MAP_DOOR_ROOM);
+    expect(scrolled).toBe(top);
+  });
+  it("says nothing when there is nothing to measure", () => {
+    expect(scrollerRoom({ scrollerHeight: 0, scrollerTopInViewport: 0, scrollTop: 0, topInViewport: 0 })).toBeNull();
+    expect(scrollerRoom({ scrollerHeight: Number.NaN, scrollerTopInViewport: 0, scrollTop: 0, topInViewport: 0 })).toBeNull();
   });
 });
 
@@ -119,6 +154,93 @@ describe("placeLabels", () => {
       priority: i,
     }));
     expect(placeLabels(reqs, bounds)).toEqual(placeLabels(reqs, bounds));
+  });
+
+  it("keeps the slack a drawn label may use clear of every star (a pill a little wider than guessed covers nothing)", () => {
+    const n = placed("n", 100, 150, 7, 0);
+    const label: LabelRequest = { id: "n", node: n, text: "Pace", priority: 0 };
+    // Without slack the guessed box ends before x = 150; a star just past it is not in the way.
+    const plain = placeLabels([label], bounds)[0];
+    const star = { x: plain.box.x + plain.box.w + 12, y: 150, r: 7 };
+    expect(overlaps(plain.box, dotBox(star, 3), 1)).toBe(false);
+    // With the slack, the right side would cover it: the label goes elsewhere, or not at all.
+    const out = placeLabels([label], bounds, [dotBox(star, 3)], { slack: LABEL_SLACK });
+    for (const l of out) {
+      expect(overlaps(l.reach, dotBox(star, 3), 1)).toBe(false);
+      expect(l.side).not.toBe("right");
+    }
+  });
+
+  it("keeps two labels' slack apart, not only their guessed boxes", () => {
+    const a = placed("a", 100, 150, 7, 0);
+    const b = placed("b", 100 + 7 + 6 + 40 + 20, 150, 7, 0);
+    const reqs: LabelRequest[] = [
+      { id: "a", node: a, text: "Pace", priority: 0 },
+      { id: "b", node: b, text: "Gap", priority: 1 },
+    ];
+    const out = placeLabels(reqs, bounds, [], { slack: LABEL_SLACK });
+    for (let i = 0; i < out.length; i += 1) {
+      for (let j = i + 1; j < out.length; j += 1) expect(overlaps(out[i].reach, out[j].reach)).toBe(false);
+    }
+  });
+
+  it("reaches out only on a label's free side", () => {
+    const box = { x: 100, y: 10, w: 50, h: 15 };
+    expect(reachOf(box, "right", 28)).toEqual({ x: 100, y: 10, w: 78, h: 15 });
+    expect(reachOf(box, "left", 28)).toEqual({ x: 72, y: 10, w: 78, h: 15 });
+    expect(reachOf(box, "below", 28)).toEqual({ x: 86, y: 10, w: 78, h: 15 });
+    expect(reachOf(box, "above", 0)).toBe(box);
+  });
+
+  it("at rest names no star over another, however small (every star is an obstacle)", () => {
+    // A 14px star (r = 7) right where "Upper turnaround with a squeeze" would run.
+    const named = placed("named", 100, 150, 7, 0);
+    const small = placed("small", 150, 150, 7, 0);
+    const obstacles = labelObstacles([named, small]);
+    expect(obstacles).toHaveLength(2);
+    const out = placeLabels(
+      [{ id: "named", node: named, text: "Upper turnaround with a squeeze", priority: 0 }],
+      bounds,
+      obstacles,
+      { slack: LABEL_SLACK },
+    );
+    for (const l of out) expect(overlaps(l.reach, dotBox(small, 3), 1)).toBe(false);
+    // A star's own dot never stops its own name.
+    expect(placeLabels([{ id: "small", node: small, text: "Gap", priority: 0 }], bounds, labelObstacles([small]), { slack: LABEL_SLACK })).toHaveLength(1);
+  });
+
+  it("with a focus, keeps the lit stars clear and lets a dimmed one sit under a name", () => {
+    const nodes = [placed("lit", 10, 10), placed("dim", 50, 50)];
+    const boxes = labelObstacles(nodes, (id) => id === "dim");
+    expect(boxes).toEqual([dotBox(nodes[0], 3)]);
+  });
+});
+
+describe("focusLabelRequests", () => {
+  // A machine that twenty topics talk about: more links than the card lists.
+  const topics = Array.from({ length: 20 }, (_, i) =>
+    node(`topic:t${i}`, "topic", { kind: "topic", moduleId: "performance", topicId: `t${i}` }, 1),
+  );
+  const g: VaultGraph = {
+    nodes: [NODES[0], ...topics],
+    edges: topics.map((t) => edge(t.id, "machine:m-leg-press", "mentions", "talks about")),
+  };
+  const at = new Map(g.nodes.map((n, i) => [n.id, placed(n.id, 20 * i, 20 * i, 7, i, n.domain)]));
+
+  it("names the focus and exactly the links its card lists, never more", () => {
+    const reqs = focusLabelRequests(g, "machine:m-leg-press", at);
+    expect(reqs[0]).toMatchObject({ id: "machine:m-leg-press", big: true, priority: 0 });
+    expect(reqs).toHaveLength(1 + CARD_LINKS);
+    const card = new Set(constellationOf(g, "machine:m-leg-press", CARD_LINKS)!.links.map((l) => l.node.id));
+    for (const r of reqs.slice(1)) {
+      expect(card.has(r.id)).toBe(true);
+      expect(r.sub).toBeTruthy();
+    }
+  });
+
+  it("skips a link whose star is not on the map", () => {
+    const fewer = new Map([...at].filter(([id]) => id !== "topic:t0"));
+    expect(focusLabelRequests(g, "machine:m-leg-press", fewer).map((r) => r.id)).not.toContain("topic:t0");
   });
 });
 
@@ -217,5 +339,60 @@ describe("pathDots", () => {
     expect(pathDots(5)).toBe(5);
     expect(pathDots(14)).toBe(9);
     expect(pathDots(-1)).toBe(0);
+  });
+});
+
+describe("whoSaid", () => {
+  it("knows when a path's title already says who it is for", () => {
+    expect(whoSaid("For a head trainer", "A head trainer")).toBe(true);
+    expect(whoSaid("For a studio leader", "A studio leader.")).toBe(true);
+    expect(whoSaid("For the studio leader", "a Studio Leader")).toBe(true);
+  });
+  it("and when it does not", () => {
+    expect(whoSaid("Life Transformer 101", "A new Life Transformer")).toBe(false);
+    expect(whoSaid("Equipment and cueing", "Anyone sharpening how they set up and cue")).toBe(false);
+  });
+  it("has nothing to say for an empty who", () => {
+    expect(whoSaid("Anything", "  ")).toBe(true);
+  });
+});
+
+describe("a page's body", () => {
+  const sec = (id: string, keys: string[]) => ({ id, title: id, blocks: keys.map((key) => ({ key })) });
+  const machine = [sec("leaf-stop", ["s1"]), sec("beat-0", ["b1"]), sec("beat-1", ["b2"]), sec("moment-3", ["c1"]), sec("deep-dive", ["d1"])];
+
+  it("knows which of a machine's sections are better peeked: its spoken script and its deep dive", () => {
+    expect(["beat-0", "beat-12", "deep-dive"].every(peekOnlySection)).toBe(true);
+    expect(["leaf-stop", "moment-3", "card-target", "beats", "deep-dive-2"].some(peekOnlySection)).toBe(false);
+  });
+
+  it("leaves a machine's script and deep dive to their peeks", () => {
+    expect(bodySections("machine", machine, new Set()).map((s) => s.id)).toEqual(["leaf-stop", "moment-3"]);
+  });
+
+  it("keeps a section that carries one of this studio's marks, so no mark goes missing", () => {
+    expect(bodySections("machine", machine, new Set(["b2"])).map((s) => s.id)).toEqual(["leaf-stop", "beat-1", "moment-3"]);
+  });
+
+  it("draws every other page whole, the same array", () => {
+    expect(bodySections("topic", machine, new Set())).toBe(machine);
+    const plain = [sec("leaf-stop", ["s1"])];
+    expect(bodySections("machine", plain, new Set())).toBe(plain);
+  });
+});
+
+describe("letterIndex", () => {
+  const letters = (titles: string[]) => titles.map((title) => ({ title }));
+  it("lists the glossary's letters in the page's order, with where each is", () => {
+    expect(letterIndex(letters(["", "A", "b", "C", "D"]))).toEqual([
+      { letter: "A", at: 1 },
+      { letter: "B", at: 2 },
+      { letter: "C", at: 3 },
+      { letter: "D", at: 4 },
+    ]);
+  });
+  it("offers nothing to jump between on a short page, or one not titled by letters", () => {
+    expect(letterIndex(letters(["A", "B"]))).toEqual([]);
+    expect(letterIndex(letters(["Stop", "Set up", "Get set", "Begin", "The rep"]))).toEqual([]);
   });
 });

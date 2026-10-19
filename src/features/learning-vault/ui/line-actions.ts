@@ -20,7 +20,16 @@
  * PURE MODULE — no React, no DOM.
  */
 
-import type { MarkedBlock, OrphanMark, StudioBlockNote, VaultBlockKind, VaultPerson, VaultViewer } from "../types";
+import { markDate } from "../markup";
+import type {
+  LearningSubmission,
+  MarkedBlock,
+  OrphanMark,
+  StudioBlockNote,
+  VaultBlockKind,
+  VaultPerson,
+  VaultViewer,
+} from "../types";
 
 export type LineAction = "strike" | "unstrike" | "note" | "submit" | "share";
 
@@ -159,4 +168,122 @@ export function orphanWords(o: OrphanMark): string {
 /** A line that carries any of the studio's marks. */
 export function isMarked(block: Pick<MarkedBlock, "strike" | "notes">): boolean {
   return Boolean(block.strike) || block.notes.length > 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Labels said once per run (review fix, Oct 19 2026)
+ * ------------------------------------------------------------------ */
+
+/** A label or a title as it is compared: lower case, one space, a plural "s" off ("Key cues" is "key cue"). */
+function labelKey(text: string): string {
+  return text.trim().toLowerCase().replace(/\s+/g, " ").replace(/s$/, "");
+}
+
+/**
+ * Which lines of a section draw their label: say it once, at the head of a
+ * run of lines that share it ("Clinical warning" over five warnings, never
+ * five times). A line the reader cannot see (crossed out and hidden) is
+ * skipped, so the first line still shown carries the label; a heading or a
+ * line with no label ends the run; a label that only repeats the section's
+ * own title ("Key cue" under "Key cues") is never drawn. A line whose label
+ * is not drawn still says it to a screen reader (ArticleBlocks keeps it as
+ * hidden words), so nothing is lost to someone who cannot see the run.
+ *
+ * Every design that draws lines its own way (the Course's MarkedLine) asks
+ * this, so the three never disagree about when a label shows.
+ */
+export function labelRuns(
+  lines: readonly { kind: VaultBlockKind; label?: string; shown?: boolean }[],
+  sectionTitle?: string,
+): boolean[] {
+  const title = sectionTitle ? labelKey(sectionTitle) : "";
+  let last: string | null = null;
+  return lines.map((l) => {
+    if (!isMarkableKind(l.kind)) {
+      last = null;
+      return false;
+    }
+    if (l.shown === false) return false;
+    const label = (l.label ?? "").trim();
+    if (!label) {
+      last = null;
+      return false;
+    }
+    const key = labelKey(label);
+    const draw = key !== last && key !== title;
+    last = key;
+    return draw;
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * The one quiet hint that a line can be tapped (review fix, Oct 19 2026)
+ * ------------------------------------------------------------------ */
+
+const HINT_WORDS: Record<LineAction, string> = {
+  strike: "cross it out",
+  unstrike: "put it back",
+  note: "note it",
+  submit: "tell head office",
+  share: "ask in Teams",
+};
+
+/**
+ * What a tap on a line does, for the one hint an iPad gets (there is no
+ * hover to find it with): "Tap a line to cross it out, note it, tell head
+ * office or ask in Teams." Built from the actions this reader actually has,
+ * so it never promises a cross-out to a trainer.
+ */
+export function lineHintWords(actions: readonly LineAction[]): string {
+  const words = actions.map((a) => HINT_WORDS[a]);
+  if (words.length === 0) return "Tap a line for what you can do with it.";
+  const list = words.length === 1 ? words[0] : `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`;
+  return `Tap a line to ${list}.`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Head office's answer, under the line it is about (review fix, Oct 19 2026)
+ * ------------------------------------------------------------------ */
+
+export type AnswerVerdict = "waiting" | "taken" | "declined";
+
+/** The submission's state in a word: "Waiting", "Taken", "Not taken". */
+export function verdictWord(v: AnswerVerdict): string {
+  return v === "taken" ? "Taken" : v === "declined" ? "Not taken" : "Waiting";
+}
+
+/**
+ * Where a line's "Tell head office" stands, said where the studio reads it
+ * (nothing pings anyone, so the answer has to be somewhere to pull): "Kim
+ * Ortiz told head office · Oct 19, 2026" then the verdict, and head office's
+ * note with who wrote it and when, if there is one.
+ */
+export function answerOf(sub: Pick<LearningSubmission, "by" | "at" | "status" | "decision">): {
+  head: string;
+  verdict: AnswerVerdict;
+  note: string | null;
+  noteBy: string;
+} {
+  const who = (sub.by?.name ?? "").trim();
+  const head = [who ? `${who} told head office` : "Told head office", markDate(sub.at)].filter(Boolean).join(" · ");
+  const verdict: AnswerVerdict = sub.status === "taken" ? "taken" : sub.status === "declined" ? "declined" : "waiting";
+  const note = verdict !== "waiting" ? (sub.decision?.note ?? "").trim() || null : null;
+  const noteBy = sub.decision
+    ? [(sub.decision.byName ?? "").trim(), markDate(sub.decision.at)].filter(Boolean).join(" · ")
+    : "";
+  return { head, verdict, note, noteBy };
+}
+
+/* ------------------------------------------------------------------ *
+ * A section's tone (review fix, Oct 19 2026)
+ * ------------------------------------------------------------------ */
+
+/**
+ * A machine's Stop list (codex-reader's leaf "stop": the clinical warnings
+ * and the contraindications) is drawn as the house's caution well, plum and
+ * never folded, as today's Catalog draws its warnings: these are the lines a
+ * trainer must not miss.
+ */
+export function sectionTone(sectionId: string): "stop" | null {
+  return sectionId === "leaf-stop" ? "stop" : null;
 }

@@ -204,11 +204,6 @@
   min-height: 52px;
   padding: 0.625rem 1.25rem;
 }
-.crs__btn--icon {
-  width: var(--wk-tap);
-  padding: 0;
-}
-
 /* A door at a section's right ("The floor", "All 52 words"). */
 .crs__more {
   flex: none;
@@ -427,8 +422,10 @@
   padding: calc(1rem + 4px) 1rem 1rem;
   border: 1px solid var(--wk-edge);
   border-radius: var(--wk-radius);
+  /* One neutral band for every course: a course is not a machine category,
+     and the category colours are the floor's machines' alone. */
   background:
-    linear-gradient(var(--wk-accent, var(--wk-border-strong)), var(--wk-accent, var(--wk-border-strong))) top / 100% 4px no-repeat border-box,
+    linear-gradient(var(--wk-border-strong), var(--wk-border-strong)) top / 100% 4px no-repeat border-box,
     var(--wk-surface) padding-box;
   box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
   color: inherit;
@@ -537,23 +534,25 @@
   box-shadow: var(--wk-elev-1);
   transform-origin: 50% 100%;
 }
+/* Decoration, so no borrowed colour: the house's neutral surfaces, the
+   front card raised. */
 .crs__fan-card--1 {
   left: 6px;
-  background: var(--wk-cat-hips-fill);
-  color: var(--wk-cat-hips-text);
+  background: var(--wk-surface-3);
+  color: var(--wk-ink-2);
   transform: rotate(-14deg);
 }
 .crs__fan-card--2 {
   left: 66px;
-  background: var(--wk-cat-push-fill);
-  color: var(--wk-cat-push-text);
+  background: var(--wk-surface-2);
+  color: var(--wk-ink-2);
   transform: rotate(14deg);
 }
 .crs__fan-card--3 {
   left: 36px;
   bottom: 4px;
   background: var(--wk-raised);
-  color: var(--wk-live-text);
+  color: var(--wk-ink);
   box-shadow: var(--wk-elev-2);
 }
 .crs__play-title {
@@ -665,7 +664,7 @@
 }
 .crs__drill-eg {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.375rem;
   margin: 0;
   font-size: 12px;
@@ -675,6 +674,7 @@
 }
 .crs__drill-eg svg {
   flex: none;
+  margin-top: 2px;
 }
 /* The question, before the answer: a well inside the card. */
 .crs__drill-ask {
@@ -707,13 +707,30 @@
   line-height: 1.45;
   color: var(--wk-ink-2);
 }
+/* The revealed lines flow: one-word cues ("Good", "Nice") sit side by side,
+   in their order, and a long line takes a row of its own (a cue's bubble is
+   as wide as its words). The list takes the focus after a reveal. */
 .crs__drill-lines {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin: 0.25rem 0 0;
   padding: 0;
   list-style: none;
+  border-radius: 12px;
+}
+.crs__drill-lines > li {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+.crs__drill-lines:focus {
+  outline: none;
+}
+.crs__drill-lines:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 4px;
 }
 .crs__drill-foot {
   display: flex;
@@ -723,11 +740,13 @@
   margin-top: auto;
   padding-top: 0.25rem;
 }
+/* Each drill as tall as its own words: a revealed moment never stretches
+   the closed ones beside it into tall empty cards. */
 .crs__drills {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr));
   gap: 0.875rem;
-  align-items: stretch;
+  align-items: start;
 }
 .crs__drills > .crs__anchor {
   display: flex;
@@ -804,11 +823,27 @@
  * A line, read-only, with the studio's marks (cards and drills)
  * ------------------------------------------------------------------ */
 
+/* Positioned, so a label said only to a screen reader (.crs__sr, absolute)
+   stays inside its line and the scroller, never adding to the page's own
+   overflow. */
 .crs__line {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
+}
+/* Words a screen reader says that the eye already has (a label said once
+   over its run). Clipped to nothing, never cut: no one-line overflow. */
+.crs__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .crs__line-label {
   font-size: 12px;
@@ -835,18 +870,21 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--wk-accent, var(--wk-live));
+  background: var(--wk-accent, var(--wk-cat-other));
 }
 /* A cue is a short line said out loud: its bubble is as wide as its words. */
 .crs__line--cue {
   align-items: flex-start;
 }
-/* What the trainer says: a speech bubble, the words in the live wash. */
+/* What the trainer says: a speech bubble on the page's accent wash (a
+   machine's category; the neutral grey on a page with none), its shape held
+   by a hairline. Never the act-blue: blue is for what you tap. */
 .crs__line--cue .crs__line-text,
 .crs__line--said .crs__line-text {
   padding: 0.5rem 0.875rem;
   border-radius: 16px 16px 16px 4px;
-  background: var(--wk-live-fill);
+  background: var(--wk-accent-fill, var(--wk-cat-other-fill));
+  box-shadow: inset 0 0 0 1px var(--wk-edge);
   font-weight: 600;
   line-height: 1.5;
 }
@@ -881,6 +919,7 @@
 }
 .crs__line[data-struck] .crs__line-text {
   background: transparent;
+  box-shadow: none;
   padding-left: 0;
 }
 /* The studio's marks: a reason, what it does instead, a note (as the page draws them). */
@@ -991,14 +1030,34 @@
 .crs__deck {
   max-width: 50rem;
   margin-top: 1rem;
+  border-radius: var(--wk-radius-lg);
+}
+.crs__deck:focus {
   outline: none;
 }
+/* The deck takes the focus when a turn took the pressed control away. */
+.crs__deck:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 4px;
+}
+/* Every card in one cell: the stage is as tall as the tallest, so Back and
+   Next never move inside a lesson. Only the card on turn is seen. */
 .crs__deck-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   touch-action: pan-y;
   overflow-x: clip;
   padding: 2px 2px 6px;
   margin: -2px -2px -6px;
   scroll-margin-top: 1rem;
+}
+.crs__deck-stage > .crs__card {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.crs__deck-stage > .crs__card:not([data-current]) {
+  visibility: hidden;
+  pointer-events: none;
 }
 .crs__card {
   display: flex;
@@ -1092,17 +1151,22 @@
 
 /* The deck's own bar: Back, where you are, Next. It rides the foot of the
    screen while the deck is in view, so Next is always under the thumb. An
-   opaque ground, the scroller's padding taken back (the sticky rule). */
+   opaque ground, the scroller's padding taken back on every side it pins
+   to (the sticky rule): sides, and the bottom, which .wk__scroll pads by
+   1.5rem (2rem from 1024px). Pinned at bottom 0 it stopped that far above
+   the scroller's edge, and the card's words showed in the strip beneath
+   it. The extra padding keeps the buttons where they were; the matching
+   negative margin keeps the resting layout the same height. */
 .crs__deck-nav {
   position: sticky;
-  bottom: 0;
+  bottom: -1.5rem;
   z-index: 2;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
-  margin: 0.25rem -1rem 0;
-  padding: 1.25rem 1rem 0.75rem;
+  margin: 0.25rem -1rem -1.5rem;
+  padding: 1.25rem 1rem calc(0.75rem + 1.5rem);
   /* The card's words fade under the bar rather than being cut by it. */
   background: linear-gradient(to bottom, transparent, var(--wk-bg) 1.125rem);
 }
@@ -1299,9 +1363,13 @@
   background: var(--wk-surface-2);
   box-shadow: none;
 }
+/* The answers not picked, quieted without fading the words under 4.5:1
+   (as the quiz's own rest state). */
 .crs__q-opt[data-state="rest"] {
-  opacity: 0.6;
+  border-color: var(--wk-edge-control);
+  background-color: var(--wk-surface);
   box-shadow: none;
+  color: var(--wk-ink-2);
 }
 .crs__q-tick {
   flex: none;
@@ -1435,7 +1503,15 @@
 .crs__rail-words {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
   overflow-wrap: anywhere;
+}
+/* The lesson on screen: its read time (the course bar's, which the rail replaces). */
+.crs__rail-min {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-2);
 }
 
 /* ------------------------------------------------------------------ *
@@ -1484,11 +1560,6 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--wk-ink-2);
-}
-.crs__coursebar-steps {
-  flex: none;
-  display: flex;
-  gap: 0.375rem;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1539,17 +1610,17 @@
 .crs__bp-works {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 0.375rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+/* What it works: a label, not a control, in the machine's category wash. */
 .crs__bp-works li {
   padding: 0.25rem 0.625rem;
   border-radius: var(--wk-radius-pill);
-  background: var(--wk-live-fill);
-  color: var(--wk-live-text);
+  background: var(--wk-accent-fill, var(--wk-surface-2));
+  color: var(--wk-accent-text, var(--wk-ink-2));
   font-size: 12px;
   font-weight: 700;
   line-height: 1.4;
@@ -1569,7 +1640,10 @@
   padding: 0;
   list-style: none;
 }
-/* A pin: its number on the drawing, the dial's name, this unit's number. */
+/* A pin: the dial's letter (when the unit has one), its name, this unit's
+   number. A dial with no set-up card to turn to is a quiet well; one that
+   turns the deck is a raised button with the 3:1 edge and the one blue mark
+   on the blueprint, so blue is exactly what can be tapped. */
 .crs__pin {
   display: flex;
   align-items: center;
@@ -1577,17 +1651,19 @@
   width: 100%;
   min-height: 64px;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--wk-edge);
+  border: 1px solid transparent;
   border-radius: var(--wk-radius);
-  background: var(--wk-raised);
+  background: var(--wk-surface-2);
   background-clip: padding-box;
-  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  box-shadow: var(--wk-elev-0);
   color: inherit;
   font: inherit;
   text-align: left;
 }
 button.crs__pin {
   border-color: var(--wk-border-strong);
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
   cursor: pointer;
 }
 button.crs__pin:active {
@@ -1598,19 +1674,21 @@ button.crs__pin:focus-visible {
   outline: 2px solid var(--wk-focus-ring);
   outline-offset: 2px;
 }
+/* The dial's letter as the unit prints it: neutral, a label not a control. */
 .crs__pin-head {
   flex: none;
   display: grid;
   place-items: center;
-  width: 34px;
+  min-width: 34px;
   height: 34px;
+  padding: 0 0.375rem;
   border-radius: 50% 50% 50% 4px;
-  background: var(--wk-live);
-  color: var(--wk-live-on);
+  background: var(--wk-surface-3);
+  box-shadow: inset 0 0 0 1px var(--wk-border-strong);
+  color: var(--wk-ink);
   font-family: var(--wk-font-display);
   font-size: 17px;
   font-weight: 800;
-  box-shadow: var(--wk-elev-1);
 }
 .crs__pin-words {
   flex: 1 1 auto;
@@ -1640,7 +1718,7 @@ button.crs__pin:focus-visible {
 }
 .crs__pin-go {
   flex: none;
-  color: var(--wk-live-text);
+  color: var(--wk-live);
 }
 .crs__facts {
   display: flex;
@@ -1713,6 +1791,56 @@ button.crs__pin:focus-visible {
 }
 .crs__stop-lines .crs__line-label {
   color: var(--wk-warn);
+}
+
+.crs__setup .crs__deck {
+  margin-top: 0;
+}
+
+/* A substitute set in the manual: each machine a chip that peeks it, in its
+   category's colours (the floor's tiles' colours), joined by "+". */
+/* The chips are taller than a line of words: drawn up into the line's own
+   top padding, the first row sits nearer level with the line's bullet. */
+.crs__subs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+  margin-top: -0.375rem;
+  vertical-align: top;
+}
+.crs__subs-lead,
+.crs__subs-plus {
+  font-weight: 600;
+  color: var(--wk-ink-2);
+}
+.crs__sub {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--wk-tap);
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background:
+    linear-gradient(var(--wk-accent, var(--wk-border-strong)), var(--wk-accent, var(--wk-border-strong))) left / 3px 100% no-repeat border-box,
+    var(--wk-raised) padding-box;
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.crs__sub:active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.crs__sub:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
 }
 
 /* The manual's chapters: a jump to each tier's first section. */
@@ -2393,11 +2521,13 @@ button.crs__pin:focus-visible {
 .crs__vault[data-phone] .crs__vault-letter {
   scroll-margin-top: 1rem;
 }
+/* Each card as tall as its own words: opening one never stretches its row
+   partner into a tall empty card. */
 .crs__vault-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
-  align-items: stretch;
+  align-items: start;
 }
 .crs__vcard {
   display: flex;
@@ -2431,10 +2561,14 @@ button.crs__pin:focus-visible {
   color: var(--wk-ink);
   overflow-wrap: anywhere;
 }
+/* "Equipment": a quiet neutral tag, no borrowed category colour. */
 .crs__vcard-kind {
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface-2);
   font-size: 12px;
   font-weight: 700;
-  color: var(--wk-cat-posterior-text);
+  color: var(--wk-ink-2);
 }
 .crs__vcard-first {
   margin: 0;
@@ -2649,6 +2783,18 @@ button.crs__pin:focus-visible {
 .crs__peek-wait {
   padding: 1.5rem 0;
 }
+.crs__peek-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 0;
+}
+/* Read it all ends where the cards end: on the next lesson. */
+.crs__whole-next {
+  display: flex;
+  margin-top: 1.5rem;
+}
 
 .crs__quiz {
   margin-top: 0.5rem;
@@ -2670,6 +2816,7 @@ button.crs__pin:focus-visible {
   .crs__more:hover,
   .crs__tier:hover,
   .crs__az-btn:hover,
+  .crs__sub:hover,
   button.crs__pin:hover {
     border-color: var(--wk-live);
   }
@@ -2720,8 +2867,9 @@ button.crs__pin:focus-visible {
     align-items: start;
     padding: 1.25rem;
   }
+  /* The figure's column ends with the dials' and facts' beside it. */
   .crs__bp-body {
-    height: 340px;
+    height: 280px;
   }
 }
 
@@ -2778,6 +2926,12 @@ button.crs__pin:focus-visible {
   .crs__vault-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  /* The scroller pads 2rem from here: the deck's bar takes that back. */
+  .crs__deck-nav {
+    bottom: -2rem;
+    margin-bottom: -2rem;
+    padding-bottom: calc(0.75rem + 2rem);
+  }
   /* With the peek docked beside the page, the vault keeps two columns. */
   .vtp__frame--open .crs__vault-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2800,8 +2954,17 @@ button.crs__pin:focus-visible {
   .crs__hero {
     padding: calc(1rem + 3px) 1rem 1rem;
   }
+  /* The dials first: they are why the field manual is opened. */
+  .crs__bp-side {
+    order: -1;
+  }
   .crs__bp-body {
-    height: 240px;
+    height: 160px;
+  }
+  /* The search finds a word on a narrow screen; three rows of letters only
+     pushed the first card down. */
+  .crs__az {
+    display: none;
   }
   .crs__card {
     min-height: 14rem;

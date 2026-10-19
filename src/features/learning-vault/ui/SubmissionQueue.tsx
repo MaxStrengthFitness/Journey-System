@@ -31,7 +31,9 @@
  * else who opens it in the prototype reads the same list, and is told so.
  *
  * Nothing here pings anyone ("Nothing pings anyone"): a decision is kept on
- * the submission, where the studio reads it. The prototype's store is the
+ * the submission, where the studio reads it: under the line it is about, on
+ * the studio's version (ArticleBlocks, "Kim told head office · Taken", and
+ * head office's note under that). The prototype's store is the
  * in-memory sandbox (markup-store.ts); nothing reads or writes Firestore.
  */
 import { useId, useMemo, useState } from "react";
@@ -276,9 +278,14 @@ function SubmissionCard({
 }) {
   const [choice, setChoice] = useState<"taken" | "declined" | null>(null);
   const [note, setNote] = useState("");
-  const unsaved = useUnsavedChanges(choice !== null && note.trim() !== "", `the note back to ${sub.studioName}`, {
-    onDiscard: () => setNote(""),
-  });
+  // Typing only while the submission is still waiting: once decided, the
+  // note went with the decision, and the card (which stays mounted, now
+  // showing the verdict) must never ask about it again.
+  const unsaved = useUnsavedChanges(
+    sub.status === "pending" && choice !== null && note.trim() !== "",
+    `the note back to ${sub.studioName}`,
+    { onDiscard: () => setNote("") },
+  );
   const noteId = useId();
   const when = dayOf(sub.at);
 
@@ -292,6 +299,8 @@ function SubmissionCard({
     if (!choice) return;
     unsaved.release();
     onDecide(sub.id, choice, note);
+    setChoice(null);
+    setNote("");
   };
 
   return (
@@ -336,6 +345,8 @@ function SubmissionCard({
           </div>
           {choice && (
             <div className="vtq__panel">
+              {/* It reaches them: ArticleBlocks draws the verdict and this note
+                  under the line on the studio's version. */}
               <label className="vtq__label" htmlFor={noteId}>
                 A note back to {sub.studioName}
               </label>

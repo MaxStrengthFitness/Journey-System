@@ -2,19 +2,24 @@ import { describe, expect, it } from "vitest";
 import type { OrphanMark, StudioBlockNote, StudioStrike } from "../types";
 import {
   actionLabel,
+  answerOf,
   canRemoveNote,
   hiddenLabel,
   hideAgainLabel,
   isMarkableKind,
   isMarked,
+  labelRuns,
   lineActions,
+  lineHintWords,
   markerLabel,
   notesCount,
   orphanWords,
   personOf,
   piecesOf,
   possessive,
+  sectionTone,
   studioInSentence,
+  verdictWord,
 } from "./line-actions";
 
 const note = (over: Partial<StudioBlockNote> = {}): StudioBlockNote => ({
@@ -154,5 +159,80 @@ describe("a mark with no line left", () => {
     const n: OrphanMark = { kind: "note", mark: note() };
     expect(orphanWords(s)).toBe("Pause at the top.");
     expect(orphanWords(n)).toBe("Move slowly.");
+  });
+});
+
+describe("a label is said once per run (review fix)", () => {
+  const line = (label?: string, shown = true) => ({ kind: "line" as const, label, shown });
+
+  it("draws it at the head of a run of lines that share it", () => {
+    expect(
+      labelRuns([line("Clinical warning"), line("Clinical warning"), line("Clinical warning"), line("Contraindicated for"), line("Contraindicated for")]),
+    ).toEqual([true, false, false, true, false]);
+  });
+
+  it("skips a line the reader cannot see, so the first one shown carries it", () => {
+    expect(labelRuns([line("Clinical warning", false), line("Clinical warning"), line("Clinical warning")])).toEqual([false, true, false]);
+  });
+
+  it("starts again after a heading or an unlabelled line", () => {
+    expect(
+      labelRuns([line("Key cue"), { kind: "heading", label: undefined, shown: true }, line("Key cue"), line(), line("Key cue")]),
+    ).toEqual([true, false, true, false, true]);
+  });
+
+  it("never draws a label that only repeats the section's title, plural or not", () => {
+    expect(labelRuns([line("Key cue"), line("Synergist")], "Key cues")).toEqual([false, true]);
+    expect(labelRuns([line("Synergist"), line("Synergist")], "Synergists")).toEqual([false, false]);
+  });
+
+  it("compares as words: case and spacing do not start a new run", () => {
+    expect(labelRuns([line("Clinical warning"), line("clinical  Warning ")])).toEqual([true, false]);
+  });
+});
+
+describe("the one hint that a line can be tapped (review fix)", () => {
+  it("names what this reader can do, and nothing they cannot", () => {
+    expect(lineHintWords(["strike", "note", "submit", "share"])).toBe(
+      "Tap a line to cross it out, note it, tell head office or ask in Teams.",
+    );
+    expect(lineHintWords(["submit", "share"])).toBe("Tap a line to tell head office or ask in Teams.");
+    expect(lineHintWords(["share"])).toBe("Tap a line to ask in Teams.");
+    expect(lineHintWords([])).toBe("Tap a line for what you can do with it.");
+  });
+});
+
+describe("head office's answer, under its line (review fix)", () => {
+  const sub = {
+    by: { uid: "uid-kim", name: "Kim Ortiz" },
+    at: "2026-10-18T15:00:00.000Z",
+    status: "pending" as const,
+  };
+
+  it("says who told head office and when, then where it stands", () => {
+    expect(answerOf(sub)).toEqual({ head: "Kim Ortiz told head office · Oct 18, 2026", verdict: "waiting", note: null, noteBy: "" });
+    expect(verdictWord("waiting")).toBe("Waiting");
+    expect(verdictWord("taken")).toBe("Taken");
+    expect(verdictWord("declined")).toBe("Not taken");
+  });
+
+  it("carries head office's note, and who wrote it, once decided", () => {
+    const a = answerOf({
+      ...sub,
+      status: "declined",
+      decision: { note: "  Ours stays.  ", byName: "Pat Head", at: "2026-10-19T14:00:00.000Z" },
+    });
+    expect(a.verdict).toBe("declined");
+    expect(a.note).toBe("Ours stays.");
+    expect(a.noteBy).toBe("Pat Head · Oct 19, 2026");
+    expect(answerOf({ ...sub, status: "taken", decision: { byName: "Pat Head", at: "2026-10-19T14:00:00.000Z" } }).note).toBeNull();
+  });
+});
+
+describe("a section's tone (review fix)", () => {
+  it("draws only a machine's Stop list as the caution well", () => {
+    expect(sectionTone("leaf-stop")).toBe("stop");
+    expect(sectionTone("leaf-setup")).toBeNull();
+    expect(sectionTone("clinical")).toBeNull();
   });
 });

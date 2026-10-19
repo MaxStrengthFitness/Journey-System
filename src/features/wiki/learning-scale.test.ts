@@ -181,6 +181,8 @@ const TAPS: Record<string, "height" | "square"> = {
   ".vtq__open": "height",
   ".vtq__btn": "height",
   ".vta__line": "height",
+  // The line's one real button, laid over it (review fix, Oct 19 2026).
+  ".vta__toggle": "height",
   ".vta__marker": "square",
   ".vta__reveal": "height",
   ".vta__btn": "height",
@@ -228,6 +230,8 @@ const TAPS: Record<string, "height" | "square"> = {
   ".vm__mini-node": "height",
   ".vm__mini-hit": "square",
   ".vm__path-card": "height",
+  // The glossary's row of letters (review fix, Oct 19 2026): a finger's width each.
+  ".vm__letter-btn": "square",
   // Design 3, the Interactive Course. Every .crs__btn is at least a square,
   // the icon-only ones exactly that; a pin is a button on the set-up page.
   ".crs__btn": "square",

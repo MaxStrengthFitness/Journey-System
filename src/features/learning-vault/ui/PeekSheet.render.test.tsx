@@ -31,18 +31,24 @@ const TITLES: Record<string, string> = {
 const titleOf = (r: VaultRoute) => TITLES[peekKey(r)] ?? "Unknown";
 
 /** A note being typed inside the peek, as ArticleBlocks' NoteForm would hold one. */
-function Typing() {
+function Typing({ label = "Note", says = "the note" }: { label?: string; says?: string }) {
   const [text, setText] = useState("");
-  useUnsavedChanges(text.length > 0, "the note", { onDiscard: () => setText("") });
-  return <textarea aria-label="Note" value={text} onChange={(e) => setText(e.target.value)} />;
+  useUnsavedChanges(text.length > 0, says, { onDiscard: () => setText("") });
+  return <textarea aria-label={label} value={text} onChange={(e) => setText(e.target.value)} />;
 }
 
 let opened: VaultRoute[] = [];
 let api: ReturnType<typeof usePeekStack> | null = null;
 
-function Host({ withTyping = false }: { withTyping?: boolean }) {
+function Host({ withTyping = false, pageTyping = false }: { withTyping?: boolean; pageTyping?: boolean }) {
   const peek = usePeekStack();
   api = peek;
+  // The Vault's and the Course's wiring: the peek closes, then the page opens.
+  // Asked as one question before either, so the order cannot lose anything.
+  const openFull = (r: VaultRoute) => {
+    peek.close();
+    opened.push(r);
+  };
   return (
     <PeekFrame
       open={peek.stack.length > 0}
@@ -63,13 +69,14 @@ function Host({ withTyping = false }: { withTyping?: boolean }) {
           onBack={peek.back}
           onCrumb={peek.crumb}
           onClose={peek.close}
-          onOpenFull={(r) => opened.push(r)}
+          onOpenFull={openFull}
         />
       }
     >
       <button type="button" className="opener" onClick={() => peek.push(LEG_PRESS)}>
         Peek Leg Press
       </button>
+      {pageTyping && <Typing label="Reason" says="the line you are crossing out" />}
     </PeekFrame>
   );
 }
@@ -290,5 +297,61 @@ describe("the pure helpers", () => {
         { top: 0, bottom: 60 },
       ]),
     ).toBe(106);
+  });
+});
+
+describe("Open full page replaces the page too (review fix, Oct 19 2026)", () => {
+  async function typeInto(label: string, text: string) {
+    const field = host.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${label}"]`)!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+    await act(async () => {
+      setter.call(field, text);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  const question = () => document.querySelector('[role="alertdialog"]');
+  const answer = async (action: "keep-editing" | "leave") =>
+    click(document.querySelector(`[data-testid="leave-confirm"] [data-action="${action}"]`));
+  const value = (label: string) => host.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${label}"]`)?.value;
+
+  it("asks once about the page's typing AND the peek's, and moves nothing until the answer", async () => {
+    await mount(<Host withTyping pageTyping />);
+    await click(host.querySelector(".opener"));
+    await typeInto("Reason", "Ours has a hard stop");
+    await typeInto("Note", "Left pad sticks");
+    await click(button("Open full page"));
+    expect(question()?.textContent).toContain("the line you are crossing out");
+    expect(question()?.textContent).toContain("the note");
+    expect(opened).toEqual([]);
+
+    await answer("keep-editing");
+    expect(sheet()).not.toBeNull();
+    expect(value("Reason")).toBe("Ours has a hard stop");
+    expect(value("Note")).toBe("Left pad sticks");
+
+    await click(button("Open full page"));
+    await answer("leave");
+    expect(question()).toBeNull();
+    expect(opened).toEqual([LEG_PRESS]);
+    expect(sheet()).toBeNull();
+  });
+
+  it("with only the page's typing, Keep editing leaves the peek open where it was", async () => {
+    await mount(<Host pageTyping />);
+    await click(host.querySelector(".opener"));
+    await typeInto("Reason", "Ours has a hard stop");
+    await click(button("Open full page"));
+    expect(question()?.textContent).toContain("the line you are crossing out");
+    await answer("keep-editing");
+    expect(title()).toBe("LEG PRESS");
+    expect(opened).toEqual([]);
+  });
+
+  it("with nothing typed, opens at once", async () => {
+    await mount(<Host />);
+    await click(host.querySelector(".opener"));
+    await click(button("Open full page"));
+    expect(question()).toBeNull();
+    expect(opened).toEqual([LEG_PRESS]);
   });
 });

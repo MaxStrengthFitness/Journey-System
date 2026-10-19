@@ -1,27 +1,54 @@
-import { createElement, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { Eye, EyeOff, MessageSquare, Strikethrough, Trash2 } from "lucide-react";
+import {
+  createElement,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { Eye, EyeOff, MessageSquare, Pointer, Send, Strikethrough, Trash2 } from "lucide-react";
 import { UnsavedChangesScope, useLeaveScope } from "../../unsaved-changes";
 import { applyMarkup, noteLine, whyLine, type AppliedMarkup } from "../markup";
-import type { MarkedBlock, StudioBlockNote, StudioStrike, VaultBlock, VaultSection, VaultTarget } from "../types";
+import type {
+  LearningSubmission,
+  MarkedBlock,
+  StudioBlockNote,
+  StudioStrike,
+  VaultBlock,
+  VaultSection,
+  VaultTarget,
+} from "../types";
 import { BlockActions } from "./BlockActions";
 import { NoteForm } from "./NoteForm";
 import { OrphanMarks } from "./OrphanMarks";
 import { ShareForm } from "./ShareForm";
 import { StrikeForm } from "./StrikeForm";
 import { SubmitForm } from "./SubmitForm";
-import { useStudioMarkup, useVault } from "./VaultProvider";
+import { useStudioMarkup, useSubmissions, useVault } from "./VaultProvider";
 import {
+  answerOf,
   canRemoveNote,
   hiddenLabel,
   hideAgainLabel,
   isMarkableKind,
+  labelRuns,
+  lineActions,
+  lineHintWords,
   markerLabel,
   piecesOf,
   possessive,
+  sectionTone,
   studioInSentence,
+  verdictWord,
   type LineAction,
   type LinePiece,
 } from "./line-actions";
+import { lineHintSeen, markLineHintSeen, subscribeLineHint } from "./line-hint";
+import { pageAccent } from "./page-accent";
 import "../../wiki/wiki.css";
 import "./article.css";
 
@@ -38,18 +65,31 @@ import "./article.css";
  *
  * HOW A LINE WORKS
  * ----------------
- * - A tap on a line (or Enter on it: each line is a focusable button with
- *   aria-expanded) selects it, with a calm outline, and opens a row of 44px
- *   actions under it (BlockActions; line-actions.ts says who gets which).
- *   A second tap on the same line, Escape, or a tap anywhere else lets go.
- *   One line at a time. Selecting never fights reading: a tap on a linked
- *   term inside a line opens its card and leaves the line alone, and a line
- *   whose words are being selected to copy is not toggled.
+ * - A tap on a line selects it, with a calm blue OUTLINE (a spoken line keeps
+ *   its own wash inside it), and opens a row of 44px actions under it
+ *   (BlockActions; line-actions.ts says who gets which). A second tap on the
+ *   same line, Escape, or a tap anywhere else lets go. One line at a time.
+ *   Selecting never fights reading: a tap on a linked term inside a line
+ *   opens its card and leaves the line alone, and a line whose words are
+ *   being selected to copy is not toggled.
+ * - The line itself is not a button (review fix, Oct 19 2026): a button's
+ *   children are flattened into its name, so VoiceOver could not reach the
+ *   linked terms inside a line. Each line carries ONE real button instead,
+ *   "Actions for this line", laid over it, unseen and untouchable (a finger
+ *   taps the line); a keyboard or VoiceOver reader lands on it after the
+ *   line's words and terms, and its focus ring outlines the whole line. The
+ *   terms and that button are siblings, never nested.
+ * - Until the reader has chosen a line once (on this iPad), the page's first
+ *   line says so in one quiet line: "Tap a line to …" (line-hint.ts). There
+ *   is no hover on an iPad to find it with.
  * - Each action opens its form IN PLACE under the line, never a dialog
  *   (InheritedSafety's manner, admin/machines/editor/safety-removal.tsx).
  *   While a form is open a stray tap elsewhere does nothing; moving to
  *   another line, the same line again, or Escape asks first when something
- *   is typed (a leave scope around the form), and never loses it unasked.
+ *   is typed (a leave scope around the form), and never loses it unasked. A
+ *   form is shown only while its action is still offered: switching to the
+ *   MSF original, or View as a trainer, closes a cross-out form (the switch
+ *   asked about any typing before it switched).
  * - The studio's version (the "studio" lens): a crossed-out line STAYS, its
  *   words struck in the muted ink, then what the studio does instead, then
  *   "Why: {reason} · {who} · {date}" ("the baseline is always still there",
@@ -57,10 +97,16 @@ import "./article.css";
  *   when the reader hides crossed-out lines does it fold into a quiet
  *   "1 line hidden", which shows it again in place. Notes sit under their
  *   line (inline), or behind a marker in a 40px gutter that unfolds them
- *   (the Living Vault's "gutter"); the reason always stays in view. While a
- *   line is chosen its actions come straight under its words and reason,
- *   and a note comes off by its author or a leader, after a yes. Marks
- *   whose words have left the page gather at the foot (OrphanMarks).
+ *   (the Living Vault's "gutter"); the reason always stays in view. What
+ *   the studio told head office about a line, and head office's answer, is
+ *   said under it too ("Kim told head office · Taken"): nothing pings
+ *   anyone, so this is where the answer is pulled from. While a line is
+ *   chosen its actions come straight under its words and reason, and a note
+ *   comes off by its author or a leader, after a yes. Marks whose words have
+ *   left the page gather at the foot (OrphanMarks).
+ * - A label is said once per run of lines that share it (labelRuns): a
+ *   machine's Stop list reads "Clinical warning" once over its warnings. The
+ *   Stop list itself is the house's plum caution well (sectionTone).
  * - The MSF original (the "original" lens) shows no markup at all, and a
  *   line offers only "Tell head office" and "Ask in Teams".
  *
@@ -71,7 +117,14 @@ import "./article.css";
 export interface ArticleBlocksProps {
   target: VaultTarget;
   sections: VaultSection[];
-  /** inline: a studio's notes and reasons under each line (Designs 1 and 3); gutter: markers in a left gutter that open the line's notes (Design 2). */
+  /**
+   * inline: a studio's notes and reasons under each line (Designs 1 and 3);
+   * gutter: markers in a left gutter that open the line's notes (Design 2).
+   * The gutter is drawn only where a mark can be: on the studio's version,
+   * and never in a compact body (a peek, where 58px of empty gutter halves
+   * the column). Elsewhere a gutter page is laid out inline; the root's
+   * data-annotate says which was drawn, for anything that lines up with it.
+   */
   annotate?: "inline" | "gutter";
   /** Usually (t) => <LinkedText text={t} />. Applied to every line but headings, and never to struck words. */
   renderText?: (text: string, block: VaultBlock) => ReactNode;
@@ -84,18 +137,43 @@ export interface ArticleBlocksProps {
    * List the studio's marks whose words have left the page ("Lines that
    * changed since {Studio} marked them") at the foot. Default true. A design
    * that draws one PART of a page here (a codex tier, the course's manual one
-   * tier at a time) passes false, because a mark on a line in another part is
-   * not a line that changed, and draws the page's own once instead:
+   * tier at a time, a peek of one word) passes false, because a mark on a
+   * line in another part is not a line that changed, and draws the page's
+   * own once instead:
    * `<OrphanMarks orphans={useAppliedMarkup(target, page.sections).orphans} />`
    * over the WHOLE page's sections.
    */
   showOrphans?: boolean;
+  /**
+   * The page's accent (the custom properties wiki/categories' accentStyle
+   * sets): a spoken line's band and wash and a cue's rule take it, so blue
+   * keeps its one meaning (act, select). Default: a machine page's own
+   * category, read from its target; any other page inherits an accent an
+   * ancestor set, else the neutral grey. A machine's card, script or deep
+   * dive passes `pageAccent(page)` (./page-accent). null sets nothing here.
+   */
+  accent?: CSSProperties | null;
+  /**
+   * The one quiet "Tap a line to …" under the page's first line, until the
+   * reader has chosen a line once on this iPad. Default true; never in a
+   * compact body (a peek). A design that draws the same page twice on one
+   * screen passes false to the second.
+   */
+  tapHint?: boolean;
 }
 
 /** The foot of a page drawn in parts: drawn once by the design, over the whole page (see showOrphans). */
 export { OrphanMarks } from "./OrphanMarks";
+/** A page's accent, for the `accent` prop of a card, script or deep dive. */
+export { pageAccent } from "./page-accent";
 
 type FormKind = Exclude<LineAction, "unstrike">;
+
+/** Where the focus goes once a control it was on has gone (Put it back, Remove, a form closing). */
+type FocusAim =
+  | { kind: "line"; unit: string }
+  | { kind: "keep"; noteId: string }
+  | { kind: "remove"; noteId: string };
 
 /**
  * This studio's markup laid on a page exactly as ArticleBlocks lays it, for
@@ -131,7 +209,7 @@ export function ArticleBlocks(props: ArticleBlocksProps) {
   return <ArticleBody key={props.target.key} {...props} />;
 }
 
-/** A tap that landed on a control inside the line (a linked term, a link) and so is not a tap on the line. */
+/** A tap that landed on a control inside the line (a linked term, a link, the line's own button) and so is not a tap on the line. */
 const CONTROL = "a, button, input, textarea, select, summary, label, [role='button'], [role='link'], [data-vault-term]";
 
 function insideControl(target: EventTarget | null, line: Element): boolean {
@@ -147,6 +225,20 @@ function selectingText(line: Element): boolean {
   return Boolean(sel && !sel.isCollapsed && sel.anchorNode && line.contains(sel.anchorNode));
 }
 
+/** Focus is nowhere in particular (a tap on a line takes none), or inside this page body. */
+function focusIsHereOrNowhere(root: HTMLElement | null): boolean {
+  if (typeof document === "undefined") return true;
+  const active = document.activeElement;
+  return !active || active === document.body || Boolean(root?.contains(active));
+}
+
+/** The focus was lost with the control it was on (it went to <body>, or nowhere). */
+function focusLost(): boolean {
+  if (typeof document === "undefined") return false;
+  const active = document.activeElement;
+  return !active || active === document.body || !active.isConnected;
+}
+
 function ArticleBody({
   target,
   sections,
@@ -156,13 +248,19 @@ function ArticleBody({
   headingLevel = 2,
   hideSectionTitles = false,
   showOrphans = true,
+  accent,
+  tapHint = true,
 }: ArticleBlocksProps) {
   const vault = useVault();
   const applied = useAppliedMarkup(target, sections);
   const { studioLens } = applied;
   const studioId = vault.studio.id;
   const studio = studioInSentence(vault.studio.name);
-  const gutter = annotate === "gutter";
+  // A gutter only where a mark can show (see the prop): no empty column on
+  // the MSF original or in a peek.
+  const gutter = annotate === "gutter" && studioLens && !compact;
+  const drawn: "inline" | "gutter" = gutter ? "gutter" : "inline";
+  const { canStrike, canNote } = vault.viewer;
 
   // Every switch away from an open form goes through this scope, so typing
   // inside it is asked about (and only it: the page's own doors ask about
@@ -171,7 +269,9 @@ function ArticleBody({
   const baseId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const openUnitRef = useRef<HTMLDivElement | null>(null);
-  const lineRefs = useRef(new Map<string, HTMLElement>());
+  /** Each line's own button: where the focus goes back to. */
+  const toggleRefs = useRef(new Map<string, HTMLButtonElement>());
+  const aim = useRef<FocusAim | null>(null);
 
   /** The selected line, as "{section index}.{block index}" (two lines can share words, so never the block key). */
   const [selected, setSelected] = useState<string | null>(null);
@@ -184,14 +284,59 @@ function ArticleBody({
   /** The note whose "Remove" is waiting for its answer. */
   const [asking, setAsking] = useState<string | null>(null);
 
+  const hintSeen = useSyncExternalStore(subscribeLineHint, lineHintSeen, lineHintSeen);
+
+  /* What the studio told head office about each line of this page, and the
+     answer (studio's version only: the original carries no markup). */
+  const submissions = useSubmissions();
+  const answers = useMemo(() => {
+    const byKey = new Map<string, LearningSubmission[]>();
+    if (!studioLens || studioId === null) return byKey;
+    for (const s of submissions) {
+      if (s.studioId !== studioId || s.targetKey !== target.key || !s.blockKey) continue;
+      const list = byKey.get(s.blockKey) ?? [];
+      list.push(s);
+      byKey.set(s.blockKey, list);
+    }
+    for (const list of byKey.values()) list.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+    return byKey;
+  }, [submissions, studioLens, studioId, target.key]);
+
+  /* The chosen line, and whether its open form is still one it offers: the
+     lens or the viewer can change under an open form (MSF original, View
+     as), and a form for an action the line no longer offers must go. */
+  const selectedBlock = useMemo<MarkedBlock | null>(() => {
+    if (selected === null) return null;
+    const [si, bi] = selected.split(".").map(Number);
+    return applied.sections[si]?.blocks[bi] ?? null;
+  }, [selected, applied.sections]);
+  const offered = selectedBlock
+    ? lineActions({ studioLens, canStrike, canNote, struck: Boolean(selectedBlock.strike) })
+    : [];
+  const formShown: FormKind | null = form !== null && offered.includes(form) ? form : null;
+  const formGone = form !== null && formShown === null;
+  useEffect(() => {
+    if (formGone) setForm(null);
+  }, [formGone]);
+
   const letGo = () => {
     setSelected(null);
     setForm(null);
     setAsking(null);
   };
-  const closeForm = () => setForm(null);
+
+  /** A form closed by its own button (Keep it, Cancel, Done, Add note): the focus goes back to its line. */
+  const closeFormOf = (unit: string) => () => {
+    aim.current = { kind: "line", unit };
+    setForm(null);
+  };
+  const doneWith = (unit: string) => () => {
+    aim.current = { kind: "line", unit };
+    letGo();
+  };
 
   const select = (unit: string) => {
+    markLineHintSeen();
     if (selected === unit) {
       scope.guard(letGo);
       return;
@@ -203,12 +348,14 @@ function ArticleBody({
     });
   };
 
-  const pick = (block: MarkedBlock, action: LineAction) => {
+  const pick = (block: MarkedBlock, unit: string, action: LineAction) => {
     if (action === "unstrike") {
       if (studioId === null) return;
       scope.guard(() => {
         vault.store.unstrike(studioId, target.key, block.key);
         setForm(null);
+        // "Put it back" goes as it acts (Cross out takes its place): the focus goes back to the line.
+        aim.current = { kind: "line", unit };
       });
       return;
     }
@@ -259,37 +406,57 @@ function ArticleBody({
     return () => document.removeEventListener("click", onClick);
   }, [selected, form]);
 
-  // A form that closed took the focused button with it. Hand the focus back
-  // to its line (Keep it, or Done), unless the reader has moved on to
-  // another line or the focus already landed somewhere.
-  const lastForm = useRef<{ selected: string | null; form: FormKind | null }>({ selected: null, form: null });
-  useEffect(() => {
-    const was = lastForm.current;
-    lastForm.current = { selected, form };
-    if (was.form === null || form !== null || was.selected === null) return;
-    if (selected !== null && selected !== was.selected) return;
-    const active = document.activeElement;
-    if (active && active !== document.body) return;
-    lineRefs.current.get(was.selected)?.focus({ preventScroll: true });
-  }, [selected, form]);
+  // The control the focus was on has gone (Put it back, Remove, Keep, a form
+  // closing, a crossed-out line folding away while crossed-out lines are
+  // hidden): hand the focus to the nearest thing that is still there, so a
+  // keyboard or VoiceOver reader is not thrown back to the top of the page.
+  // Only when the focus really was lost: a reader who moved on keeps it.
+  useLayoutEffect(() => {
+    const a = aim.current;
+    if (!a) return;
+    aim.current = null;
+    if (!focusLost()) return;
+    const root = rootRef.current;
+    if (!root) return;
+    let el: HTMLElement | null | undefined = null;
+    if (a.kind === "line") {
+      // Another line chosen since (Leave, then the next line): that line is the reader's now.
+      if (selected !== null && selected !== a.unit) return;
+      el = toggleRefs.current.get(a.unit) ?? root.querySelector<HTMLElement>(`.vta__reveal[data-units~="${a.unit}"]`);
+    } else if (a.kind === "keep") {
+      el = root.querySelector<HTMLElement>(`[data-note-keep="${a.noteId}"]`);
+    } else {
+      el = root.querySelector<HTMLElement>(`[data-note-remove="${a.noteId}"]`);
+    }
+    try {
+      el?.focus({ preventScroll: true });
+    } catch {
+      // Focus is a courtesy; never a reason to fail.
+    }
+  });
 
   // Escape closes the innermost thing: the form (asking first if anything is
-  // typed), then the selection, handing the focus back to the line.
+  // typed), then the selection, handing the focus back to the line. It is
+  // this page's only while the reader is on it (the focus here, or nowhere
+  // in particular), and it is used up here (preventDefault), so a peek or a
+  // sheet listening further out does not close on the same key.
   useEffect(() => {
     if (selected === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
-      const line = lineRefs.current.get(selected);
+      if (!focusIsHereOrNowhere(rootRef.current)) return;
+      e.preventDefault();
+      const toggle = toggleRefs.current.get(selected);
       if (form !== null) {
         scope.guard(() => {
           setForm(null);
-          line?.focus();
+          toggle?.focus();
         });
         return;
       }
       setSelected(null);
       setAsking(null);
-      line?.focus();
+      toggle?.focus();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -308,17 +475,17 @@ function ArticleBody({
     }
   }, [selected, form]);
 
-  const renderForm = (kind: FormKind, block: MarkedBlock, section: VaultSection): ReactNode => {
+  const renderForm = (kind: FormKind, block: MarkedBlock, unit: string, section: VaultSection): ReactNode => {
     switch (kind) {
       case "strike":
-        return <StrikeForm target={target} block={block} onDone={letGo} onCancel={closeForm} />;
+        return <StrikeForm target={target} block={block} onDone={doneWith(unit)} onCancel={closeFormOf(unit)} />;
       case "note":
-        return <NoteForm target={target} block={block} onDone={letGo} onCancel={closeForm} />;
+        return <NoteForm target={target} block={block} onDone={doneWith(unit)} onCancel={closeFormOf(unit)} />;
       case "submit":
-        return <SubmitForm target={target} block={block} onDone={letGo} onCancel={closeForm} />;
+        return <SubmitForm target={target} block={block} onDone={doneWith(unit)} onCancel={closeFormOf(unit)} />;
       case "share":
         return (
-          <ShareForm target={target} block={block} sectionTitle={section.title.trim() || undefined} onDone={closeForm} />
+          <ShareForm target={target} block={block} sectionTitle={section.title.trim() || undefined} onDone={closeFormOf(unit)} />
         );
     }
   };
@@ -331,7 +498,7 @@ function ArticleBody({
   );
 
   /** A note under its line; while the line is chosen, its author or a leader may take it off (after a yes). */
-  const renderNote = (note: StudioBlockNote, removable: boolean) => {
+  const renderNote = (note: StudioBlockNote, unit: string, removable: boolean) => {
     const canRemove = removable && studioId !== null && canRemoveNote(note, vault.viewer);
     return (
       <li key={note.id} className="vta__mark vta__mark--note">
@@ -348,13 +515,22 @@ function ArticleBody({
                 type="button"
                 className="vta__btn vta__btn--danger"
                 onClick={() => {
+                  aim.current = { kind: "line", unit };
                   setAsking(null);
                   if (studioId !== null) vault.store.removeNote(studioId, target.key, note.id);
                 }}
               >
                 Remove
               </button>
-              <button type="button" className="vta__btn vta__btn--quiet" onClick={() => setAsking(null)}>
+              <button
+                type="button"
+                className="vta__btn vta__btn--quiet"
+                data-note-keep={note.id}
+                onClick={() => {
+                  aim.current = { kind: "remove", noteId: note.id };
+                  setAsking(null);
+                }}
+              >
                 Keep
               </button>
             </span>
@@ -362,7 +538,15 @@ function ArticleBody({
         ) : (
           <div className="vta__mark-row">
             <p className="vta__mark-by">{noteLine(note)}</p>
-            <button type="button" className="vta__btn vta__btn--quiet" onClick={() => setAsking(note.id)}>
+            <button
+              type="button"
+              className="vta__btn vta__btn--quiet"
+              data-note-remove={note.id}
+              onClick={() => {
+                aim.current = { kind: "keep", noteId: note.id };
+                setAsking(note.id);
+              }}
+            >
               <Trash2 size={16} aria-hidden />
               Remove
             </button>
@@ -371,6 +555,27 @@ function ArticleBody({
       </li>
     );
   };
+
+  /** What this studio told head office about the line, and where it stands. */
+  const renderAnswers = (list: LearningSubmission[]) => (
+    <ul className="vta__answers" aria-label="Sent to head office about this line">
+      {list.map((s) => {
+        const a = answerOf(s);
+        return (
+          <li key={s.id} className="vta__answer" data-verdict={a.verdict}>
+            <p className="vta__answer-head">
+              <Send size={14} aria-hidden />
+              <span>
+                {a.head} · <strong className="vta__verdict">{verdictWord(a.verdict)}</strong>
+              </span>
+            </p>
+            {a.note && <p className="vta__answer-note">{a.note}</p>}
+            {a.note && a.noteBy && <p className="vta__mark-by">{a.noteBy}</p>}
+          </li>
+        );
+      })}
+    </ul>
+  );
 
   const renderMarker = (unit: string, struck: boolean, count: number, shown: boolean) => {
     if (count > 0) {
@@ -407,13 +612,33 @@ function ArticleBody({
       block.text,
     );
 
-  const renderLine = (block: MarkedBlock, unit: string, section: VaultSection) => {
+  // The one quiet hint, under the page's first line the reader can see.
+  const hintWords =
+    tapHint && !compact && !hintSeen
+      ? lineHintWords(lineActions({ studioLens, canStrike, canNote, struck: false }))
+      : null;
+  let hintUnit: string | null = null;
+  if (hintWords) {
+    outer: for (let si = 0; si < applied.sections.length; si++) {
+      const blocks = applied.sections[si].blocks;
+      for (let bi = 0; bi < blocks.length; bi++) {
+        if (isMarkableKind(blocks[bi].kind) && !blocks[bi].hidden) {
+          hintUnit = `${si}.${bi}`;
+          break outer;
+        }
+      }
+    }
+  }
+
+  const renderLine = (block: MarkedBlock, unit: string, section: VaultSection, showLabel: boolean) => {
     if (!isMarkableKind(block.kind)) return renderHeading(block, unit);
     const isOpen = selected === unit;
     const strike = studioLens ? block.strike : undefined;
     const notes = studioLens ? block.notes : [];
+    const told = answers.get(block.key) ?? [];
     const notesShown = !gutter || opened.has(unit);
     const panelId = `${baseId}-panel-${unit}`;
+    const label = (block.label ?? "").trim();
 
     return (
       <div
@@ -421,34 +646,27 @@ function ArticleBody({
         className={`vta__unit${isOpen ? " vta__unit--open" : ""}`}
         ref={isOpen ? openUnitRef : undefined}
         data-unit={unit}
+        data-run={label ? (showLabel ? "head" : "cont") : undefined}
       >
         {gutter && <div className="vta__gutter">{renderMarker(unit, Boolean(strike), notes.length, notesShown)}</div>}
         <div className="vta__col">
           <div
-            ref={(el) => {
-              if (el) lineRefs.current.set(unit, el);
-              else lineRefs.current.delete(unit);
-            }}
             className="vta__line"
             data-kind={block.kind}
             data-vta-line=""
-            role="button"
-            tabIndex={0}
-            aria-expanded={isOpen}
-            aria-controls={isOpen ? panelId : undefined}
+            data-selected={isOpen ? "" : undefined}
             onClick={(e) => {
               if (insideControl(e.target, e.currentTarget) || selectingText(e.currentTarget)) return;
               select(unit);
             }}
-            onKeyDown={(e) => {
-              if (e.target !== e.currentTarget) return;
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                select(unit);
-              }
-            }}
           >
-            {block.label && <span className="vta__label">{block.label}</span>}
+            {label &&
+              (showLabel ? (
+                <span className="vta__label">{label}</span>
+              ) : (
+                // Said once over the run on screen; still said here to a screen reader.
+                <span className="vta__sr">{label}: </span>
+              ))}
             <span className={`vta__text vta__text--${block.kind}`}>
               {strike ? (
                 <s className="vta__struck">{block.text}</s>
@@ -458,6 +676,21 @@ function ArticleBody({
                 block.text
               )}
             </span>
+            {/* The line's one real control, after its words (a screen reader
+                hears the line, its terms, then this). Laid over the line and
+                untouchable: a finger taps the line itself. */}
+            <button
+              type="button"
+              ref={(el) => {
+                if (el) toggleRefs.current.set(unit, el);
+                else toggleRefs.current.delete(unit);
+              }}
+              className="vta__toggle"
+              aria-label="Actions for this line"
+              aria-expanded={isOpen}
+              aria-controls={isOpen ? panelId : undefined}
+              onClick={() => select(unit)}
+            />
           </div>
           {/* The reason belongs to the line's words, so it sits right under
               them; the actions come next, then the notes. */}
@@ -465,21 +698,33 @@ function ArticleBody({
           {isOpen && (
             <div className="vta__panel" id={panelId}>
               {block.source && block.source !== section.note && <p className="vta__source">{block.source}</p>}
-              <BlockActions target={target} block={block} onPick={(a) => pick(block, a)} open={form} />
-              {form && <UnsavedChangesScope scope={scope}>{renderForm(form, block, section)}</UnsavedChangesScope>}
+              <BlockActions target={target} block={block} onPick={(a) => pick(block, unit, a)} open={formShown} />
+              {formShown && <UnsavedChangesScope scope={scope}>{renderForm(formShown, block, unit, section)}</UnsavedChangesScope>}
             </div>
           )}
           {notesShown && notes.length > 0 && (
             <ul className="vta__notes" aria-label={`${possessive(studio)} notes on this line`}>
-              {notes.map((n) => renderNote(n, isOpen && form === null))}
+              {notes.map((n) => renderNote(n, unit, isOpen && formShown === null))}
             </ul>
+          )}
+          {told.length > 0 && renderAnswers(told)}
+          {hintWords && hintUnit === unit && !isOpen && (
+            <p className="vta__tap-hint">
+              <Pointer size={14} aria-hidden />
+              <span>{hintWords}</span>
+            </p>
           )}
         </div>
       </div>
     );
   };
 
-  const renderHidden = (piece: Extract<LinePiece<MarkedBlock>, { kind: "hidden" }>, si: number, section: VaultSection) => {
+  const renderHidden = (
+    piece: Extract<LinePiece<MarkedBlock>, { kind: "hidden" }>,
+    si: number,
+    section: VaultSection,
+    shownLabels: boolean[],
+  ) => {
     const run = `${si}.${piece.id}`;
     const shown = revealed.has(run);
     const units = piece.lines.map((l) => `${si}.${l.index}`);
@@ -489,12 +734,13 @@ function ArticleBody({
           type="button"
           className="vta__reveal"
           aria-expanded={shown}
+          data-units={units.join(" ")}
           onClick={() => toggleRevealed(run, units)}
         >
           {shown ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
           {shown ? hideAgainLabel(piece.lines.length) : hiddenLabel(piece.lines.length)}
         </button>
-        {shown && piece.lines.map((l) => renderLine(l.block, `${si}.${l.index}`, section))}
+        {shown && piece.lines.map((l) => renderLine(l.block, `${si}.${l.index}`, section, shownLabels[l.index]))}
       </div>
     );
   };
@@ -505,12 +751,16 @@ function ArticleBody({
   // generic well is only for a page with neither lines nor notes.
   const noteCount = applied.sections.filter((s) => (s.note ?? "").trim() !== "").length;
 
+  // The page's accent for its spoken lines: given, else its machine's.
+  const accentVars = accent === undefined ? pageAccent({ target }) : (accent ?? undefined);
+
   return (
     <div
       ref={rootRef}
       className="vta"
-      data-annotate={annotate}
+      data-annotate={drawn}
       data-compact={compact ? "" : undefined}
+      style={accentVars}
     >
       {lineCount === 0 && noteCount === 0 ? (
         <p className="vta__empty">Nothing written here yet.</p>
@@ -522,21 +772,32 @@ function ArticleBody({
           const blocks = section.blocks.map((b, bi) =>
             b.hidden && (!isMarkableKind(b.kind) || selected === `${si}.${bi}`) ? { ...b, hidden: false } : b,
           );
+          const pieces = piecesOf(blocks);
+          // Which lines the reader sees: a hidden run shown again counts.
+          const shownAt = blocks.map((b) => !b.hidden);
+          for (const p of pieces) {
+            if (p.kind === "hidden" && revealed.has(`${si}.${p.id}`)) for (const l of p.lines) shownAt[l.index] = true;
+          }
+          const shownLabels = labelRuns(
+            blocks.map((b, i) => ({ kind: b.kind, label: b.label, shown: shownAt[i] })),
+            section.title,
+          );
           const titleId = `${baseId}-title-${si}`;
           const showTitle = !hideSectionTitles && section.title.trim() !== "";
           return (
             <section
               key={`${si}-${section.id}`}
               className="vta__section"
+              data-tone={sectionTone(section.id) ?? undefined}
               aria-labelledby={showTitle ? titleId : undefined}
             >
               {showTitle && createElement(`h${headingLevel}`, { id: titleId, className: "vta__title" }, section.title)}
               {section.note && <p className="vta__section-note">{section.note}</p>}
               <div className="vta__lines">
-                {piecesOf(blocks).map((piece) =>
+                {pieces.map((piece) =>
                   piece.kind === "line"
-                    ? renderLine(piece.block, `${si}.${piece.index}`, section)
-                    : renderHidden(piece, si, section),
+                    ? renderLine(piece.block, `${si}.${piece.index}`, section, shownLabels[piece.index])
+                    : renderHidden(piece, si, section, shownLabels),
                 )}
               </div>
             </section>

@@ -9,15 +9,15 @@ import { repShapeOf } from "../../learning-vault/rep-phases";
 import { constellationOf } from "../../learning-vault/graph";
 import { pageKey, routeKey } from "../../learning-vault/routes";
 import { useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
-import { LocalConstellation } from "../../learning-vault/ui/LocalConstellation";
+import { LocalConstellation, categoryNodeStyle } from "../../learning-vault/ui/LocalConstellation";
 import { OrphanMarks } from "../../learning-vault/ui/OrphanMarks";
 import { RepScrubber } from "../../learning-vault/ui/RepScrubber";
 import type { VaultPage, VaultRoute } from "../../learning-vault/types";
 import type { MachineCatalogEntry } from "../../../types/machines";
 import { useCodex } from "./codex-context";
-import { bentoFacts, machineAccent, readNextOf, type CodexLayer } from "./codex-model";
+import { PIECE_WORDS, bentoFacts, machineAccent, readNextOf, type CodexLayer } from "./codex-model";
 import { Blocks, DeeperDoor, PageHead, ReadNext, TierBar, useLayer, useVersionSlot } from "./CodexBits";
-import { CodexFrame, CodexGone, CodexLoading } from "./CodexFrame";
+import { CodexFrame, CodexGone, CodexWaiting } from "./CodexFrame";
 import "./codex.css";
 
 /**
@@ -38,13 +38,12 @@ import "./codex.css";
 export function MachinePage({ route }: { route: Extract<VaultRoute, { kind: "machine" }> }) {
   const { data } = useCodex();
   const page = useMemo(() => pageFor(route, data), [route, data]);
-  if (page === "loading") return <CodexLoading label="Opening the machine…" />;
+  if (page === "loading") return <CodexWaiting route={route} label="Opening the machine…" />;
   if (page === "gone") return <CodexGone />;
   return <MachineArticle page={page} machineId={route.id} wanted={route.tier ?? null} />;
 }
 
 const PIECE_ICON = { card: ClipboardList, script: MessageSquareText, overview: BookOpen } as const;
-const PIECE_WORDS = { card: "Quick card", script: "Script", overview: "Deep dive" } as const;
 /**
  * How many links the bento's constellation shows: the strongest reasons first
  * (what can replace it, cue moments, clinical flags), few enough that the four layers
@@ -53,7 +52,7 @@ const PIECE_WORDS = { card: "Quick card", script: "Script", overview: "Deep dive
 const CONNECTED_MAX = 6;
 
 function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineId: string; wanted: string | null }) {
-  const { data, peek } = useCodex();
+  const { data, peek, phone } = useCodex();
   const def = data.defs[machineId];
   const accent = machineAccent(machineId);
   const style = accentStyle(accent);
@@ -71,10 +70,11 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
 
   const preset = useMemo<Preset | null>(() => (def ? presetOf(def) : null), [def]);
   const hasDials = Boolean(preset && preset.state !== "no-dials");
-  const facts = bentoFacts(page.facts, { dials: hasDials });
   // The code as its jersey tag, beside the category: the eyebrow, shown.
   const code = page.facts.find((f) => f.label === "Code")?.value;
   const category = page.facts.find((f) => f.label === "Category")?.value;
+  // The category is in the eyebrow (the kicker, or the page's own eyebrow), so a workout it already says goes.
+  const facts = bentoFacts(page.facts, { dials: hasDials, category });
   const kicker = code ? (
     <p className="cdx__eyebrow cdx__eyebrow--machine">
       <span className="wk__row-code">{code}</span>
@@ -91,6 +91,23 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
       r.route.kind === "card" || r.route.kind === "script" || r.route.kind === "overview",
   );
 
+  // What the machine connects to. On an iPad it is the bento's foot; on a
+  // phone the bento stacks, and six groups of links one under another would
+  // push the floor glance three screens down, so it comes after the layers.
+  const connected = page.nodeId ? (
+    <section className="cdx__tile cdx__tile--links" aria-label="Connected" style={phone ? style : undefined}>
+      <LocalConstellation
+        graph={data.graph}
+        nodeId={page.nodeId}
+        onOpen={peek}
+        variant="pills"
+        layout="columns"
+        max={CONNECTED_MAX}
+        nodeStyle={categoryNodeStyle}
+      />
+    </section>
+  ) : null;
+
   return (
     <CodexFrame actions={actions}>
       <article className="cdx__article cdx__article--machine">
@@ -106,14 +123,16 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
           )}
 
           <section className="cdx__tile cdx__tile--facts" aria-label="Facts">
-            <dl className="cdx__facts">
-              {facts.map((f) => (
-                <div key={f.label} className="cdx__fact" data-fact={f.label}>
-                  <dt>{f.label}</dt>
-                  <dd>{f.value}</dd>
-                </div>
-              ))}
-            </dl>
+            {facts.length > 0 && (
+              <dl className="cdx__facts">
+                {facts.map((f) => (
+                  <div key={f.label} className="cdx__fact" data-fact={f.label}>
+                    <dt>{f.label}</dt>
+                    <dd>{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
             {pieces.length > 0 && (
               <ul className="cdx__pieces" aria-label="In the Academy">
                 {pieces.map((r) => {
@@ -136,18 +155,7 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
             <DialStrip preset={preset} />
           </section>
 
-          {page.nodeId && (
-            <section className="cdx__tile cdx__tile--links" aria-label="Connected">
-              <LocalConstellation
-                graph={data.graph}
-                nodeId={page.nodeId}
-                onOpen={peek}
-                variant="pills"
-                layout="columns"
-                max={CONNECTED_MAX}
-              />
-            </section>
-          )}
+          {!phone && connected}
         </div>
 
         <div className="cdx__layers">
@@ -177,6 +185,8 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
               <OrphanMarks target={page.target} orphans={applied.orphans} headingLevel={2} />
             </div>
           )}
+
+          {phone && connected && <div className="cdx__connected-after">{connected}</div>}
 
           <ReadNext items={readNextOf(page, { skipAcademyPieces: true, shown })} mode="peek" />
         </div>

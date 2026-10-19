@@ -17,7 +17,10 @@ import type { VaultViewer } from "../../learning-vault/types";
  * read as a short walking order. Nothing touches Firestore.
  */
 vi.mock("../../../firebase", () => ({ db: {}, auth: { currentUser: null } }));
-vi.mock("../../phone/device", () => ({ usePhone: () => false }));
+/** A test that wants a phone, or the vault in a state other than all-here, says so on the global (reset before each test). */
+type TestKnobs = { __codexPhone?: boolean; __codexData?: Record<string, unknown> | null };
+const knobs = globalThis as TestKnobs;
+vi.mock("../../phone/device", () => ({ usePhone: () => Boolean((globalThis as TestKnobs).__codexPhone) }));
 
 vi.mock("../../learning-vault/useVaultData", async () => {
   const [cardsFile, cuesFile, glossaryFile, overviewsFile, scriptsFile] = await Promise.all([
@@ -95,7 +98,19 @@ vi.mock("../../learning-vault/useVaultData", async () => {
     pillars: PILLARS,
     quizBank,
   };
-  return { useVaultData: () => DATA };
+  // One object per override, so a page's memo of the data holds between renders.
+  let merged: unknown = DATA;
+  let mergedFor: unknown = null;
+  return {
+    useVaultData: () => {
+      const over = (globalThis as TestKnobs).__codexData ?? null;
+      if (over !== mergedFor) {
+        mergedFor = over;
+        merged = over ? { ...DATA, ...over } : DATA;
+      }
+      return merged;
+    },
+  };
 });
 
 import CodexLearning from "./CodexLearning";
@@ -158,6 +173,8 @@ function crumb(words: string): HTMLButtonElement | undefined {
 
 beforeEach(() => {
   forgetPersonalMemory();
+  knobs.__codexPhone = false;
+  knobs.__codexData = null;
   handled.mockReset();
   sectionChanges.mockReset();
   host = document.createElement("div");
@@ -223,8 +240,10 @@ describe("the Tactical Codex", () => {
     expect(title()).toBe("Gradual Load-up");
     const topicTabs = all<HTMLButtonElement>('[role="tab"]').map((t) => t.textContent);
     expect(topicTabs[0]).toBe("1In one minute");
-    expect(topicTabs[topicTabs.length - 1]).toBe("4Full text");
-    await click(all('[role="tab"]').find((t) => t.textContent === "4Full text"));
+    // Numbered by place on the bar: never 1 · 2 · 4.
+    expect(topicTabs.map((t) => t?.charAt(0))).toEqual(topicTabs.map((_, i) => String(i + 1)));
+    expect(topicTabs[topicTabs.length - 1]).toBe(`${topicTabs.length}Full text`);
+    await click(all('[role="tab"]').find((t) => t.textContent?.endsWith("Full text")));
     expect(text()).toContain("To illustrate this gradual load-up");
 
     // And back, one level at a time.
@@ -264,12 +283,127 @@ describe("the Tactical Codex", () => {
     expect(title()).toBe("The method");
   });
 
-  it("shows head office its queue's door, and the queue", async () => {
+  it("shows head office its queue's door, and the queue, saying the same counts in the same words", async () => {
     await mount({ section: "learning", viewer: { ...LEADER, isHeadOffice: true } });
     const door = host.querySelector(".cdx__ho");
     expect(door?.textContent).toContain("Waiting for review");
+    const said = host.querySelector(".cdx__ho-sub")?.textContent ?? "";
+    expect(said).not.toBe("");
     await click(door);
     expect(text()).toContain("Lines studios cross out");
+    // One tap later the queue's own first line is the door's line, word for word.
+    expect(host.querySelector(".vtq__lead")?.textContent).toBe(said);
+    expect(title()).toBe("Waiting for review");
+  });
+
+  it("names a machine's quick card by the piece, in the peek, the trail and the page", async () => {
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    await click(button("Quick card"));
+    expect(document.querySelector(".vtp__title")?.textContent).toBe("Quick card · LEG PRESS");
+    // The peek's head says which piece of which machine: no eyebrow saying it again.
+    expect(document.querySelector(".vtp .cdx__peek-eyebrow")).toBeNull();
+    await click(button("Open full page"));
+    expect(title()).toBe("Quick card");
+    // Right after its machine in the trail, the crumb is the piece alone.
+    expect(all(".wk__crumb").map((c) => c.textContent)).toEqual(["Catalog", "LEG PRESS", "Quick card"]);
+    expect(host.querySelector(".cdx__head .cdx__eyebrow--machine")?.textContent).toBe("LPLEG PRESS");
+  });
+
+  it("says the bento's facts once, and a reason Read next's links share once", async () => {
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    // "Lower Body" is the eyebrow: the facts do not say "Workout: Lower Body" again.
+    expect(host.querySelector('[data-fact="Workout"]')).toBeNull();
+    expect(host.querySelector('[data-fact="Begins with"]')?.textContent).toContain("A gradual load-up");
+    // The three substitutes share one reason, said once over their cards.
+    const why = all(".cdx__next-why");
+    expect(why).toHaveLength(1);
+    expect(why[0].textContent).toContain("it can replace this one");
+    const shared = why[0].closest(".cdx__next-group");
+    expect(shared?.querySelectorAll(".cdx__link").length).toBeGreaterThan(1);
+    expect(shared?.querySelectorAll(".cdx__link-why").length).toBe(0);
+  });
+
+  it("never says who a path is for twice on the Academy's index", async () => {
+    await mount({ section: "academy" });
+    const subs = all(".cdx__row-sub").map((s) => s.textContent);
+    expect(subs).not.toContain("A head trainer");
+    expect(subs).not.toContain("A studio leader");
+  });
+
+  it("lists every MSF machine in the Catalog when the floor cannot be read", async () => {
+    knobs.__codexData = { floor: null, floorState: "unreadable" };
+    await mount({ section: "machine-anatomy" });
+    expect(text()).toContain("Can't read Solon's floor right now. Every MSF machine is below.");
+    expect(text()).toContain("Every MSF machine");
+    expect(text()).not.toContain("Not on Solon's floor");
+    const names = all(".cdx__entries--quiet .cdx__entry-name").map((n) => n.textContent);
+    expect(names.length).toBeGreaterThan(10);
+    // Every one, the machines the floor would have had among them.
+    expect(names).toContain("LEG PRESS");
+    expect(names).toContain("CHEST PRESS");
+  });
+
+  it("says a studio's own machine needs a floor that cannot be read, with the way back, never a spinner", async () => {
+    knobs.__codexData = { floor: null, floorState: "unreadable" };
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "sm-our-own" } });
+    expect(text()).toContain("Can't read Solon's floor right now");
+    expect(host.querySelector(".lm-area")).toBeNull();
+    await click(button("Back"));
+    expect(title()).toBe("Solon's floor");
+  });
+
+  it("says a page whose reference chunk failed did not load, and tries again on a tap", async () => {
+    const retryReference = vi.fn();
+    knobs.__codexData = { cards: null, quizBank: null, referenceFailed: true, retryReference };
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    expect(text()).toContain("This part of the Academy didn't load");
+    await click(button("Try again"));
+    expect(retryReference).toHaveBeenCalledTimes(1);
+  });
+
+  it("says a peeked topic whose module failed did not load, with Try again, never spinning", async () => {
+    const retryModule = vi.fn();
+    knobs.__codexData = { modules: {}, moduleFailed: () => true, retryModule };
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    const topicPill = all<HTMLButtonElement>(".cdx__tile--links button").find((b) => /AB Routines/.test(b.textContent ?? ""));
+    await click(topicPill);
+    const peek = document.querySelector(".vtp");
+    expect(peek?.textContent).toContain("This part of the Academy didn't load.");
+    await click(button("Try again", peek ?? document));
+    expect(retryModule).toHaveBeenCalledTimes(1);
+    expect(typeof retryModule.mock.calls[0][0]).toBe("string");
+  });
+
+  it("keeps the version switch on the trail's row when it fits, and under the title when the trail is too long", async () => {
+    const was = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 820 });
+    try {
+      await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+      // Catalog › LEG PRESS: room beside the crumbs.
+      expect(host.querySelector(".cdx__head .cdx__version")).toBeNull();
+      expect(button("MSF original")).toBeTruthy();
+      await act(async () => root.unmount());
+      root = createRoot(host);
+
+      // Academy › Cueing phrasebook › a long moment: the row would cut "Academy" mid-word.
+      await mount({ section: "academy", jump: { kind: "academy-cueing" } });
+      const moment = all<HTMLButtonElement>(".cdx__chapter").find((c) => /where the stack does not touch/.test(c.textContent ?? ""));
+      await click(moment);
+      expect(host.querySelector(".cdx__head .cdx__version")).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: was });
+    }
+  });
+
+  it("puts a machine's connections after its layers on a phone, so the floor glance comes first", async () => {
+    knobs.__codexPhone = true;
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    expect(host.querySelector(".cdx__bento .cdx__tile--links")).toBeNull();
+    const after = host.querySelector(".cdx__layers .cdx__tile--links");
+    expect(after).toBeTruthy();
+    // After the tier bar, in the page's order.
+    const bar = host.querySelector(".cdx__tierbar");
+    expect(bar && after && bar.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("asks before a tier switch takes a half-written note away", async () => {

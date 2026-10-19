@@ -99,10 +99,12 @@ export function MiniOrbit({ nodeId, title, max }: { nodeId: string; title: strin
                 />
               ))}
             </svg>
+            {/* The one door on the band, the same on every page: blue words,
+                like Open page, never the page's domain colour. */}
             <button
               type="button"
               className="vm__mini-centre"
-              style={{ ...domainVars(plan.center.domain), left: plan.center.x, top: plan.center.y }}
+              style={{ left: plan.center.x, top: plan.center.y }}
               aria-label={`Show ${title} on the map`}
               onClick={() => open({ kind: "map", focus: nodeId })}
             >

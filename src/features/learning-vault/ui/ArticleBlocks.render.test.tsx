@@ -13,7 +13,7 @@
  * where it opens, not what it says.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, type ReactNode } from "react";
+import { act, type CSSProperties, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -34,8 +34,18 @@ vi.mock("./ShareForm", async () => {
 import { UnsavedChangesProvider } from "../../unsaved-changes";
 import { blockKeyFor, toVaultBlocks, vaultSection } from "../blocks";
 import { createSandboxStore, type MarkupStore } from "../markup-store";
-import type { StudioBlockNote, StudioMarkup, StudioStrike, VaultBlock, VaultSection, VaultTarget, VaultViewer } from "../types";
+import type {
+  LearningSubmission,
+  StudioBlockNote,
+  StudioMarkup,
+  StudioStrike,
+  VaultBlock,
+  VaultSection,
+  VaultTarget,
+  VaultViewer,
+} from "../types";
 import { ArticleBlocks, OrphanMarks, useAppliedMarkup, type ArticleBlocksProps } from "./ArticleBlocks";
+import { LINE_HINT_KEY, resetLineHint } from "./line-hint";
 import { VaultProvider, useVault } from "./VaultProvider";
 
 /* ── fixtures ─────────────────────────────────────────────────────────── */
@@ -117,6 +127,9 @@ let ids = 0;
 
 beforeEach(() => {
   ids = 0;
+  // The one-time "Tap a line to …" hint starts unseen in every test.
+  localStorage.clear();
+  resetLineHint();
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -138,33 +151,48 @@ function Controls() {
   );
 }
 
-async function mount(
-  opts: {
-    viewer?: VaultViewer;
-    seed?: StudioMarkup[];
-    initialLens?: "studio" | "original";
-    props?: Partial<ArticleBlocksProps>;
-    extra?: ReactNode;
-  } = {},
-) {
-  store = createSandboxStore({ markup: opts.seed ?? [] });
+interface MountOpts {
+  viewer?: VaultViewer;
+  seed?: StudioMarkup[];
+  subs?: LearningSubmission[];
+  initialLens?: "studio" | "original";
+  props?: Partial<ArticleBlocksProps>;
+  extra?: ReactNode;
+}
+let mounted: MountOpts = {};
+
+function tree(opts: MountOpts) {
+  return (
+    <UnsavedChangesProvider>
+      <VaultProvider
+        store={store}
+        studio={SOLON}
+        viewer={opts.viewer ?? LEADER}
+        now={() => NOW}
+        newId={(p) => `${p}-${++ids}`}
+        initialLens={opts.initialLens}
+      >
+        <Controls />
+        <ArticleBlocks target={TARGET} sections={SECTIONS} {...opts.props} />
+        {opts.extra}
+      </VaultProvider>
+    </UnsavedChangesProvider>
+  );
+}
+
+async function mount(opts: MountOpts = {}) {
+  mounted = opts;
+  store = createSandboxStore({ markup: opts.seed ?? [], submissions: opts.subs ?? [] });
   await act(async () => {
-    root.render(
-      <UnsavedChangesProvider>
-        <VaultProvider
-          store={store}
-          studio={SOLON}
-          viewer={opts.viewer ?? LEADER}
-          now={() => NOW}
-          newId={(p) => `${p}-${++ids}`}
-          initialLens={opts.initialLens}
-        >
-          <Controls />
-          <ArticleBlocks target={TARGET} sections={SECTIONS} {...opts.props} />
-          {opts.extra}
-        </VaultProvider>
-      </UnsavedChangesProvider>,
-    );
+    root.render(tree(opts));
+  });
+}
+
+/** The same page, the same store, read as someone else (the prototype bar's View as). */
+async function viewAs(viewer: VaultViewer) {
+  mounted = { ...mounted, viewer };
+  await act(async () => {
+    root.render(tree(mounted));
   });
 }
 
@@ -192,7 +220,13 @@ const lineOf = (text: string) => {
   if (!el) throw new Error(`no line reading "${text}"`);
   return el;
 };
-const selected = () => lines().filter((l) => l.getAttribute("aria-expanded") === "true");
+const selected = () => lines().filter((l) => l.hasAttribute("data-selected"));
+/** The line's one real button (the line itself is not one: its terms must stay reachable). */
+const toggleOf = (line: Element) => {
+  const t = line.querySelector<HTMLButtonElement>("button.vta__toggle");
+  if (!t) throw new Error("no toggle on the line");
+  return t;
+};
 const actionsShown = () =>
   [...host.querySelectorAll(".vta__actions button")].map((b) => b.textContent?.trim());
 const fieldLabelled = (label: string) => {
@@ -250,8 +284,8 @@ describe("a leader crosses a line out", () => {
     expect(host.querySelector("form")).toBeNull();
     expect(lineOf(SPEED).querySelector("s")).toBeNull();
     expect(selected()).toEqual([lineOf(SPEED)]);
-    // The focus goes back to the line the form was under.
-    expect(document.activeElement).toBe(lineOf(SPEED));
+    // The focus goes back to the line the form was under (its own button).
+    expect(document.activeElement).toBe(toggleOf(lineOf(SPEED)));
   });
 
   it("the same words twice on a page are struck in both places", async () => {
@@ -448,7 +482,7 @@ describe("choosing a line", () => {
     await click(lineOf(LOWER));
     await escape();
     expect(selected()).toEqual([]);
-    expect(document.activeElement).toBe(lineOf(LOWER));
+    expect(document.activeElement).toBe(toggleOf(lineOf(LOWER)));
 
     // A tap inside a card laid over the page (a term's concept card) is not elsewhere.
     await click(lineOf(LOWER));
@@ -459,15 +493,44 @@ describe("choosing a line", () => {
     expect(selected()).toEqual([]);
   });
 
-  it("Enter on a focused line chooses it", async () => {
+  it("the line is not a button: its one real button, after its words, chooses it (Enter presses a button)", async () => {
     await mount();
     const line = lineOf(SPEED);
-    expect(line.getAttribute("role")).toBe("button");
-    expect(line.tabIndex).toBe(0);
-    await act(async () => {
-      line.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(line.hasAttribute("role")).toBe(false);
+    expect(line.hasAttribute("tabindex")).toBe(false);
+    const toggle = toggleOf(line);
+    expect(toggle.getAttribute("aria-label")).toBe("Actions for this line");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    // After the words, so a screen reader hears the line before its control.
+    expect(line.lastElementChild).toBe(toggle);
+    await click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.getAttribute("aria-controls")).toBe(host.querySelector(".vta__panel")?.id);
+    expect(selected()).toEqual([line]);
+  });
+
+  it("a linked term inside a line is the toggle's sibling, never inside a button (VoiceOver reaches it)", async () => {
+    await mount({
+      props: {
+        renderText: (text: string) =>
+          text === SPEED ? (
+            <>
+              Move the{" "}
+              <span role="button" tabIndex={0} data-vault-term="">
+                weight
+              </span>{" "}
+              slowly.
+            </>
+          ) : (
+            text
+          ),
+      },
     });
-    expect(line.getAttribute("aria-expanded")).toBe("true");
+    const term = host.querySelector<HTMLElement>("[data-vault-term]")!;
+    const line = lineOf("Move the");
+    expect(term.parentElement?.closest('[role="button"], button')).toBeNull();
+    expect(toggleOf(line).contains(term)).toBe(false);
+    expect(term.closest("[data-vta-line]")).toBe(line);
   });
 
   it("a tap on a linked term inside a line opens the term, not the line", async () => {
@@ -603,6 +666,19 @@ describe("the gutter", () => {
   });
 });
 
+describe("the gutter only where a mark can be (review fix, Oct 19 2026)", () => {
+  it("is laid out inline on the MSF original and in a peek, where no gutter pays for itself", async () => {
+    await mount({ props: { annotate: "gutter" } });
+    expect(host.querySelector(".vta")?.getAttribute("data-annotate")).toBe("gutter");
+    await mount({ props: { annotate: "gutter", compact: true } });
+    expect(host.querySelector(".vta")?.getAttribute("data-annotate")).toBe("inline");
+    await mount({ props: { annotate: "gutter" } });
+    await click(host.querySelector('[data-testid="original"]'));
+    expect(host.querySelector(".vta")?.getAttribute("data-annotate")).toBe("inline");
+    expect(host.querySelector(".vta__gutter")).toBeNull();
+  });
+});
+
 describe("an empty page", () => {
   it("says so in a well, never a blank", async () => {
     await mount({ props: { sections: [] } });
@@ -614,5 +690,237 @@ describe("an empty page", () => {
     expect(host.querySelector(".vta__empty")).toBeNull();
     expect(host.querySelector(".vta__title")?.textContent).toBe("Floor glance");
     expect(host.querySelector(".vta__section-note")?.textContent).toBe("Nothing written for this machine yet.");
+  });
+});
+
+/* ── review fixes (Oct 19 2026) ───────────────────────────────────────── */
+
+describe("a form for an action the line no longer offers", () => {
+  it("closes when the MSF original comes on, writes nothing, and does not come back with Solon's version", async () => {
+    await mount();
+    await click(lineOf(STACK));
+    await click(button("Cross out for Solon…"));
+    expect(host.querySelector("form")).not.toBeNull();
+
+    await click(host.querySelector('[data-testid="original"]'));
+    expect(host.querySelector("form")).toBeNull();
+    expect(actionsShown()).toEqual(["Tell head office", "Ask in Teams"]);
+
+    await click(host.querySelector('[data-testid="studio"]'));
+    expect(host.querySelector("form")).toBeNull();
+    expect(store.markupFor("solon", TARGET.key)).toBeNull();
+  });
+
+  it("closes when View as turns a leader into a trainer, who may still note", async () => {
+    await mount();
+    await click(lineOf(SPEED));
+    await click(button("Cross out for Solon…"));
+    expect(host.textContent).toContain("Why does Solon cross this out?");
+
+    await viewAs(TRAINER);
+    expect(host.textContent).not.toContain("Why does Solon cross this out?");
+    expect(actionsShown()).toEqual(["Note for Solon", "Tell head office", "Ask in Teams"]);
+
+    // A trainer's note form stays a trainer's.
+    await click(button("Note for Solon"));
+    expect(host.textContent).toContain("What should Solon know about this line?");
+  });
+});
+
+describe("Escape is used up by the innermost thing", () => {
+  it("lets go of the line and says so (preventDefault), so a peek listening on window stays open", async () => {
+    const seen: boolean[] = [];
+    const onWindow = (e: KeyboardEvent) => {
+      if (e.key === "Escape") seen.push(e.defaultPrevented);
+    };
+    window.addEventListener("keydown", onWindow);
+    try {
+      await mount();
+      await click(lineOf(SPEED));
+      // A real key press can be used up (cancelable), as a browser's is.
+      await act(async () => {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      });
+      expect(selected()).toEqual([]);
+      expect(seen).toEqual([true]);
+    } finally {
+      window.removeEventListener("keydown", onWindow);
+    }
+  });
+
+  it("leaves it alone when the reader's focus is somewhere else (a peek's own page)", async () => {
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    try {
+      await mount();
+      await click(lineOf(SPEED));
+      outside.focus();
+      const ev = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+      await act(async () => {
+        outside.dispatchEvent(ev);
+      });
+      expect(ev.defaultPrevented).toBe(false);
+      expect(selected()).toEqual([lineOf(SPEED)]);
+    } finally {
+      outside.remove();
+    }
+  });
+});
+
+describe("the focus never falls to the top of the page", () => {
+  it("Put it back hands it to the line", async () => {
+    await mount({ seed: [markup({ strikes: [strikeOn(STACK)] })] });
+    await click(lineOf(STACK));
+    const putBack = button("Put it back")!;
+    putBack.focus();
+    await click(putBack);
+    expect(lineOf(STACK).querySelector("s")).toBeNull();
+    expect(document.activeElement).toBe(toggleOf(lineOf(STACK)));
+  });
+
+  it("Remove asks, Keep goes back to Remove, and a removed note hands it to the line", async () => {
+    await mount({ viewer: TRAINER, seed: [markup({ notes: [noteOn(SPEED, { id: "mine" })] })] });
+    await click(lineOf(SPEED));
+    const remove = () => host.querySelector<HTMLButtonElement>('[data-note-remove="mine"]');
+    remove()!.focus();
+    await click(remove());
+    expect(document.activeElement).toBe(host.querySelector('[data-note-keep="mine"]'));
+    await click(host.querySelector('[data-note-keep="mine"]'));
+    expect(document.activeElement).toBe(remove());
+
+    await click(remove());
+    await click(host.querySelector(".vta__mark-row .vta__btn--danger"));
+    expect(host.textContent).not.toContain("We count it out loud");
+    expect(document.activeElement).toBe(toggleOf(lineOf(SPEED)));
+  });
+
+  it("a line crossed out while crossed-out lines are hidden hands it to its run's reveal button", async () => {
+    await mount();
+    await click(host.querySelector('[data-testid="hide"]'));
+    await click(lineOf(STACK));
+    await click(button("Cross out for Solon…"));
+    await type(fieldLabelled("Why does Solon cross this out?"), "Our stack has a hard stop");
+    const crossOut = button("Cross it out")!;
+    crossOut.focus();
+    await click(crossOut);
+    expect(lines().some((l) => l.textContent?.includes(STACK))).toBe(false);
+    expect(document.activeElement).toBe(button("1 line hidden"));
+  });
+});
+
+describe("a label is said once per run", () => {
+  const WARN_A = "Do not use with an acute back injury.";
+  const WARN_B = "Stop if the client feels sharp pain.";
+  const WARN_C = "Watch the knees at the bottom.";
+  const KNEE = "Knee replacement";
+  const stop = (): VaultSection[] => [
+    {
+      id: "leaf-stop",
+      title: "Stop",
+      blocks: [
+        { key: blockKeyFor(WARN_A), kind: "line", text: WARN_A, label: "Clinical warning" },
+        { key: blockKeyFor(WARN_B), kind: "line", text: WARN_B, label: "Clinical warning" },
+        { key: blockKeyFor(WARN_C), kind: "line", text: WARN_C, label: "Clinical warning" },
+        { key: blockKeyFor(KNEE), kind: "line", text: KNEE, label: "Contraindicated for" },
+      ],
+    },
+  ];
+  const shownLabels = () => [...host.querySelectorAll(".vta__label")].map((l) => l.textContent);
+
+  it("draws it at the head of the run, and still says it to a screen reader on the rest", async () => {
+    await mount({ props: { sections: stop() } });
+    expect(shownLabels()).toEqual(["Clinical warning", "Contraindicated for"]);
+    expect(lineOf(WARN_B).querySelector(".vta__sr")?.textContent).toBe("Clinical warning: ");
+    expect(lineOf(WARN_A).closest(".vta__unit")?.getAttribute("data-run")).toBe("head");
+    expect(lineOf(WARN_B).closest(".vta__unit")?.getAttribute("data-run")).toBe("cont");
+  });
+
+  it("moves to the first line still shown when the head of the run is crossed out and hidden", async () => {
+    await mount({ props: { sections: stop() }, seed: [markup({ strikes: [strikeOn(WARN_A)] })] });
+    await click(host.querySelector('[data-testid="hide"]'));
+    expect(shownLabels()).toEqual(["Clinical warning", "Contraindicated for"]);
+    expect(lineOf(WARN_B).querySelector(".vta__label")?.textContent).toBe("Clinical warning");
+  });
+
+  it("draws a machine's Stop list as the caution well", async () => {
+    await mount({ props: { sections: stop() } });
+    expect(host.querySelector(".vta__section")?.getAttribute("data-tone")).toBe("stop");
+    await mount();
+    expect(host.querySelector(".vta__section")?.hasAttribute("data-tone")).toBe(false);
+  });
+});
+
+describe("a spoken line takes the page's accent", () => {
+  const accentOn = () => (host.querySelector(".vta") as HTMLElement).style.getPropertyValue("--wk-accent");
+
+  it("a machine page sets its category's accent on the body; another page sets none; a design may give one", async () => {
+    await mount({ props: { target: { ref: { kind: "machine", id: "m-leg-press" }, key: "machine:m-leg-press", title: "Leg Press" } } });
+    expect(accentOn()).toBe("var(--wk-cat-legs)");
+    await mount();
+    expect(accentOn()).toBe("");
+    await mount({ props: { accent: { "--wk-accent": "var(--wk-cat-pull)" } as CSSProperties } });
+    expect(accentOn()).toBe("var(--wk-cat-pull)");
+  });
+});
+
+describe("the one hint that a line can be tapped", () => {
+  const hint = () => host.querySelector(".vta__tap-hint");
+
+  it("sits under the page's first line, in the words this reader's actions make, until a line is chosen", async () => {
+    await mount();
+    expect(hint()?.textContent).toBe("Tap a line to cross it out, note it, tell head office or ask in Teams.");
+    expect(hint()?.closest(".vta__unit")).toBe(lineOf(SPEED).closest(".vta__unit"));
+    await click(lineOf(BREATHE));
+    expect(hint()).toBeNull();
+    expect(localStorage.getItem(LINE_HINT_KEY)).toBe("seen");
+    // Gone for good on this iPad, on the next page too.
+    await mount();
+    expect(hint()).toBeNull();
+  });
+
+  it("never promises a trainer a cross-out, and never shows in a peek", async () => {
+    await mount({ viewer: TRAINER });
+    expect(hint()?.textContent).toBe("Tap a line to note it, tell head office or ask in Teams.");
+    await mount({ props: { compact: true } });
+    expect(hint()).toBeNull();
+  });
+});
+
+describe("what the studio told head office, and the answer", () => {
+  const sub = (over: Partial<LearningSubmission> = {}): LearningSubmission => ({
+    id: "sub-1",
+    intent: "dispute",
+    ref: TARGET.ref,
+    targetKey: TARGET.key,
+    targetTitle: TARGET.title,
+    blockKey: blockKeyFor(LOWER),
+    quote: LOWER,
+    body: "Ours touches.",
+    studioId: "solon",
+    studioName: "Solon",
+    by: { uid: "uid-kim", name: "Kim Ortiz" },
+    at: "2026-10-18T15:00:00.000Z",
+    status: "pending",
+    ...over,
+  });
+  const answers = () => [...host.querySelectorAll(".vta__answer")].map((a) => a.textContent);
+
+  it("says it under the line, waiting and then answered, with head office's note", async () => {
+    await mount({ subs: [sub(), sub({ id: "elsewhere", studioId: "north", studioName: "Practice Studio North" })] });
+    expect(answers()).toEqual(["Kim Ortiz told head office · Oct 18, 2026 · Waiting"]);
+    expect(host.querySelector(".vta__answer")?.closest(".vta__unit")).toBe(lineOf(LOWER).closest(".vta__unit"));
+
+    await act(async () => {
+      store.decide("sub-1", "taken", { note: "We will add it in the next edit.", byName: "Pat Head", at: "2026-10-19T14:00:00.000Z" });
+    });
+    expect(host.querySelector(".vta__answer")?.getAttribute("data-verdict")).toBe("taken");
+    expect(answers()[0]).toContain("Kim Ortiz told head office · Oct 18, 2026 · Taken");
+    expect(answers()[0]).toContain("We will add it in the next edit.");
+    expect(answers()[0]).toContain("Pat Head · Oct 19, 2026");
+  });
+
+  it("is not markup on the MSF original", async () => {
+    await mount({ subs: [sub()], initialLens: "original" });
+    expect(answers()).toEqual([]);
   });
 });

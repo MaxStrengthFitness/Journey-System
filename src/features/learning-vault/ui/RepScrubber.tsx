@@ -101,6 +101,13 @@ export interface RepScrubberProps {
   shape?: RepShape;
   /** The Academy's phrasebook: null while it loads; leave it out to show no cue lines. */
   cues?: CueMoment[] | null;
+  /**
+   * Draw no "What to say", whatever `cues` holds: for a page whose own drills
+   * ask "What would you cue?" and hide the answer until it is revealed (the
+   * Course's field manual), where the scrubber must not give it away first.
+   * The rule, its source and "Read it" stay.
+   */
+  hideCues?: boolean;
   /** The machine this is for; with it, the shape is fixed and the switch is not drawn. */
   machineName?: string;
   /** "Read it": an Academy topic for a rule, the phrasebook for a moment's lines. */
@@ -108,7 +115,7 @@ export interface RepScrubberProps {
   className?: string;
 }
 
-export function RepScrubber({ shape, cues, machineName, onOpenSource, className }: RepScrubberProps) {
+export function RepScrubber({ shape, cues, hideCues = false, machineName, onOpenSource, className }: RepScrubberProps) {
   const fixed = typeof machineName === "string" && machineName.trim() !== "";
   const [picked, setPicked] = useState<RepShape>(shape ?? "endStop");
   const activeShape: RepShape = fixed ? (shape ?? "endStop") : picked;
@@ -133,7 +140,8 @@ export function RepScrubber({ shape, cues, machineName, onOpenSource, className 
   const current = phaseAt(model, t);
   const cycle = cycleOf(model);
   const sourceRoute = sourceRouteOf(current);
-  const phaseCues = cues ? cuesForPhase(cues, current, activeShape, fixed ? machineName : undefined) : null;
+  const showCues = cues !== undefined && !hideCues;
+  const phaseCues = showCues && cues ? cuesForPhase(cues, current, activeShape, fixed ? machineName : undefined) : null;
   const atEnd = t >= model.total - 0.01;
 
   /* ---- Play ---------------------------------------------------------- */
@@ -435,7 +443,7 @@ export function RepScrubber({ shape, cues, machineName, onOpenSource, className 
             )}
           </p>
         </div>
-        {cues !== undefined && (
+        {showCues && (
           <div className="vtr__say">
             <h4 className="vtr__h">What to say</h4>
             {cues === null ? (

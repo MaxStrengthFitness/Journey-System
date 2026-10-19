@@ -9,10 +9,18 @@ const LINE = "[data-vta-line]";
 const TERM = "[data-vault-term], .vtc__term";
 const COURSE = "&view=learning";
 const PLAYBOOK = `&view=academy&ref=${encodeURIComponent(JSON.stringify({ kind: "academy-topic", id: "performance-turnaround-technique" }))}`;
+const CUEING = `&view=academy&ref=${encodeURIComponent(JSON.stringify({ kind: "academy-cueing" }))}`;
 
 export const steps = [
-  // The signature: a lesson as step cards, turned to its second card.
+  // The signature: a lesson as step cards, turned to its second card, and
+  // its fourth (Next stays where the thumb left it: the stage is as tall as
+  // the deck's tallest card).
   { name: "lesson-card-2", query: TOPIC, actions: [{ wait: 600 }, { tapSelector: ".crs__deck-next" }, { wait: 500 }] },
+  {
+    name: "lesson-card-4",
+    query: TOPIC,
+    actions: [{ wait: 600 }, { tapSelector: ".crs__deck-next" }, { tapSelector: ".crs__deck-next" }, { tapSelector: ".crs__deck-next" }, { wait: 500 }],
+  },
   // The last card: Check yourself, one question answered.
   {
     name: "lesson-check",
@@ -34,6 +42,24 @@ export const steps = [
   { name: "line-tapped", query: MACHINE, actions: [{ wait: 600 }, { tapSelector: LINE }, { wait: 500 }] },
   // What would you cue? on the Overview, revealed.
   { name: "drill-revealed", query: COURSE, actions: [{ tap: "Show the Academy's lines" }, { wait: 800 }] },
+  // The phrasebook's one-word moment revealed: short cues flow side by side.
+  {
+    name: "cueing-one-word",
+    query: CUEING,
+    actions: [{ wait: 600 }, { tapSelector: "#crs-moment-4 .crs__drill-foot button" }, { wait: 800 }],
+  },
+  // The field manual's first moment revealed, then peeked whole: the peek holds that moment alone.
+  {
+    name: "peek-moment",
+    query: MACHINE,
+    actions: [
+      { wait: 600 },
+      { tapSelector: ".crs__drills .crs__drill .crs__drill-foot button" },
+      { wait: 400 },
+      { tapSelector: ".crs__drills .crs__drill .crs__drill-foot .crs__btn--quiet" },
+      { wait: 700 },
+    ],
+  },
   // A concept card, and one nested inside it.
   { name: "concept-card", query: TOPIC, actions: [{ wait: 600 }, { tapSelector: TERM }, { wait: 500 }] },
   {

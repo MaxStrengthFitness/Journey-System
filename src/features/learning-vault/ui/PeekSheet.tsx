@@ -33,13 +33,16 @@
  * A link inside a peek pushes another page onto the same sheet; the trail of
  * crumbs (each 40px+) goes back to any of them, Back goes back one, Close
  * empties it, "Open full page" hands the page to the design's own navigation.
- * Every one of those moves asks about typing inside the peek first (a note
+ * Back, a crumb and Close ask about typing inside the peek first (a note
  * being written under a line, in place, inside the peek): the peek is its own
  * leave scope (usePeekStack's `scope`; pass it to PeekSheet), so it asks only
  * about what the peek would lose, and changes the stack only inside the answer.
+ * "Open full page" REPLACES the page underneath too, so it asks the WHOLE gate
+ * once (the page's half-typed reason and the peek's note in one question)
+ * and calls onOpenFull only inside the answer (review fix, Oct 19 2026).
  * Escape closes it, unless the leave question is the thing on screen (that
- * question owns Escape) or something above already used the key (a concept
- * card closing itself calls preventDefault).
+ * question owns Escape) or something nearer already used the key (a line in
+ * a page letting go, ArticleBlocks, calls preventDefault).
  *
  * FOCUS
  * -----
@@ -51,7 +54,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowUpRight, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { usePhone } from "../../phone/device";
-import { UnsavedChangesScope, useLeaveScope, type LeaveScope } from "../../unsaved-changes";
+import { UnsavedChangesScope, useLeaveGuard, useLeaveScope, type LeaveScope } from "../../unsaved-changes";
 import type { VaultRoute } from "../types";
 import "../../wiki/wiki.css";
 import "./peek.css";
@@ -146,6 +149,12 @@ export interface PeekSheetProps {
   onBack: () => void;
   onCrumb: (i: number) => void;
   onClose: () => void;
+  /**
+   * Open the peeked page as the page itself. Runs INSIDE the leave answer
+   * (the whole gate was asked, page and peek together), so whatever it calls
+   * (the design's nav.push, peek.close) proceeds without asking again, in
+   * any order.
+   */
   onOpenFull: (r: VaultRoute) => void;
   /** usePeekStack's scope; without one the sheet makes its own (typing pushed from outside then goes unasked). */
   scope?: LeaveScope;
@@ -155,6 +164,7 @@ export function PeekSheet({ stack, titleOf, render, onBack, onCrumb, onClose, on
   const own = useLeaveScope();
   const scope = given ?? own;
   const { guard } = scope;
+  const leave = useLeaveGuard();
   const phone = usePhone();
   const [tall, setTall] = useState<boolean | null>(null);
   const titleId = useId();
@@ -305,7 +315,7 @@ export function PeekSheet({ stack, titleOf, render, onBack, onCrumb, onClose, on
           </button>
         </div>
         <div className="vtp__actions">
-          <button type="button" className="vtp__open" onClick={() => guard(() => onOpenFull(top))}>
+          <button type="button" className="vtp__open" onClick={() => leave(() => onOpenFull(top))}>
             Open full page
             <ArrowUpRight size={16} aria-hidden="true" />
           </button>

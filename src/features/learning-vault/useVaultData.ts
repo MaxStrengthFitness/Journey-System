@@ -27,6 +27,13 @@
  * over as if it were this studio's floor. A module chunk that failed says so
  * through moduleFailed; nothing retries by itself (a retry loop on a dead
  * connection would spin the iPad), and retryModule is the reader's own tap.
+ * The same for the five reference chunks (review fix, Oct 19 2026): the
+ * Academy's hooks never say a chunk failed, so this hook also asks for each
+ * missing one through loadAcademyReference (the same import, fetched once)
+ * and says `referenceFailed` when one cannot arrive, with `retryReference`
+ * for the reader's tap. Every machine page, the glossary, the phrasebook,
+ * the map and the quiz need them, so a design shows "didn't load / Try
+ * again" rather than a spinner that never ends.
  *
  * NAMES
  * -----
@@ -54,11 +61,14 @@ import {
   ACADEMY_INDEX,
   cachedAcademyModule,
   loadAcademyModule,
+  loadAcademyReference,
   useAcademyCards,
   useAcademyCues,
   useAcademyGlossary,
   useAcademyOverviews,
   useAcademyScripts,
+  type AcademyReference,
+  type AcademyReferenceName,
 } from "../academy/useAcademyContent";
 import type { FloorState } from "../catalog/floor-index";
 import { movementOf } from "../catalog/names";
@@ -111,7 +121,18 @@ export interface VaultData {
   retryModule?: (id: string) => void;
   /** A module this session already holds (the Academy may have fetched it), without waiting a render. */
   cachedModule?: (id: string) => ModuleContent | null;
+  /**
+   * A reference chunk (glossary, cues, cards, scripts, deep dives) could not
+   * load and is still missing: a page waiting on it would spin forever, so a
+   * design says it did not load and offers retryReference instead.
+   */
+  referenceFailed?: boolean;
+  /** Ask again for every reference chunk that failed: the reader's tap, never a timer. */
+  retryReference?: () => void;
 }
+
+/** The five reference chunks, in the order they are asked for. */
+const REFERENCE_NAMES: readonly AcademyReferenceName[] = ["glossary", "cues", "cards", "scripts", "overviews"];
 
 const GRAPH_INDEX = graphIndexJson as unknown as GraphIndexFile;
 /** One empty list, so the data object keeps its identity while the machine chunks are on their way. */
@@ -126,12 +147,57 @@ function namesKeyOf(machines: readonly { id?: string; name?: string }[]): string
 export function useVaultData(opts: { studioId: string | null; machines: Machine[] }): VaultData {
   const { studioId, machines: legacyMachines } = opts;
 
-  /* The five reference chunks, asked for once mounted (each hook's effect). */
-  const glossary = useAcademyGlossary(true);
-  const cues = useAcademyCues(true);
-  const cards = useAcademyCards(true);
-  const scripts = useAcademyScripts(true);
-  const overviews = useAcademyOverviews(true);
+  /* The five reference chunks, asked for once mounted (each hook's effect),
+     and again through loadAcademyReference so a chunk that cannot arrive
+     says so (see the header). Whichever lands first is used: it is the same
+     chunk. */
+  const hooked: { [K in AcademyReferenceName]: AcademyReference[K] | null } = {
+    glossary: useAcademyGlossary(true),
+    cues: useAcademyCues(true),
+    cards: useAcademyCards(true),
+    scripts: useAcademyScripts(true),
+    overviews: useAcademyOverviews(true),
+  };
+  const [own, setOwn] = useState<Partial<AcademyReference>>({});
+  const [refFailed, setRefFailed] = useState<ReadonlySet<AcademyReferenceName>>(() => new Set());
+  const [refAttempt, setRefAttempt] = useState(0);
+  const glossary = hooked.glossary ?? own.glossary ?? null;
+  const cues = hooked.cues ?? own.cues ?? null;
+  const cards = hooked.cards ?? own.cards ?? null;
+  const scripts = hooked.scripts ?? own.scripts ?? null;
+  const overviews = hooked.overviews ?? own.overviews ?? null;
+  const landed = { glossary, cues, cards, scripts, overviews };
+  const landedRef = useRef(landed);
+  landedRef.current = landed;
+
+  useEffect(() => {
+    let alive = true;
+    for (const name of REFERENCE_NAMES) {
+      if (landedRef.current[name]) continue;
+      loadAcademyReference(name)
+        .then((value) => {
+          if (alive) setOwn((prev) => (prev[name] ? prev : { ...prev, [name]: value }));
+        })
+        .catch(() => {
+          if (!alive) return;
+          setRefFailed((prev) => {
+            if (prev.has(name)) return prev;
+            const next = new Set(prev);
+            next.add(name);
+            return next;
+          });
+        });
+    }
+    return () => {
+      alive = false;
+    };
+  }, [refAttempt]);
+
+  const referenceFailed = REFERENCE_NAMES.some((n) => refFailed.has(n) && !landed[n]);
+  const retryReference = useCallback(() => {
+    setRefFailed(new Set());
+    setRefAttempt((n) => n + 1);
+  }, []);
 
   /* The floor, as the Catalog reads it. */
   const catalog = useCatalogMachines(studioId, legacyMachines);
@@ -275,6 +341,8 @@ export function useVaultData(opts: { studioId: string | null; machines: Machine[
       floorState,
       retryModule,
       cachedModule: cachedAcademyModule,
+      referenceFailed,
+      retryReference,
     }),
     [
       academyMachines,
@@ -293,6 +361,8 @@ export function useVaultData(opts: { studioId: string | null; machines: Machine[
       quizBank,
       floorState,
       retryModule,
+      referenceFailed,
+      retryReference,
     ],
   );
 }

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DesignProps } from "../design-props";
 import type { LearningViewId } from "../../learning/LearningView";
-import { routeForRef } from "../../learning-vault/routes";
+import { routeForRef, sameRoute } from "../../learning-vault/routes";
 import { useVaultNav } from "../../learning-vault/useVaultNav";
 import { useVaultData } from "../../learning-vault/useVaultData";
 import { ConceptLayer } from "../../learning-vault/ui/ConceptLayer";
@@ -60,21 +60,27 @@ export default function CodexLearning({
     start: null,
   }));
 
+  // Each new visit is set in a LAYOUT effect, so the commit that changed the
+  // section or brought the jump is redrawn before the browser paints it: the
+  // old section's page never shows under the new section's tab, and a jump
+  // never flashes the section's front page first (the Vault and the Course
+  // do the same).
+
   // A new section: a new trail on its root.
-  useEffect(() => {
+  useLayoutEffect(() => {
     setVisit((v) => (v.section === section ? v : { n: v.n + 1, section, start: null }));
   }, [section]);
 
   // Back to the section's front page: a fresh trail on its root.
   const seenReset = useRef(resetSignal);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (resetSignal === seenReset.current) return;
     seenReset.current = resetSignal;
     setVisit((v) => ({ n: v.n + 1, section, start: null }));
   }, [resetSignal, section]);
 
   // A page asked for from outside: a fresh trail, root then that page.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!jump) return;
     const start = routeForRef(jump);
     setVisit((v) => ({ n: v.n + 1, section, start }));
@@ -110,12 +116,14 @@ function CodexVisit({
   const peekStack = usePeekStack();
   const phone = usePhone();
 
-  // The page a jump asked for goes on top of the root once, on arrival.
+  // The page a jump asked for goes on top of the root once, on arrival, in a
+  // layout effect (before the root is ever painted) and with set, which does
+  // not ask again: the jump was asked about before it arrived.
   const started = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (started.current || !start) return;
     started.current = true;
-    nav.push(start);
+    if (!sameRoute(root, start)) nav.set([root, start]);
     // Only on arrival: later moves are the reader's.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -134,7 +142,7 @@ function CodexVisit({
   const crumbs = useMemo<WikiCrumb[]>(
     () =>
       stack.map((r, i) => {
-        const label = crumbLabel(r, data);
+        const label = crumbLabel(r, data, i > 0 ? stack[i - 1] : null);
         return i < stack.length - 1 ? { label, onClick: () => push(stack[i]) } : { label };
       }),
     [stack, data, push],

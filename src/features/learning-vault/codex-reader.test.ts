@@ -6,7 +6,7 @@ import scriptsFile from "../academy/content/scripts.json";
 import type { CueMoment, MachineScript, OverviewsFile, QuickCard } from "../academy/types";
 import { MACHINE_DEFINITIONS } from "../../data/machine-definitions";
 import type { MachineDefinition } from "../../types/machines";
-import { blockKeyFor } from "./blocks";
+import { blockKeyFor, plainEmphasis } from "./blocks";
 import {
   EMPTY_TIER_LINE,
   MACHINE_DEFINITION_SOURCE,
@@ -256,6 +256,8 @@ describe("adapt and clinical", () => {
       { id: "x", label: "  " },
     ])!;
     expect(s.title).toBe("When a client has one of these");
+    // No caption under the title (say it once): each line names its source.
+    expect(s.note).toBeUndefined();
     expect(s.blocks.map((b) => [b.kind, b.text, b.source])).toEqual([["bullet", "Osteoporosis / Severe Osteopenia", "Clinical matrix"]]);
     expect(clinicalSection([])).toBeNull();
     expect(clinicalSection(undefined)).toBeNull();
@@ -324,6 +326,30 @@ describe("the small pieces", () => {
     expect(tidyScriptLine("parallel to each other.”  (NOTE: wider)")).toBe("parallel to each other. (NOTE: wider)");
     expect(tidyScriptLine("Handoff - “Now pull down…that is yours.")).toBe("Handoff - “Now pull down…that is yours.");
     expect(tidyScriptLine("says “yours”")).toBe("says “yours”");
+  });
+
+  it("draws Markdown emphasis as plain words, quotes kept (review fix)", () => {
+    expect(plainEmphasis('cue *"ease out... do not speed up"* post-click')).toBe('cue "ease out... do not speed up" post-click');
+    expect(plainEmphasis("relax the ankles *before* lowering")).toBe("relax the ankles before lowering");
+    expect(plainEmphasis('*"Seamlessly change direction"* or *"Barely touch, barely start"*')).toBe(
+      '"Seamlessly change direction" or "Barely touch, barely start"',
+    );
+    // A lone asterisk, or one with a space inside it, is not emphasis.
+    expect(plainEmphasis("5 * 6 and * spaced *")).toBe("5 * 6 and * spaced *");
+    // The Academy's few **bold** spans too.
+    expect(plainEmphasis("chest press) - **most effectively used during the eccentric**")).toBe(
+      "chest press) - most effectively used during the eccentric",
+    );
+  });
+
+  it("leaves no asterisk pair on any machine's method lines", () => {
+    const off: string[] = [];
+    for (const [id, def] of Object.entries(MACHINE_DEFINITIONS)) {
+      for (const tier of codexTiers(def as Partial<MachineDefinition>, {})) {
+        for (const s of tier.sections) for (const b of s.blocks) if (/\*\S[^*]*\*/.test(b.text)) off.push(`${id}: ${b.text.slice(0, 50)}`);
+      }
+    }
+    expect(off).toEqual([]);
   });
 
   it("draws nothing for a missing script or deep dive", () => {

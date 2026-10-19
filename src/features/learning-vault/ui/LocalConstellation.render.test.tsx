@@ -14,7 +14,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { LocalConstellation } from "./LocalConstellation";
+import { LocalConstellation, categoryNodeStyle } from "./LocalConstellation";
 import type { GraphEdge, GraphNode, VaultGraph, VaultRoute } from "../types";
 
 const n = (id: string, label: string, domain: GraphNode["domain"], route: VaultRoute): GraphNode => ({
@@ -103,6 +103,22 @@ describe("the pills", () => {
     expect(flag.querySelector(".vtg__mark svg")).not.toBeNull();
     const machine = pills().find((p) => p.textContent === "LEG EXTENSION")!;
     expect(machine.style.getPropertyValue("--vtg-text")).toBe("var(--wk-cat-push-text)");
+  });
+
+  it("wear the host's colours where its language is the category (review fix): a machine in its own, the rest in their domain's", async () => {
+    await mount(<LocalConstellation graph={GRAPH} nodeId="machine:m-leg-press" onOpen={() => {}} nodeStyle={categoryNodeStyle} />);
+    const ext = pills().find((p) => p.textContent === "LEG EXTENSION")!;
+    expect(ext.style.getPropertyValue("--vtg-c")).toBe("var(--wk-cat-legs)");
+    expect(ext.style.getPropertyValue("--vtg-text")).toBe("var(--wk-cat-legs-text)");
+    const flag = pills().find((p) => p.textContent?.includes("Osteoporosis"))!;
+    expect(flag.style.getPropertyValue("--vtg-c")).toBe("var(--wk-warn)");
+
+    await mount(
+      <LocalConstellation graph={GRAPH} nodeId="machine:m-leg-press" onOpen={() => {}} variant="orbit" nodeStyle={categoryNodeStyle} />,
+    );
+    const node = [...host.querySelectorAll<HTMLElement>(".vtg__node")].find((b) => b.textContent === "LEG EXTENSION")!;
+    expect(node.style.getPropertyValue("--vtg-c")).toBe("var(--wk-cat-legs)");
+    expect(host.querySelector<HTMLElement>(".vtg__centre")!.style.getPropertyValue("--vtg-c")).toBe("var(--wk-cat-legs)");
   });
 
   it("show no more than they are asked to, every kind keeping a place", async () => {

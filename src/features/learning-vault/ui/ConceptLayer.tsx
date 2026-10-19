@@ -19,6 +19,11 @@
  *   only Close or Escape puts it away.
  * - Escape closes it and gives the word its focus back; the card takes the
  *   focus when it opens, so a keyboard reader lands in it.
+ * - A card whose word is no longer on screen goes, pinned or not (review
+ *   fix, Oct 19 2026): Learning's search hides the page (display: none)
+ *   rather than unmounting it, and a pinned card used to stay floating over
+ *   search pointing at nothing, taking search's own Escape. A word that is
+ *   not drawn (shownOnScreen) is treated as a word that has gone.
  * - "Open page" goes to the thing itself; "Peek" (when the design has a peek
  *   sheet) opens it beside the page instead.
  *
@@ -76,6 +81,7 @@ import {
   type EntityIndex,
   type PopoverPlace,
 } from "../concepts";
+import { TermButton } from "./TermButton";
 import "../../wiki/wiki.css";
 import "./concept.css";
 
@@ -109,6 +115,24 @@ interface LayerState {
 }
 
 const CLOSED: LayerState = { stack: [], anchor: null, pinned: false };
+
+/**
+ * True when the word is drawn: in the document, and not inside something
+ * hidden (Learning's search stashes the page with display: none). An engine
+ * without layout (a test's jsdom) cannot tell, and says yes.
+ */
+export function shownOnScreen(el: Element | null | undefined): boolean {
+  if (!el || !el.isConnected) return false;
+  try {
+    const check = (el as Element & { checkVisibility?: () => boolean }).checkVisibility;
+    if (typeof check === "function") return check.call(el);
+    if (el.getClientRects().length > 0) return true;
+    // No rects: hidden, unless nothing here has a layout at all.
+    return typeof document !== "undefined" && document.documentElement.getClientRects().length === 0;
+  } catch {
+    return true;
+  }
+}
 
 function giveFocusBack(anchor: HTMLElement | null): void {
   try {
@@ -268,7 +292,7 @@ function ConceptPopover(props: {
       const pop = popRef.current;
       const a = live.current.anchor;
       if (!pop || !a) return;
-      if (!a.isConnected) {
+      if (!shownOnScreen(a)) {
         live.current.onClose(false);
         return;
       }
@@ -294,10 +318,11 @@ function ConceptPopover(props: {
     measure();
   }, [topId, stack.length, measure]);
 
-  // The word's page went away under the card (a design swapped the page):
-  // nothing to point at, so the card goes, quietly.
+  // The word's page went away under the card (a design swapped the page),
+  // or is hidden (search stashed it): nothing to point at, so the card goes,
+  // quietly, pinned or not.
   useLayoutEffect(() => {
-    if (!anchor.isConnected) onClose(false);
+    if (!shownOnScreen(anchor)) onClose(false);
   });
 
   // The card's own size changes (fonts, a long summary): follow it.
@@ -331,8 +356,12 @@ function ConceptPopover(props: {
     const inside = (t: EventTarget | null) => t instanceof Node && !!popRef.current?.contains(t);
 
     const onScroll = (e: Event) => {
-      if (live.current.pinned || inside(e.target)) return;
       const a = live.current.anchor;
+      if (!shownOnScreen(a)) {
+        live.current.onClose(false);
+        return;
+      }
+      if (live.current.pinned || inside(e.target)) return;
       try {
         if (!a.isConnected) {
           live.current.onClose(false);
@@ -359,6 +388,12 @@ function ConceptPopover(props: {
       if (e.key !== "Escape") return;
       // The unsaved-changes question is above everything; Escape is its.
       if (document.querySelector('[role="alertdialog"]')) return;
+      // A card whose word is hidden is not the innermost thing: Escape is
+      // whatever is on screen's (search's own box), and the card just goes.
+      if (!shownOnScreen(live.current.anchor)) {
+        live.current.onClose(false);
+        return;
+      }
       // The innermost thing open is this card: Escape is not also a line's.
       e.stopPropagation();
       live.current.onClose(true);
@@ -463,15 +498,9 @@ function ConceptPopover(props: {
           <p className="vtc__summary">
             {summary.map((s, i) =>
               s.entityId ? (
-                <button
-                  key={`${s.entityId}-${i}`}
-                  type="button"
-                  className="vtc__term"
-                  data-vault-term=""
-                  onClick={() => onPush(s.entityId as string)}
-                >
+                <TermButton key={`${s.entityId}-${i}`} onPress={() => onPush(s.entityId as string)}>
                   {s.text}
-                </button>
+                </TermButton>
               ) : (
                 <span key={`t-${i}`}>{s.text}</span>
               ),

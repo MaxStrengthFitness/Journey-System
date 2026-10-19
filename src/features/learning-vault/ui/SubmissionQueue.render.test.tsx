@@ -330,6 +330,21 @@ describe("SubmissionQueue", () => {
     expect(lead()).toBe("1 waiting from the floor · 2 lines crossed out");
   });
 
+  it("a note sent with the decision is never asked about again (review fix, Oct 19 2026)", async () => {
+    const onLeft = vi.fn();
+    await mount({ onLeft });
+    const card = () => cardFor("The Academy gives a window, 6 to 10.")!;
+    await press(buttons("Taken", card())[0]);
+    await act(async () => setValue(card().querySelector("textarea"), "Changed in the next build."));
+    await press(buttons("Mark taken", card())[0]);
+    expect(card().querySelector(".vtq__verdict--taken")).not.toBeNull();
+
+    // The very next door goes straight through: no question about words already sent.
+    await press(document.querySelector('[data-testid="door"]'));
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(onLeft).toHaveBeenCalledTimes(1);
+  });
+
   it("Not taken with no note sends no note", async () => {
     const { store } = await mount();
     const card = () => cardFor("Add how we set the iPad down")!;

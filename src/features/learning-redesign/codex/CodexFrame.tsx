@@ -5,7 +5,7 @@ import { WikiShell } from "../../wiki";
 import { PeekFrame, PeekSheet } from "../../learning-vault/ui/PeekSheet";
 import type { VaultRoute } from "../../learning-vault/types";
 import { crumbLabel, useCodex } from "./codex-context";
-import { resolveOpen } from "./codex-model";
+import { resolveOpen, waitState } from "./codex-model";
 import { PeekBody } from "./CodexPeek";
 import "./codex.css";
 
@@ -53,18 +53,51 @@ export function CodexLoading({ label }: { label: string }) {
   );
 }
 
-/** A page whose module could not be fetched: says so, and the reader tries again. */
-export function CodexFailed({ moduleId }: { moduleId: string }) {
+/**
+ * A page that answered "loading": the spinner only while it is truly on its
+ * way. A part of the Academy that failed says so with Try again (the
+ * reader's tap, never a timer); a studio's own machine on a floor that could
+ * not be read says that, with the way back.
+ */
+export function CodexWaiting({ route, label }: { route: VaultRoute; label: string }) {
   const { data } = useCodex();
+  const state = waitState(route, data);
+  if (state.kind === "floor") return <CodexFloorUnreadable />;
+  if (state.kind === "module") return <CodexFailed onRetry={data.retryModule ? () => data.retryModule?.(state.moduleId) : undefined} />;
+  if (state.kind === "reference") return <CodexFailed onRetry={data.retryReference} />;
+  return <CodexLoading label={label} />;
+}
+
+/** A part of the Academy that could not be fetched: says so, and the reader tries again. */
+export function CodexFailed({ onRetry }: { onRetry?: () => void }) {
   return (
     <CodexFrame>
       <div className="cdx__gone">
         <p className="cdx__gone-title">This part of the Academy didn't load</p>
         <p className="cdx__gone-body">The connection may have dropped. Nothing you wrote is lost.</p>
-        {data.retryModule && (
-          <button type="button" className="cdx__btn" onClick={() => data.retryModule?.(moduleId)}>
+        {onRetry && (
+          <button type="button" className="cdx__btn" onClick={onRetry}>
             <RotateCcw size={16} aria-hidden />
             Try again
+          </button>
+        )}
+      </div>
+    </CodexFrame>
+  );
+}
+
+/** A studio's own machine, when the floor that holds it could not be read ("unreadable" is final). */
+function CodexFloorUnreadable() {
+  const { nav, studioName } = useCodex();
+  return (
+    <CodexFrame>
+      <div className="cdx__gone">
+        <p className="cdx__gone-title">Can't read {studioName}'s floor right now</p>
+        <p className="cdx__gone-body">This machine is one of {studioName}'s own, so its page comes from the floor.</p>
+        {nav.canBack && (
+          <button type="button" className="cdx__btn" onClick={nav.back}>
+            <ArrowLeft size={16} aria-hidden />
+            Back
           </button>
         )}
       </div>

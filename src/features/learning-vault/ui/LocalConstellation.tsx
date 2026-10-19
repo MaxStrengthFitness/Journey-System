@@ -29,6 +29,11 @@
  * it wraps, and the orbit grows taller to give a long one its lines.
  * Colours are by domain from Learning's own tokens (graph.ts DOMAIN_COLOUR),
  * and each domain also has its own glyph, so colour is never the only cue.
+ * A design whose colour language is something else passes `nodeStyle`
+ * (review fix, Oct 19 2026): the Codex colours a machine by its CATEGORY,
+ * as its own bands do (`nodeStyle={categoryNodeStyle}`), so a Pulldown page
+ * never shows its pull machines in the push orange; the Vault keeps the
+ * domain colours its Rumor Map is drawn in.
  *
  * WHAT IT SAYS WHEN IT HAS NOTHING
  * --------------------------------
@@ -54,7 +59,9 @@ import {
 import { LoadingMark } from "../../../components/LoadingMark";
 import { DOMAIN_COLOUR, DOMAIN_NOUN, constellationOf, groupLinks, linkHeading, type LinkGroup } from "../graph";
 import { layoutConstellation, orbitHeight, orbitRadiusX, wordsFit, wrappedLines } from "../layout";
-import type { Constellation, GraphDomain, VaultGraph, VaultRoute } from "../types";
+import type { Constellation, GraphDomain, GraphNode, VaultGraph, VaultRoute } from "../types";
+import { accentForAcademyCategory, accentFillVar, accentTextVar, accentVar } from "../../wiki/categories";
+import { MACHINE_CATEGORY } from "../../routine-builder/academy";
 import "../../wiki/wiki.css";
 import "./graph.css";
 
@@ -74,6 +81,25 @@ export const DOMAIN_ICON: Record<GraphDomain, LucideIcon> = {
 export function domainStyle(domain: GraphDomain): CSSProperties {
   const c = DOMAIN_COLOUR[domain];
   return { "--vtg-c": c.accent, "--vtg-fill": c.fill, "--vtg-text": c.text } as CSSProperties;
+}
+
+/** A node's own colours instead of its domain's (LocalConstellation's `nodeStyle`); undefined keeps the domain's. */
+export type NodeStyle = (node: Pick<GraphNode, "id" | "domain">) => CSSProperties | undefined;
+
+/**
+ * A machine in its category's colours (the Catalog's: push orange, pull
+ * blue, legs green…), a studio's own machine in the grey "other"; anything
+ * else keeps its domain's. For a design built on category colour.
+ */
+export const categoryNodeStyle: NodeStyle = (node) => {
+  if (node.domain !== "machine" || !node.id.startsWith("machine:")) return undefined;
+  const accent = accentForAcademyCategory(MACHINE_CATEGORY[node.id.slice("machine:".length)] ?? null);
+  return { "--vtg-c": accentVar(accent), "--vtg-fill": accentFillVar(accent), "--vtg-text": accentTextVar(accent) } as CSSProperties;
+};
+
+/** A node's colours: the host's, else its domain's. */
+function styleOf(node: Pick<GraphNode, "id" | "domain">, nodeStyle?: NodeStyle): CSSProperties {
+  return nodeStyle?.(node) ?? domainStyle(node.domain);
 }
 
 /** How many links a constellation shows unless the host says otherwise. */
@@ -105,6 +131,8 @@ export interface LocalConstellationProps {
    * Default true. The pills ignore it: they are the list.
    */
   list?: boolean;
+  /** Each node's colours, where the host's colour language is not the domain (categoryNodeStyle). */
+  nodeStyle?: NodeStyle;
 }
 
 export function LocalConstellation({
@@ -115,6 +143,7 @@ export function LocalConstellation({
   max = DEFAULT_MAX,
   layout = "stack",
   list = true,
+  nodeStyle,
 }: LocalConstellationProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -181,15 +210,29 @@ export function LocalConstellation({
     <section className={classes} aria-label={`What connects to ${center.label}`}>
       {hasOrbit && (
         <div className="vtg__orbit" ref={boxRef} aria-hidden={orbitAlone ? undefined : "true"}>
-          <Orbit constellation={constellation} width={width || FALLBACK_WIDTH} onOpen={onOpen} reachable={orbitAlone} />
+          <Orbit
+            constellation={constellation}
+            width={width || FALLBACK_WIDTH}
+            onOpen={onOpen}
+            reachable={orbitAlone}
+            nodeStyle={nodeStyle}
+          />
         </div>
       )}
-      {!orbitAlone && groups.map((g) => <PillGroup key={g.key} group={g} onOpen={onOpen} />)}
+      {!orbitAlone && groups.map((g) => <PillGroup key={g.key} group={g} onOpen={onOpen} nodeStyle={nodeStyle} />)}
     </section>
   );
 }
 
-function PillGroup({ group, onOpen }: { group: LinkGroup; onOpen: (route: VaultRoute) => void }) {
+function PillGroup({
+  group,
+  onOpen,
+  nodeStyle,
+}: {
+  group: LinkGroup;
+  onOpen: (route: VaultRoute) => void;
+  nodeStyle?: NodeStyle;
+}) {
   return (
     <div className="vtg__group">
       <h3 className="vtg__head">{group.heading}</h3>
@@ -201,7 +244,7 @@ function PillGroup({ group, onOpen }: { group: LinkGroup; onOpen: (route: VaultR
               <button
                 type="button"
                 className="vtg__pill"
-                style={domainStyle(link.node.domain)}
+                style={styleOf(link.node, nodeStyle)}
                 aria-label={`${link.node.label}, ${DOMAIN_NOUN[link.node.domain]}`}
                 onClick={() => onOpen(link.node.route)}
               >
@@ -223,12 +266,14 @@ function Orbit({
   width,
   onOpen,
   reachable,
+  nodeStyle,
 }: {
   constellation: Constellation;
   width: number;
   onOpen: (route: VaultRoute) => void;
   /** The drawing is the way in (no list beside it): its nodes take focus and say why they connect. */
   reachable: boolean;
+  nodeStyle?: NodeStyle;
 }) {
   const links = constellation.links;
   const rx = orbitRadiusX(width);
@@ -267,7 +312,7 @@ function Orbit({
       </svg>
       <span
         className={`vtg__centre${centreNamed ? "" : " vtg__centre--mark"}`}
-        style={{ ...domainStyle(center.domain), left: center.x, top: center.y, maxWidth: centreBox }}
+        style={{ ...styleOf(center, nodeStyle), left: center.x, top: center.y, maxWidth: centreBox }}
         // The page you are on: its name is already the section's label.
         aria-hidden="true"
       >
@@ -292,7 +337,7 @@ function Orbit({
             tabIndex={reachable ? undefined : -1}
             aria-label={reachable ? `${link.node.label}, ${DOMAIN_NOUN[link.node.domain]}. ${linkHeading(link)}.` : undefined}
             className={`vtg__node ${right ? "vtg__node--right" : "vtg__node--left"}`}
-            style={{ ...domainStyle(p.domain), ...place }}
+            style={{ ...styleOf({ id: link.node.id, domain: p.domain }, nodeStyle), ...place }}
             onClick={() => onOpen(link.node.route)}
           >
             <span className="vtg__node-hit">

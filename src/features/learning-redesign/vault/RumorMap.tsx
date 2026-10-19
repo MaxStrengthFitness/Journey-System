@@ -1,6 +1,7 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { ArrowLeft, ArrowRight, ChevronRight, List, Network, PanelBottomOpen, X } from "lucide-react";
 import { LoadingMark } from "../../../components/LoadingMark";
+import { usePhone } from "../../phone/device";
 import {
   DOMAIN_COLOUR,
   DOMAIN_LABEL,
@@ -8,7 +9,6 @@ import {
   DOMAIN_ORDER,
   constellationOf,
   groupLinks,
-  linkHeading,
   nodeById,
 } from "../../learning-vault/graph";
 import { layoutMap, type MapLayout, type PlacedNode } from "../../learning-vault/layout";
@@ -17,18 +17,21 @@ import type { GraphDomain, GraphNode, VaultGraph } from "../../learning-vault/ty
 import { DOMAIN_ICON } from "../../learning-vault/ui/LocalConstellation";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import {
-  dotBox,
+  CARD_LINKS,
+  LABEL_SLACK,
+  focusLabelRequests,
   hubsOf,
+  labelObstacles,
   mapHeight,
   nodeSummary,
   placeLabels,
+  scrollerRoom,
   sectorPoints,
   startNodes,
-  type Box,
   type LabelRequest,
   type PlacedLabel,
 } from "./map-model";
-import { NO_EXPLORE, useVaultScreen, type ExploreState } from "./shell";
+import { DidNotLoad, NO_EXPLORE, useVaultScreen, type ExploreState } from "./shell";
 import "./vault-map.css";
 
 /**
@@ -92,21 +95,58 @@ export const CHIP_LABEL: Record<GraphDomain, string> = {
   playbook: "Playbooks",
 };
 
-/** How many links the card under the map lists, and how many neighbours get a name on the map. */
-const CARD_LINKS = 14;
-const NAMED_NEIGHBOURS = 16;
 /** The trail across the map keeps this many steps back. */
 const TRAIL_MAX = 6;
 
+/**
+ * Where an explorer starts when nothing has been chosen there yet: a map
+ * page's own focus, if it has one; on a phone the List (review fix, Oct 19
+ * 2026: three rows of controls left room for eight stars, so the list is the
+ * useful view there, the map one tap away); else the map. Anything the
+ * reader chose is kept as they left it.
+ */
+export function startState(remembered: ExploreState, opts: { initialFocus: string | null; phone: boolean }): ExploreState {
+  if (remembered !== NO_EXPLORE) return remembered;
+  if (opts.initialFocus) return { ...NO_EXPLORE, focus: opts.initialFocus };
+  if (opts.phone) return { ...NO_EXPLORE, mode: "list" };
+  return NO_EXPLORE;
+}
+
+/** The pressed control went with what it was in: the focus fell to <body>, or nowhere. */
+function focusWasLost(): boolean {
+  if (typeof document === "undefined") return false;
+  const active = document.activeElement;
+  return !active || active === document.body || !active.isConnected;
+}
+
 export function MapExplorer({ stateKey, kind, domains: allowed, chips = false, marked, initialFocus = null, mode: fixedMode }: MapExplorerProps) {
   const { data, explore, setExplore } = useVaultScreen();
+  const phone = usePhone();
   const graph = data.graph;
   const remembered = explore(stateKey);
-  const base: ExploreState = remembered === NO_EXPLORE && initialFocus ? { ...NO_EXPLORE, focus: initialFocus } : remembered;
+  const base: ExploreState = startState(remembered, { initialFocus, phone });
   const st: ExploreState = fixedMode ? { ...base, mode: fixedMode } : base;
   const set = (next: ExploreState) => setExplore(stateKey, next);
 
   const sectionRef = useRef<HTMLElement>(null);
+  const startHeadRef = useRef<HTMLHeadingElement>(null);
+
+  // Closing the card, or "Whole map", takes away the button that was pressed
+  // (the card gives way to Start with; the map's tools go). A keyboard or
+  // VoiceOver reader's place then moves to Start with, never back to the top
+  // of the document (review fix, Oct 19 2026). Only when the focus really was
+  // lost: a reader who has already moved on keeps their place.
+  const cleared = useRef(false);
+  useLayoutEffect(() => {
+    if (st.focus !== null || !cleared.current) return;
+    cleared.current = false;
+    if (!focusWasLost()) return;
+    try {
+      startHeadRef.current?.focus({ preventScroll: true });
+    } catch {
+      /* focus is a courtesy, never a reason to fail */
+    }
+  }, [st.focus]);
   const allowedList = allowed && allowed.length > 0 ? allowed : DOMAIN_ORDER;
   const domainsKey = (chips && st.domains.length > 0 ? allowedList.filter((d) => st.domains.includes(d)) : allowedList).join(",");
   // One array per choice of domains, so the map is laid out again only when the choice changes.
@@ -116,6 +156,7 @@ export function MapExplorer({ stateKey, kind, domains: allowed, chips = false, m
 
   const focusOn = (id: string | null) => {
     if (id === null) {
+      if (st.focus !== null) cleared.current = true;
       set({ ...st, focus: null, trail: [] });
       return;
     }
@@ -147,10 +188,16 @@ export function MapExplorer({ stateKey, kind, domains: allowed, chips = false, m
   };
 
   if (!graph) {
+    // The map is drawn from the reference chunks: one that cannot arrive is
+    // said, with the reader's Try again, never a spinner that never ends.
     return (
       <section className="vm__explore" data-kind={kind}>
         <div className="vm__mapcard vm__mapcard--wait">
-          <LoadingMark size="sm" label="Drawing the map…" />
+          {data.referenceFailed ? (
+            <DidNotLoad retry={data.retryReference} onPanel />
+          ) : (
+            <LoadingMark size="sm" label="Drawing the map…" />
+          )}
         </div>
       </section>
     );
@@ -169,7 +216,7 @@ export function MapExplorer({ stateKey, kind, domains: allowed, chips = false, m
       onClear={() => focusOn(null)}
     />
   ) : (
-    <StartWith graph={graph} domains={shown} onFocus={wander} />
+    <StartWith graph={graph} domains={shown} onFocus={wander} headRef={startHeadRef} />
   );
 
   return (
@@ -274,9 +321,11 @@ function MapCanvas({
   onShowList?: () => void;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
-  const [room, setRoom] = useState<{ w: number; vh: number } | null>(null);
+  const [room, setRoom] = useState<{ w: number; vh: number; below: number | null } | null>(null);
 
-  // Laid out for the width it really has. Measured where it cannot throw
+  // Laid out for the width it really has, and never taller than the page's
+  // scroller has room for below its top (so the lower ring and the door stay
+  // on screen on an iPad held sideways). Measured where it cannot throw
   // (KNOWN-TRAPS: a throw in a layout effect takes the screen down), and
   // ResizeObserver only where it exists.
   useLayoutEffect(() => {
@@ -286,9 +335,19 @@ function MapCanvas({
       try {
         const w = Math.round(el.clientWidth) || FALLBACK_W;
         const vh = Math.round(window.innerHeight) || FALLBACK_VH;
-        setRoom((prev) => (prev && prev.w === w && prev.vh === vh ? prev : { w, vh }));
+        const sc = el.closest(".wk__scroll");
+        const below =
+          sc instanceof HTMLElement
+            ? scrollerRoom({
+                scrollerHeight: sc.clientHeight,
+                scrollerTopInViewport: sc.getBoundingClientRect().top,
+                scrollTop: sc.scrollTop,
+                topInViewport: el.getBoundingClientRect().top,
+              })
+            : null;
+        setRoom((prev) => (prev && prev.w === w && prev.vh === vh && prev.below === below ? prev : { w, vh, below }));
       } catch {
-        setRoom((prev) => prev ?? { w: FALLBACK_W, vh: FALLBACK_VH });
+        setRoom((prev) => prev ?? { w: FALLBACK_W, vh: FALLBACK_VH, below: null });
       }
     };
     measure();
@@ -309,7 +368,7 @@ function MapCanvas({
   }, []);
 
   const w = room?.w ?? 0;
-  const h = room ? mapHeight(room.w, room.vh, kind) : 0;
+  const h = room ? mapHeight(room.w, room.vh, kind, room.below) : 0;
   const layout = useMemo<MapLayout | null>(
     () => (w > 0 ? layoutMap(graph, { width: w, height: h, focus, domains }) : null),
     [graph, w, h, focus, domains],
@@ -399,11 +458,12 @@ function MapCanvas({
 /**
  * Where a label sits: pinned by the edge nearest its star (its words may run
  * a little longer or shorter than map-model guessed, so the far edge is free),
- * and never wider than the room it was given plus a little slack.
+ * and never wider than the room it was given plus LABEL_SLACK, the slack
+ * placeLabels kept clear for it.
  */
 function anchorStyle(l: PlacedLabel, mapW: number): CSSProperties {
   const { x, y, w, h } = l.box;
-  const slack = w + 28;
+  const slack = w + LABEL_SLACK;
   switch (l.side) {
     case "right":
       return { left: x, top: y + h / 2, transform: "translateY(-50%)", maxWidth: Math.min(slack, mapW - x - 4) };
@@ -490,20 +550,13 @@ function drawPlan(
   }
 
   // Labels: the focus first, then its neighbours in the card's order with
-  // why beneath, or (with no focus) each domain's name and its busiest stars.
+  // why beneath (only the ones the card lists), or (with no focus) each
+  // domain's name and its busiest stars. No label covers a star that shows.
   const requests: LabelRequest[] = [];
-  const obstacles: Box[] = [];
+  const obstacles = labelObstacles(layout.nodes, (id) => state.get(id) === "dim");
   const sectors = new Map<string, GraphDomain>();
   if (focus && neighbours) {
-    const centre = at.get(focus);
-    if (centre) requests.push({ id: centre.id, node: centre, text: centre.label, priority: 0, big: true });
-    const named = constellationOf(graph, focus, NAMED_NEIGHBOURS)?.links ?? [];
-    named.forEach((link, i) => {
-      const p = at.get(link.node.id);
-      if (!p) return;
-      requests.push({ id: p.id, node: p, text: p.label, sub: linkHeading(link), priority: 10 + i });
-    });
-    for (const n of layout.nodes) if (state.get(n.id) !== "dim") obstacles.push(dotBox(n));
+    requests.push(...focusLabelRequests(graph, focus, at, CARD_LINKS));
   } else {
     for (const s of sectorPoints(layout.nodes, size)) {
       sectors.set(s.node.id, s.domain);
@@ -521,10 +574,9 @@ function drawPlan(
       .map((n) => ({ n, weight: nodeById(graph, n.id)?.weight ?? 0 }))
       .sort((a, b) => b.weight - a.weight);
     rest.forEach(({ n }, i) => requests.push({ id: n.id, node: n, text: n.label, priority: 100 + i }));
-    for (const n of layout.nodes) if (n.r >= 9) obstacles.push(dotBox(n));
   }
-  const budget = focus ? NAMED_NEIGHBOURS + 1 : layout.nodes.length <= 40 ? 40 : 18;
-  const labels = placeLabels(requests, size, obstacles).slice(0, budget + (focus ? 0 : 8));
+  const budget = focus ? CARD_LINKS + 1 : layout.nodes.length <= 40 ? 40 : 18;
+  const labels = placeLabels(requests, size, obstacles, { slack: LABEL_SLACK }).slice(0, budget + (focus ? 0 : 8));
   return { rings, edges, state, hollow, labels, sectors };
 }
 
@@ -722,12 +774,25 @@ function FocusCard({
 }
 
 /** Before anything is chosen: the busiest star of each domain, as a way in. */
-function StartWith({ graph, domains, onFocus }: { graph: VaultGraph; domains: GraphDomain[]; onFocus: (id: string) => void }) {
+function StartWith({
+  graph,
+  domains,
+  onFocus,
+  headRef,
+}: {
+  graph: VaultGraph;
+  domains: GraphDomain[];
+  onFocus: (id: string) => void;
+  /** Where a reader's place goes when the card they were on closes. */
+  headRef?: RefObject<HTMLHeadingElement | null>;
+}) {
   const nodes = useMemo(() => startNodes(graph, 6, domains), [graph, domains]);
   if (nodes.length === 0) return null;
   return (
     <div className="vm__start">
-      <h2 className="vm__start-head">Start with</h2>
+      <h2 className="vm__start-head" ref={headRef} tabIndex={-1}>
+        Start with
+      </h2>
       <ul className="vm__pills">
         {nodes.map((n) => {
           const Icon = DOMAIN_ICON[n.domain];

@@ -7,8 +7,9 @@
  *   the machine's four depths (tier 2's script and rep scrubber, tier 3's
  *   clinical and substitutes), a line tapped on the Leg Press, a concept
  *   card and a nested one, the peek (from the bento's quick card and from a
- *   concept card), a topic's "Say it" tier, the MSF original, a path, the
- *   glossary's word entry, two quiz questions, and head office's queue.
+ *   concept card), the quick card opened as its own page, a topic's "Say
+ *   it" tier, the MSF original, a path, the glossary's word entry, two quiz
+ *   questions, and head office's queue.
  */
 
 const enc = (ref) => encodeURIComponent(JSON.stringify(ref));
@@ -36,6 +37,12 @@ export const steps = [
   },
   // The peek: the bento's quick card, under the machine.
   { name: "peek-sheet", query: MACHINE, actions: [{ tap: "Quick card" }, { wait: 700 }] },
+  // The quick card as its own page: titled by the piece, the machine above it.
+  {
+    name: "piece-page",
+    query: MACHINE,
+    actions: [{ tap: "Quick card" }, { wait: 700 }, { tap: "Open full page" }, { wait: 600 }],
+  },
   // A topic's middle layer: the phrasebook's lines that use its words.
   { name: "topic-say-it", query: TOPIC, actions: [{ tap: "Say it" }, { wait: 500 }] },
   // The MSF original, one tap away.

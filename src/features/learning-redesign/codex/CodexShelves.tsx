@@ -5,6 +5,7 @@ import { presetLine, presetOf } from "../../machine-codex/format";
 import { accentStyle } from "../../wiki/categories";
 import { DECKS, DECK_ACCENT, playableDecks } from "../../learning-vault/quiz/decks";
 import { strikeSignals } from "../../learning-vault/submissions";
+import { queueLead } from "../../learning-vault/ui/SubmissionQueue";
 import { useAllMarkup, useSubmissions } from "../../learning-vault/ui/VaultProvider";
 import type { Track } from "../../learning-vault/types";
 import { useCodex } from "./codex-context";
@@ -70,17 +71,21 @@ export function PathRows({ tracks }: { tracks: readonly Track[] }) {
   if (tracks.length === 0) return null;
   return (
     <ul className="cdx__rows cdx__rows--two">
-      {tracks.map((t) => (
-        <li key={t.id}>
-          <button type="button" className="cdx__row" onClick={() => open({ kind: "track", id: t.id })}>
-            <span className="cdx__row-words">
-              <span className="cdx__row-title">{t.title}</span>
-              <span className="cdx__row-sub">{t.who}</span>
-            </span>
-            <ChevronRight className="cdx__chev" size={16} aria-hidden />
-          </button>
-        </li>
-      ))}
+      {tracks.map((t) => {
+        // "A head trainer" under "For a head trainer" says it twice.
+        const who = whoLine(t);
+        return (
+          <li key={t.id}>
+            <button type="button" className="cdx__row" onClick={() => open({ kind: "track", id: t.id })}>
+              <span className="cdx__row-words">
+                <span className="cdx__row-title">{t.title}</span>
+                {who && <span className="cdx__row-sub">{who}</span>}
+              </span>
+              <ChevronRight className="cdx__chev" size={16} aria-hidden />
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -89,16 +94,19 @@ export function PathRows({ tracks }: { tracks: readonly Track[] }) {
  * The floor
  * ------------------------------------------------------------------ */
 
-/** The floor's honest states: reading, unreadable, empty, or its machines. */
-function FloorState({ children }: { children: (tiles: FloorTile[]) => ReactNode }) {
+/**
+ * The floor's honest states: reading, unreadable, empty, or its machines.
+ * `elsewhere` is where the reader goes instead when there is no floor to
+ * show (the Catalog lists every MSF machine under it; the Overview has the
+ * Academy).
+ */
+function FloorState({ children, elsewhere }: { children: (tiles: FloorTile[]) => ReactNode; elsewhere: string }) {
   const { data, studioName } = useCodex();
   const tiles = useMemo(() => floorTiles(data.floor), [data.floor]);
   if (data.floor === null) {
     return (
       <p className="cdx__well">
-        {data.floorState === "unreadable"
-          ? `Can't read ${studioName}'s floor right now. The Academy still works.`
-          : `Reading ${studioName}'s floor…`}
+        {data.floorState === "unreadable" ? `Can't read ${studioName}'s floor right now. ${elsewhere}` : `Reading ${studioName}'s floor…`}
       </p>
     );
   }
@@ -112,7 +120,7 @@ function FloorState({ children }: { children: (tiles: FloorTile[]) => ReactNode 
 export function FloorGrid() {
   const { open } = useCodex();
   return (
-    <FloorState>
+    <FloorState elsewhere="The Academy still works.">
       {(tiles) => (
         <ol className="cdx__floor">
           {tiles.map((t) => (
@@ -141,7 +149,7 @@ export function FloorGrid() {
 export function FloorList() {
   const { data, open } = useCodex();
   return (
-    <FloorState>
+    <FloorState elsewhere="Every MSF machine is below.">
       {(tiles) => (
         <ol className="cdx__entries">
           {tiles.map((t) => {
@@ -276,7 +284,8 @@ export function PlaybookShelves() {
 /**
  * The quiz's door: Quick ten, and every deck by name. Ten questions, the
  * Academy's own words, and nothing kept (no score anyone sees again, no
- * streak, no ranking).
+ * streak, no ranking): the quiz says that itself, once, in its own picker,
+ * so the door does not say it again.
  */
 export function PlayCard() {
   const { data, open } = useCodex();
@@ -295,7 +304,7 @@ export function PlayCard() {
           <h2 className="cdx__play-title" id={headId}>
             Play
           </h2>
-          <p className="cdx__play-sub">Ten questions from the Academy. Nothing is kept.</p>
+          <p className="cdx__play-sub">Ten questions from the Academy.</p>
         </div>
         <button type="button" className="cdx__btn cdx__btn--primary" onClick={() => open({ kind: "quiz", deck: "mixed" })}>
           Quick ten
@@ -326,16 +335,18 @@ export function PlayCard() {
  * Head office
  * ------------------------------------------------------------------ */
 
-/** Head office's door to its queue: what is waiting, as counts, with the proof one tap away. */
+/**
+ * Head office's door to its queue: what is waiting, as counts, with the
+ * proof one tap away. Its line is the queue's own first line (queueLead,
+ * over the same counts), so the door and the page it opens never disagree.
+ */
 export function HeadOfficeDoor() {
   const { open } = useCodex();
   const subs = useSubmissions();
   const all = useAllMarkup();
   const waiting = subs.filter((s) => s.status === "pending").length;
-  const shared = useMemo(() => strikeSignals(all).filter((s) => s.studios.length > 1).length, [all]);
-  const parts: string[] = [];
-  parts.push(waiting === 1 ? "1 from the floor waiting" : `${waiting} from the floor waiting`);
-  if (shared > 0) parts.push(shared === 1 ? "1 line crossed out at more than one studio" : `${shared} lines crossed out at more than one studio`);
+  const lines = useMemo(() => strikeSignals(all).length, [all]);
+  const lead = queueLead(waiting, subs.length - waiting, lines);
   return (
     <button type="button" className="cdx__ho" onClick={() => open({ kind: "queue" })}>
       <span className="cdx__ho-icon" aria-hidden="true">
@@ -343,7 +354,7 @@ export function HeadOfficeDoor() {
       </span>
       <span className="cdx__ho-words">
         <span className="cdx__ho-title">Waiting for review</span>
-        <span className="cdx__ho-sub">{parts.join(" · ")}</span>
+        <span className="cdx__ho-sub">{lead}</span>
       </span>
       <ChevronRight className="cdx__chev" size={18} aria-hidden />
     </button>

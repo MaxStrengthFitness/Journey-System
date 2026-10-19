@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { WikiShell, type WikiCrumb } from "../../wiki";
-import { titleOf } from "../../learning-vault/pages";
+import { floorUnreadableFor, titleOf } from "../../learning-vault/pages";
 import type { VaultNav } from "../../learning-vault/useVaultNav";
 import type { VaultData } from "../../learning-vault/useVaultData";
 import type { GraphDomain, VaultRoute } from "../../learning-vault/types";
@@ -75,6 +75,59 @@ export function useCrumbs(): WikiCrumb[] {
   );
 }
 
+/**
+ * A part of the Academy that could not arrive (a reference chunk, a module):
+ * said plainly, with the reader's own Try again, never a spinner that never
+ * ends. `onPanel` when it sits on a panel (the map's card, the peek), where a
+ * well is a shade, not a dip.
+ */
+export function DidNotLoad({ retry, onPanel = false }: { retry?: () => void; onPanel?: boolean }) {
+  return (
+    <div className={onPanel ? "vm__gone vm__gone--panel" : "vm__gone"} role="status">
+      <p className="vm__gone-title">This part of the Academy didn't load.</p>
+      <p className="vm__gone-body">The connection may have dropped. Nothing you marked is lost.</p>
+      {retry && (
+        <button type="button" className="vm__btn vm__btn--go" onClick={retry}>
+          Try again
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Why a page is not drawn yet, when it never will be by waiting: its module
+ * or a reference chunk failed (the reader's Try again), or it is one of the
+ * studio's own machines and the studio's floor could not be read (review
+ * fix, Oct 19 2026: each spun forever). Null while waiting is still the
+ * honest answer.
+ */
+export function stuckReason(route: VaultRoute, data: VaultData): "module" | "reference" | "floor" | null {
+  if (route.kind === "topic" && route.moduleId !== "" && data.moduleFailed(route.moduleId)) return "module";
+  if (floorUnreadableFor(route, data)) return "floor";
+  // A studio's own machine waits on the floor, never on the Academy.
+  const ownMachine = route.kind === "machine" && !data.defs[route.id];
+  if (data.referenceFailed && needsReference(route) && !ownMachine) return "reference";
+  return null;
+}
+
+/** The routes whose page waits on the Academy's reference chunks (glossary, cues, cards, scripts, deep dives). */
+export function needsReference(route: VaultRoute): boolean {
+  switch (route.kind) {
+    case "machine":
+    case "card":
+    case "script":
+    case "overview":
+    case "glossary":
+    case "cueing":
+    case "map":
+    case "quiz":
+      return true;
+    default:
+      return false;
+  }
+}
+
 export function Frame({ actions, children, scrollKey }: { actions?: ReactNode; children: ReactNode; scrollKey?: string }) {
   const { data, nav, peek } = useVaultScreen();
   const crumbs = useCrumbs();
@@ -93,8 +146,12 @@ export function Frame({ actions, children, scrollKey }: { actions?: ReactNode; c
             onCrumb={peek.crumb}
             onClose={peek.close}
             onOpenFull={(r) => {
-              peek.close();
+              // The page first, then the peek: should the page ask about
+              // typing, the close joins that same question, and "Keep
+              // editing" leaves the peek as it was (PeekSheet also runs this
+              // inside one answer for the whole gate).
               nav.push(r);
+              peek.close();
             }}
           />
         }

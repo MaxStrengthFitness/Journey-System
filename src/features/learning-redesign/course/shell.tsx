@@ -3,6 +3,7 @@ import { ArrowRight, ArrowUpRight, RotateCcw } from "lucide-react";
 import { LoadingArea } from "../../../components/LoadingMark";
 import { WikiShell, type WikiCrumb } from "../../wiki";
 import { noteLine, whyLine } from "../../learning-vault/markup";
+import { labelRuns } from "../../learning-vault/ui/line-actions";
 import { PeekFrame, PeekSheet, type PeekStack } from "../../learning-vault/ui/PeekSheet";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { VersionToggle } from "../../learning-vault/ui/VersionToggle";
@@ -67,9 +68,10 @@ export function useCourse(): CourseValue {
  * Learning's WikiShell (masthead, trail, one scroller), with the peek sheet
  * beside or under the page. `actions` is the sticky second row: the version
  * switch on an article. On a phone the switch goes in the page instead
- * (`toggleInPage`), where it has the room to wrap.
+ * (`toggleInPage`), where it has the room to wrap. `accent` is the page's
+ * colour (a machine's category), which its spoken lines and cue bubbles take.
  */
-export function CourseShell({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
+export function CourseShell({ actions, accent, children }: { actions?: ReactNode; accent?: CSSProperties; children: ReactNode }) {
   const { crumbs, scrollKey, peek, titleOf, renderPeek, open } = useCourse();
   return (
     <WikiShell crumbs={crumbs} scrollKey={scrollKey} actions={actions} className="crs">
@@ -91,7 +93,9 @@ export function CourseShell({ actions, children }: { actions?: ReactNode; childr
           />
         }
       >
-        <div className="crs__page">{children}</div>
+        <div className="crs__page" style={accent}>
+          {children}
+        </div>
       </PeekFrame>
     </WikiShell>
   );
@@ -155,8 +159,24 @@ export function SectionHead({ title, id, door }: { title: string; id?: string; d
  * the studio's version its marks laid on exactly as ArticleBlocks lays them
  * (the words struck, what the studio does instead, why, who and when; the
  * notes under it). Acting on a line is "Read it all"'s job.
+ *
+ * `showLabel` false draws the line's label for a screen reader only: a run of
+ * lines that share a label ("Clinical warning" over six warnings) says it
+ * once, over the first (runLabels, the same rule ArticleBlocks keeps). `skip`
+ * is an entity the words must not link: a glossary word inside its own
+ * definition is not a door to the card you are reading.
  */
-export function MarkedLine({ block, studioLens }: { block: MarkedBlock; studioLens: boolean }) {
+export function MarkedLine({
+  block,
+  studioLens,
+  showLabel = true,
+  skip,
+}: {
+  block: MarkedBlock;
+  studioLens: boolean;
+  showLabel?: boolean;
+  skip?: string;
+}) {
   if (block.kind === "heading" || block.kind === "subheading") {
     return createElement(block.kind === "heading" ? "h3" : "h4", { className: `crs__line-head crs__line-head--${block.kind}` }, block.text);
   }
@@ -164,8 +184,13 @@ export function MarkedLine({ block, studioLens }: { block: MarkedBlock; studioLe
   const notes = studioLens ? block.notes : [];
   return (
     <div className={`crs__line crs__line--${block.kind}`} data-struck={strike ? "" : undefined}>
-      {block.label && <span className="crs__line-label">{block.label}</span>}
-      <span className="crs__line-text">{strike ? <s className="crs__struck">{block.text}</s> : <LinkedText text={block.text} />}</span>
+      {block.label &&
+        (showLabel ? (
+          <span className="crs__line-label">{block.label}</span>
+        ) : (
+          <span className="crs__sr">{block.label}: </span>
+        ))}
+      <span className="crs__line-text">{strike ? <s className="crs__struck">{block.text}</s> : <LinkedText text={block.text} skip={skip} />}</span>
       {strike?.replacement && <span className="crs__instead">{strike.replacement}</span>}
       {strike && <span className="crs__why">{whyLine(strike)}</span>}
       {notes.map((n) => (
@@ -176,6 +201,31 @@ export function MarkedLine({ block, studioLens }: { block: MarkedBlock; studioLe
       ))}
     </div>
   );
+}
+
+/**
+ * Which of a run of lines draw their label: once at the head of a run that
+ * shares it, never a label that only repeats the section's title, a hidden
+ * line skipped (line-actions' labelRuns, so cards and pages agree).
+ */
+export function runLabels(blocks: readonly MarkedBlock[], sectionTitle?: string): boolean[] {
+  return labelRuns(
+    blocks.map((b) => ({ kind: b.kind, label: b.label, shown: !b.hidden })),
+    sectionTitle,
+  );
+}
+
+/**
+ * How a scroll the page starts itself moves: smoothly, unless the reader
+ * asked for less motion (then it jumps, as the house's motion rule says).
+ */
+export function scrollMotion(): ScrollBehavior {
+  try {
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    return reduce ? "auto" : "smooth";
+  } catch {
+    return "auto";
+  }
 }
 
 /** "1 line hidden" (crossed out, and the reader chose to hide those). */
@@ -240,25 +290,66 @@ export function FailedPage({ onRetry }: { onRetry?: () => void }) {
   );
 }
 
-/** "Gone": a calm word that the page moved, and a way back. */
-export function GonePage() {
+/** The same, compact, for the peek sheet. */
+export function PeekFailed({ onRetry, words = "This part of the Academy didn't load." }: { onRetry?: () => void; words?: string }) {
+  return (
+    <div className="crs__peek-state">
+      <p className="crs__state-title">{words}</p>
+      {onRetry && (
+        <button type="button" className="crs__btn" onClick={onRetry}>
+          <RotateCcw size={16} aria-hidden />
+          Try again
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** A way back up the trail: the crumb above, else Back. */
+function WayBack() {
   const { nav, crumbs } = useCourse();
   const up = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
+  if (up?.onClick) {
+    return (
+      <button type="button" className="crs__btn" onClick={up.onClick}>
+        Back to {up.label}
+        <ArrowRight size={16} aria-hidden />
+      </button>
+    );
+  }
+  return nav.canBack ? (
+    <button type="button" className="crs__btn" onClick={nav.back}>
+      Go back
+    </button>
+  ) : null;
+}
+
+/** "Gone": a calm word that the page moved, and a way back. */
+export function GonePage() {
   return (
     <CourseShell>
       <div className="crs__state">
         <p className="crs__state-title">This page has moved.</p>
         <p className="crs__state-words">The Academy was rebuilt since the link was made, so the page is under another name now.</p>
-        {up?.onClick ? (
-          <button type="button" className="crs__btn" onClick={up.onClick}>
-            Back to {up.label}
-            <ArrowRight size={16} aria-hidden />
-          </button>
-        ) : nav.canBack ? (
-          <button type="button" className="crs__btn" onClick={nav.back}>
-            Go back
-          </button>
-        ) : null}
+        <WayBack />
+      </div>
+    </CourseShell>
+  );
+}
+
+/**
+ * A studio's own machine while its floor cannot be read: the page is the
+ * floor's to give, and waiting would never end, so it says so and offers the
+ * way back (pages.ts floorUnreadableFor).
+ */
+export function FloorUnreadablePage() {
+  const { studioName } = useCourse();
+  return (
+    <CourseShell>
+      <div className="crs__state">
+        <p className="crs__state-title">Can't read {studioName}'s floor right now.</p>
+        <p className="crs__state-words">This machine is {studioName}'s own, so its page comes from the floor. Nothing is lost.</p>
+        <WayBack />
       </div>
     </CourseShell>
   );

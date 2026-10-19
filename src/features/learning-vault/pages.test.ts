@@ -60,6 +60,7 @@ vi.mock("./codex-reader", () => ({
       blocks: b.lines.map((l) => ({ key: `k-${l.text}`, kind: l.spoken ? "said" : "do", text: l.text })),
     })),
   workoutWords: (w: string) => (w === "SpineTrunkCore" ? "Spine / Trunk / Core" : w),
+  EMPTY_TIER_LINE: "Nothing written for this machine yet.",
 }));
 
 vi.mock("./graph", () => ({
@@ -99,13 +100,16 @@ import {
   capitaliseFirst,
   clinicalFlagsFor,
   cueMomentLabel,
+  floorUnreadableFor,
   overviewSections,
   pageFor,
   scriptLede,
   titleOf,
   topicSections,
   topicSourceLabel,
+  withoutLede,
 } from "./pages";
+import type { CodexTier } from "./types";
 
 /* ------------------------------------------------------------------ *
  * Fixtures
@@ -959,5 +963,62 @@ describe("titleOf", () => {
 
   it("names a card from the cards chunk when the joined rows are not built yet", () => {
     expect(titleOf({ kind: "card", id: "pd" }, makeData({ machines: [] }))).toBe("PULLDOWN");
+  });
+});
+
+describe("a machine's lede is said once (review fix, Oct 19 2026)", () => {
+  const LEDE = "Multi-joint lower-body push.";
+  const tiers = (): CodexTier[] => [
+    { id: "glance", n: 1, title: "Floor glance", sections: [{ id: "leaf-setup", title: "Set up", blocks: [{ key: "a", kind: "line", text: "Seat at 4." }] }] },
+    {
+      id: "science",
+      n: 4,
+      title: "Deep science",
+      sections: [
+        { id: "leaf-understand", title: "Understand", blocks: [{ key: "b", kind: "line", text: ` ${LEDE} `, label: "Clinical note" }] },
+        { id: "card-target", title: "Target muscles", blocks: [{ key: "c", kind: "bullet", text: "Quadriceps" }] },
+      ],
+    },
+  ];
+
+  it("leaves out the line that only repeats the lede, and the section it emptied", () => {
+    const t = tiers();
+    const out = withoutLede(t, LEDE);
+    expect(out[1].sections.map((s) => s.id)).toEqual(["card-target"]);
+    // A tier it did not touch is the same object.
+    expect(out[0]).toBe(t[0]);
+  });
+
+  it("keeps the tier's honest empty line when nothing is left", () => {
+    const only: CodexTier[] = [
+      { id: "science", n: 4, title: "Deep science", sections: [{ id: "leaf-understand", title: "Understand", blocks: [{ key: "b", kind: "line", text: LEDE }] }] },
+    ];
+    expect(withoutLede(only, LEDE)[0].sections).toEqual([
+      { id: "science-empty", title: "Deep science", blocks: [], note: "Nothing written for this machine yet." },
+    ]);
+  });
+
+  it("changes nothing without a lede", () => {
+    const t = tiers();
+    expect(withoutLede(t, "  ")).toBe(t);
+  });
+
+  it("the machine page drops the clinical note from its tiers and keeps it as the lede", () => {
+    const def = MACHINE_DEFINITIONS["m-lumbar"];
+    const page = pageFor({ kind: "machine", id: "m-lumbar" }, makeData());
+    if (typeof page === "string") throw new Error(page);
+    expect(page.lede).toBe(def.clinicalNote);
+    expect(page.sections.flatMap((s) => s.blocks).some((b) => b.text.trim() === (def.clinicalNote ?? "").trim())).toBe(false);
+  });
+});
+
+describe("a studio's own machine on a floor that cannot be read (review fix, Oct 19 2026)", () => {
+  it("is said to be unreadable, not loading forever, only when the floor's read is final", () => {
+    const route = { kind: "machine" as const, id: "sm-solon-x" };
+    expect(floorUnreadableFor(route, makeData({ floor: null, floorState: "unreadable" }))).toBe(true);
+    expect(floorUnreadableFor(route, makeData({ floor: null, floorState: "loading" }))).toBe(false);
+    // A standard machine never waits on the floor.
+    expect(floorUnreadableFor({ kind: "machine", id: "m-lumbar" }, makeData({ floor: null, floorState: "unreadable" }))).toBe(false);
+    expect(floorUnreadableFor({ kind: "glossary" }, makeData({ floor: null, floorState: "unreadable" }))).toBe(false);
   });
 });

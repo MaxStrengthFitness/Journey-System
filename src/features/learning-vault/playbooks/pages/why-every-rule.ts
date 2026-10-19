@@ -134,7 +134,7 @@ export const WHY_EVERY_RULE: PlaybookPage = {
     {
       route: { kind: "quiz", deck: "hutchins" },
       title: "Why we train this way",
-      why: "A short round on the eight parts. Nothing is kept.",
+      why: "A short round on the eight parts.",
     },
   ],
 };

@@ -321,3 +321,66 @@ describe("ConceptLayer + LinkedText", () => {
     expect(pop()).toBeNull();
   });
 });
+
+describe("review fixes (Oct 19 2026)", () => {
+  it("a linked word is a span that wraps like prose, still a control: focusable, Enter and Space open it", async () => {
+    const onLine = vi.fn();
+    await mount(<Page onLine={onLine} />);
+    const pace = termNamed("pace");
+    expect(pace.tagName).toBe("SPAN");
+    expect(pace.getAttribute("role")).toBe("button");
+    expect(pace.tabIndex).toBe(0);
+    expect(pace.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(document.querySelector("button.vtc__term")).toBeNull();
+
+    await act(async () => {
+      pace.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    });
+    expect(title()).toBe("Pace");
+    expect(onLine).not.toHaveBeenCalled();
+    // The card's own words are spans too, and Space pushes the next card.
+    const speed = termNamed("speed", pop()!);
+    expect(speed.tagName).toBe("SPAN");
+    await act(async () => {
+      speed.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }));
+    });
+    expect(title()).toBe("Speed");
+  });
+
+  it("a pinned card goes when its word is hidden (search stashes the page), and leaves search its Escape", async () => {
+    await mount(<Page />);
+    const pace = termNamed("pace") as HTMLElement & { checkVisibility?: () => boolean };
+    await click(pace);
+    await click(buttonNamed("Pin"));
+    expect(pop()!.dataset.pinned).toBe("true");
+
+    // Search opens: the page is stashed (display: none), the word still in the document.
+    pace.checkVisibility = () => false;
+    let reached = false;
+    const onDoc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") reached = true;
+    };
+    document.addEventListener("keydown", onDoc);
+    try {
+      // One Escape, as search's box would get it: the card's window listener
+      // hears it first (capture) and must not swallow it.
+      await act(async () => {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      });
+      expect(reached).toBe(true);
+      expect(pop()).toBeNull();
+    } finally {
+      document.removeEventListener("keydown", onDoc);
+    }
+  });
+
+  it("a pinned card goes on the render that hides its word, with no key or scroll needed", async () => {
+    await mount(<Page />);
+    const pace = termNamed("pace") as HTMLElement & { checkVisibility?: () => boolean };
+    await click(pace);
+    await click(buttonNamed("Pin"));
+    pace.checkVisibility = () => false;
+    await mount(<Page />);
+    expect(pop()).toBeNull();
+  });
+});

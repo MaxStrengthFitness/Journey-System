@@ -288,11 +288,11 @@ function RoundBar({
     <div className="qz__bar" style={deckStyle(round.deck)}>
       <div className="qz__bar-words">
         <span className="qz__bar-deck">{deck.title}</span>
-        <span className="qz__bar-count">
-          Question {at + 1} of {total}
-        </span>
       </div>
-      <ol className="qz__pips" aria-hidden="true">
+      {/* The pips say where the round is; the words are theirs for a screen
+          reader only (show it, don't label it: "Question 2 of 10" beside ten
+          pips said it twice). */}
+      <ol className="qz__pips" role="img" aria-label={`Question ${at + 1} of ${total}`}>
         {round.questions.map((q, i) => (
           <li
             key={q.id}

@@ -49,7 +49,7 @@ import type { MachineDefinition } from "../../types/machines";
 import { machineName as standardMachineName } from "../academy/academy-machines";
 import type { CueMoment, MachineScript, QuickCard } from "../academy/types";
 import { CODEX_LEAVES, methodLines, sourceLabel, switchesOf, type LeafId, type MethodLine } from "../machine-codex/format";
-import { blockKeyFor, toVaultBlocks, vaultSection } from "./blocks";
+import { blockKeyFor, plainEmphasis, toVaultBlocks, vaultSection } from "./blocks";
 import { CUE_SOURCE_LABEL, CUE_TITLES, findCueMoment, isCuePhrase, lowerCueKeys, repShapeOf, type CueKey } from "./rep-phases";
 import type { CodexTier, CodexTierId, VaultBlock, VaultBlockKind, VaultSection } from "./types";
 
@@ -105,9 +105,9 @@ function present<T>(v: T | null | undefined): v is T {
   return v !== null && v !== undefined;
 }
 
-/** A method line as a markable line: its label, its words, and where they come from. */
+/** A method line as a markable line: its label, its words (Markdown emphasis drawn plain), and where they come from. */
 export function lineBlock(line: MethodLine): VaultBlock | null {
-  return block("line", line.text, {
+  return block("line", plainEmphasis(line.text), {
     label: line.label,
     source: line.source ? sourceLabel(line.source) : MACHINE_DEFINITION_SOURCE,
   });
@@ -314,12 +314,9 @@ export function clinicalSection(flags: readonly { id: string; label: string }[] 
     if (b) blocks.push(b);
   }
   if (blocks.length === 0) return null;
-  return vaultSection(
-    "clinical",
-    "When a client has one of these",
-    blocks,
-    "The clinical matrix names this machine for each; a client's watch-outs say what to do",
-  );
+  // No caption under the title (say it once): each line says "Clinical
+  // matrix" as its source when it is chosen.
+  return vaultSection("clinical", "When a client has one of these", blocks);
 }
 
 /** One of the quick card's sections, by its heading, as bullets. */

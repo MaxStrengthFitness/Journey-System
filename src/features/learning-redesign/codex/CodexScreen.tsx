@@ -3,7 +3,8 @@ import { SubmissionQueue } from "../../learning-vault/ui/SubmissionQueue";
 import { routeKey } from "../../learning-vault/routes";
 import type { VaultRoute } from "../../learning-vault/types";
 import { useCodex } from "./codex-context";
-import { CodexFrame } from "./CodexFrame";
+import { PageHead } from "./CodexBits";
+import { CodexFailed, CodexFrame } from "./CodexFrame";
 import { CodexHome } from "./CodexHome";
 import { AcademyIndex, CatalogIndex, ModulePage, TrackPage } from "./CodexIndexes";
 import { MachinePage } from "./CodexMachine";
@@ -45,9 +46,14 @@ export function CodexScreen({ route }: { route: VaultRoute }) {
   }
 }
 
-/** The quiz, inside the page's one scroller (QuizMode brings a card into view there). */
+/**
+ * The quiz, inside the page's one scroller (QuizMode brings a card into view
+ * there). Its questions come from the reference chunks; when one of those
+ * failed, it says so with Try again rather than waiting forever.
+ */
 function QuizPage({ route }: { route: Extract<VaultRoute, { kind: "quiz" }> }) {
   const { data, peek, nav } = useCodex();
+  if (!data.quizBank && data.referenceFailed) return <CodexFailed onRetry={data.retryReference} />;
   return (
     <CodexFrame>
       <div className="cdx__quiz">
@@ -63,13 +69,19 @@ function QuizPage({ route }: { route: Extract<VaultRoute, { kind: "quiz" }> }) {
   );
 }
 
-/** Head office's queue: the lines studios cross out, and what the floor sent in. */
+/**
+ * Head office's queue: the lines studios cross out, and what the floor sent
+ * in. Titled as its door on the Overview is, like every Codex page.
+ */
 function QueuePage() {
   const { open } = useCodex();
   return (
     <CodexFrame>
       <div className="cdx__queue">
-        <SubmissionQueue onOpen={open} />
+        <PageHead title="Waiting for review" />
+        <div className="cdx__queue-body">
+          <SubmissionQueue onOpen={open} />
+        </div>
       </div>
     </CodexFrame>
   );

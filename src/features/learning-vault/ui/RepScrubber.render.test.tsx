@@ -183,6 +183,15 @@ describe("RepScrubber", () => {
     ]);
   });
 
+  it("hideCues keeps the moment's lines to itself, where a drill on the page asks for them (review fix)", async () => {
+    await mount(<RepScrubber shape="squeeze" machineName="LUMBAR" cues={CUES} hideCues />);
+    await click(button("Upper turnaround"));
+    expect(host.querySelector(".vtr__say")).toBeNull();
+    expect(host.querySelector(".vtr__phrases")).toBeNull();
+    // The rule and where it comes from still teach the moment.
+    expect(host.querySelector(".vtr__rule-text")?.textContent).toBeTruthy();
+  });
+
   it("shows the loading mark while the phrasebook loads, and no cue lines when none are given", async () => {
     await mount(<RepScrubber cues={null} />);
     expect(host.querySelector('.vtr__say [role="status"]')).not.toBeNull();

@@ -6,9 +6,11 @@
 
    The voice is the Academy page's: 14px prose at 1.6 on the reading measure,
    a section title in Geist 17/700, a spoken line on its accent wash. What is
-   new is that every line can be TAPPED: a calm blue tint and band says which
-   one is chosen, and its actions and forms open under it in one raised
-   panel. A studio's marks are quiet callouts on a 3px band, never a colour
+   new is that every line can be TAPPED: a calm blue OUTLINE says which one
+   is chosen (never a fill and band, which is how a spoken line is drawn),
+   and its actions and forms open under it in one raised panel. A spoken
+   line and a cue's rule take the PAGE's accent (its machine's category,
+   ArticleBlocks sets it), else the neutral grey: blue keeps its one job. A studio's marks are quiet callouts on a 3px band, never a colour
    of their own: crimson is critical and rep quality only, plum is caution,
    and a crossed-out line is neither. The struck words keep the muted ink,
    faded but readable, as RemovedLines does on the Catalog (never the faint
@@ -76,6 +78,21 @@
   color: var(--wk-ink-muted);
   overflow-wrap: anywhere;
 }
+/* A machine's Stop list: the house's caution well (wiki.css .wk__warnings'
+   recipe), plum, never folded. The lines a trainer must not miss. */
+.vta__section[data-tone="stop"] {
+  padding: 0.75rem 0.5rem 0.5rem calc(0.5rem + 2px);
+  border: 1px solid var(--wk-warn-border);
+  border-left-color: var(--wk-warn-strong);
+  border-radius: var(--wk-radius);
+  background:
+    linear-gradient(var(--wk-warn-strong), var(--wk-warn-strong)) left / 3px 100% no-repeat border-box,
+    var(--wk-warn-fill) padding-box;
+}
+.vta__section[data-tone="stop"] .vta__title,
+.vta__section[data-tone="stop"] .vta__label {
+  color: var(--wk-warn);
+}
 .vta__lines {
   display: flex;
   flex-direction: column;
@@ -102,6 +119,12 @@
 .vta__unit {
   min-width: 0;
 }
+/* A label is said once over its run (labelRuns); a new run stands a little
+   apart, so its lines read as one group under it. */
+.vta__lines > .vta__unit[data-run="head"]:not(:first-child),
+.vta__hidden > .vta__unit[data-run="head"] {
+  margin-top: 0.375rem;
+}
 /* The words keep the reading measure; the line's own inset rides outside it. */
 .vta__col {
   min-width: 0;
@@ -120,6 +143,7 @@
 /* The line itself is the tap: 44px at the least, so a one-line bullet is
    still a finger's width, and the whole line is the target, not its words. */
 .vta__line {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -130,9 +154,38 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.vta__line:focus-visible {
+/* The line's one real button (a keyboard's and VoiceOver's way to choose
+   it): laid over the line, unseen, and untouchable, so a finger taps the
+   line and the linked terms inside stay buttons of their own beside it. Its
+   focus ring is the line's ring. */
+.vta__toggle {
+  position: absolute;
+  inset: 0;
+  min-height: var(--wk-tap);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+.vta__toggle:focus-visible {
+  opacity: 1;
   outline: 2px solid var(--wk-focus-ring);
   outline-offset: 2px;
+}
+/* Words a screen reader says that the eye already has (a label said once
+   over its run). Clipped to nothing, never cut: no one-line overflow. */
+.vta__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 .vta__label {
@@ -188,16 +241,17 @@
   width: 3px;
   height: 0.9em;
   border-radius: 2px;
-  background: var(--wk-accent, var(--wk-live));
+  background: var(--wk-accent, var(--wk-cat-other));
 }
-/* What the trainer SAYS in a script, on its accent wash with a band (a
-   background layer: the left corners are square, so it never tapers). */
+/* What the trainer SAYS in a script, on its page's accent wash with a band
+   (a background layer: the left corners are square, so it never tapers).
+   The grey "other" when the page has no accent, never the act-blue. */
 .vta__text--said {
   padding: 0.375rem 0.75rem;
   border-radius: 0 8px 8px 0;
   background:
-    linear-gradient(var(--wk-accent, var(--wk-live)), var(--wk-accent, var(--wk-live))) left / 3px 100% no-repeat,
-    var(--wk-accent-fill, var(--wk-live-fill));
+    linear-gradient(var(--wk-accent, var(--wk-cat-other)), var(--wk-accent, var(--wk-cat-other))) left / 3px 100% no-repeat,
+    var(--wk-accent-fill, var(--wk-cat-other-fill));
   font-size: 17px;
   line-height: 1.5;
   font-weight: 600;
@@ -231,12 +285,13 @@
   }
 }
 
-/* Chosen: a calm blue tint and a band (a background layer, never a wide
-   border on a rounded box). After the hover rule, so it wins under a mouse. */
-.vta__line[aria-expanded="true"] {
-  background:
-    linear-gradient(var(--wk-live), var(--wk-live)) left / 3px 100% no-repeat,
-    var(--wk-live-fill);
+/* Chosen: an OUTLINE in the blue of anything picked, on the quiet ground
+   (an inset ring, so it never widens the line). Never a fill and a band:
+   that is a spoken line's look, and a chosen spoken line must still look
+   chosen. After the hover rule, so it wins under a mouse. */
+.vta__line[data-selected] {
+  background-color: var(--wk-surface-2);
+  box-shadow: inset 0 0 0 2px var(--wk-live);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -302,6 +357,69 @@
   font-size: 14px;
   font-weight: 700;
   color: var(--wk-ink);
+}
+
+/* What the studio told head office about a line, and the answer: one quiet
+   line each (head office's note, if any, under it). Taken is the green of
+   done; waiting and not taken stay in the ink. */
+.vta__answers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.125rem var(--vta-pad) 0.375rem;
+  padding: 0;
+  list-style: none;
+}
+.vta__answer-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.vta__answer-head svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--wk-ink-muted);
+}
+.vta__verdict {
+  font-weight: 700;
+  color: var(--wk-ink-2);
+}
+.vta__answer[data-verdict="taken"] .vta__verdict {
+  color: var(--wk-ok);
+}
+.vta__answer-note {
+  margin: 0.125rem 0 0 1.25rem;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.vta__answer-note + .vta__mark-by {
+  margin-left: 1.25rem;
+}
+
+/* The one hint that a line can be tapped (an iPad has no hover to find it
+   with): under the page's first line, until the reader has chosen one. */
+.vta__tap-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+  margin: 0.125rem var(--vta-pad) 0.25rem;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.vta__tap-hint svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--wk-live-text);
 }
 
 /* ── The gutter (Design 2): one marker per marked line ──────────────── */

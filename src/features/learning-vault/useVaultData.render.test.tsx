@@ -27,6 +27,8 @@ const fx = vi.hoisted(() => ({
   floorMachines: [] as { id: string; name: string }[],
   cache: {} as Record<string, unknown>,
   load: null as unknown as (id: string) => Promise<unknown>,
+  /** The vault's own ask for a reference chunk (loadAcademyReference): never settles unless a test says. */
+  loadRef: null as unknown as (name: string) => Promise<unknown>,
 }));
 
 vi.mock("../../firebase", () => ({ db: {}, auth: { currentUser: null } }));
@@ -47,6 +49,7 @@ vi.mock("../academy/useAcademyContent", () => ({
   useAcademyScripts: (on: boolean) => (fx.enabled.push(on), fx.scripts),
   useAcademyOverviews: (on: boolean) => (fx.enabled.push(on), fx.overviews),
   loadAcademyModule: (id: string) => fx.load(id),
+  loadAcademyReference: (name: string) => fx.loadRef(name),
   cachedAcademyModule: (id: string) => fx.cache[id] ?? null,
 }));
 
@@ -150,6 +153,7 @@ beforeEach(() => {
   fx.floorMachines = [];
   fx.cache = {};
   fx.load = vi.fn(() => Promise.resolve(INTRO));
+  fx.loadRef = vi.fn(() => new Promise<unknown>(() => {}));
   builds.entities.mockClear();
   builds.graph.mockClear();
   builds.bank.mockClear();
@@ -354,5 +358,56 @@ describe("useVaultData — modules on demand", () => {
     await render();
     expect(data.cachedModule?.("intro")).toBe(INTRO);
     expect(data.cachedModule?.("mastery")).toBeNull();
+  });
+});
+
+describe("useVaultData — a reference chunk that cannot arrive (review fix, Oct 19 2026)", () => {
+  it("says so instead of loading forever, and asks again only on the reader's tap", async () => {
+    const tries: Record<string, number> = {};
+    let fail = true;
+    fx.loadRef = vi.fn((name: string) => {
+      tries[name] = (tries[name] ?? 0) + 1;
+      if (name === "cards" && fail) return Promise.reject(new Error("chunk gone"));
+      return new Promise<unknown>(() => {});
+    });
+    await render();
+    await act(async () => {});
+    expect(data.referenceFailed).toBe(true);
+    expect(tries.cards).toBe(1);
+
+    // Nothing retries by itself.
+    await render();
+    await act(async () => {});
+    expect(tries.cards).toBe(1);
+
+    fail = false;
+    fx.loadRef = vi.fn((name: string) => {
+      tries[name] = (tries[name] ?? 0) + 1;
+      return name === "cards" ? Promise.resolve(CARDS) : new Promise<unknown>(() => {});
+    });
+    await act(async () => data.retryReference?.());
+    await act(async () => {});
+    expect(tries.cards).toBe(2);
+    expect(data.referenceFailed).toBe(false);
+    expect(data.cards).toBe(CARDS);
+  });
+
+  it("asks for nothing the Academy's hooks already brought", async () => {
+    landAll();
+    await render();
+    await act(async () => {});
+    expect(fx.loadRef).not.toHaveBeenCalled();
+    expect(data.referenceFailed).toBe(false);
+  });
+
+  it("a failure the hooks then answer anyway is not a failure", async () => {
+    fx.loadRef = vi.fn((name: string) => (name === "glossary" ? Promise.reject(new Error("blip")) : new Promise<unknown>(() => {})));
+    await render();
+    await act(async () => {});
+    expect(data.referenceFailed).toBe(true);
+    fx.glossary = GLOSSARY;
+    await render();
+    expect(data.referenceFailed).toBe(false);
+    expect(data.glossary).toBe(GLOSSARY);
   });
 });

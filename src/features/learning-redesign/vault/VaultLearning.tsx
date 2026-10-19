@@ -1,9 +1,10 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LearningRef } from "../../learning/ref";
-import { pushRoute, routeForRef } from "../../learning-vault/routes";
+import { isPageRoute, pushRoute, routeForRef } from "../../learning-vault/routes";
 import type { VaultRoute } from "../../learning-vault/types";
 import { useVaultData, type VaultData } from "../../learning-vault/useVaultData";
 import { useVaultNav } from "../../learning-vault/useVaultNav";
+import { useLeaveGuard } from "../../unsaved-changes";
 import { ConceptLayer } from "../../learning-vault/ui/ConceptLayer";
 import { usePeekStack } from "../../learning-vault/ui/PeekSheet";
 import type { DesignProps } from "../design-props";
@@ -71,6 +72,11 @@ export default function VaultLearning(props: DesignProps) {
   return <VaultBody key={section} {...props} data={data} memory={memory} />;
 }
 
+/** Whether a route can be drawn on the peek sheet (PeekPage): one page, a reading path, or a map focused on one star. */
+export function peeksOnSheet(route: VaultRoute): boolean {
+  return isPageRoute(route) || route.kind === "track" || (route.kind === "map" && Boolean(route.focus));
+}
+
 /** The root page of each masthead section. */
 export function rootFor(section: DesignProps["section"]): VaultRoute {
   if (section === "machine-anatomy") return { kind: "catalog" };
@@ -114,6 +120,29 @@ function VaultBody({
 
   const { push } = nav;
   const peekPush = peek.push;
+  const peekClose = peek.close;
+  // Every link that peeks comes through here (Read alongside, Linked here, a
+  // path's steps inside a peek, the map's card, a concept card's Peek, the
+  // quiz's Read it). Only a page, a path or a map can be drawn on the sheet;
+  // anything else (a quiz deck) opens as the page itself, and the sheet lets
+  // go, as Open full page does (review fix, Oct 19 2026: a quiz peeked as
+  // "This page has moved").
+  const leave = useLeaveGuard();
+  const peekAt = useCallback(
+    (r: VaultRoute) => {
+      if (peeksOnSheet(r)) {
+        peekPush(r);
+        return;
+      }
+      // One question for the page and the sheet together (as Open full page
+      // asks it); inside the answer neither asks again.
+      leave(() => {
+        push(r);
+        peekClose();
+      });
+    },
+    [leave, push, peekPush, peekClose],
+  );
   const screen = useMemo<VaultScreen>(
     () => ({
       data,
@@ -121,15 +150,15 @@ function VaultBody({
       peek,
       rootLabel: SECTION_LABEL[section],
       open: push,
-      peekAt: peekPush,
+      peekAt,
       ...memory,
     }),
-    [data, nav, peek, section, push, peekPush, memory],
+    [data, nav, peek, section, push, peekAt, memory],
   );
 
   return (
     <VaultScreenProvider value={screen}>
-      <ConceptLayer index={data.entities} onOpen={push} onPeek={peekPush}>
+      <ConceptLayer index={data.entities} onOpen={push} onPeek={peekAt}>
         <Screen route={nav.route} />
       </ConceptLayer>
     </VaultScreenProvider>

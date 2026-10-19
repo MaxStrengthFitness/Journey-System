@@ -159,16 +159,9 @@
   overflow-wrap: anywhere;
 }
 
-.qz__bar-count {
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--wk-ink-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Where you are in the round, never how you did: every answered pip is the
-   same grey whatever the answer was. Decoration, so not a tap target. */
+   same grey whatever the answer was. Not a tap target; a screen reader hears
+   "Question 2 of 10" from its label. */
 .qz__pips {
   display: flex;
   flex-wrap: wrap;

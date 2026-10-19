@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dumbbell, EyeOff, MessageCircle, Shuffle } from "lucide-react";
 import type { AppliedMarkup } from "../../learning-vault/markup";
 import { MarkedLine, hiddenWords } from "./shell";
@@ -15,6 +15,12 @@ import "./course.css";
  * (course.css; not with reduced motion). A studio's crossed-out cue shows
  * crossed out with what it says instead, as on the phrasebook page. Nothing
  * is scored, timed or kept.
+ *
+ * Revealing takes the reveal button away, so the focus goes to the lines it
+ * revealed (never left on the page's top for a keyboard or VoiceOver
+ * reader); `focusLines` does the same for a card that arrives already open
+ * in place of the one the reader was on (the Overview's "Another moment").
+ * Only when the focus has nowhere else to be: a reader elsewhere keeps it.
  */
 
 /** How many lines show before "All n lines" (the rest are on the phrasebook page). */
@@ -29,6 +35,7 @@ export function CueDrillCard({
   startOpen = false,
   size = "regular",
   cap = SHOWN,
+  focusLines = false,
 }: {
   drill: CueDrillShape;
   /** The page's sections with this studio's marks (useAppliedMarkup). */
@@ -42,8 +49,28 @@ export function CueDrillCard({
   size?: "regular" | "large";
   /** How many lines show before "All n lines"; the phrasebook page shows them all. */
   cap?: number;
+  /** Open on arrival in place of the card the reader was on: the lines take the focus the old card lost. */
+  focusLines?: boolean;
 }) {
   const [open, setOpen] = useState(startOpen);
+  const linesRef = useRef<HTMLUListElement>(null);
+  // Set by the reader's own reveal (or an arrival in place of a card): the
+  // next draw with lines hands them the focus the vanished button had.
+  const wantFocus = useRef(focusLines && startOpen);
+  useEffect(() => {
+    if (!open || !wantFocus.current) return;
+    wantFocus.current = false;
+    try {
+      const now = document.activeElement;
+      if (!now || now === document.body) linesRef.current?.focus({ preventScroll: true });
+    } catch {
+      /* nothing to hand the focus to */
+    }
+  }, [open]);
+  const reveal = () => {
+    wantFocus.current = true;
+    setOpen(true);
+  };
   const section = marked[drill.section];
   const lines = section ? drill.cues.map((i) => section.blocks[i]).filter(Boolean) : [];
   const shown = lines.filter((b) => !b.hidden);
@@ -74,13 +101,13 @@ export function CueDrillCard({
               <MessageCircle size={30} />
             </span>
             <p className="crs__drill-prompt">Say it out loud first.</p>
-            <button type="button" className="crs__btn crs__btn--primary crs__btn--big" onClick={() => setOpen(true)}>
+            <button type="button" className="crs__btn crs__btn--primary crs__btn--big" onClick={reveal}>
               Show the Academy's lines
             </button>
           </div>
         ) : (
           <div className="crs__drill-foot">
-            <button type="button" className="crs__btn" onClick={() => setOpen(true)}>
+            <button type="button" className="crs__btn" onClick={reveal}>
               <MessageCircle size={16} aria-hidden />
               Show the lines
             </button>
@@ -88,7 +115,7 @@ export function CueDrillCard({
         )
       ) : (
         <>
-          <ul className="crs__drill-lines">
+          <ul className="crs__drill-lines" ref={linesRef} tabIndex={-1} aria-label={`What the Academy says: ${drill.title}`}>
             {shown.slice(0, cap).map((b, i) => (
               <li key={`${b.key}-${i}`} style={{ animationDelay: `${i * 70}ms` }}>
                 <MarkedLine block={b} studioLens={studioLens} />
@@ -125,7 +152,9 @@ export function CueDrillCard({
 /**
  * The packages conversation as a drill (the "Talking about packages"
  * playbook's "When money is the problem"): the lead-in line, then the steps
- * in their order, one tap each. Says it is a draft, once.
+ * in their order, one tap each. Says it is a draft once: here, when the page
+ * around it does not already (the Academy index); the playbook's own lesson
+ * says it in its lesson bar, so it passes no draftLine.
  */
 export function OrderDrillCard({
   drill,
@@ -139,7 +168,7 @@ export function OrderDrillCard({
   marked: AppliedMarkup["sections"];
   studioLens: boolean;
   title: string;
-  draftLine: string;
+  draftLine?: string;
   foot?: ReactNode;
 }) {
   const [shownCount, setShownCount] = useState(0);
@@ -181,7 +210,7 @@ export function OrderDrillCard({
         )}
         {foot}
       </div>
-      <p className="crs__draft">{draftLine}</p>
+      {draftLine && <p className="crs__draft">{draftLine}</p>}
     </article>
   );
 }

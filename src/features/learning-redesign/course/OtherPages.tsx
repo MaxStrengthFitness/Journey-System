@@ -1,16 +1,16 @@
 import { LoadingMark } from "../../../components/LoadingMark";
-import { pageFor } from "../../learning-vault/pages";
+import { floorUnreadableFor, pageFor } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
-import { ArticleBlocks, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
+import { ArticleBlocks, pageAccent, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { LocalConstellation } from "../../learning-vault/ui/LocalConstellation";
 import { QuizMode } from "../../learning-vault/ui/QuizMode";
 import { SubmissionQueue } from "../../learning-vault/ui/SubmissionQueue";
-import { nodeById } from "../../learning-vault/graph";
+import { nodeById, termNodeId } from "../../learning-vault/graph";
 import type { VaultPage, VaultRoute } from "../../learning-vault/types";
-import { CourseBar } from "./LessonPage";
+import { CourseBar, failedRetry } from "./LessonPage";
 import { courseContextOf } from "./drills";
-import { CourseShell, GonePage, LoadingPage, PageHead, ReadNext, useCourse, useVersionPlacement } from "./shell";
+import { CourseShell, FailedPage, GonePage, LoadingPage, PageHead, PeekFailed, ReadNext, useCourse, useVersionPlacement } from "./shell";
 import "./course.css";
 
 /**
@@ -27,6 +27,8 @@ import "./course.css";
 export function QuizPage({ route }: { route: Extract<VaultRoute, { kind: "quiz" }> }) {
   const { data, nav, peekAt } = useCourse();
   const course = courseContextOf(nav.stack, data);
+  // The bank waits on the Academy's references; one that failed never comes.
+  if (!data.quizBank && data.referenceFailed) return <FailedPage onRetry={data.retryReference} />;
   return (
     <CourseShell>
       {course && <CourseBar course={course} />}
@@ -60,7 +62,10 @@ export function QueuePage() {
 export function ReferencePage({ route }: { route: VaultRoute }) {
   const { data } = useCourse();
   const state = pageFor(route, data);
-  if (state === "loading") return <LoadingPage />;
+  if (state === "loading") {
+    const failed = failedRetry(route, data);
+    return failed ? <FailedPage onRetry={failed.retry} /> : <LoadingPage />;
+  }
   if (state === "gone") return <GonePage />;
   return <ReferenceBody key={state.target.key} page={state} />;
 }
@@ -69,13 +74,19 @@ function ReferenceBody({ page }: { page: VaultPage }) {
   const applied = useAppliedMarkup(page.target, page.sections);
   const { actions, inPage } = useVersionPlacement(applied.struck);
   return (
-    <CourseShell actions={actions}>
+    <CourseShell actions={actions} accent={pageAccent(page)}>
       <PageHead eyebrow={page.eyebrow} title={page.title} lede={page.lede}>
         {page.draft && <p className="crs__draft">{PLAYBOOK_DRAFT_LINE}</p>}
       </PageHead>
       {inPage}
       <div className="crs__whole">
-        <ArticleBlocks target={page.target} sections={page.sections} annotate="inline" renderText={(t) => <LinkedText text={t} />} />
+        <ArticleBlocks
+          target={page.target}
+          sections={page.sections}
+          annotate="inline"
+          renderText={(t) => <LinkedText text={t} />}
+          accent={pageAccent(page)}
+        />
         {page.source && <p className="crs__source">{page.source}</p>}
       </div>
       <ReadNext related={page.related} />
@@ -89,7 +100,10 @@ function ReferenceBody({ page }: { page: VaultPage }) {
 
 export function ConnectionsPage({ route }: { route: Extract<VaultRoute, { kind: "map" }> }) {
   const { data, open } = useCourse();
-  if (!data.graph) return <LoadingPage label="Gathering what it connects to…" />;
+  if (!data.graph) {
+    if (data.referenceFailed) return <FailedPage onRetry={data.retryReference} />;
+    return <LoadingPage label="Gathering what it connects to…" />;
+  }
   const node = route.focus ? nodeById(data.graph, route.focus) : null;
   if (!node) return <GonePage />;
   return (
@@ -104,11 +118,38 @@ export function ConnectionsPage({ route }: { route: Extract<VaultRoute, { kind: 
  * A page in the peek
  * ------------------------------------------------------------------ */
 
-/** Any page, compact, for the peek sheet: its lede, then its lines (which still take actions). */
+/**
+ * Any page, compact, for the peek sheet: its lede, then its lines (which
+ * still take actions). A clinical flag has no page of its own: it peeks as
+ * what it connects to, as its full page does. A wait that will not end (a
+ * topic whose module failed, an Academy chunk that did not load, a studio's
+ * own machine on a floor that cannot be read) says so, with Try again where
+ * trying again can help, never a spinner forever.
+ */
 export function PeekBody({ route }: { route: VaultRoute }) {
-  const { data } = useCourse();
+  const { data, peekAt, studioName } = useCourse();
+  if (route.kind === "map") {
+    if (!data.graph) {
+      if (data.referenceFailed) return <PeekFailed onRetry={data.retryReference} />;
+      return (
+        <div className="crs__peek-wait">
+          <LoadingMark size="sm" label="Gathering what it connects to…" />
+        </div>
+      );
+    }
+    const node = route.focus ? nodeById(data.graph, route.focus) : null;
+    if (!node) return <p className="crs__empty">This page has moved.</p>;
+    return (
+      <div className="crs__peek">
+        <LocalConstellation graph={data.graph} nodeId={node.id} onOpen={peekAt} variant="pills" max={12} />
+      </div>
+    );
+  }
   const state = pageFor(route, data);
   if (state === "loading") {
+    if (floorUnreadableFor(route, data)) return <PeekFailed words={`Can't read ${studioName}'s floor right now.`} />;
+    const failed = failedRetry(route, data);
+    if (failed) return <PeekFailed onRetry={failed.retry} />;
     return (
       <div className="crs__peek-wait">
         <LoadingMark size="sm" label="Opening…" />
@@ -126,23 +167,22 @@ export function PeekBody({ route }: { route: VaultRoute }) {
   );
 }
 
+/**
+ * The peek of a page. One word of the glossary, or one moment of the
+ * phrasebook, peeks as that word or that moment alone: the sheet is for the
+ * thing the reader asked about, and "Open full page" is the door to the rest.
+ * Drawn alone, a part has no "lines that changed" of its own to list (a mark
+ * on another word is not a line that left the page), so those stay off.
+ */
 function PeekPage({ page, focus, term }: { page: VaultPage; focus: number | null; term: string | null }) {
-  // A cue moment peeks with that moment first: the rest of the phrasebook
-  // follows (the page whole, so the studio's marks on its other moments are
-  // never mistaken for lines that left the page).
   const at = focus !== null ? page.sections.findIndex((s) => s.id === `moment-${focus}`) : -1;
-  let sections = at > 0 ? [page.sections[at], ...page.sections.filter((_, i) => i !== at)] : page.sections;
-  // A glossary word peeks with its own line first, the rest of the glossary after it.
   const word = term ? page.sections.flatMap((s) => s.blocks).find((b) => b.label === term) : undefined;
-  if (word) {
-    sections = [
-      { id: "peek-word", title: "", blocks: [word] },
-      ...page.sections.map((s) => ({ ...s, blocks: s.blocks.filter((b) => b !== word) })).filter((s) => s.blocks.length > 0),
-    ];
-  }
+  const sections = word ? [{ id: "peek-word", title: "", blocks: [word] }] : at >= 0 ? [page.sections[at]] : page.sections;
+  const part = Boolean(word) || at >= 0;
+  const glossary = page.route.kind === "glossary";
   return (
     <div className="crs__peek">
-      {page.lede && at < 0 && !word && <p className="crs__peek-lede">{page.lede}</p>}
+      {page.lede && !part && <p className="crs__peek-lede">{page.lede}</p>}
       {page.draft && <p className="crs__draft">{PLAYBOOK_DRAFT_LINE}</p>}
       <ArticleBlocks
         target={page.target}
@@ -150,7 +190,9 @@ function PeekPage({ page, focus, term }: { page: VaultPage; focus: number | null
         annotate="inline"
         compact
         headingLevel={3}
-        renderText={(t) => <LinkedText text={t} />}
+        accent={pageAccent(page)}
+        showOrphans={!part}
+        renderText={(t, b) => <LinkedText text={t} skip={glossary && b.label ? termNodeId(b.label) : undefined} />}
       />
     </div>
   );

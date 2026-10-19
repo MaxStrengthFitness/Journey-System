@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   BookOpen,
   ChevronRight,
@@ -16,7 +26,7 @@ import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { VersionToggle } from "../../learning-vault/ui/VersionToggle";
 import type { VaultFact, VaultPage, VaultSection, VaultTarget } from "../../learning-vault/types";
 import { useCodex } from "./codex-context";
-import { nextLayer, pickLayer, stepKind, type StepKind } from "./codex-model";
+import { groupReasons, nextLayer, pickLayer, stepKind, versionFitsTrail, type StepKind } from "./codex-model";
 import "./codex.css";
 
 /* ------------------------------------------------------------------ *
@@ -25,13 +35,35 @@ import "./codex.css";
 
 /**
  * The version switch's place. On an iPad it rides the trail's row (sticky,
- * one tap from any line); on a phone that row has no room beside the trail,
- * so it sits under the title instead.
+ * one tap from any line) when the crumbs and the switch fit there side by
+ * side; on a phone, or on a deep trail whose first crumb the row would cut
+ * mid-word, it sits under the title instead (versionFitsTrail).
  */
 export function useVersionSlot(struck: number): { actions: ReactNode; inline: ReactNode } {
-  const { phone } = useCodex();
+  const { phone, crumbs } = useCodex();
+  const width = useViewportWidth();
   const toggle = <VersionToggle struck={struck} />;
-  return phone ? { actions: undefined, inline: <div className="cdx__version">{toggle}</div> } : { actions: toggle, inline: null };
+  const inRow = !phone && versionFitsTrail({ labels: crumbs.map((c) => c.label), struck: struck > 0, width });
+  return inRow ? { actions: toggle, inline: null } : { actions: undefined, inline: <div className="cdx__version">{toggle}</div> };
+}
+
+/** The screen's width, kept current on a turn of the iPad; an iPad held upright where there is no window. */
+function useViewportWidth(): number {
+  const read = () => {
+    try {
+      return typeof window !== "undefined" && window.innerWidth > 0 ? window.innerWidth : 820;
+    } catch {
+      return 820;
+    }
+  };
+  const [width, setWidth] = useState(read);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => setWidth(read());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return width;
 }
 
 export function PageHead({
@@ -109,6 +141,7 @@ export function Blocks({
   partial = false,
   compact = false,
   skip,
+  accent,
 }: {
   target: VaultTarget;
   sections: VaultSection[];
@@ -116,6 +149,8 @@ export function Blocks({
   compact?: boolean;
   /** The page's own entity: a page never links its own name back to itself. */
   skip?: string;
+  /** A machine's quick card, script or deep dive: its machine's category (pageAccent), for the spoken lines. */
+  accent?: CSSProperties;
 }) {
   const linked = useCallback((text: string) => <LinkedText text={text} skip={skip} />, [skip]);
   return (
@@ -128,6 +163,7 @@ export function Blocks({
         compact={compact}
         headingLevel={2}
         showOrphans={!partial}
+        accent={accent}
       />
     </div>
   );
@@ -311,11 +347,14 @@ export function KindGlyph({ kind, size = 16 }: { kind: StepKind; size?: number }
 /**
  * "Read next": the page's related pages as 44px link cards. From a machine
  * they peek (the machine stays under the reader's thumb); from a topic they
- * open, because reading on is the point.
+ * open, because reading on is the point. Links that give the same reason
+ * (the Leg Press's three substitutes) share it, said once over their cards
+ * (groupReasons); every other card keeps its own.
  */
 export function ReadNext({ items, mode }: { items: VaultPage["related"]; mode: "peek" | "open" }) {
   const { open, peek } = useCodex();
   const headId = useId();
+  const groups = useMemo(() => groupReasons(items), [items]);
   if (items.length === 0) return null;
   const go = mode === "peek" ? peek : open;
   return (
@@ -323,20 +362,25 @@ export function ReadNext({ items, mode }: { items: VaultPage["related"]; mode: "
       <h2 className="cdx__h3" id={headId}>
         Read next
       </h2>
-      <ul className="cdx__next-grid">
-        {items.map((r, i) => (
-          <li key={`${i}-${r.title}`}>
-            <button type="button" className="cdx__link" onClick={() => go(r.route)}>
-              <KindGlyph kind={stepKind(r.route)} />
-              <span className="cdx__link-words">
-                <span className="cdx__link-title">{r.title}</span>
-                <span className="cdx__link-why">{r.why}</span>
-              </span>
-              <ChevronRight className="cdx__chev" size={16} aria-hidden />
-            </button>
-          </li>
-        ))}
-      </ul>
+      {groups.map((g, gi) => (
+        <div key={gi} className="cdx__next-group">
+          {g.why && <p className="cdx__next-why">{g.why}</p>}
+          <ul className="cdx__next-grid">
+            {g.items.map((r, i) => (
+              <li key={`${i}-${r.title}`}>
+                <button type="button" className="cdx__link" onClick={() => go(r.route)}>
+                  <KindGlyph kind={stepKind(r.route)} />
+                  <span className="cdx__link-words">
+                    <span className="cdx__link-title">{r.title}</span>
+                    {!g.why && r.why && <span className="cdx__link-why">{r.why}</span>}
+                  </span>
+                  <ChevronRight className="cdx__chev" size={16} aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </section>
   );
 }

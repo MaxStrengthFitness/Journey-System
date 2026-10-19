@@ -49,7 +49,8 @@ export function NoteForm({
     fieldRef.current?.focus();
   }, []);
 
-  const ready = vault.studio.id !== null && noteProblems(body).length === 0;
+  // Only on the studio's own version, by someone who works there (see StrikeForm).
+  const ready = vault.lens === "studio" && vault.viewer.canNote && vault.studio.id !== null && noteProblems(body).length === 0;
 
   const add = () => {
     const studioId = vault.studio.id;

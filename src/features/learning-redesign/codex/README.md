@@ -18,30 +18,44 @@ category's band; panels are crisp on the house's firm edges.
 
 | Screen | What is on it |
 | --- | --- |
-| **Overview** (`CodexHome.tsx`) | **Paths**: a new Life Transformer's path as the lead card (the brand band, its first three steps side by side with why each comes there, one Start), the head trainer's and studio leader's paths beside each other, the pillar paths as rows. **On {Studio}'s floor**: the floor as codex entries in walking order (number, code chip, name, category band). **The method**: the thirteen modules as a two-column contents page, the glossary and the phrasebook beside them. **Play**: Quick ten and every deck. Head office sees its queue's door first ("2 from the floor waiting · 3 lines crossed out at more than one studio"). |
-| **Catalog** (`CodexIndexes.tsx`) | "{Studio}'s floor": one list in walking order (number, code, name, its preset when a number is set, category), then the MSF machines this floor does not have. The floor first is a recorded decision. |
+| **Overview** (`CodexHome.tsx`) | **Paths**: a new Life Transformer's path as the lead card (the brand band, its first three steps side by side with why each comes there, one Start), the head trainer's and studio leader's paths beside each other, the pillar paths as rows. **On {Studio}'s floor**: the floor as codex entries in walking order (number, code chip, name, category band). **The method**: the thirteen modules as a two-column contents page, the glossary and the phrasebook beside them. **Play**: Quick ten and every deck. Head office sees its queue's door first, saying the queue's own first line ("2 waiting from the floor · 6 lines crossed out", `queueLead`), so the door and the page it opens never disagree. |
+| **Catalog** (`CodexIndexes.tsx`) | "{Studio}'s floor": one list in walking order (number, code, name, its preset when a number is set, category), then the MSF machines this floor does not have. A floor that could not be read, or has nothing on it, lists every MSF machine instead ("Every MSF machine", `otherMachines`), so the Catalog is never a dead end. The floor first is a recorded decision. |
 | **Academy** (`CodexIndexes.tsx`) | The method's thirteen chapters with their blurbs and reading times, the two reference books, the playbooks on their five shelves (the draft line said once), every path, Play. |
-| **Machine** (`CodexMachine.tsx`) — the showpiece | Title and category. The **bento**: the body with the worked muscles (`MachineFigure`) as tall as the facts and dials beside it; the facts (code, category, workout, how it begins, never to failure) with the Academy's quick card, script and deep dive as doors that peek; the dials with their preset numbers, or the dials by name and "No numbers set for this unit yet" (never a guessed number, never a letter nobody recorded; a dial with a rule written opens it); and what the machine connects to across the foot (`LocalConstellation`, its groups side by side). Then the **tier bar** — 1 Floor glance · 2 Script & cues · 3 Adapt & clinical · 4 Deep science — sticky under the trail, remembered for the visit. Tier 2 opens on the `RepScrubber` with this machine's shape. Each tier ends with a door one layer deeper. "Read next" lists only what the bento did not. On a page 1000px wide (landscape) the bento is a column beside the layers; with the peek docked, it stacks again (the page is a container). The first screen of a portrait iPad holds the whole bento, the tier bar and the first floor-glance lines. |
-| **Topic** (`CodexArticle.tsx`) | The same tier bar, adapted honestly: **1 In one minute** (its headings and the first line under each, the topic's own words), **2 Say it** (the phrasebook moments that use the topic's words, from the knowledge graph; their marks are the phrasebook's, so they land there), **4 Full text**. The numbers are depths, the same as a machine's; a tier that would be empty, or only repeat the full text, is left out. |
-| **Quick card, script, deep dive, playbook** | Head, facts, every line, Read next. A playbook says "A draft from Journey's notes, waiting for head office to read it." once, in a quiet well. |
-| **Glossary** | A codex index: each letter a tile of its words (equipment words tagged), each word a door to its own **entry** (the definition, what it connects to, "Every word in the glossary"); every definition in one list under it. |
+| **Machine** (`CodexMachine.tsx`) — the showpiece | Title and category. The **bento**: the body with the worked muscles (`MachineFigure`) on the left; beside it the facts (how it begins, never to failure; the workout only when the category in the eyebrow does not already say it) with the Academy's quick card, script and deep dive as doors that peek, and under them the dials, which take whatever height the body leaves: the preset numbers, or the dials by name and "No numbers set for this unit yet" in a sunk plate (never a guessed number, never a letter nobody recorded; a dial with a rule written opens it); and what the machine connects to across the foot (`LocalConstellation`, its groups side by side, each machine in its category's colours). Then the **tier bar** — 1 Floor glance · 2 Script & cues · 3 Adapt & clinical · 4 Deep science — sticky under the trail, its shelf edge to edge, remembered for the visit. Tier 2 opens on the `RepScrubber` with this machine's shape. Each tier ends with a door one layer deeper. "Read next" lists only what the bento did not, and a reason several links share is said once over them. On a page 1000px wide (landscape) the bento is a column beside the layers; with the peek docked, it stacks again (the page is a container). On a phone the connections come after the layers and the body is shorter, so the floor glance is reached first. The first screen of a portrait iPad holds the whole bento, the tier bar and the first floor-glance lines. |
+| **Topic** (`CodexArticle.tsx`) | The same tier bar, adapted honestly: **In one minute** (its headings and the first line under each, the topic's own words), **Say it** (the phrasebook moments that use the topic's words, from the knowledge graph; their marks are the phrasebook's, so they land there), **Full text**. A tier that would be empty, or only repeat the full text, is left out, and the bar numbers what is left by its place (1 · 2 · 3, or 1 · 2): a bar reading 1 · 2 · 4 looked like a tier had gone missing. |
+| **Quick card, script, deep dive, playbook** | Head, facts, every line, Read next. A machine's piece is titled by the piece ("Quick card", the word on the bento's door), the machine's code and name above it; its crumb is "Quick card" right after its machine and "Quick card · LEG PRESS" anywhere else, the peek's head too (`pieceLabel`), so the three pieces never read as the machine's page. Its spoken lines take the machine's category (`pageAccent`). A playbook says "A draft from Journey's notes, waiting for head office to read it." once, in a quiet well. |
+| **Glossary** | A codex index: the letters read down one column and on into the next, as a book's index does, each tile as tall as its words (two columns where they fit, one on a phone); each word a door to its own **entry** (the definition, what it connects to, "Every word in the glossary"); every definition in one list under it. |
 | **Cueing phrasebook** | The fourteen moments as a contents page, each a door to its own entry (its lines, the machines cued there, the words it uses); every phrase in one list under it. |
-| **Path** (`TrackPage`) | Civilopedia's chapter list: numbered steps, 64px rows, each with why it comes there and its kind's glyph. "Nothing is kept about who read what." |
+| **Path** (`TrackPage`) | Civilopedia's chapter list: numbered steps, 64px rows, each with why it comes there and its kind's glyph. Nothing is kept about who read what, and nothing says so: there is simply no progress anywhere. |
 | **Module** | Its topics as numbered chapters ("4.6"), then the next chapter's door. |
 | **Clinical flag** (a `map` route) | Its entry: the matrix's words (names and counts only) and the machines it touches. |
 | **Quiz, head office's queue** | `QuizMode` and `SubmissionQueue`, inside the page's one scroller. |
 | **Peek** (`CodexPeek.tsx`) | Every cross-link that would lose the reader's place peeks: a machine's quick card, script and deep dive, a substitute, a cue moment, a clinical flag, a quiz answer's source, Read next on a machine. A machine peeks at its floor glance under its code and preset; a word, its line; anything else, every line. "Open full page" pushes it. |
 
 Every article draws the version switch ("Solon's version | MSF original", and
-"Hide crossed-out lines" when there are any) on the trail's row, sticky; on a
-phone that row has no room, so it sits under the title. Every body is
+"Hide crossed-out lines" when there are any) on the trail's row, sticky, when
+it fits there beside the crumbs (`versionFitsTrail`, from the crumbs' words
+and the screen's width); on a phone, or on a trail the row would scroll until
+its first crumb was cut mid-word, it sits under the title. Every body is
 `ArticleBlocks` (inline annotations) with `LinkedText` inside one
 `ConceptLayer`, so studio markup, line actions, disputes and Teams links work
 the same as in the other designs; a page never links its own name to itself.
+The lines' own inset hangs outside the column (`.cdx__blocks`), so their words
+share one left edge with the title, the tier bar and Read next; a toned
+section (a machine's Stop well) keeps the column's edges.
 
-Loading is the house's loading mark; a module chunk that failed says so with
-"Try again" (`data.retryModule`); a page the corpus no longer has says "This
-page has moved" with Back.
+Loading is the house's loading mark, only while a page is truly on its way
+(`waitState`): a module chunk or a reference chunk that failed says so with
+"Try again" (`data.retryModule`, `data.retryReference`; the reader's tap,
+never a timer), on the page, in the peek and on the quiz; a studio's own
+machine on a floor that could not be read says "Can't read {Studio}'s floor
+right now" with Back; a page the corpus no longer has says "This page has
+moved" with Back.
+
+A new visit (a masthead section, the title, a jump from outside) is set in a
+layout effect, and a jump's page goes on top of the root with `nav.set`
+before anything paints, so the old section or the section's front page never
+flashes first.
 
 ## What it borrows, and why
 
@@ -79,7 +93,7 @@ from a link returns as the reader left it (`resolveOpen`).
 | `CodexArticle.tsx` | A topic in tiers; card, script, deep dive, playbook; the glossary and the phrasebook with their entries; a clinical flag's entry |
 | `CodexPeek.tsx` | A page in the peek |
 | `CodexBits.tsx` | The head, the version slot, the body, the tier bar, the deeper door, Read next |
-| `codex-model.ts` (+ `.test.ts`) | The pure half: trails, categories, the floor, the bento's facts, Read next, topic tiers, glossary and phrasebook entries, paths |
+| `codex-model.ts` (+ `.test.ts`) | The pure half: trails, categories, the floor and the Catalog's other machines, why a page is waiting, the bento's facts, a machine's pieces and their names, the version switch's place, Read next and its shared reasons, topic tiers, glossary and phrasebook entries, paths |
 | `CodexLearning.render.test.tsx` | Mounts the whole design on the real corpus and walks it |
 | `codex.css` | The one stylesheet, `cdx__` only, `--wk-*` tokens only |
 

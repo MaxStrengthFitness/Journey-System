@@ -25,7 +25,8 @@
  */
 
 import type { LearningViewId } from "../../learning/LearningView";
-import { routeKey, samePage } from "../../learning-vault/routes";
+import { floorUnreadableFor } from "../../learning-vault/pages";
+import { moduleOfTopic, routeKey, samePage } from "../../learning-vault/routes";
 import type {
   Track,
   VaultFact,
@@ -34,6 +35,7 @@ import type {
   VaultRoute,
   VaultSection,
 } from "../../learning-vault/types";
+import type { VaultData } from "../../learning-vault/useVaultData";
 import { CATEGORY_LABEL, MACHINE_CATEGORY } from "../../routine-builder/academy";
 import { accentForAcademyCategory, type WikiAccent } from "../../wiki/categories";
 
@@ -119,6 +121,55 @@ export function offFloor<T extends { machineId: string }>(
   return machines.filter((m) => !here.has(m.machineId));
 }
 
+/**
+ * What the Catalog lists under the studio's floor. A read floor: the MSF
+ * machines it does not have. A floor that could not be read ("unreadable"
+ * is final) or has nothing on it: EVERY MSF machine, so the Catalog is never
+ * a dead end. While the floor is still being read: nothing yet (the list
+ * would only jump when the floor lands).
+ */
+export function otherMachines<T extends { machineId: string }>(
+  machines: readonly T[],
+  floor: readonly { id: string }[] | null,
+  floorState?: string,
+): { every: boolean; machines: T[] } {
+  if (floor === null) return floorState === "unreadable" ? { every: true, machines: [...machines] } : { every: false, machines: [] };
+  if (floor.length === 0) return { every: true, machines: [...machines] };
+  return { every: false, machines: offFloor(machines, floor) };
+}
+
+/* ------------------------------------------------------------------ *
+ * A page that is not here yet
+ * ------------------------------------------------------------------ */
+
+/**
+ * Why a page answered "loading", so a design never spins for something that
+ * will not come on its own: a studio's own machine on a floor that could
+ * not be read ("floor"); a topic whose module chunk failed ("module", with
+ * its id, for data.retryModule); a page waiting on a reference chunk that
+ * failed ("reference", for data.retryReference); else it is on its way.
+ */
+export type WaitState =
+  | { kind: "loading" }
+  | { kind: "floor" }
+  | { kind: "module"; moduleId: string }
+  | { kind: "reference" };
+
+export function waitState(
+  route: VaultRoute,
+  data: Pick<VaultData, "defs" | "floor" | "floorState" | "moduleFailed" | "referenceFailed">,
+): WaitState {
+  if (floorUnreadableFor(route, data)) return { kind: "floor" };
+  if (route.kind === "topic") {
+    // A topic waits on its module's prose, and on nothing else.
+    const mod = moduleOfTopic(route.topicId) ?? route.moduleId;
+    return mod && data.moduleFailed(mod) ? { kind: "module", moduleId: mod } : { kind: "loading" };
+  }
+  // A studio's own machine waits on the floor alone (it has no Academy pages).
+  if (route.kind === "machine" && !data.defs[route.id]) return { kind: "loading" };
+  return data.referenceFailed ? { kind: "reference" } : { kind: "loading" };
+}
+
 /* ------------------------------------------------------------------ *
  * The machine's bento
  * ------------------------------------------------------------------ */
@@ -126,14 +177,94 @@ export function offFloor<T extends { machineId: string }>(
 /**
  * The facts the bento lists in words. The code and the category are the
  * page's eyebrow, the preset is the dial strip and the Academy's pieces are
- * their own doors, so none of them is said twice.
+ * their own doors, so none of them is said twice. The workout goes too when
+ * the category already says it ("Lower Body" over "Workout: Lower Body",
+ * "Upper Body — Pull" over "Workout: Upper Body").
  */
-export function bentoFacts(facts: readonly VaultFact[], opts: { dials: boolean }): VaultFact[] {
+export function bentoFacts(
+  facts: readonly VaultFact[],
+  opts: { dials: boolean; category?: string | null },
+): VaultFact[] {
+  const category = (opts.category ?? "").trim().toLowerCase();
   return facts.filter((f) => {
     if (f.label === "In the Academy" || f.label === "Code" || f.label === "Category") return false;
     if (f.label === "Preset" && opts.dials) return false;
+    if (f.label === "Workout" && category) {
+      const workout = f.value.trim().toLowerCase();
+      if (workout && category.startsWith(workout)) return false;
+    }
     return true;
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * A machine's Academy pieces: its quick card, its script, its deep dive
+ * ------------------------------------------------------------------ */
+
+/** A piece's name, the same on the bento's door, the page's title and its crumb. */
+export const PIECE_WORDS = { card: "Quick card", script: "Script", overview: "Deep dive" } as const;
+export type PieceKind = keyof typeof PIECE_WORDS;
+
+export function isPiece(route: VaultRoute): route is Extract<VaultRoute, { kind: PieceKind }> {
+  return route.kind === "card" || route.kind === "script" || route.kind === "overview";
+}
+
+/** The machine a quick card, script or deep dive belongs to, by the Academy's joined rows; null for anything else. */
+export function pieceMachineId(
+  route: VaultRoute,
+  machines: readonly { machineId: string; cardId?: string | null; scriptId?: string | null; overviewId?: string | null }[],
+): string | null {
+  if (!isPiece(route)) return null;
+  const field = route.kind === "card" ? "cardId" : route.kind === "script" ? "scriptId" : "overviewId";
+  return machines.find((m) => m[field] === route.id)?.machineId ?? null;
+}
+
+/**
+ * A piece's name in a crumb or the peek's head, the piece first: "Quick
+ * card · LEG PRESS", or "Quick card" alone right after its own machine in
+ * the trail (said once). Null for a route that is not a machine's piece.
+ */
+export function pieceLabel(
+  route: VaultRoute,
+  machines: Parameters<typeof pieceMachineId>[1],
+  name: (machineId: string) => string,
+  parent?: VaultRoute | null,
+): string | null {
+  const id = pieceMachineId(route, machines);
+  if (!id || !isPiece(route)) return null;
+  const words = PIECE_WORDS[route.kind];
+  if (parent && parent.kind === "machine" && parent.id === id) return words;
+  return `${words} · ${name(id)}`;
+}
+
+/* ------------------------------------------------------------------ *
+ * The version switch's place
+ * ------------------------------------------------------------------ */
+
+/**
+ * Does the version switch fit on the trail's row beside the crumbs? The
+ * trail scrolls to its end when it outgrows the row, which cuts its first
+ * crumb mid-word ("‹ y › Cueing phrasebook"), so a page whose crumbs and
+ * switch would not fit takes the switch under its title instead. Measured
+ * from the crumbs' words (WikiShell's 12/700 crumbs, about 7px a letter, on
+ * the generous side) and the row's width (the screen's, less its padding).
+ */
+const CRUMB_LETTER = 7;
+const CRUMB_PAD = 12; // a crumb's own padding
+const CRUMB_SEP = 18; // the chevron between two crumbs
+const ROW_BACK = 44; // the back button and its gap
+const ROW_GAP = 8; // between the trail and the switch
+const SWITCH_W = 256; // "{Studio}'s version | MSF original"
+const HIDE_W = 216; // "Hide crossed-out lines", and its gap
+
+export function versionFitsTrail(input: { labels: readonly string[]; struck: boolean; width: number }): boolean {
+  const pad = input.width >= 1024 ? 24 : 16;
+  const room = input.width - 2 * pad;
+  const crumbs =
+    input.labels.reduce((sum, l) => sum + l.length * CRUMB_LETTER + CRUMB_PAD, 0) +
+    Math.max(0, input.labels.length - 1) * CRUMB_SEP;
+  const need = ROW_BACK + crumbs + ROW_GAP + SWITCH_W + (input.struck ? HIDE_W : 0);
+  return need <= room;
 }
 
 /**
@@ -157,6 +288,38 @@ export function readNextOf(
     seen.add(key);
     seen.add(`title:${name}`);
     out.push(r);
+  }
+  return out;
+}
+
+/** Read next in runs: a reason that several links share, said once over them; null keeps each link's own. */
+export interface ReasonGroup {
+  why: string | null;
+  items: VaultPage["related"];
+}
+
+/**
+ * Read next's links in groups. Links next to each other that give the same
+ * reason ("Together with LEG EXTENSION and HIP ABDUCTION, it can replace
+ * this one.") share it, said once over them; every other link keeps its
+ * own reason, and links that do are kept together in one group. The order
+ * never changes.
+ */
+export function groupReasons(items: VaultPage["related"]): ReasonGroup[] {
+  const out: ReasonGroup[] = [];
+  let i = 0;
+  while (i < items.length) {
+    const why = items[i].why.trim();
+    let j = i + 1;
+    while (why && j < items.length && items[j].why.trim() === why) j += 1;
+    if (j - i > 1) {
+      out.push({ why, items: items.slice(i, j) });
+    } else {
+      const last = out[out.length - 1];
+      if (last && last.why === null) last.items = [...last.items, items[i]];
+      else out.push({ why: null, items: [items[i]] });
+    }
+    i = j;
   }
   return out;
 }
@@ -259,16 +422,18 @@ export function momentSections(cueing: Pick<VaultPage, "sections"> | null, momen
 }
 
 /**
- * A topic's tiers: 1 In one minute, 2 Say it, 4 Full text (the numbers are
- * depths, the same as a machine's: a topic has no "Adapt" depth). Each is
- * left out when it would be empty; a topic with only its full text has one.
+ * A topic's tiers: In one minute, Say it, Full text, each left out when it
+ * would be empty (a topic with only its full text has one). Numbered by
+ * their place on the bar (1, 2, 3; or 1, 2 when Say it is left out): a bar
+ * that read 1 · 2 · 4 would look like a tier had gone missing. The machine's
+ * bar keeps its four fixed depths.
  */
 export function topicLayers(sections: readonly VaultSection[], say: readonly VaultSection[]): CodexLayer[] {
   const out: CodexLayer[] = [];
   const outline = outlineSections(sections);
-  if (outline.length > 0) out.push({ id: "minute", n: 1, title: "In one minute", sections: outline, partial: true });
-  if (say.length > 0) out.push({ id: "say", n: 2, title: "Say it", sections: [...say], home: "cueing", partial: true });
-  out.push({ id: "full", n: 4, title: "Full text", sections: [...sections], partial: false });
+  if (outline.length > 0) out.push({ id: "minute", n: out.length + 1, title: "In one minute", sections: outline, partial: true });
+  if (say.length > 0) out.push({ id: "say", n: out.length + 1, title: "Say it", sections: [...say], home: "cueing", partial: true });
+  out.push({ id: "full", n: out.length + 1, title: "Full text", sections: [...sections], partial: false });
   return out;
 }
 
@@ -291,7 +456,7 @@ export function termSections(glossary: Pick<VaultPage, "sections"> | null, term:
 export function whoLine(track: Pick<Track, "who" | "title">): string | null {
   const who = (track.who ?? "").trim();
   if (!who) return null;
-  const core = who.toLowerCase().replace(/^(a|an|the)s+/, "");
+  const core = who.toLowerCase().replace(/^(a|an|the)\s+/, "");
   return track.title.toLowerCase().includes(core) ? null : who;
 }
 

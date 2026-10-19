@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEve
 import { ChevronLeft, ChevronRight, EyeOff } from "lucide-react";
 import type { AppliedMarkup } from "../../learning-vault/markup";
 import type { VaultSection } from "../../learning-vault/types";
-import { MarkedLine, hiddenWords } from "./shell";
+import { MarkedLine, hiddenWords, runLabels } from "./shell";
 import type { StepCard } from "./steps";
 import "./course.css";
 
@@ -25,6 +25,20 @@ import "./course.css";
  * `end` is one more card after the last (Check yourself, the next lesson);
  * `at` and `onAt` let the page drive it (a dial pin on the field manual
  * turns to the card that sets that dial).
+ *
+ * NEXT NEVER MOVES (review fix, Oct 19 2026)
+ * ------------------------------------------
+ * Every content card is drawn, stacked in one grid cell, and only the one on
+ * turn is visible (the others hidden and inert: no tap, no focus, nothing for
+ * a screen reader). The stage is therefore as tall as the deck's tallest card,
+ * so Back, the dots and Next sit in the same place on every card of a lesson
+ * and the thumb finds Next where it left it. The end card (Check yourself, up
+ * to three questions) is left out of the stack and drawn alone in its turn:
+ * stacked, it would push Next down on every card.
+ *
+ * A turn that takes the focused control away (Next on the card before the
+ * end, Back on the first card) hands the focus to the deck itself, which the
+ * arrow keys turn, rather than dropping it on the page.
  */
 
 /** Past this many cards the dots become a bar: forty dots say nothing. */
@@ -59,11 +73,19 @@ export function StepDeck({ sections, marked, studioLens, cards, at, onAt, end, e
   const i = Math.min(Math.max(0, at), Math.max(0, total - 1));
   const [dir, setDir] = useState<"next" | "back" | null>(null);
   const deckId = useId();
+  const deckRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const swipe = useRef<{ id: number; x: number; y: number } | null>(null);
+  // Whether the focus was in the deck when the reader turned it (see below).
+  const focusWasIn = useRef(false);
 
   const go = (n: number) => {
     if (n < 0 || n >= total || n === i) return;
+    try {
+      focusWasIn.current = Boolean(deckRef.current && deckRef.current.contains(document.activeElement));
+    } catch {
+      focusWasIn.current = false;
+    }
     setDir(n > i ? "next" : "back");
     onAt(n);
   };
@@ -85,6 +107,24 @@ export function StepDeck({ sections, marked, studioLens, cards, at, onAt, end, e
       }
     } catch {
       /* a layout that can't be measured stays where it is */
+    }
+  }, [i]);
+
+  // The control the reader pressed may be gone after the turn (Next becomes
+  // the end card's spacer; Back is disabled on the first card). Only then,
+  // and only when the focus was in the deck, the deck takes it: never pulled
+  // off a Next that is still there.
+  useEffect(() => {
+    if (!focusWasIn.current) return;
+    focusWasIn.current = false;
+    const deck = deckRef.current;
+    if (!deck) return;
+    try {
+      const now = document.activeElement as HTMLElement | null;
+      const lost = !now || now === document.body || !deck.contains(now) || (now as HTMLButtonElement).disabled === true;
+      if (lost) deck.focus({ preventScroll: true });
+    } catch {
+      /* nothing to hand the focus to */
     }
   }, [i]);
 
@@ -118,11 +158,11 @@ export function StepDeck({ sections, marked, studioLens, cards, at, onAt, end, e
   };
 
   const isEnd = Boolean(end) && i === cards.length;
-  const card = isEnd ? null : cards[i];
   const nextLabel = i === cards.length - 1 && end ? (endLabel ?? "Next") : "Next";
 
   return (
     <section
+      ref={deckRef}
       className="crs__deck"
       aria-roledescription="lesson cards"
       aria-label={label}
@@ -131,20 +171,29 @@ export function StepDeck({ sections, marked, studioLens, cards, at, onAt, end, e
       onKeyDown={onKey}
     >
       <div className="crs__deck-stage" ref={stageRef} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={() => (swipe.current = null)}>
-        <article
-          key={i}
-          className="crs__card"
-          data-dir={dir ?? undefined}
-          data-end={isEnd ? "" : undefined}
-          aria-label={`Card ${i + 1} of ${total}`}
-        >
-          {card ? (
-            <CardBody card={card} sections={sections} marked={marked} studioLens={studioLens} />
-          ) : (
-            end
-          )}
-          {!isEnd && i === cards.length - 1 && !end && last && <div className="crs__card-last">{last}</div>}
-        </article>
+        {isEnd ? (
+          <article key="end" className="crs__card" data-current="" data-dir={dir ?? undefined} data-end="" aria-label={`Card ${i + 1} of ${total}`}>
+            {end}
+          </article>
+        ) : (
+          cards.map((card, n) => {
+            const on = n === i;
+            return (
+              <article
+                key={n}
+                className="crs__card"
+                data-current={on ? "" : undefined}
+                data-dir={on ? (dir ?? undefined) : undefined}
+                aria-hidden={on ? undefined : true}
+                inert={on ? undefined : true}
+                aria-label={`Card ${n + 1} of ${total}`}
+              >
+                <CardBody card={card} sections={sections} marked={marked} studioLens={studioLens} />
+                {n === cards.length - 1 && !end && last && <div className="crs__card-last">{last}</div>}
+              </article>
+            );
+          })
+        )}
       </div>
 
       <div className="crs__deck-nav">
@@ -194,7 +243,7 @@ function Progress({ at, total }: { at: number; total: number }) {
   );
 }
 
-/** One card's lines, with each section's title over its run. */
+/** One card's lines, with each section's title over its run, and a label said once over the lines that share it. */
 function CardBody({
   card,
   sections,
@@ -213,9 +262,9 @@ function CardBody({
         const s = sections[p.section];
         if (!ms || !s) return null;
         const blocks = p.blocks.map((bi) => ms.blocks[bi]).filter(Boolean);
-        const shown = blocks.filter((b) => !b.hidden);
-        const hidden = blocks.length - shown.length;
         const title = (s.title ?? "").trim();
+        const labels = runLabels(blocks, title);
+        const hidden = blocks.filter((b) => b.hidden).length;
         return (
           <div key={`${p.section}-${pi}`} className="crs__part">
             {title && (
@@ -225,9 +274,9 @@ function CardBody({
             )}
             {s.note && !p.continued && <p className="crs__part-note">{s.note}</p>}
             <div className="crs__part-lines">
-              {shown.map((b, bi) => (
-                <MarkedLine key={`${b.key}-${bi}`} block={b} studioLens={studioLens} />
-              ))}
+              {blocks.map((b, bi) =>
+                b.hidden ? null : <MarkedLine key={`${b.key}-${bi}`} block={b} studioLens={studioLens} showLabel={labels[bi]} />,
+              )}
             </div>
             {hidden > 0 && (
               <p className="crs__hidden">

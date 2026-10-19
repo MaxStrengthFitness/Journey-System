@@ -5,7 +5,7 @@ import { pageFor } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
 import type { VaultRoute } from "../../learning-vault/types";
 import { useCodex } from "./codex-context";
-import { chapterNumber, machineAccent, machineCategory, offFloor, stepKind } from "./codex-model";
+import { chapterNumber, machineAccent, machineCategory, otherMachines, stepKind } from "./codex-model";
 import { BandHead, FactLine, KindGlyph, PageHead } from "./CodexBits";
 import { CodexFrame, CodexGone, CodexLoading } from "./CodexFrame";
 import { FloorList, MethodList, PathRows, PlayCard, PlaybookShelves, ReferencePair } from "./CodexShelves";
@@ -19,21 +19,25 @@ import "./codex.css";
  * The Catalog is the floor first (a recorded decision): the studio's own
  * machines in the order a trainer walks them, each with its code, its
  * category and its preset when one is set. Under them, the MSF machines this
- * floor does not have, so nothing in the Academy is out of reach.
+ * floor does not have, so nothing in the Academy is out of reach; when the
+ * floor could not be read, or has nothing on it, every MSF machine.
  */
 export function CatalogIndex() {
   const { data, studioName, open } = useCodex();
-  const others = useMemo(() => offFloor(data.machines, data.floor), [data.machines, data.floor]);
+  const others = useMemo(
+    () => otherMachines(data.machines, data.floor, data.floorState),
+    [data.machines, data.floor, data.floorState],
+  );
   return (
     <CodexFrame>
       <div className="cdx__index">
         <PageHead title={`${studioName}'s floor`} />
         <FloorList />
-        {others.length > 0 && (
+        {others.machines.length > 0 && (
           <section className="cdx__band" aria-labelledby="cdx-others">
-            <BandHead id="cdx-others" title={`Not on ${studioName}'s floor`} />
+            <BandHead id="cdx-others" title={others.every ? "Every MSF machine" : `Not on ${studioName}'s floor`} />
             <ul className="cdx__entries cdx__entries--quiet">
-              {others.map((m) => {
+              {others.machines.map((m) => {
                 const category = machineCategory(m.machineId);
                 return (
                   <li key={m.machineId}>
@@ -179,7 +183,6 @@ export function TrackPage({ route }: { route: Extract<VaultRoute, { kind: "track
             </li>
           ))}
         </ol>
-        <p className="cdx__quiet">A path is an order to read in. Nothing is kept about who read what.</p>
       </article>
     </CodexFrame>
   );

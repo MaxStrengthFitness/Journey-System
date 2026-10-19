@@ -364,7 +364,9 @@
   .cdx__path--lead {
     grid-column: 1 / -1;
   }
-  /* The lead's three steps side by side, each in its own well. */
+  /* The lead's three steps side by side, each in its own well. A step is
+     not a door (the card's one door is Start), so its number keeps the sunk
+     tray chip every path card uses, never the raised edge of a button. */
   .cdx__path--lead .cdx__path-steps {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -377,10 +379,6 @@
     border-radius: 12px;
     background: var(--wk-surface-2);
     box-shadow: var(--wk-elev-0);
-  }
-  .cdx__path--lead .cdx__path-n {
-    background: var(--wk-raised);
-    box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-edge-control), inset 0 1px 0 var(--wk-highlight);
   }
   .cdx__path--lead .cdx__path-step-words {
     padding-top: 0;
@@ -696,26 +694,24 @@
 
 /* ── the glossary as an index of words ─────────────────────────────── */
 
+/* A book's index: the letters read down one column and on into the next,
+   each tile as tall as its own words (a grid row would stretch N's two words
+   to P's seven). Two columns where 18rem each fit (portrait, and the capped
+   reading column in landscape), one on a phone. The 4px of padding, taken
+   back by the margin, keeps the tiles' lift from being clipped at the
+   column edges. */
 .cdx__words {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
-@container cdx-page (min-width: 640px) {
-  .cdx__words {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@container cdx-page (min-width: 1000px) {
-  .cdx__words {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  columns: 2 18rem;
+  column-gap: 0.75rem;
+  margin: 1.25rem -4px 0;
+  padding: 0 4px;
 }
 .cdx__letter {
   display: flex;
   gap: 0.625rem;
   min-width: 0;
+  margin-bottom: 0.75rem;
+  break-inside: avoid;
   padding: 0.625rem 0.5rem 0.625rem 0.75rem;
   border: 1px solid var(--wk-edge);
   border-radius: var(--wk-radius);
@@ -1101,13 +1097,6 @@
   margin: 0 0 0.25rem;
 }
 
-.cdx__quiet {
-  margin: 1.25rem 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--wk-ink-muted);
-}
-
 /* ── an article ────────────────────────────────────────────────────── */
 
 .cdx__article {
@@ -1124,6 +1113,17 @@
 .cdx__figure-in {
   height: clamp(278px, calc(30dvh + 58px), 378px);
 }
+/* A phone: the bento stacks, so the body is shorter (about 200px of it), to
+   bring the floor glance up the page; the Connected tile comes after the
+   layers there (CodexMachine). */
+@container cdx-page (max-width: 599px) {
+  .cdx__figure-in {
+    height: clamp(240px, calc(24dvh + 58px), 290px);
+  }
+}
+.cdx__connected-after {
+  margin-top: 1.5rem;
+}
 
 .cdx__bento {
   display: grid;
@@ -1133,11 +1133,13 @@
   min-width: 0;
 }
 @container cdx-page (min-width: 700px) {
-  /* The body on the left, as tall as the facts and the dials beside it (the
-     figure takes the room they leave); what the machine connects to across
-     the foot, its groups side by side. */
+  /* The body on the left; the facts beside it at their own height, and the
+     dials under them taking whatever height the body leaves (their numbers
+     centred in it), so neither right-hand tile ends in a blank band. What the
+     machine connects to runs across the foot, its groups side by side. */
   .cdx__bento {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
     grid-template-areas:
       "body facts"
       "body dials"
@@ -1145,9 +1147,13 @@
     align-items: stretch;
   }
   .cdx__bento[data-figure="no"] {
+    grid-template-rows: none;
     grid-template-areas:
       "facts dials"
       "links links";
+  }
+  .cdx__tile--dials {
+    justify-content: center;
   }
   .cdx__tile--body { grid-area: body; }
   .cdx__tile--facts { grid-area: facts; }
@@ -1159,9 +1165,9 @@
     flex-direction: column;
     justify-content: center;
   }
-  /* The figure asks for no height of its own (MachineFigure's sized root),
-     so the facts and dials beside it set the row and the body fills it:
-     220px to 360px of body, the controls under it. */
+  /* The figure's own height: 220px to 360px of body, the controls under it.
+     It sets the two rows beside it when it is the taller (the dials tile
+     takes the difference); when the facts and dials are taller, it fills. */
   .cdx__figure-in {
     flex: 1;
     height: auto;
@@ -1295,7 +1301,23 @@
   font-size: 12px;
   color: var(--wk-ink-muted);
 }
-/* No number set and no rule written: the dials by name, and that, said once. */
+/* No number set and no rule written: the dials by name, and that, said once,
+   in a sunk plate that fills the tile (beside the body the dials tile takes
+   the height the figure leaves), so the empty reads as a slot waiting for
+   the unit's numbers, never as a tile that ran out of things to say. */
+.cdx__dials--bare,
+.cdx__dials-none {
+  flex: 1;
+  justify-content: center;
+  padding: 0.75rem 0.875rem;
+  border-radius: 12px;
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+}
+.cdx__dials-none {
+  display: flex;
+  flex-direction: column;
+}
 .cdx__dial-names {
   display: flex;
   flex-wrap: wrap;
@@ -1405,15 +1427,25 @@
 }
 
 /* Sticky in the page's one scroller, on the page's own ground so the lines
-   scroll under it; the shelf's short cast under it, as Learning's bars. */
+   scroll under it; the shelf's short cast under it, as Learning's bars. It
+   takes back the scroller's 1rem of padding (the KNOWN-TRAPS sticky rule),
+   so its shelf runs edge to edge like the trail's row above it. From 1000px
+   of page it lives inside a column (the machine's left one, a topic's
+   centred one), so it reaches only a little past that column's edges. */
 .cdx__tierbar {
   position: sticky;
   top: 0;
   z-index: 3;
-  margin: 1rem -0.5rem 0;
-  padding: 0.5rem;
+  margin: 1rem -1rem 0;
+  padding: 0.5rem 1rem;
   background: var(--wk-bg);
   box-shadow: var(--wk-shelf);
+}
+@container cdx-page (min-width: 1000px) {
+  .cdx__tierbar {
+    margin: 1rem -0.5rem 0;
+    padding: 0.5rem;
+  }
 }
 
 .cdx__tiers {
@@ -1499,24 +1531,35 @@
 
 /* ── a tier's body ─────────────────────────────────────────────────── */
 
+/* The tier's panels (the rep scrubber, the Stop well, the door one layer
+   deeper) share the right edge of the tier bar above and Read next below;
+   the words themselves keep the reading measure (ArticleBlocks caps them). */
 .cdx__tierpanel {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  max-width: 46rem;
   margin-top: 1rem;
   min-width: 0;
 }
 
+/* The body's lines carry their own inset (room for a chosen line's ground),
+   so their words would start 10px in from every other left edge on the page
+   (the title, the tier bar, Read next). The inset hangs outside the column
+   instead (the scroller's and the peek's 16px of padding hold it), and the
+   words line up with everything else. A toned section (a machine's Stop
+   well) is a panel, not a line: it keeps the column's own edges. */
 .cdx__blocks {
   min-width: 0;
+  margin-inline: -0.625rem;
+}
+.cdx__blocks [data-tone] {
+  margin-inline: 0.625rem;
 }
 .cdx__rep {
   min-width: 0;
 }
 
 .cdx__orphans {
-  max-width: 46rem;
   margin-top: 1.5rem;
 }
 
@@ -1620,6 +1663,24 @@
 }
 .cdx__next-grid > li {
   display: flex;
+}
+/* A reason several links share, said once over their cards. */
+.cdx__next-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+.cdx__next-group + .cdx__next-group {
+  margin-top: 0.375rem;
+}
+.cdx__next-why {
+  margin: 0;
+  max-width: var(--wk-measure);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
 }
 @container cdx-page (min-width: 640px) {
   .cdx__next-grid {
@@ -1804,12 +1865,26 @@
   font-size: 14px;
   color: var(--wk-ink-2);
 }
+.cdx__peek-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.5rem 0;
+}
 
 /* ── the quiz and head office's queue, inside the page ─────────────── */
 
 .cdx__quiz,
 .cdx__queue {
   padding: 1.25rem 0 1.5rem;
+  min-width: 0;
+}
+.cdx__queue > .cdx__head {
+  padding-top: 0;
+}
+.cdx__queue-body {
+  margin-top: 1rem;
   min-width: 0;
 }
 
@@ -1835,6 +1910,7 @@
     grid-column: 2;
     grid-row: 1 / span 2;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
     grid-template-areas: "body" "facts" "dials" "links";
   }
   .cdx__article--machine > .cdx__bento[data-figure="no"] {

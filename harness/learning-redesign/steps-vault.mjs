@@ -95,6 +95,36 @@ export const steps = [
   { name: "academy-map", query: "&view=academy", actions: [{ tap: "Map" }, { wait: 700 }] },
   // A page's own constellation leads to the whole map, focused there.
   { name: "orbit-to-map", query: MACHINE, actions: [{ tapSelector: ".vm__mini-centre" }, { wait: 900 }] },
+
+  // The review's fixes (Oct 19 2026).
+  // The card closed: Start with is back, the map at rest (every star kept clear of names).
+  {
+    name: "map-closed",
+    query: HOME,
+    actions: [{ tapSelector: ".vm__start .vm__pill" }, { wait: 700 }, { tap: "Close the card" }, { wait: 700 }],
+  },
+  // The Academy index: the playbooks' pillars in one column on an upright iPad.
+  { name: "academy", query: "&view=academy", actions: [{ wait: 300 }] },
+  // A path whose title says who it is for says it once.
+  { name: "track-head", query: HOME, actions: [{ tap: "For a head trainer" }, { wait: 500 }] },
+  // The glossary's letters: a jump to P inside the one scroller.
+  {
+    name: "glossary-letter",
+    query: `&view=academy&ref=${encodeURIComponent(JSON.stringify({ kind: "academy-glossary" }))}`,
+    actions: [{ tap: "Words under P" }, { wait: 900 }],
+  },
+  // One cue moment peeked from the Leg Press orbit: no other marks called "lines that changed".
+  {
+    name: "peek-moment",
+    query: MACHINE,
+    actions: [{ tapSelector: '.vm__mini-node[aria-label*="cue moment"]' }, { wait: 800 }],
+  },
+  // The cueing page's "What would you say?" opens the quiz, never a peek that says the page moved.
+  {
+    name: "alongside-quiz",
+    query: `&view=academy&ref=${encodeURIComponent(JSON.stringify({ kind: "academy-cueing" }))}`,
+    actions: [{ tap: "What would you say?" }, { wait: 800 }],
+  },
 ];
 
 export const quiz = { query: HOME, actions: [{ tap: "Every deck" }, { wait: 700 }] };

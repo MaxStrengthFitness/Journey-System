@@ -226,3 +226,36 @@ export function useTopicSearch() {
     return hits.slice(0, 40);
   }, []);
 }
+
+/* ------------------------------------------------------------------ *
+ * The five reference chunks as promises (the Learning vault, Oct 19 2026)
+ * ------------------------------------------------------------------ */
+
+/** The Academy's five small reference chunks, by name. */
+export type AcademyReferenceName = "glossary" | "cues" | "cards" | "scripts" | "overviews";
+
+export interface AcademyReference {
+  glossary: GlossaryFile["glossary"];
+  cues: CuesFile["cues"];
+  cards: CardsFile["cards"];
+  scripts: ScriptsFile["scripts"];
+  overviews: OverviewsFile["overviews"];
+}
+
+const REFERENCE_LOADERS: { [K in AcademyReferenceName]: () => Promise<AcademyReference[K]> } = {
+  glossary: () => import("./content/glossary.json").then((m) => (m.default as unknown as GlossaryFile).glossary),
+  cues: () => import("./content/cues.json").then((m) => (m.default as unknown as CuesFile).cues),
+  cards: () => import("./content/cards.json").then((m) => (m.default as unknown as CardsFile).cards),
+  scripts: () => import("./content/scripts.json").then((m) => (m.default as unknown as ScriptsFile).scripts),
+  overviews: () => import("./content/overviews.json").then((m) => (m.default as unknown as OverviewsFile).overviews),
+};
+
+/**
+ * One reference chunk, for a caller that must know when it CANNOT arrive
+ * (the hooks above never say: a chunk a deploy removed leaves them null
+ * forever). The same import() as the hooks, so the browser fetches it once.
+ * Rejects when the chunk will not load; the caller decides what to say.
+ */
+export function loadAcademyReference<K extends AcademyReferenceName>(name: K): Promise<AcademyReference[K]> {
+  return REFERENCE_LOADERS[name]() as Promise<AcademyReference[K]>;
+}

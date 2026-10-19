@@ -126,7 +126,7 @@ export function AcademyPage() {
           <button type="button" className="crs__door" onClick={() => open({ kind: "quiz" })}>
             <Play size={22} aria-hidden className="crs__door-icon" />
             <span className="crs__door-title">Play a round</span>
-            <span className="crs__door-words">Ten cards from a deck you pick. Nothing is kept.</span>
+            <span className="crs__door-words">Ten cards from a deck you pick.</span>
           </button>
           <button type="button" className="crs__door" onClick={() => open({ kind: "glossary" })}>
             <Type size={22} aria-hidden className="crs__door-icon" />

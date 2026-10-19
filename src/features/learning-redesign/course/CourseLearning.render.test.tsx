@@ -19,6 +19,9 @@ import { createRoot, type Root } from "react-dom/client";
 vi.mock("../../../firebase", () => ({ db: {}, auth: { currentUser: null } }));
 vi.mock("../../phone/device", () => ({ usePhone: () => false, isPhoneNow: () => false }));
 
+/** A test's change to the vault's data (a floor that can't be read, a chunk that failed), applied once per patch. */
+const patch = vi.hoisted(() => ({ fn: null as null | ((d: Record<string, unknown>) => Record<string, unknown>) }));
+
 vi.mock("../../learning-vault/useVaultData", async () => {
   const [{ ACADEMY_INDEX }, academy, cuesF, cardsF, scriptsF, overviewsF, glossaryF, performance, defsM, ent, pb, bankM] = await Promise.all([
     import("../../academy/useAcademyContent"),
@@ -35,6 +38,9 @@ vi.mock("../../learning-vault/useVaultData", async () => {
     import("../../learning-vault/quiz/bank"),
   ]);
   const { CLINICAL_FLAGS_MATRIX } = await import("../../../data/clinical-matrix");
+  const { EXERCISE_SUBSTITUTES, MACHINE_CATEGORY } = await import("../../routine-builder/academy");
+  const { buildVaultGraph } = await import("../../learning-vault/graph");
+  const graphIndex = await import("../../learning-vault/graph-index.json");
   const read = <T,>(m: unknown, key: string): T => ((m as { default: Record<string, T> }).default ?? (m as Record<string, T>))[key];
   const cues = read<never[]>(cuesF, "cues");
   const cards = read<never[]>(cardsF, "cards");
@@ -65,13 +71,34 @@ vi.mock("../../learning-vault/useVaultData", async () => {
     moduleFailed: () => false,
     cachedModule: (id: string) => modules[id] ?? null,
     entities: ent.buildEntityIndex({ glossary, machines, clinical: CLINICAL_FLAGS_MATRIX, playbooks: pb.PLAYBOOKS, modules: ACADEMY_INDEX.modules }),
-    graph: null,
+    graph: buildVaultGraph({
+      index: ACADEMY_INDEX,
+      machines,
+      glossary,
+      cues,
+      clinical: CLINICAL_FLAGS_MATRIX,
+      playbooks: pb.PLAYBOOKS,
+      graphIndex: ((graphIndex as { default?: unknown }).default ?? graphIndex) as never,
+      substitutes: EXERCISE_SUBSTITUTES,
+      categories: MACHINE_CATEGORY,
+    }),
     playbooks: pb.PLAYBOOKS,
     tracks: pb.TRACKS,
     pillars: pb.PILLARS,
     quizBank: bankM.questionBank({ glossary, cues, scripts, cards, defs: defsM.MACHINE_DEFINITIONS, names, playbooks: pb.PLAYBOOKS }),
   };
-  return { useVaultData: () => data };
+  // The same object while the patch is the same: pages memoise on it.
+  let seen: unknown = undefined;
+  let patched: Record<string, unknown> = data;
+  return {
+    useVaultData: () => {
+      if (patch.fn !== seen) {
+        seen = patch.fn;
+        patched = patch.fn ? { ...data, ...patch.fn(data) } : data;
+      }
+      return patched;
+    },
+  };
 });
 
 import { UnsavedChangesProvider } from "../../unsaved-changes";
@@ -146,6 +173,7 @@ async function draw(opts?: { section?: LearningViewId; jump?: LearningRef | null
 let drawStore = createSandboxStore(sampleSeed({ id: "solon", name: "Solon" }, new Date("2026-10-19T12:00:00Z")));
 
 beforeEach(() => {
+  patch.fn = null;
   section = "learning";
   jump = null;
   resetSignal = 0;
@@ -170,6 +198,17 @@ async function tap(el: HTMLElement) {
 function crumbs(): string[] {
   return all(".wk__crumbs li").map((li) => (li.textContent ?? "").trim());
 }
+/** The card on turn (every content card is drawn, stacked; only this one is seen). */
+const current = () => host.querySelector<HTMLElement>(".crs__deck .crs__card[data-current]");
+async function type(el: HTMLTextAreaElement | HTMLInputElement, words: string) {
+  await act(async () => {
+    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(el, words);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+const DRAFT = "A draft from Journey's notes, waiting for head office to read it.";
+const count = (hay: string, needle: string) => hay.split(needle).length - 1;
 
 describe("the Overview", () => {
   it("starts with a course, its first lessons showing, and the doors to practise", async () => {
@@ -214,27 +253,29 @@ describe("home → a machine → a lesson → back", () => {
       "Seat Distance",
     ]);
     expect(host.querySelector(".crs__stop")).not.toBeNull();
-    expect(text()).toContain("Set it up");
+    // The set-up deck, named by its cards' own titles.
+    expect(host.querySelector(`.crs__deck[aria-label="Set up ${host.querySelector("h1")?.textContent}"]`)).not.toBeNull();
     // The studio's crossed-out line shows crossed out, with why.
     expect(text()).toContain("Our Abduction comes after the Leg Press");
     // A pin a set-up line names turns the deck to that card.
-    const before = host.querySelector(".crs__deck .crs__card")?.getAttribute("aria-label");
+    expect(current()?.getAttribute("aria-label")).toMatch(/^Card 1 of /);
     const pins = all("button.crs__pin");
     expect(pins.length).toBeGreaterThan(0);
     await tap(pins[pins.length - 1]);
-    expect(host.querySelector(".crs__deck .crs__card")?.getAttribute("aria-label")).toBeTruthy();
-    expect(before).toBeTruthy();
+    expect(current()?.getAttribute("aria-label")).toBeTruthy();
 
-    // The full manual one tier at a time: only the tier picked is drawn, and
-    // a mark on another tier is never listed as a line that changed.
+    // The full manual one tier at a time, opening on the first tier the page
+    // has not drawn above it (Adapt & clinical): only the tier picked is
+    // drawn, and a mark on another tier is never listed as a line that changed.
+    expect(button("Adapt & clinical").getAttribute("aria-pressed")).toBe("true");
     const manualTitles = () => all(".crs__whole .vta__title").map((h) => h.textContent);
-    const glance = manualTitles();
-    expect(glance.length).toBeGreaterThan(0);
+    const adapt = manualTitles();
+    expect(adapt.length).toBeGreaterThan(0);
     await tap(button("Script & cues"));
     expect(button("Script & cues").getAttribute("aria-pressed")).toBe("true");
     const script = manualTitles();
     expect(script.length).toBeGreaterThan(0);
-    expect(script.some((t) => glance.includes(t))).toBe(false);
+    expect(script.some((t) => adapt.includes(t))).toBe(false);
     expect(host.querySelector("style")).toBeNull();
     expect(all(".crs__whole .vta__orphans")).toHaveLength(0);
 
@@ -253,12 +294,12 @@ describe("home → a machine → a lesson → back", () => {
     await tap(all(".crs__lessons .crs__lesson")[3]);
     expect(crumbs()).toEqual(["Overview", "Life Transformer 101", "Speed of Movement"]);
     expect(host.querySelector(".crs__coursebar")?.textContent).toContain("Lesson 4 of 9");
-    const first = host.querySelector(".crs__card")?.textContent;
+    const first = current()?.textContent;
     await tap(host.querySelector<HTMLButtonElement>(".crs__deck-next")!);
-    expect(host.querySelector(".crs__card")?.textContent).not.toBe(first);
-    expect(host.querySelector(".crs__card")?.getAttribute("data-dir")).toBe("next");
+    expect(current()?.textContent).not.toBe(first);
+    expect(current()?.getAttribute("data-dir")).toBe("next");
     await tap(button("Back a card"));
-    expect(host.querySelector(".crs__card")?.textContent).toBe(first);
+    expect(current()?.textContent).toBe(first);
 
     // Read it all: the same page through ArticleBlocks, where a line takes actions.
     await tap(button("Read it all"));
@@ -268,8 +309,8 @@ describe("home → a machine → a lesson → back", () => {
     await tap(line!);
     expect(text()).toContain("Cross out for Solon");
 
-    // The course bar's next lesson replaces this one under the course.
-    await tap(button("Next lesson: Turnaround Technique"));
+    // Read it all ends on the next lesson, which replaces this one under the course.
+    await tap(button(/Next lesson\s*Turnaround Technique/));
     expect(crumbs()).toEqual(["Overview", "Life Transformer 101", "Turnaround Technique"]);
   });
 });
@@ -281,7 +322,7 @@ describe("a page opened from outside", () => {
     expect(host.querySelector("h1")?.textContent).toBe("Gradual Load-up");
     expect(crumbs()).toEqual(["Academy", "Gradual Load-up"]);
     // The studio's note sits under its line on the first card.
-    expect(host.querySelector(".crs__card")?.textContent).toContain("New clients get the 100 lb picture");
+    expect(current()?.textContent).toContain("New clients get the 100 lb picture");
     // A topic opened on its own is a lesson of its module.
     expect(host.querySelector(".crs__coursebar")?.textContent).toContain("Exercise Performance");
   });
@@ -343,5 +384,343 @@ describe("the Academy's drills", () => {
     expect(all(".crs__order-step[data-shown]")).toHaveLength(1);
     await tap(button("Show the next"));
     expect(all(".crs__order-step[data-shown]")).toHaveLength(2);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Review fixes (Oct 19 2026)
+ * ------------------------------------------------------------------ */
+
+describe("the step deck keeps Next where the thumb left it", () => {
+  it("draws every content card stacked, only the one on turn seen, and the end card alone", async () => {
+    await draw({ section: "academy", jump: { kind: "academy-topic", id: "performance-gradual-load-up" } });
+    const cards = all(".crs__deck .crs__card");
+    expect(cards.length).toBeGreaterThan(1);
+    expect(all(".crs__deck .crs__card[data-current]")).toHaveLength(1);
+    // The others are there to size the stage, and nothing else: hidden, inert.
+    for (const c of cards.filter((c) => !c.hasAttribute("data-current"))) {
+      expect(c.getAttribute("aria-hidden")).toBe("true");
+      expect(c.hasAttribute("inert")).toBe(true);
+    }
+    // To the end card: Check yourself is drawn alone.
+    for (let n = 0; n < cards.length; n++) {
+      const next = host.querySelector<HTMLButtonElement>(".crs__deck-next");
+      if (!next) break;
+      await tap(next);
+    }
+    expect(all(".crs__deck .crs__card")).toHaveLength(1);
+    expect(current()?.hasAttribute("data-end")).toBe(true);
+    expect(current()?.textContent).toContain("Check yourself");
+  });
+
+  it("hands the focus to the deck when the turn took the pressed button away", async () => {
+    await draw({ section: "academy", jump: { kind: "academy-topic", id: "performance-gradual-load-up" } });
+    const deck = host.querySelector<HTMLElement>(".crs__deck")!;
+    const total = all(".crs__deck .crs__card").length;
+    // Next on the card before the end card becomes a spacer once pressed.
+    for (let n = 0; n < total; n++) {
+      const next = host.querySelector<HTMLButtonElement>(".crs__deck-next")!;
+      next.focus();
+      await tap(next);
+      if (current()?.hasAttribute("data-end")) break;
+      // Next is still there: the focus stays on it.
+      expect(document.activeElement).toBe(host.querySelector(".crs__deck-next"));
+    }
+    expect(current()?.hasAttribute("data-end")).toBe(true);
+    expect(document.activeElement).toBe(deck);
+  });
+});
+
+describe("the field manual says each thing once", () => {
+  async function legPress() {
+    await draw({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    expect(host.querySelector("h1")?.textContent?.toLowerCase()).toBe("leg press");
+  }
+
+  it("draws a label once over the Stop lines that share it, and still says it to a screen reader", async () => {
+    await legPress();
+    const stop = host.querySelector<HTMLElement>(".crs__stop")!;
+    const seen = Array.from(stop.querySelectorAll(".crs__line-label")).map((l) => l.textContent);
+    expect(seen.filter((l) => l === "Clinical warning")).toHaveLength(1);
+    expect(seen.filter((l) => l === "Contraindicated for")).toHaveLength(1);
+    const heard = Array.from(stop.querySelectorAll(".crs__sr")).map((l) => l.textContent);
+    expect(heard.filter((l) => l === "Clinical warning: ").length).toBeGreaterThan(0);
+  });
+
+  it("puts no heading over the set-up deck: its cards' own titles name it", async () => {
+    await legPress();
+    expect(all(".crs__h2").map((h) => h.textContent)).not.toContain("Set it up");
+    expect(current()?.querySelector(".crs__part-title")?.textContent).toBe("Set up");
+  });
+
+  it("gives the scrubber no lines to say: the drills below hold them, behind a tap", async () => {
+    await legPress();
+    expect(host.querySelector(".vtr")).not.toBeNull();
+    expect(text()).not.toContain("What to say");
+    expect(text()).toContain("At each moment");
+  });
+
+  it("leaves the substitutes to the manual's 'Can be replaced by', not five cards under Read next", async () => {
+    await legPress();
+    const whys = all(".crs__link-why").map((w) => w.textContent ?? "");
+    expect(whys.some((w) => /can replace this one/.test(w))).toBe(false);
+    // The manual opens on Adapt & clinical, where the sets are said, once each,
+    // every machine a chip that peeks it (Lumbar too, which is no linked word).
+    expect(text()).toContain("Can be replaced by");
+    const chips = all(".crs__whole .crs__sub");
+    expect(chips.length).toBeGreaterThan(3);
+    const lumbar = chips.find((c) => /^lumbar$/i.test(c.textContent ?? ""));
+    expect(lumbar).toBeTruthy();
+    await tap(lumbar!);
+    expect(host.querySelector(".vtp__title")?.textContent?.toLowerCase()).toBe("lumbar");
+    // A chip is the chip's, not the line's: the line was not chosen.
+    expect(host.querySelector(".crs__whole [data-vta-line][data-selected]")).toBeNull();
+  });
+
+  it("draws the dials with no pin number pointing at nothing; only a dial that turns the deck is a button", async () => {
+    await legPress();
+    expect(all(".crs__pin-head")).toHaveLength(0);
+    for (const pin of all("button.crs__pin")) expect(pin.querySelector(".crs__pin-go")).not.toBeNull();
+    for (const pin of all("div.crs__pin")) expect(pin.querySelector(".crs__pin-go")).toBeNull();
+    // What it works sits with the dials and facts, beside the figure.
+    expect(host.querySelector(".crs__bp-side .crs__bp-works")).not.toBeNull();
+  });
+
+  it("says nothing invented about a studio's own machine: no rep shape, no begins-with", async () => {
+    patch.fn = (d) => ({ floor: [...(d.floor as unknown[]), { id: "sm-solon-hoist", name: "Hoist Press", code: null }] });
+    await draw({ section: "machine-anatomy", jump: { kind: "machine", id: "sm-solon-hoist" } });
+    expect(host.querySelector("h1")?.textContent).toContain("Hoist Press");
+    expect(host.querySelector(".crs__facts")).toBeNull();
+    expect(host.querySelector(".vtr")).toBeNull();
+    expect(text()).not.toContain("Begins with");
+    expect(text()).toContain("No dials recorded for this unit.");
+  });
+
+  it("says a studio's own machine can't be read while its floor can't, with a way back, never a spinner", async () => {
+    patch.fn = () => ({ floor: null, floorState: "unreadable" });
+    await draw({ section: "machine-anatomy" });
+    await draw({ section: "machine-anatomy", jump: { kind: "machine", id: "sm-solon-hoist" } });
+    expect(text()).toContain("Can't read Solon's floor right now.");
+    expect(host.querySelector(".crs__state button")).not.toBeNull();
+  });
+});
+
+describe("a chunk that will not come says so, with Try again", () => {
+  it("on the phrasebook, the vault and the quiz", async () => {
+    const retry = vi.fn();
+    patch.fn = () => ({ cues: null, glossary: null, quizBank: null, referenceFailed: true, retryReference: retry });
+    await draw({ section: "academy", jump: { kind: "academy-cueing" } });
+    expect(text()).toContain("This part of the Academy didn't load.");
+    await tap(button("Try again"));
+    expect(retry).toHaveBeenCalledTimes(1);
+    await draw({ section: "academy", jump: { kind: "academy-glossary" } });
+    expect(text()).toContain("This part of the Academy didn't load.");
+  });
+});
+
+describe("Cards and Read it all", () => {
+  it("asks before leaving Read it all takes a half-written note away", async () => {
+    await draw({ section: "academy", jump: { kind: "academy-topic", id: "performance-gradual-load-up" } });
+    await tap(button("Read it all"));
+    await tap(host.querySelector<HTMLElement>("[data-vta-line]")!);
+    await tap(button("Note for Solon"));
+    const area = host.querySelector<HTMLTextAreaElement>(".crs__whole textarea")!;
+    expect(area).toBeTruthy();
+    await type(area, "Say this before the plates touch.");
+
+    // Cards asks first; Keep editing leaves the page whole, the words there.
+    await tap(button(/^\s*Cards/));
+    expect(document.querySelector('[role="alertdialog"]')).toBeTruthy();
+    await tap(document.querySelector<HTMLElement>('[data-action="keep-editing"]')!);
+    expect(host.querySelector(".crs__card")).toBeNull();
+    expect(host.querySelector<HTMLTextAreaElement>(".crs__whole textarea")?.value).toBe("Say this before the plates touch.");
+
+    // Asked again and left: the cards.
+    await tap(button(/^\s*Cards/));
+    await tap(document.querySelector<HTMLElement>('[data-action="leave"]')!);
+    expect(current()).not.toBeNull();
+  });
+
+  it("says where a lesson sits once, in the course bar, with its read time and no second pair of arrows", async () => {
+    await draw();
+    await tap(button("All 9 lessons"));
+    await tap(all(".crs__lessons .crs__lesson")[3]);
+    const bar = host.querySelector<HTMLElement>(".crs__coursebar")!;
+    expect(bar.textContent).toMatch(/Lesson 4 of 9 · \d+ min/);
+    expect(bar.querySelectorAll("button")).toHaveLength(1);
+    // The rail beside it on a wide screen carries the read time on the lesson on screen.
+    expect(host.querySelector('.crs__rail-row[aria-current="page"] .crs__rail-min')?.textContent).toMatch(/\d+ min/);
+    expect(host.querySelector(".crs__lesson-note")).toBeNull();
+  });
+
+  it("says a playbook is a draft once on its lesson", async () => {
+    await draw({ section: "academy" });
+    await tap(button("Talking about packages"));
+    expect(host.querySelector("h1")?.textContent).toBeTruthy();
+    expect(count(host.querySelector(".crs__page")?.textContent ?? "", DRAFT)).toBe(1);
+  });
+});
+
+describe("the peek holds what was asked for", () => {
+  it("peeks one moment of the phrasebook alone", async () => {
+    await draw({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    const drill = host.querySelector<HTMLElement>(".crs__drills .crs__drill")!;
+    await tap(Array.from(drill.querySelectorAll<HTMLButtonElement>("button")).find((b) => /Show the lines/.test(b.textContent ?? ""))!);
+    await tap(Array.from(drill.querySelectorAll<HTMLButtonElement>("button")).find((b) => /All \d+ lines|The whole moment/.test(b.textContent ?? ""))!);
+    const body = host.querySelector<HTMLElement>(".vtp__body")!;
+    expect(body).not.toBeNull();
+    expect(body.querySelectorAll(".vta__title")).toHaveLength(1);
+    expect(body.querySelector(".vta__orphans")).toBeNull();
+  });
+
+  it("opens a quiz in the trail rather than peeking a sheet that says it has moved", async () => {
+    await draw({ section: "academy", jump: { kind: "academy-cueing" } });
+    const toQuiz = all(".crs__link").find((l) => /What would you say/i.test(l.textContent ?? ""));
+    expect(toQuiz).toBeTruthy();
+    await tap(toQuiz!);
+    expect(host.querySelector(".vtp__body")).toBeNull();
+    expect(host.querySelector(".crs__quiz")).not.toBeNull();
+  });
+
+  it("peeks a clinical flag as what it connects to, and a glossary word as that word alone", async () => {
+    await draw({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    const { CLINICAL_FLAGS_MATRIX } = await import("../../../data/clinical-matrix");
+    const glossaryFile = await import("../../academy/content/glossary.json");
+    const words = new Set(
+      ((glossaryFile as { default?: { glossary: { term: string }[] } }).default?.glossary ?? []).map((g) => g.term.toLowerCase()),
+    );
+    const flags = new Set(CLINICAL_FLAGS_MATRIX.map((f) => (f.label ?? f.conditionName).toLowerCase()));
+    let sawFlag = false;
+    let sawWord = false;
+    for (const tier of ["Adapt & clinical", "Floor glance"]) {
+      await tap(button(tier));
+      for (const term of all(".crs__whole [data-vault-term]")) {
+        if (sawFlag && sawWord) break;
+        await tap(term);
+        const title = (document.querySelector(".vtc__pop .vtc__title")?.textContent ?? "").toLowerCase();
+        const isFlag = flags.has(title);
+        const isWord = words.has(title);
+        if ((isFlag && !sawFlag) || (isWord && !sawWord)) {
+          const peekBtn = Array.from(document.querySelectorAll<HTMLButtonElement>(".vtc__pop button")).find((b) => b.textContent?.trim() === "Peek");
+          await tap(peekBtn!);
+          const body = host.querySelector<HTMLElement>(".vtp__body")!;
+          expect(body.textContent).not.toContain("This page has moved.");
+          if (isFlag) {
+            expect(body.querySelector("button")).not.toBeNull();
+            sawFlag = true;
+          } else {
+            expect(body.querySelectorAll("[data-vta-line]")).toHaveLength(1);
+            expect(body.querySelector(".vta__orphans")).toBeNull();
+            sawWord = true;
+          }
+          await tap(host.querySelector<HTMLButtonElement>('[aria-label="Close the peek"]')!);
+        } else {
+          const close = document.querySelector<HTMLButtonElement>('.vtc__pop [aria-label="Close"]');
+          if (close) await tap(close);
+        }
+      }
+    }
+    expect(sawFlag).toBe(true);
+    expect(sawWord).toBe(true);
+  });
+});
+
+describe("the glossary vault, filtered and opened", () => {
+  it("never links a word inside its own definition", async () => {
+    await draw({ section: "academy", jump: { kind: "academy-glossary" } });
+    const card = all(".crs__vcard").find((c) => c.querySelector(".crs__vcard-term")?.textContent === "Accessory Stack" || c.querySelector(".crs__vcard-term")?.textContent === "Accessory stack")!;
+    expect(card).toBeTruthy();
+    await tap(card.querySelector<HTMLButtonElement>(".crs__vcard-more")!);
+    const linked = Array.from(card.querySelectorAll("[data-vault-term]")).map((t) => (t.textContent ?? "").toLowerCase());
+    expect(linked).not.toContain("accessory stack");
+  });
+
+  it("flows a filter's words into one grid, the letters jumping to each letter's first card", async () => {
+    await draw({ section: "academy", jump: { kind: "academy-glossary" } });
+    expect(all(".crs__vault-letter").length).toBeGreaterThan(3);
+    await tap(button("Equipment"));
+    expect(all(".crs__vault-letter")).toHaveLength(0);
+    expect(all(".crs__vault-group")).toHaveLength(1);
+    // jsdom has no scrollIntoView: a stand-in that says where it was asked to go.
+    const scrolled: string[] = [];
+    const proto = Element.prototype as unknown as { scrollIntoView?: (this: Element) => void };
+    const had = proto.scrollIntoView;
+    proto.scrollIntoView = function (this: Element) {
+      scrolled.push(this.id);
+    };
+    try {
+      const letter = all(".crs__az-btn")[0];
+      await tap(letter);
+      expect(scrolled[0]).toMatch(/^crs-term-/);
+      expect(document.getElementById(scrolled[0])?.classList.contains("crs__vcard")).toBe(true);
+    } finally {
+      if (had) proto.scrollIntoView = had;
+      else delete proto.scrollIntoView;
+    }
+  });
+});
+
+describe("the Overview's colours and words", () => {
+  it("gives a course no machine category's colour, and says nothing is kept nowhere on it", async () => {
+    await draw();
+    for (const c of all(".crs__course")) expect(c.getAttribute("style")).toBeNull();
+    expect(text()).not.toContain("Nothing is kept");
+    expect(host.querySelector(".crs__hero .crs__lede")).toBeNull();
+  });
+
+  it("puts the revealed lines in the focus the reveal button had", async () => {
+    await draw();
+    const show = button("Show the Academy's lines");
+    show.focus();
+    await tap(show);
+    expect(document.activeElement).toBe(host.querySelector(".crs__drill-lines"));
+  });
+});
+
+describe("a scroll the page starts itself", () => {
+  it("jumps instead of gliding when the reader asked for less motion", async () => {
+    const { scrollMotion } = await import("./shell");
+    const w = window as unknown as { matchMedia?: (q: string) => { matches: boolean; media: string } };
+    const had = w.matchMedia;
+    try {
+      w.matchMedia = (q) => ({ matches: q.includes("reduce"), media: q });
+      expect(scrollMotion()).toBe("auto");
+      w.matchMedia = (q) => ({ matches: false, media: q });
+      expect(scrollMotion()).toBe("smooth");
+      delete w.matchMedia;
+      expect(scrollMotion()).toBe("smooth");
+    } finally {
+      if (had) w.matchMedia = had;
+    }
+  });
+});
+
+describe("a peeked topic whose module failed", () => {
+  it("says it didn't load and offers Try again for that module, never a spinner", async () => {
+    const retry = vi.fn();
+    patch.fn = () => ({ moduleFailed: (id: string) => id !== "performance", retryModule: retry });
+    await draw({ section: "academy", jump: { kind: "academy-glossary" } });
+    let found = false;
+    for (const card of all(".crs__vcard").slice(0, 25)) {
+      const more = card.querySelector<HTMLButtonElement>(".crs__vcard-more");
+      if (!more) continue;
+      await tap(more);
+      for (const row of Array.from(card.querySelectorAll<HTMLButtonElement>(".crs__taught-row"))) {
+        await tap(row);
+        const body = host.querySelector<HTMLElement>(".vtp__body");
+        if (body?.textContent?.includes("This part of the Academy didn't load.")) {
+          const again = Array.from(body.querySelectorAll<HTMLButtonElement>("button")).find((b) => /Try again/.test(b.textContent ?? ""));
+          await tap(again!);
+          expect(retry).toHaveBeenCalledTimes(1);
+          expect(retry.mock.calls[0][0]).not.toBe("performance");
+          found = true;
+          break;
+        }
+        const close = host.querySelector<HTMLButtonElement>('[aria-label="Close the peek"]');
+        if (close) await tap(close);
+      }
+      if (found) break;
+    }
+    expect(found).toBe(true);
   });
 });

@@ -15,19 +15,24 @@
      at all for a reader who asked for less.
    ========================================================================== */
 
-/* A linked word in a passage, and inside a card. */
+/* A linked word in a passage, and inside a card: a span (TermButton), so it
+   wraps exactly like the words around it and never strands a bracket on the
+   next line. A word is small under a finger, so its box reaches a little
+   above and below its letters: padding on an inline box, which never
+   changes the line's height, and each wrapped piece of a long term
+   hit-tests on its own line (an inset ::after on a wrapped inline would span
+   both lines and swallow the words between). An inline link is the one tap
+   exempt from 40px (learning-scale.test). */
 .vtc__term {
-  position: relative;
   display: inline;
   margin: 0;
-  padding: 0;
+  padding: 4px 0;
   border: 0;
   border-radius: 3px;
   background: none;
   font: inherit;
   line-height: inherit;
   color: var(--wk-live-text);
-  text-align: inherit;
   text-decoration: underline;
   text-decoration-style: dotted;
   text-decoration-thickness: 1px;
@@ -35,15 +40,6 @@
   overflow-wrap: anywhere;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-/* A word is small under a finger: a tap a few pixels above or below it is
-   still the word's (where two linked words on adjacent lines meet, the later
-   one, painted on top, takes it). An inline link is the one tap exempt from
-   40px (learning-scale.test). */
-.vtc__term::after {
-  content: "";
-  position: absolute;
-  inset: -4px -2px;
 }
 @media (hover: hover) {
   .vtc__term:hover { background: var(--wk-live-fill); }
