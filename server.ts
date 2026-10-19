@@ -29,7 +29,7 @@ import { crossTrainLookupAllowed } from "./src/lib/staff-access.ts";
 import { idsToLookUp, parseSkipIds, skipForOwnBookings } from "./src/lib/mindbody-lookup-skip.ts";
 import { SharedSiteReads } from "./src/lib/mindbody-appointment-cache.ts";
 import { isGeminiPath, registerGeminiRoutes } from "./server/gemini-routes.ts";
-import { devFileAccess, serveBuiltApp } from "./server/served-files.ts";
+import { APP_SHELL_CSP, devFileAccess, serveBuiltApp } from "./server/served-files.ts";
 import { isLogErrorPath, registerLogErrorRoute } from "./server/log-error.ts";
 import { shutDownGracefully, tuneKeepAlive } from "./server/shutdown.ts";
 
@@ -1225,7 +1225,8 @@ async function startServer() {
     const root = process.cwd();
     const vite = await createViteServer({
       root,
-      server: { middlewareMode: true, fs: devFileAccess(root) },
+      // The same frame-ancestors header the built app sends (served-files.ts).
+      server: { middlewareMode: true, fs: devFileAccess(root), headers: { "Content-Security-Policy": APP_SHELL_CSP } },
       appType: "spa",
     });
     app.use(vite.middlewares);

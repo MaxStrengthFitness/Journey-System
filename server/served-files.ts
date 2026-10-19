@@ -171,8 +171,24 @@ export function serveBuiltApp(app: Express, distPath: string) {
     // HTML in the file's place (R18).
     if (looksLikeAFile(req.path)) return notFoundNeverCached(res);
     res.set("Cache-Control", "no-cache");
+    res.set("Content-Security-Policy", APP_SHELL_CSP);
     res.sendFile(path.join(distPath, "index.html"));
   });
+}
+
+/**
+ * Sent with every app-shell response, "/" and every extensionless path a
+ * Journey link uses (/t/…, /l/…, /a/…; the Teams link round, Oct 19 2026).
+ * Until it, any site could show Journey inside its own page: the server
+ * sent no X-Frame-Options and no CSP, and frame-ancestors is ignored in a
+ * meta tag, so it has to be a header. The dev server sends it too
+ * (server.ts).
+ */
+export const APP_SHELL_CSP = "frame-ancestors 'self'";
+
+/** The link paths the app reads (features/deep-link/parse.ts): the shell, like "/". */
+export function isLinkPath(urlPath: string): boolean {
+  return /^\/(t|l|a)\/[^/]+\/?$/.test(urlPath) && !looksLikeAFile(urlPath);
 }
 
 /** The last segment of the path ends in an extension: /icon-192.png, /x/y.js. The app's own screens have none. */

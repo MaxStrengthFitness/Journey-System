@@ -22,7 +22,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PERF_LAB_MARKER, devFileAccess, isServerOnlyFile, looksLikeAFile, serveBuiltApp } from "../../server/served-files";
+import { APP_SHELL_CSP, PERF_LAB_MARKER, devFileAccess, isLinkPath, isServerOnlyFile, looksLikeAFile, serveBuiltApp } from "../../server/served-files";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MARKER = "NOT-A-REAL-SECRET-4b1d";
@@ -47,13 +47,20 @@ async function listen(app: express.Express) {
 
 /** GET without URL normalisation, so "/./x" reaches the server as written. */
 function rawGet(port: number, path: string) {
-  return new Promise<{ status: number; body: string; cacheControl?: string }>((resolve, reject) => {
+  return new Promise<{ status: number; body: string; cacheControl?: string; csp?: string }>((resolve, reject) => {
     http
       .get({ host: "127.0.0.1", port, path }, (res) => {
         let body = "";
         res.setEncoding("utf8");
         res.on("data", (chunk) => (body += chunk));
-        res.on("end", () => resolve({ status: res.statusCode ?? 0, body, cacheControl: res.headers["cache-control"] }));
+        res.on("end", () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            body,
+            cacheControl: res.headers["cache-control"],
+            csp: res.headers["content-security-policy"] as string | undefined,
+          }),
+        );
       })
       .on("error", reject);
   });
@@ -235,6 +242,40 @@ describe("the production server (dist/)", () => {
     }
 
     expect((await get("/assets/missing-Zz99.js")).status).toBe(404);
+  });
+
+  it("serves the shell for every Journey link path, revalidated, and never for one that names a file (the Teams link round)", async () => {
+    for (const path of ["/t/5f1f4f8c2d8b4c6a9e0f1a2b3c4d5e6f", "/l/machine~m-leg-press", "/a/req1?studio=solon", "/t/abc/"]) {
+      const shell = await get(path);
+      expect(shell.status, path).toBe(200);
+      expect(shell.body, path).toContain("SHELL");
+      expect(shell.cacheControl, path).toBe("no-cache");
+    }
+    for (const path of ["/t/abc.png", "/l/machine.js", "/a/x.map"]) {
+      const res = await get(path);
+      expect(res.status, path).toBe(404);
+      expect(res.body, path).not.toContain("SHELL");
+    }
+  });
+
+  it("sends frame-ancestors 'self' on every app-shell response, so no other site can frame Journey", async () => {
+    expect(APP_SHELL_CSP).toBe("frame-ancestors 'self'");
+    for (const path of ["/", "/clients/123", "/t/abc", "/l/academy-cueing", "/a/req1"]) {
+      expect((await get(path)).csp, path).toBe(APP_SHELL_CSP);
+    }
+    // A file, a chunk and a 404 are not the shell: the header is the document's.
+    expect((await get("/assets/index-Ab12Cd34.js")).csp).toBeUndefined();
+  });
+
+  it("names the link paths, and not a file under them", () => {
+    expect(isLinkPath("/t/abc")).toBe(true);
+    expect(isLinkPath("/l/machine~m-leg-press")).toBe(true);
+    expect(isLinkPath("/a/req1")).toBe(true);
+    expect(isLinkPath("/t/abc/")).toBe(true);
+    expect(isLinkPath("/t/abc.png")).toBe(false);
+    expect(isLinkPath("/t/")).toBe(false);
+    expect(isLinkPath("/trainer")).toBe(false);
+    expect(isLinkPath("/")).toBe(false);
   });
 
   it("never caches a missing chunk, and never answers a missing file with the shell (R18)", async () => {
