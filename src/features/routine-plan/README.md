@@ -65,6 +65,14 @@ screens in `ui/`.
 
 ## Rules that hold here
 
+- **Since the routine builder round (Oct 19 2026), B is built whole** on
+  Programming → Routines (`features/ab-builder`), and phased in only if a
+  trainer chooses (`plan.phase`). AJ: "the entirety of the swap feature and
+  start as a whole and swaps is all very very confusing". Plan B, Start B,
+  Start B whole and the Routine B segment are no longer reached from
+  Programming; the swap machinery below stays for a Routine B of swaps made
+  before then, which keeps following A until someone saves it in the
+  builder. The rule that follows is the one that held until then.
 - **B starts as a copy of A with one machine different, and follows A**
   (AJ, Oct 7 2026: "the B routine starts out as the A routine with just one
   machine different. But there are times where a trainer might do two

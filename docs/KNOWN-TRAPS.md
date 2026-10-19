@@ -1177,6 +1177,8 @@ between two files you just wrote together) is this trap, not your code.
 
 The typecheck count and the test count after each round, moved here from the Commands table in `CLAUDE.md`. Compare COUNTS; since Oct 18 2026 the typecheck count is zero and CI fails on the first new type error, while the test count stays a count.
 
+- **The routine builder (Oct 19 2026, `oct19/routine-builder` over master `c64e2587`):** typecheck **0**; **15,979** tests in 965 files (15,935 in 961 on `c64e2587`, the Learning Mix, before it). No rules change, so no rules run.
+
 - **The trainer lock (Oct 18 2026, `claude/keen-elbakyan-b06716` with master `b7773a53` merged in):** typecheck **0**; **14,841** tests in 904 files (14,805 in 899 on `878c7f95`, the Wrap-up round, before it); rules tests **627** on the emulator (601 in `firestore.rules.test.ts`, 14 of them the round's, plus the lint and the comment proof); the first screen 470.6 KB gzip of the 480 KB budget.
 
 - **Typecheck on `oct18/gemini-review` (Oct 18 2026, the Gemini review round):** **0**. The two that had been the baseline since Oct 1 went: `clinical-review/charts.tsx` casts Recharts' tooltip props through `unknown` (its `payload` is readonly, the local type was not), and `EditTrainerModal.tsx` drops a `position="popper"` prop the Select never took (a Radix word on a base-ui component). `.github/typecheck-baseline.txt` is 0.

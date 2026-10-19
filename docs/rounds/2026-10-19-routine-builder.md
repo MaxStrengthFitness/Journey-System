@@ -33,7 +33,9 @@ round B is built whole by default and goes live on Save; phasing in is a
 choice. CLAUDE.md's routine-plans decision and `docs/DECISIONS.md` change
 with it.
 
-**Status: plan only. Nothing is built until AJ says go.**
+**Status: built on `oct19/routine-builder` (AJ: "Go, build the routine
+builder plan as written"). Not pushed, not live. §7 is what was built and
+where it differs from this plan.**
 
 ---
 
@@ -181,3 +183,49 @@ AJ's say.
 - **"Behind":** a step past its week shows "behind" to everyone on the
   profile and briefing. Should leaders also see the behind steps on
   Operations → Today? (Default: no, until asked.)
+
+## 7. What was built (Oct 19 2026)
+
+Five commits on `oct19/routine-builder`, each typechecked alone:
+
+1. The pure half: `ab-builder/builder.ts`, `phase.ts`, and what a save
+   writes (`store.ts`), with `plan.phase` on the plan's type.
+2. Programming → Routines: the builder, Phase it in, Start from…, each
+   routine's Changes; the Routine B segment gone; an empty B switched on
+   goes to Routines instead of Plan B.
+3. The briefing's line while a phase-in step is due.
+4. Setup opens on **Edit all**.
+5. The words: CLAUDE.md, `docs/DECISIONS.md` → The routine builder, the
+   READMEs, this section.
+
+**Where the build differs from the plan, and why:**
+
+- **Phases 1, 3 and 5 of §5 folded into the others.** The phase-in plan's
+  pure half went in with the builder's (commit 1), and Start from… went in
+  with the screen (commit 2), since each was a few lines on top of what
+  was already there.
+- **Start from… fills the routine being built into** (Add to: A, B or
+  both), not "A, and B when that routine has one": a routine template is one
+  list, and none of head office's or the studios' carries a B.
+- **A Routine B of swaps from before this round still follows A** until
+  someone saves it in the builder. Stopping it everywhere would change
+  every writer of Routine A (the session's plan sheet, the Wrap-up, the
+  drawer) and their tests; saving B once in the builder ends it for that
+  client.
+- **Setup was not rebuilt as a new table.** It already had the grid
+  (settings then load per machine, the keypad, Next, one Save) behind
+  "Quick entry", which marks every value as copied from FileMaker. Edit all
+  is that grid with values marked typed, the routines' machines first and
+  no suggestions in the boxes, and Setup now opens on it. Quick entry is
+  named Copy a chart.
+- **Routine A's plan** (on deck, can't do, a weak area, Re-plan, the plan's
+  changes) opens under the builder, folded, without B's column; it opens by
+  itself while Routine A is empty and the plan runs day one.
+
+**Not done, and waiting on AJ:**
+
+- The walk on an iPad, portrait and landscape: the builder's three columns
+  on a landscape iPad, the floor over A and B in portrait.
+- The two §6 questions (reps beside the weight in Edit all; behind steps on
+  Operations → Today). Neither was built.
+- Push and deploy: nothing is on `master`.
