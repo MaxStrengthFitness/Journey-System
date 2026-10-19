@@ -41,7 +41,7 @@
  *
  * Pure. No regex lookbehind (older iPadOS Safari throws on parse).
  */
-import { SEAT_BELT_OFF, SEAT_BELT_ON, beltChoiceOf, isSeatBelt, type SeatBeltChoice } from "../equipment/seat-belt";
+import { SEAT_BELT_OFF, SEAT_BELT_ON, beltChoiceOf, isSeatBeltField, type SeatBeltChoice } from "../equipment/seat-belt";
 
 export interface ShorthandField {
   /** The field's STORAGE key — what clientMachineSettings.settings is keyed by for this machine. */
@@ -114,7 +114,7 @@ interface FieldNames {
 }
 
 /** The field is the seat belt (equipment/seat-belt.ts). */
-const isBeltField = (field: ShorthandField): boolean => isSeatBelt(field.key) || isSeatBelt(field.label);
+const isBeltField = (field: ShorthandField): boolean => isSeatBeltField(field);
 
 function namesOf(field: ShorthandField): FieldNames {
   if (isBeltField(field)) {
@@ -243,6 +243,9 @@ function looksLikeValue(token: string, field: ShorthandField): boolean {
  * The seat belt starting at `i`, or null: "Belt", "Seat belt", "No belt",
  * then an optional separator and a word that says which ("off", "Y", "not
  * needed"). Its name alone is On. `next` is the first token after it.
+ * The dash rule in `tokenize` turns "No-belt" and "seat-belt" into a label
+ * and its separator, so one separator inside the name, or between "no" and
+ * the name, is stepped over: "No-belt" is Off, never "No" and then On.
  */
 function beltAt(
   chunk: readonly string[],
@@ -253,11 +256,15 @@ function beltAt(
     const w = norm(chunk[at] ?? "");
     if (w === "belt" || w === "seatbelt") return 1;
     if (w === "seat" && norm(chunk[at + 1] ?? "") === "belt") return 2;
+    if (w === "seat" && chunk[at + 1] === SEP && norm(chunk[at + 2] ?? "") === "belt") return 3;
     return 0;
   };
   let at = i;
-  const negated = norm(chunk[at] ?? "") === "no" && nameLength(at + 1) > 0;
-  if (negated) at += 1;
+  const NEGATIONS = ["no", "without", "wo"];
+  const negationAt = NEGATIONS.includes(norm(chunk[at] ?? ""));
+  const nameFrom = negationAt ? (chunk[at + 1] === SEP ? at + 2 : at + 1) : at;
+  const negated = negationAt && nameLength(nameFrom) > 0;
+  if (negated) at = nameFrom;
   const length = nameLength(at);
   if (length === 0) return null;
   at += length;
@@ -267,7 +274,8 @@ function beltAt(
   const word = (t: string | undefined) => (t === undefined || t === SEP ? null : t);
   const a = word(chunk[k]);
   const b = word(chunk[k + 1]);
-  const two = a !== null && b !== null ? beltChoiceOf(`${a} ${b}`) : null;
+  // Two words only for "not needed" / "not required": "N A- 3" is Off and an Arm of 3, never "N/A".
+  const two = a !== null && b !== null && norm(a) === "not" ? beltChoiceOf(`${a} ${b}`) : null;
   if (two) return { field: belt, value: two, next: k + 2 };
   const one = a !== null ? beltChoiceOf(a) : null;
   if (one) return { field: belt, value: one, next: k + 1 };
@@ -399,7 +407,12 @@ export function parseShorthand(text: string, fields: readonly ShorthandField[]):
         // of this machine's settings) is not a value: this label is empty.
         if (one) {
           const other = matchField(next, fields, true).field;
-          const nextIsLabel = afterNext === SEP || WEIGHT_LABEL.test(next) || (other !== null && other.key !== one.key);
+          const nextIsLabel =
+            afterNext === SEP ||
+            WEIGHT_LABEL.test(next) ||
+            (other !== null && other.key !== one.key) ||
+            // "Handles No belt": the belt starts there, so Handles is empty (never "No").
+            (beltField !== null && !isBeltField(one) && beltAt(chunk, i + 1, beltField) !== null);
           if (nextIsLabel) {
             // Printed furniture is dropped, like FileMaker's empty "S-". A word
             // in a sentence ("no seat pad") is kept: nothing is thrown away.

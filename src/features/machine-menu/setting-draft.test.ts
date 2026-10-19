@@ -18,6 +18,7 @@ import {
   firstEmptyDial,
   isDraftDirty,
   isFirstSetup,
+  savesFirstSetup,
   isFixedDial,
   nextEmptyDial,
   nothingToUndoWords,
@@ -95,6 +96,14 @@ describe("the seed: fixed dials filled, nothing else", () => {
     expect(isFirstSetup({})).toBe(true);
     expect(isFirstSetup({ seat: "  " })).toBe(true);
     expect(isFirstSetup({ "Old Seat": "3" })).toBe(false);
+  });
+
+  it("never counts the seat belt as a set-up, and a save of the belt alone is not the first set-up (Oct 19 2026)", () => {
+    expect(isFirstSetup({ "Seat belt": "On" })).toBe(true);
+    expect(isFirstSetup({ "Seat belt": "On", Seat: "4" })).toBe(false);
+    expect(savesFirstSetup({}, [{ label: "Seat belt", from: "", to: "On" }])).toBe(false);
+    expect(savesFirstSetup({ "Seat belt": "On" }, [{ label: "Seat", from: "", to: "4" }])).toBe(true);
+    expect(savesFirstSetup({}, [{ label: "Seat belt", from: "", to: "On" }, { label: "Seat", from: "", to: "4" }])).toBe(true);
   });
 });
 

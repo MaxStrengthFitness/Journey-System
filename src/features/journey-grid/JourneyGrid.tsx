@@ -28,6 +28,7 @@ import {
 import { historyStartWords, sessionNumberTag } from "../../lib/history-claims";
 import type { HistoryCoverage } from "../../lib/prior-history";
 import { noteKey } from "../machine-menu/note-key";
+import { isSeatBelt } from "../equipment/seat-belt";
 import { cellsKey, columnsKey } from "./pin-key";
 import "./journey-grid.css";
 
@@ -292,8 +293,12 @@ function RowImpl({
   // is the thing a trainer reads, so the grid must never re-sort.
   const settingEntries = machine.settings ? Object.entries(machine.settings) : [];
   const settingLabel = (k: string) => machine.settingLabels?.[k] ?? k;
-  const shownSettings = settingEntries.slice(0, 5);
-  const hiddenSettings = settingEntries.length - shownSettings.length;
+  // The position boxes line up under Gap, one small box each; the seat belt is
+  // not a position, and "Belt Not needed" would be cut short there (Oct 19
+  // 2026). It is still in the spoken summary, the Now Bar and the card.
+  const boxedSettings = settingEntries.filter(([k]) => !isSeatBelt(settingLabel(k)));
+  const shownSettings = boxedSettings.slice(0, 5);
+  const hiddenSettings = boxedSettings.length - shownSettings.length;
   const spokenSettings = settingEntries.length
     ? ` Settings: ${settingEntries.map(([k, v]) => `${settingLabel(k)} ${v}`).join(", ")}.`
     : "";
@@ -327,7 +332,7 @@ function RowImpl({
           {/* Drawn in both modes: "menu" hides it by CSS, except on the
               profile's chart, which shows it as one quiet line (AJ, Oct 2
               2026: "leg press seat 6 P1 ... very subtly"). */}
-          {settingEntries.length > 0 && (
+          {boxedSettings.length > 0 && (
             <span className="jg-machine__meta">
               {/* Gap's box, shown with no number when a machine has no gap
                   set, so the boxes after it line up from one machine to the

@@ -181,7 +181,8 @@ export function likenessTo(
   for (const key of DEFINITION_FIELDS) {
     const a = (definition as unknown as Record<string, unknown>)[key];
     const b = (standard as unknown as Record<string, unknown>)[key];
-    if (!hasContent(a) && !hasContent(b)) continue;
+    const said = (v: unknown) => typeof v === "boolean" || hasContent(v);
+    if (!said(a) && !said(b)) continue;
     if (!sameValue(a, b)) differs.push(key);
   }
   differs.sort((a, b) => labelFor(a).localeCompare(labelFor(b)));
@@ -225,6 +226,8 @@ export const DEFINITION_FIELDS: readonly MachineDefinitionField[] = [
   "biomechanicalNotes",
   "settingFields",
   "defaultSettings",
+  // The unit's seat belt answer (Oct 19 2026): a yes or a no is content.
+  "hasSeatBelt",
   "baselineLoad",
   "imageUrl",
   "formVideoUrl",

@@ -8,7 +8,7 @@
  * fact. This file is the only place that crosses the line, in both directions.
  */
 
-import { isSeatBelt } from "../../equipment/seat-belt";
+import { isSeatBeltField } from "../../equipment/seat-belt";
 import { displayValue } from "../../equipment/setting-suggestions";
 import type { SettingFieldSpec } from "../../equipment/types";
 import { normalizeSettingKey, normalizeSettingValue } from "../../machine-trends/trends";
@@ -37,7 +37,7 @@ export function toFitFields(specs: readonly SettingFieldSpec[]): FitField[] {
   const seen = new Set<string>();
   const out: FitField[] = [];
   for (const f of specs) {
-    if (isSeatBelt(f.key) || isSeatBelt(f.label)) continue;
+    if (isSeatBeltField(f)) continue;
     const nk = normalizeSettingKey(f.key) || normalizeSettingKey(f.label);
     if (!nk || seen.has(nk)) continue;
     seen.add(nk);

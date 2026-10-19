@@ -40,7 +40,7 @@
  * PURE — no React, no Firestore.
  */
 import { absoluteValueFor } from "../equipment/adapters";
-import { isSeatBelt } from "../equipment/seat-belt";
+import { isSeatBelt, isSeatBeltField } from "../equipment/seat-belt";
 import type { SettingSource } from "../machine-fit/types";
 import { HELD_SETUP_LINE } from "../open-session/held-setup";
 import { UNDO_REASON, type SettingPair } from "./setting-history";
@@ -97,10 +97,22 @@ export function isFixedDial(field: DraftField): boolean {
 /**
  * Nothing is saved on the machine for this client: the next save is the
  * first set-up (today's `!machine.isConfigured`). A value under a key the
- * field list no longer shows still counts — the machine was set up.
+ * field list no longer shows still counts — the machine was set up. The seat
+ * belt does not (Oct 19 2026): a belt recorded alone is not a set-up, so the
+ * Now Bar still says "Set up · 3 not set" and the dials' first save is still
+ * the first set-up.
  */
 export function isFirstSetup(saved: Values): boolean {
-  return !Object.values(saved).some((v) => clean(v) !== "");
+  return !Object.entries(saved).some(([k, v]) => !isSeatBelt(k) && clean(v) !== "");
+}
+
+/**
+ * A save that is the first set-up: nothing saved yet, and something other
+ * than the belt is being set. The belt alone saves as a change of its own
+ * ("Save Seat belt On"), never as "set-up".
+ */
+export function savesFirstSetup(saved: Values, changes: readonly SettingPair[]): boolean {
+  return isFirstSetup(saved) && changes.some((c) => !isSeatBelt(c.label));
 }
 
 /**
@@ -158,7 +170,7 @@ export function changedKeys(fields: readonly DraftField[], draft: Values, saved:
  * and Set up and Enter never stop on it (it is three buttons, not typed).
  */
 export function emptyDials(fields: readonly DraftField[], draft: Values): string[] {
-  return fields.filter((f) => !isSeatBelt(f.key) && clean(draft[f.key]) === "").map((f) => f.key);
+  return fields.filter((f) => !isSeatBeltField(f) && clean(draft[f.key]) === "").map((f) => f.key);
 }
 
 /** The first empty dial, where Set up opens the card; null when every dial has a value. */
@@ -194,7 +206,7 @@ export function notSetCount(fields: readonly DraftField[], saved: Values): numbe
 /** The empty dials that have a studio standard, dial key → the standard. */
 export function standardsForEmpty(fields: readonly DraftField[], draft: Values): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const f of fields) if (!isSeatBelt(f.key) && clean(draft[f.key]) === "" && clean(f.ghost) !== "") out[f.key] = clean(f.ghost);
+  for (const f of fields) if (!isSeatBeltField(f) && clean(draft[f.key]) === "" && clean(f.ghost) !== "") out[f.key] = clean(f.ghost);
   return out;
 }
 

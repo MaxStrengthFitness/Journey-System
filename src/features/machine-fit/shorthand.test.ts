@@ -300,6 +300,24 @@ describe("the seat belt (Oct 19 2026)", () => {
     expect(parseShorthand("Belt S- 4", PULLDOWN).values).toEqual({ "Seat belt": "On", Seat: "4" });
   });
 
+  it("reads a hyphenated or worded no as Off, never as No and then On (the review)", () => {
+    expect(parseShorthand("No-belt", PULLDOWN)).toEqual({ values: { "Seat belt": "Off" }, leftovers: [], notes: [] });
+    expect(parseShorthand("No seat-belt, S- 4", PULLDOWN)).toEqual({ values: { "Seat belt": "Off", Seat: "4" }, leftovers: [], notes: [] });
+    expect(parseShorthand("Seat-belt", PULLDOWN).values).toEqual({ "Seat belt": "On" });
+    expect(parseShorthand("without belt", PULLDOWN).values).toEqual({ "Seat belt": "Off" });
+    expect(parseShorthand("w/o belt", PULLDOWN).values).toEqual({ "Seat belt": "Off" });
+  });
+
+  it("takes two words after it only for not needed: N then a dial is Off and the dial (the review)", () => {
+    const withArm: ShorthandField[] = [...PULLDOWN.slice(0, 4), { key: "Arm", label: "Arm", type: "text" }, PULLDOWN[4]];
+    expect(parseShorthand("Belt N A- 3", withArm)).toEqual({ values: { "Seat belt": "Off", Arm: "3" }, leftovers: [], notes: [] });
+  });
+
+  it("never gives a dial the No of No belt (the review)", () => {
+    expect(parseShorthand("Handles No belt", PULLDOWN)).toMatchObject({ values: { "Seat belt": "Off" } });
+    expect(parseShorthand("Handles No belt", PULLDOWN).values.Handles).toBeUndefined();
+  });
+
   it("reads an empty box before it as empty, never as a gap of Belt", () => {
     expect(parseShorthand("G- Belt S- 4", PULLDOWN)).toEqual({ values: { "Seat belt": "On", Seat: "4" }, leftovers: [], notes: [] });
   });

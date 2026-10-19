@@ -1110,6 +1110,14 @@ describe("the seat belt (the seat belt round, Oct 19 2026; AJ's Aa)", () => {
     expect(saves.calls[0]).toMatchObject({ draft: { ...SAVED, "Seat belt": "On" }, reason: "", isInitialSetup: false });
   });
 
+  it("saves the belt alone on a client with nothing saved as itself, never as the first set-up (the review)", async () => {
+    const host = await mount(<Tiles fields={WITH_BELT} saved={{}} />);
+    await click(button(host, "Seat belt On"));
+    expect(byText(host, "Save set-up")).toBeNull();
+    await click(byText(host, "Save Seat belt On"));
+    expect(saves.calls[0]).toMatchObject({ draft: { "Seat belt": "On" }, isInitialSetup: false });
+  });
+
   it("shows a recorded belt picked, and changing it is a change like any other: 'was On' and Why? (optional)", async () => {
     const host = await mount(<Tiles fields={WITH_BELT} saved={{ ...SAVED, "Seat belt": "On" }} />);
     expect(button(host, "Seat belt On")!.getAttribute("aria-pressed")).toBe("true");

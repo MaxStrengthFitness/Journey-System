@@ -275,6 +275,17 @@ describe("the Setup screen", () => {
     });
   });
 
+  it("shows a belt recorded alone in Check, never as a quiet 'Not set up' line (the review)", () => {
+    const el = mount({
+      ...saved({ Gap: "0", Seat: "4", Chest: "3" }),
+      "m-leg-press": { clientId: "judy", machineId: "m-leg-press", settings: { "Seat belt": "Off" }, updatedBy: "t1", updatedAt: null },
+    });
+    expect(el.querySelector(".fit")?.getAttribute("data-mode")).toBe("check");
+    const legPress = el.querySelector("#fit-row-m-leg-press")!;
+    expect(legPress.classList.contains("fit-row--compact")).toBe(false);
+    expect(legPress.textContent).toContain("Off");
+  });
+
   it("puts a chart's bare Belt on the seat belt in Quick entry, as copied from the chart", async () => {
     const el = mount(saved({ Seat: "5" }));
     click(button(el, /^Quick entry/));

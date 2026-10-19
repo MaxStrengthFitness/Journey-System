@@ -126,10 +126,45 @@ function SetupRowImpl({
     }
   };
 
+  /* The seat belt (Oct 19 2026): three buttons beside the cells, never one
+     of them, so the pad's run of cells skips it; on a machine with no dials
+     it is the row's one control. */
+  const beltCell = belt ? (
+    editing ? (
+      <div className="fit-cell fit-cell--belt" data-dirty={row.dirty.has(belt.key) || undefined}>
+        <span className="fit-cell__label">{belt.label}</span>
+        <div className="fit-belt" role="group" aria-label={`${machine.name} ${belt.label}`}>
+          {SEAT_BELT_CHOICES.map((choice) => {
+            const on = beltShown === choice;
+            return (
+              <button
+                key={choice}
+                type="button"
+                className="fit-chip"
+                data-on={on || undefined}
+                aria-pressed={on}
+                aria-label={`${machine.name} ${belt.label} ${choice}`}
+                onClick={() => onChange(belt.key, choice)}
+              >
+                {choice}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ) : (
+      <div className="fit-cell fit-cell--read" data-empty={!row.shown[belt.key] || undefined}>
+        <span className="fit-cell__label">{belt.label}</span>
+        <span className="fit-cell__value">{row.shown[belt.key] || "—"}</span>
+      </div>
+    )
+  ) : null;
+
   const state = !row.isSetUp && !hasDraft ? "empty" : rare.length > 0 && mode === "check" ? "flag" : "set";
   // Check is about what IS set. A machine with nothing saved is one quiet
   // line there, not a row of empty boxes — twenty machines fit on a screen.
-  const compact = mode === "check" && !row.isSetUp && machine.currentWeight === null;
+  // A belt recorded alone keeps the full row, so its value is shown.
+  const compact = mode === "check" && !row.isSetUp && machine.currentWeight === null && !(belt && row.shown[belt.key]);
 
   if (compact) {
     return (
@@ -141,7 +176,7 @@ function SetupRowImpl({
               Routine {r}
             </span>
           ))}
-          <span className="fit-row__empty">{fields.length > 0 ? "Not set up" : "No adjustable settings"}</span>
+          <span className="fit-row__empty">{fields.length > 0 || belt ? "Not set up" : "No adjustable settings"}</span>
         </div>
       </li>
     );
@@ -169,7 +204,11 @@ function SetupRowImpl({
       <div className="fit-row__body">
         <div className="fit-row__main">
         {fields.length === 0 ? (
-          <p className="fit-row__none">No adjustable settings on this machine&rsquo;s catalog entry.</p>
+          beltCell ? (
+            <div className="fit-cells">{beltCell}</div>
+          ) : (
+            <p className="fit-row__none">No adjustable settings on this machine&rsquo;s catalog entry.</p>
+          )
         ) : (
           <div className="fit-cells">
             {fields.map((f) => {
@@ -238,38 +277,7 @@ function SetupRowImpl({
               );
             })}
 
-            {/* The seat belt (Oct 19 2026): three buttons beside the cells,
-                never one of them, so the pad's run of cells skips it. */}
-            {belt ? (
-              editing ? (
-                <div className="fit-cell fit-cell--belt" data-dirty={row.dirty.has(belt.key) || undefined}>
-                  <span className="fit-cell__label">{belt.label}</span>
-                  <div className="fit-belt" role="group" aria-label={`${machine.name} ${belt.label}`}>
-                    {SEAT_BELT_CHOICES.map((choice) => {
-                      const on = beltShown === choice;
-                      return (
-                        <button
-                          key={choice}
-                          type="button"
-                          className="fit-chip"
-                          data-on={on || undefined}
-                          aria-pressed={on}
-                          aria-label={`${machine.name} ${belt.label} ${choice}`}
-                          onClick={() => onChange(belt.key, choice)}
-                        >
-                          {choice}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="fit-cell fit-cell--read" data-empty={!row.shown[belt.key] || undefined}>
-                  <span className="fit-cell__label">{belt.label}</span>
-                  <span className="fit-cell__value">{row.shown[belt.key] || "—"}</span>
-                </div>
-              )
-            ) : null}
+            {beltCell}
 
             {editing ? (
               <label

@@ -72,6 +72,15 @@ export function isSeatBelt(keyOrLabel: string | null | undefined): boolean {
   return BELT_NAMES.has(fold(keyOrLabel ?? ""));
 }
 
+/**
+ * This dial is the seat belt, by its key or its label: the one test every
+ * dial list asks (the card, the empty dials, Setup, machine fit, the paste
+ * box), so a dial named "Belt" under some other key is the belt everywhere.
+ */
+export function isSeatBeltField(field: { key: string; label?: string | null }): boolean {
+  return isSeatBelt(field.key) || isSeatBelt(field.label);
+}
+
 /** The unit has a seat belt, as far as the floor is concerned: only a studio's "No" takes it off. */
 export function unitHasSeatBelt(machine: { hasSeatBelt?: boolean | null } | null | undefined): boolean {
   return machine?.hasSeatBelt !== false;
@@ -99,7 +108,7 @@ export function withSeatBelt(
   machine: { hasSeatBelt?: boolean | null } | null | undefined,
 ): SettingFieldSpec[] {
   if (!unitHasSeatBelt(machine)) return [...fields];
-  if (fields.some((f) => isSeatBelt(f.key) || isSeatBelt(f.label))) return [...fields];
+  if (fields.some(isSeatBeltField)) return [...fields];
   return [...fields, seatBeltField()];
 }
 

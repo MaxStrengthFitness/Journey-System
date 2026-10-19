@@ -33,6 +33,7 @@
  */
 
 import { nextSettings, nextSources } from "./settings-write.ts";
+import { isSeatBelt } from "../equipment/seat-belt.ts";
 import type { SettingSource } from "./types.ts";
 
 export interface SetupField {
@@ -151,11 +152,13 @@ export function planSetupSave(machines: readonly SetupMachineInput[]): SetupPlan
     const note = clean(m.note);
     if (changes.length === 0 && !weightMoved && !startMoved && !note) continue;
 
-    const hadSettings = m.fields.some((f) => clean(m.saved[f.key]) !== "");
+    // The seat belt is never a set-up (Oct 19 2026): recorded alone it is not
+    // "had settings", and saved alone it is not the first set-up.
+    const hadSettings = m.fields.some((f) => !isSeatBelt(f.key) && clean(m.saved[f.key]) !== "");
     const entry: SetupPlanEntry = {
       machineId: m.machineId,
       machineName: m.machineName,
-      isInitialSetup: !hadSettings,
+      isInitialSetup: !hadSettings && changes.some((c) => !isSeatBelt(c.key)),
       changes,
     };
 

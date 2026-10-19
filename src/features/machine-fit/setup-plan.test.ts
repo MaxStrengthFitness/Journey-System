@@ -69,6 +69,13 @@ describe("planning the Setup screen's Save", () => {
     expect(filling.entries[0].isInitialSetup).toBe(false);
     expect(filling.entries[0].settings).toEqual({ Seat: "4", Gap: "0" }); // a field the draft never mentioned is kept
 
+    // The seat belt is never a set-up (Oct 19 2026): alone it is no first set-up, and recorded alone the dials' first save still is.
+    const beltField = { key: "Seat belt", label: "Seat belt" };
+    const beltOnly = planSetupSave([machine({ fields: [...FIELDS, beltField], draft: { "Seat belt": "On" } })]);
+    expect(beltOnly.entries[0]).toMatchObject({ isInitialSetup: false, settings: { "Seat belt": "On" } });
+    const afterBelt = planSetupSave([machine({ fields: [...FIELDS, beltField], saved: { "Seat belt": "On" }, draft: { Seat: "4" } })]);
+    expect(afterBelt.entries[0].isInitialSetup).toBe(true);
+
     const changing = planSetupSave([machine({ saved: { Seat: "4" }, draft: { Seat: "5" } })]);
     expect(changing.needsReason).toBe(true);
     const clearing = planSetupSave([machine({ saved: { Seat: "4" }, draft: { Seat: "" } })]);

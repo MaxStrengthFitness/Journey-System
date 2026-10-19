@@ -35,7 +35,7 @@ import { machineNoteCount, machineNoteLoudness } from "./machine-notes";
 import { MACHINE_DATABASE, type MachineKnowledge } from "../../data/machine-database";
 import { CANONICAL_TO_DB_KEY, canonicalMachineId } from "../catalog/machine-identity";
 import { isAbsoluteDial } from "./absolute-dials";
-import { withSeatBelt } from "./seat-belt";
+import { isSeatBelt, withSeatBelt } from "./seat-belt";
 import { toIsoDay } from "../../lib/client-rollups";
 import { performedOnly } from "../../lib/set-outcome";
 import { tutOf } from "../clinical-review/facts";
@@ -486,7 +486,8 @@ export function toEquipmentMachines({
     const startingWeight = asNumber(setting?.startingWeight);
     const currentWeight = asNumber(setting?.currentWeight);
     const loggedSetCount = logCounts.get(id) || 0;
-    const isConfigured = Object.keys(settings).length > 0;
+    // The belt recorded alone is not a set-up (seat-belt.ts).
+    const isConfigured = Object.keys(settings).some((k) => !isSeatBelt(k));
     /* Time under tension always comes from the logs, whichever way the rest
        of the usage figures were built — the lifetime rollup has no notion of
        it. Merged in after, so both paths report it. */

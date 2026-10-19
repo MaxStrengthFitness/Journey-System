@@ -1344,18 +1344,22 @@
 }
 
 /* The seat belt (Oct 19 2026; AJ's "Aa"): the tile is the switch. Three of
-   the option buttons where a value sits, as tall as the ± (56px), sharing
-   the row; "Not needed" wraps inside its button before the row does. */
+   the option buttons where a value sits, as tall as the ± (56px), each as
+   wide as its word and sharing what is left: in a 224px tile On, Off and
+   Not needed fit one row. A word never breaks inside itself (the option
+   buttons' own rule breaks anywhere, which cut "Not neede / d" when the
+   three were forced equal). */
 .mm-belt {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .mm-belt__opt {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-height: 56px;
-  padding: 0 8px;
+  padding: 0 6px;
+  overflow-wrap: normal;
 }
 
 .mm-pos__std {

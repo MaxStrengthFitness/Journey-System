@@ -16,7 +16,7 @@
  * is plain `useMemo`; nothing is cached by hand.
  */
 
-import { isSeatBelt } from "../../equipment/seat-belt";
+import { isSeatBeltField } from "../../equipment/seat-belt";
 import { useMemo } from "react";
 import type { Client, ClientMachineSetting, Machine, Routine } from "../../../types";
 import type { MachineCatalogEntry } from "../../../types/machines";
@@ -145,7 +145,7 @@ export function useSetupModel({
   const allRows = useMemo<SetupRowModel[]>(() => {
     return equipment.map((machine) => {
       const fields = toFitFields(machine.fields);
-      const beltSpec = machine.fields.find((f) => isSeatBelt(f.key));
+      const beltSpec = machine.fields.find(isSeatBeltField);
       const belt = beltSpec ? { key: beltSpec.key, label: beltSpec.label } : null;
       const draft = drafts.drafts[machine.id];
       const shown: Record<string, string> = {};

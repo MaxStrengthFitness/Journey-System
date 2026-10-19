@@ -96,7 +96,7 @@ import { useUnsavedChanges } from "../unsaved-changes";
 import { saveSettings, type JournalContext, type MutationAuthor, type SaveSettingsResult } from "../equipment/mutations";
 import { parseHeightInches, suggestFromTrend } from "../equipment/setting-suggestions";
 import type { EquipmentMachine, SettingFieldSpec } from "../equipment/types";
-import { SEAT_BELT_CHOICES, beltChoiceOf, isSeatBelt } from "../equipment/seat-belt";
+import { SEAT_BELT_CHOICES, beltChoiceOf, isSeatBeltField } from "../equipment/seat-belt";
 import { useMachineTrend } from "../equipment/useMachineTrend";
 import type { FitData } from "../machine-fit/fit-store";
 import { acknowledgeFlag } from "../machine-fit/setup-save";
@@ -122,7 +122,7 @@ import {
   heldClosedWords,
   heldOutcomeWords,
   isDraftDirty,
-  isFirstSetup,
+  savesFirstSetup,
   nextEmptyDial,
   nothingToUndoWords,
   offersHealthNote,
@@ -475,7 +475,7 @@ export function DialTiles({
   // Quick set-up: the first empty dial's editor opens as soon as the dials
   // are known (the catalog's can arrive a moment after the card), once.
   const [focusArmed, setFocusArmed] = useState(focusDial && !readOnly);
-  if (focusArmed && fields.length > 0) {
+  if (focusArmed && fields.some((f) => !isSeatBeltField(f))) {
     setFocusArmed(false);
     const first = firstEmptyDial(fields, draftNow);
     if (first) setEditing(first);
@@ -560,7 +560,8 @@ export function DialTiles({
   const isOnline = () => (online === undefined ? browserOnline() : online);
 
   const changes = useMemo(() => draftChanges(fields, base, draft), [fields, base, draft]);
-  const firstSetup = isFirstSetup(base);
+  // The belt alone is never a set-up (setting-draft.ts `savesFirstSetup`).
+  const firstSetup = savesFirstSetup(base, changes);
 
   /* ---------------- the values each dial can step through ---------------- */
 
@@ -919,7 +920,7 @@ export function DialTiles({
   };
 
   const tile = (f: TileField) => {
-    if (isSeatBelt(f.key)) return beltTile(f);
+    if (isSeatBeltField(f)) return beltTile(f);
     const control = controlOf(f);
     const state = tileState(f, draft, base);
     const was = wasWords(state);

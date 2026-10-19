@@ -185,6 +185,11 @@ describe("likeness to the machine it is based on", () => {
     expect(l.method).toEqual(["execution"]);
   });
 
+  it("names a seat belt answer as a hardware difference, a No included (Oct 19 2026)", () => {
+    const theirs = good({ name: "PULLOVER", clinicalNote: "Lats through a long arc.", hasSeatBelt: false } as Partial<MachineDefinition>);
+    expect(likenessTo(theirs, standard)!.hardware).toEqual(["hasSeatBelt"]);
+  });
+
   it("reports nothing when the two agree", () => {
     expect(likenessTo(good({ name: "PULLOVER", clinicalNote: "Lats through a long arc." }), standard)!.differs).toEqual([]);
   });

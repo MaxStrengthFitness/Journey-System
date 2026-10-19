@@ -655,7 +655,7 @@ export function SetupView({
         {panel === "paste" && mode === "quick" ? (
           <PastePanel
             machines={model.allRows
-              .filter((r) => r.fields.length > 0)
+              .filter((r) => r.fields.length > 0 || r.belt)
               .map((r) => ({
                 id: r.machine.id,
                 name: r.machine.name,
