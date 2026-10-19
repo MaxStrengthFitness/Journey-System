@@ -118,6 +118,10 @@ const NAME_RULES: { file: string; cls: string; exact?: string; what: string }[] 
   { file: "features/hub-schedule/hub-grid.css", cls: "hs-colname", exact: ".hs-colname strong", what: "a trainer's name heading a lane on the Hub (Saira 17)" },
   { file: "features/hub-schedule/peek.css", cls: "hp-name", what: "the client's name on the Hub's peek (Saira 22)" },
   { file: "features/hub-schedule/hub-card.css", cls: "hs-card-name", what: "the client's name on a Hub booking" },
+  // The narrow cards round, phase 2 (Oct 18 2026): Mindbody's staff name on
+  // an Unassigned booking ("Booked with Samuel Lee") drops whole in the grid
+  // where it has no room; wherever it shows, it wraps and is never cut.
+  { file: "features/hub-schedule/hub-card.css", cls: "hs-card-staff", what: "Mindbody's staff name on an Unassigned Hub booking" },
   // Type and depth, phase 12 (Oct 4 2026): names set upright in the display
   // face, in their own capitalisation, wrap like every name.
   { file: "features/briefing/briefing.css", cls: "br__name", what: "the client's name on the briefing (Saira 22-30, upright)" },

@@ -908,4 +908,32 @@ describe("the narrow card's parts, drawn on every card", () => {
     expect(top(".hs-card-clock,\n.hs-card-state-part,\n.hs-card-sep,\n.hs-card-unsynced")).toMatch(/display:\s*contents;/);
     expect(top(".hs-card-initials,\n.hs-card-sym,\n.hs-card-alt-time,\n.hs-card-clock-short,\n.hs-tri.hs-tri--short")).toMatch(/display:\s*none;/);
   });
+
+  /* Phase 2 (hub-card.css): a lane of about 155 to 175px hides her number
+     beside the triangle and "+N" beside In session; the Unassigned column's
+     staff line drops whole where the name and the time leave it too little
+     room. What a card hides there, its label says. */
+  it("says what a 155 to 175px lane hides: her number beside the triangle, and +N beside In session", () => {
+    const card = draw({ now: tAt("16:40"), entry: MARKED, sessionNumber: 264, workoutSession: running() });
+    expect(card.dataset.critical).toBe("true");
+    expect(card.dataset.state).toBe("in-session");
+    expect(card.querySelector(".hs-card-num")?.textContent).toBe("#264");
+    expect(card.querySelector('.hs-g[data-family="more"]')?.textContent).toBe("+1");
+    const label = card.getAttribute("aria-label") ?? "";
+    expect(label).toContain("session 264");
+    expect(label).toContain("1 more: Renewal talk");
+  });
+
+  it("draws the Unassigned column's staff line as a lead it can drop behind, then the words, which its label says", () => {
+    const card = draw({ now: tAt("16:00"), staffName: "Westlake Rotation" });
+    const staff = card.querySelector(".hs-card-staff")!;
+    expect([...staff.children].map((c) => c.className)).toEqual(["hs-card-staff-lead", "hs-card-staff-name"]);
+    // The lead is empty and unheard; the words are the line's whole text, as before.
+    expect(staff.firstElementChild!.getAttribute("aria-hidden")).toBe("true");
+    expect(staff.firstElementChild!.textContent).toBe("");
+    expect(staff.textContent).toBe("Booked with Westlake Rotation");
+    expect(card.getAttribute("aria-label")).toContain("Booked with Westlake Rotation");
+    // Outside the Unassigned column there is no staff line at all.
+    expect(draw({ now: tAt("16:00") }).querySelector(".hs-card-staff")).toBeNull();
+  });
 });

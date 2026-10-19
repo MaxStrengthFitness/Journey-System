@@ -52,7 +52,11 @@
  *     open, a cross for a late cancel);
  *   - the triangle a second time at the end of the time line
  *     (.hs-tri--short), her initials (.hs-card-initials) on a client's card
- *     only, and each glyph's place in the Key's order (data-rank).
+ *     only, and each glyph's place in the Key's order (data-rank);
+ *   - in the Unassigned column, the staff line as an empty lead and its
+ *     words (.hs-card-staff-lead, .hs-card-staff-name), so the grid can drop
+ *     the line whole where the name and the time leave it too little room
+ *     (phase 2; on the phone's list it stands as it did).
  */
 import { memo, type ComponentType } from "react";
 import { Activity, AlertTriangle, Award, Cake, Check, Circle, CloudOff, FileSignature, MessageCircle, Pause, RefreshCw, Sparkles, Undo2, X } from "lucide-react";
@@ -394,9 +398,13 @@ function HubCardView({
           </span>
         )}
       </div>
+      {/* In the grid the line drops whole when the name and the time leave
+          it too little room, so the time stays (hub-card.css): the lead
+          goes first, as the words after the time do on their side. */}
       {staffName && (
         <span className="hs-card-staff" title="Mindbody's staff name; no Journey trainer matches it">
-          {`Booked with ${staffName}`}
+          <span className="hs-card-staff-lead" aria-hidden />
+          <span className="hs-card-staff-name">{`Booked with ${staffName}`}</span>
         </span>
       )}
 

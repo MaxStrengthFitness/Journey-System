@@ -299,7 +299,18 @@ describe("4. the Hub's cards: no container each, no layer each, and the hatching
       const inside = m[3] === ".hs-g:first-child" ? 176 : 280;
       expect(Number(m[1]), `${m[3]}, ${m[2]} lane(s)`).toBe(Number(m[2]) * (inside + chrome));
     }
-    expect([...text.matchAll(/@container hs-col/g)].length, "four widths for the first word, three for every word").toBe(7);
+    // Nine since the narrow cards round's phase 2 (Oct 18 2026): the seven
+    // word widths, and a lane of about 155 to 175px, one to a slot under a
+    // 175px column or two in a column of 310 to 350px, where the card hides
+    // two marks it can't hold (below). Still the column, asked by name.
+    expect([...text.matchAll(/@container hs-col/g)].length, "four widths for the first word, three for every word, two for a 155 to 175px lane").toBe(9);
+    const lane = [...text.matchAll(/@container hs-col ([^{]+)\{([^@]*?)\n\}/g)].filter((m) => m[1].includes("max-width"));
+    expect(lane.map((m) => m[1].trim())).toEqual(["(max-width: 174.98px)", "(min-width: 310px) and (max-width: 349.98px)"]);
+    lane.forEach((m, i) => {
+      // Each block is the slot's own lanes count, and only hides whole.
+      for (const sel of m[2].match(/^\s*\.[^{]+(?=\{)/gm) ?? []) expect(sel.trim(), m[1]).toMatch(new RegExp(`^\\.hs-slot\\[data-lanes="${i + 1}"\\] \\.hs-card`));
+      expect([...m[2].matchAll(/([\w-]+)\s*:\s*([^;]+);/g)].map((d) => `${d[1]}: ${d[2]}`), m[1]).toEqual(["display: none", "display: none"]);
+    });
     // On a phone the card is the day's list less the time (56) and the gap (8).
     expect(text).toContain(`@container ph-day (min-width: ${176 + chrome - 6 + 64}px)`);
     expect(text).toContain(`@container ph-day (min-width: ${280 + chrome - 6 + 64}px)`);

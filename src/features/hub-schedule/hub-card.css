@@ -384,7 +384,8 @@
 }
 
 /* In the Unassigned column (hub fixes, Oct 1 2026): Mindbody's staff name,
-   whole and wrapping, never cut. */
+   whole and wrapping, never cut. In the grid it drops whole where the name
+   and the time leave it no room (the narrow cards round, phase 2: below). */
 .hs-card-staff {
   flex: none;
   font-size: 11.5px;
@@ -693,4 +694,149 @@
 .hs-card-clock-short,
 .hs-tri.hs-tri--short {
   display: none;
+}
+
+/* The staff line's lead (below) takes no box outside the grid. */
+.hs-card-staff-lead {
+  display: none;
+}
+
+/* ==== THE NARROW CARDS ROUND, PHASE 2: a consult, a lane of 155 to 175px,
+   and the Unassigned column's staff line ====
+   Three places a card that is NOT sharing its slot still cut a word or a
+   mark. Measured in the lanes harness (headless Chrome over HubCard's own
+   markup and this stylesheet, the iPad's thirteen column widths): one to a
+   slot, 1,388 of 5,346 card cases had something cut upright and 436
+   sideways; now none, nor in 3,024 more with the words after the time or
+   8,064 in the Unassigned column. Every other card is drawn as it was (the
+   staff line's one exception is said below).
+
+   ---- a consult: its word under its time ----
+   A booking of 45 minutes or more (HubCard's data-span="tall", a new
+   client's consult) is 97px, room for its name, its time and a line more,
+   but its word sat beside "10:00 – 10:45 AM" (102px) and was cut at the
+   card's edge in every column up to 196.5px ("At End Session" by 64px in a
+   156px column), and the marks beside the span were cut up to 228px. So at
+   EVERY width the word takes the line under the time ("10:00 – 10:45 AM" /
+   "Not logged"), its dot dropped; it is as wide as the time (width: 0 keeps
+   it out of the time line's own width, its basis of 100% gives it the
+   line), so the words after the time can still sit beside the time and
+   drop whole as on every card. The marks sit at the right of the time
+   where they fit inside the card and on the line under it where they don't
+   (they were in the padding or past the edge); their -2px is the 2px the
+   time line's centring gave them, so a line that fit is drawn as before. A
+   part that doesn't fit beside another goes to the next line, never off
+   the card, and the time alone may wrap only at its spaces ("10:00 –" /
+   "10:45 AM"), each part whole. Only in the grid (.hs-slot), where a card
+   is its minutes tall: the phone's list, outside it, grows with its words.
+   A consult's span still never carries "Now" (HubCard). */
+.hs-slot .hs-card[data-span="tall"] .hs-card-meta {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  row-gap: 2px;
+}
+
+.hs-slot .hs-card[data-span="tall"] .hs-card-when {
+  flex: 0 1 auto;
+  max-width: 100%;
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.hs-slot .hs-card[data-span="tall"] .hs-card-clock {
+  white-space: normal;
+}
+
+.hs-slot .hs-card[data-span="tall"] .hs-card-state-part {
+  display: block;
+  flex: 1 0 100%;
+  width: 0;
+}
+
+.hs-slot .hs-card[data-span="tall"] .hs-card-sep {
+  display: none;
+}
+
+.hs-slot .hs-card[data-span="tall"] .hs-glyphs {
+  flex: 0 0 auto;
+  margin-left: auto;
+  margin-top: -2px;
+}
+
+/* ---- a lane of about 155 to 175px, the full card: two narrow rules ----
+   One lane in a column under 176px (every colleague's column upright, five
+   or six trainers sideways), or two in a column of 310 to 350px (your
+   column sideways with five trainers, 318px): the card's inside is 126 to
+   147px (the column's content box, less the slot's 3px sides and the
+   card's 23px). There:
+     - the Critical triangle outranks her number: both on the name's first
+       line left "Margaret" (62px) 58px, and it broke inside the word;
+     - "+N" gives way beside In session: "In session", two marks and "+1"
+       don't fit 126px, and the "+1" was cut at the card's edge.
+   Each is hidden whole and said in the card's label ("session 264", "1
+   more: ...", spokenCard) and in the peek. Two to a slot under 310px is the
+   short card's, never this. */
+@container hs-col (max-width: 174.98px) {
+  .hs-slot[data-lanes="1"] .hs-card[data-critical="true"] .hs-card-num {
+    display: none;
+  }
+  .hs-slot[data-lanes="1"] .hs-card[data-state="in-session"] .hs-g[data-family="more"] {
+    display: none;
+  }
+}
+
+@container hs-col (min-width: 310px) and (max-width: 349.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-critical="true"] .hs-card-num {
+    display: none;
+  }
+  .hs-slot[data-lanes="2"] .hs-card[data-state="in-session"] .hs-g[data-family="more"] {
+    display: none;
+  }
+}
+
+/* ---- the Unassigned column's "Booked with ...": whole, or not at all ----
+   Mindbody's staff name sits under her name (HubCard's .hs-card-staff),
+   whole and wrapping. On a half-hour card it took the room the time
+   needed: a name of one line, "Booked with Sam Lee" and the time ask 51px
+   of the card's 50 (the time ran 1px into the padding), and a staff name
+   of two lines ("Booked with Westlake Rotation" in a 156px column) cut the
+   time at the card's foot or pushed it wholly below it. So in the grid the
+   line has the room the name and the time leave, and drops whole when that
+   is too little, so the time stays: the box is that room (flex: 1 1 0), a
+   column that wraps, its first item a lead as wide as the box and no
+   height, so words that don't fit go to a second column, outside the box,
+   and the box clips it (the words after the time drop the same way, on
+   their side). The words are centred in the room, which is where the
+   card's space-between put them, so where they fit they don't move. The
+   numbers are the room's: the box's margins (-3px) less its padding (2px)
+   reach 1px into each of the card's gaps, so a dropped line costs no gap
+   and the one-line case above still fits; the 2px padding keeps the type's
+   own box (15px in a 14px line) inside the clip; the words' -0.5px keep
+   them where they were. Said in the card's label ("Booked with Sam Lee").
+   Only in the grid: the phone's list grows with it. */
+.hs-slot .hs-card-staff {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+  padding: 2px 0;
+  margin: -3px 0;
+  overflow: hidden;
+}
+
+.hs-slot .hs-card-staff-lead {
+  display: block;
+  flex: none;
+  width: 100%;
+  height: 0;
+}
+
+.hs-slot .hs-card-staff-name {
+  flex: none;
+  width: 100%;
+  margin: -0.5px 0;
 }
