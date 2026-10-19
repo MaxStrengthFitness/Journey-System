@@ -99,3 +99,15 @@ Steps for the PC, in PowerShell from the project folder:
     - Typecheck 0. The full suite: 14,907 of 14,910 passed, and the 3 that failed were the house-style guards on the new stylesheet, fixed and re-run green with the touched areas (590). The build and the first screen (470.5 KB of 480) pass.
     - The two house-style guards (a tapering side border, capitals) flagged the first stylesheet; it was fixed.
   - **Not yet seen:** the highlight inside the real Learning tab, which needs a sign-in. It's for AJ's walk once the key is on Render (phase 4). When it ships, the key goes on the Render web service's Environment: a NEW key, not the 30-day `journey-trial` one, which ends Nov 17.
+- **Oct 19 2026: phase 3, head office's list, is built.** The plan page is `claude.ai/artifact/RE7jpibaWtvg3kKb9T9vYH`, and AJ answered **1a 2a 3a**:
+  - **1a:** a question the Academy can't answer goes to the list on its own.
+  - **2a:** "This answer is wrong" asks why, never required.
+  - **3a:** an administrator marks a row Needs an Academy page, Studio's call or Done.
+  - **What was added:**
+    - The new collection `academy_questions`. AJ's 3a of Oct 16 was the OK for it. It keeps the question, the studio and the day, never who asked.
+    - Its rules: create-only for anyone who works at the studio, in a strict shape; only administrators read, mark or delete.
+    - One index, (mark, at).
+    - The trainer's lines, and Admins → Standard → Academy questions with its sidebar count and Home line.
+  - **Checks:** typecheck 0; suite 14,924 in 917 files, all passing; the build and the first screen (470.6 KB of 480) pass; the rules lint passes (`firestore.rules` 181,343 bytes).
+  - **The rules tests are written but not run here.** `tests/firestore.rules.test.ts` has three new tests, "academy_questions: head office's list". The emulator couldn't open a port from Claude's shell, so **AJ's `npm run test:rules` is the run that counts.**
+  - **To go live, in this order:** `firebase deploy --only firestore:indexes`, then `npm run test:rules`, then `firebase deploy --only firestore:rules`, then the push and Render. Phase 4 comes before any of that: AJ's walk and a new production key on Render.

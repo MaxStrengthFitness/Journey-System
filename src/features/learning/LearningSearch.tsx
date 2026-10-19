@@ -78,7 +78,7 @@ export function LearningSearch({ machines, onClose, onOpen }: LearningSearchProp
   }, [results]);
 
   if (asking) {
-    return <AskAnswer question={asking} onBack={() => setAsking(null)} onOpenQuote={(ref, quote) => onOpen(ref, quote)} />;
+    return <AskAnswer question={asking} onBack={() => setAsking(null)} onOpenQuote={(ref, quote) => onOpen(ref, quote)} studioId={activeStudioId} />;
   }
 
   return (

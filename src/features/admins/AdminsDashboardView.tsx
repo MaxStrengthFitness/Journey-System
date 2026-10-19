@@ -63,6 +63,7 @@ import {
   Download,
   Dumbbell,
   GitPullRequest,
+  MessageCircleQuestion,
   History,
   House,
   Inbox,
@@ -86,6 +87,7 @@ import { AdminBugReportsTab } from "../admin/bugs/AdminBugReportsTab";
 import { AdminButton, AdminNotice, AdminScreen } from "../admin/primitives";
 import { StandardTemplateTab } from "./StandardTemplateTab";
 import { ReviewQueuePage } from "./ReviewQueuePage";
+import { AcademyQuestionsPage } from "./AcademyQuestionsPage";
 import { AdminsDataPage } from "./AdminsDataPage";
 import { CatalogMachineHost } from "./CatalogMachineHost";
 import { SearchPanel } from "./SearchPanel";
@@ -158,6 +160,7 @@ const PAGE_ICON: Record<AdminsNavPage, ReactNode> = {
   template: <ClipboardList aria-hidden="true" />,
   defaults: <SlidersHorizontal aria-hidden="true" />,
   review: <GitPullRequest aria-hidden="true" />,
+  academy: <MessageCircleQuestion aria-hidden="true" />,
   limbo: <Inbox aria-hidden="true" />,
   sync: <RefreshCw aria-hidden="true" />,
   bugs: <Bug aria-hidden="true" />,
@@ -280,6 +283,8 @@ function AdminsShell({
     ...(signals.bugs.state === "ok" ? { bugs: signals.bugs.reports.filter((r) => r.status === "open").length || undefined } : {}),
     // Waiting for review (Oct 2 2026): what studios offered every MSF studio.
     ...(signals.shares.state === "ok" && signals.shares.pending.length ? { review: signals.shares.pending.length } : {}),
+    // Ask the Academy's list (Oct 19 2026): entries waiting for a mark.
+    ...(signals.academy.state === "ok" && signals.academy.open ? { academy: signals.academy.open } : {}),
   };
 
   /** Every move between pages asks first: the page it leaves may hold typing. */
@@ -362,6 +367,7 @@ function AdminsShell({
         bugs: signals.bugs,
         offers: signals.offers,
         shares: signals.shares,
+        academy: signals.academy,
         openSessions: signals.openSessions,
         waiting: { state: signals.access.state, people: waiting },
         launches,
@@ -390,6 +396,7 @@ function AdminsShell({
     if (signals.limbo.state === "ok") kinds.add("limbo");
     if (signals.offers.state === "ok") kinds.add("offers");
     if (signals.shares.state === "ok") kinds.add("shares");
+    if (signals.academy.state === "ok") kinds.add("academy");
     if (signals.bugs.state === "ok") kinds.add("bugs");
     if (signals.openSessions.state === "ok") kinds.add("left-open");
     if (signals.access.state === "ok") kinds.add("waiting");
@@ -639,6 +646,8 @@ function AdminsShell({
                 onChanged={recount}
               />
             )}
+            {/* Ask the Academy's list (phase 3, Oct 19 2026; AJ's 3a). */}
+            {page === "academy" && <AcademyQuestionsPage studios={studios} onChanged={recount} />}
             {page === "limbo" && <AdminLimboQueue studios={studios} clients={clients} onChanged={recount} />}
             {page === "sync" && (
               <SyncCheck

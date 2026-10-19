@@ -2244,6 +2244,25 @@ requester's own clause asks that the request was already theirs
 same studio only (the id names it).
 ```
 
+<a id="academy-questions-id"></a>
+### `match /academy_questions/{entryId}`
+
+```text
+ASK THE ACADEMY: HEAD OFFICE'S LIST (phase 3, Oct 19 2026; AJ's 3a)
+
+The questions the Academy can't answer, and answers a trainer says are
+wrong, kept for administrators on Admins -> Standard. AJ's 3a (Oct 16) was
+the OK for this new collection: the question, the studio and the day,
+never who asked. So the shape has no uid and no name, and hasOnly holds it.
+
+Anyone who works at the studio (isTrainerOfStudio) adds one, in exactly
+the shape src/features/ask-academy/head-office.ts writes: mark "open", the
+server's time, a reason, and a why and the answer only on a flagged answer.
+Only administrators read, mark (page, studio, done; nothing else changes)
+or delete. A trainer reads nothing here, not even their own: nothing names
+them, so there is no "own" to read.
+```
+
 <a id="bug-reports-reportid"></a>
 ### `match /bug_reports/{reportId}`
 

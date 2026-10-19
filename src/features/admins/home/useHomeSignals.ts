@@ -39,6 +39,8 @@ import type { ReportView } from "../../admin/bugs/reportView";
 import { fetchShareOffers } from "../../machine-db/fetch-share-offers";
 import type { ShareOffer } from "../../machine-db/offers";
 import type { AccessRequest } from "../../admin/staff/roster";
+import { countOpen } from "../../ask-academy/head-office";
+
 
 export type ReadState = "loading" | "ok" | "failed";
 
@@ -70,6 +72,8 @@ export interface HomeSignals {
   shares: { state: ReadState; pending: PendingShare[] };
   /** Pending sign-ups and studio-access requests, every studio (Oct 16 2026). */
   access: { state: ReadState; requests: AccessRequest[] };
+  /** Ask the Academy's list, unmarked entries (Oct 19 2026): a count, never the questions. */
+  academy: { state: ReadState; open: number };
 }
 
 const LOADING: HomeSignals = {
@@ -79,6 +83,7 @@ const LOADING: HomeSignals = {
   openSessions: { state: "loading", sessions: [] },
   shares: { state: "loading", pending: [] },
   access: { state: "loading", requests: [] },
+  academy: { state: "loading", open: 0 },
 };
 
 async function fetchPendingRequests(): Promise<AccessRequest[]> {
@@ -162,6 +167,11 @@ export function useHomeSignals(refreshKey: unknown): HomeSignals {
       (offers) =>
         !cancelled && setSignals((s) => ({ ...s, shares: { state: "ok", pending: offers.map(pendingShareOf) } })),
       () => !cancelled && setSignals((s) => ({ ...s, shares: { state: "failed", pending: [] } })),
+    );
+    // Ask the Academy's list (ask-academy/head-office.ts): one count, the (mark, at) index.
+    countOpen().then(
+      (open) => !cancelled && setSignals((s) => ({ ...s, academy: { state: "ok", open } })),
+      () => !cancelled && setSignals((s) => ({ ...s, academy: { state: "failed", open: 0 } })),
     );
     fetchPendingRequests().then(
       (requests) => !cancelled && setSignals((s) => ({ ...s, access: { state: "ok", requests } })),

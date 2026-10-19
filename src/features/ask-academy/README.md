@@ -40,6 +40,7 @@ It reads no client record, so it can't speak about one client. It never gives a 
 | `find-quote.ts` | Finding a quote on its page by its first words, for the highlight |
 | `repeats-quote.ts` | Leaving out Claude's line when it only repeats its quote |
 | `AskAnswer.render.test.tsx` | The screen mounted: the row, waiting, an answer, clearance first, not covered, disagreeing pages, a failure and Try again |
+| `head-office.ts` | Head office's list (phase 3): the entry a trainer's ask adds (never who), the send, the admin reads and marks, `groupQuestions` |
 | `academy-routes.test.ts` | The server route on a bare Express app: sign-in, length, no key, one at a time, a failure |
 | `trial-questions.ts` | Phase 0's questions: Claude's 20 and AJ's 37 (his ten reasons), each naming the pages it should come from |
 
@@ -57,5 +58,5 @@ Everything here is pure: no React, no Firebase, no network of its own. The calls
 0. **The trial**: passed on Oct 18 2026; AJ picked Sonnet 5.5. The commands are in the round document.
 1. **The server route**: built (Oct 18 2026).
 2. **The screen**: built (Oct 18 2026; AJ "1a 2a 3a"). The Ask row is first in Learning's one search once two words are typed (WikiSearch's `lead`) and asks only when tapped. The answer page replaces the results; Back keeps the question typed. A quote's page opens scrolled to the quote, highlighted (LearningView looks for it for up to 5 seconds as the page draws). A health answer's clearance point comes first, in Learning's plum. Claude's line is left out when it only repeats its quote (most of Sonnet's did, in the trial). "This answer is wrong" (3a) comes with phase 3.
-3. Head office's list of questions the Academy can't answer, with its Firestore collection and rules.
+3. **Head office's list**: built (Oct 19 2026; AJ "1a 2a 3a" on the plan page `claude.ai/artifact/RE7jpibaWtvg3kKb9T9vYH`). A question the Academy can't answer, or whose pages disagree, goes to `academy_questions` on its own ("Sent to head office's list."); "This answer is wrong" under every answer asks why in a box that may stay empty; Demo Mode's practice never reaches it. One document per ask: the question, why it's there, the studio and the studio's day, and for a flagged answer the reason and the answer as text. No uid, no name; the rules hold the shape (`academy_questions` in `firestore.rules`, the note in `docs/ops/RULES-NOTES.md#academy-questions-id`). Head office's page is Admins → Standard → Academy questions (`admins/AcademyQuestionsPage.tsx`): the same question asked again is one row, marked Needs an Academy page, Studio's call or Done; the sidebar counts the unmarked and Home has a line. Both reads are on the (mark, at) index.
 4. AJ's walk, then the deploy.

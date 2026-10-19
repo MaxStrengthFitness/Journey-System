@@ -45,7 +45,7 @@ describe("the Admins dashboard's map", () => {
   it("gives a place's pages to its chips, and lights the item a page came from", () => {
     expect(pagesOf("machinery").map((i) => i.page)).toEqual(["limbo", "sync", "bugs", "data", "system", "activity"]);
     expect(labelOf("activity")).toBe("Activity");
-    expect(pagesOf("standard").map((i) => i.page)).toEqual(["machines", "template", "defaults", "review"]);
+    expect(pagesOf("standard").map((i) => i.page)).toEqual(["machines", "template", "defaults", "review", "academy"]);
     expect(labelOf("defaults")).toBe("Studio defaults");
     expect(pagesOf("studios").map((i) => i.page)).toEqual(["studios", "waiting", "launches", "franchises"]);
     expect(labelOf("launches")).toBe("Launches");

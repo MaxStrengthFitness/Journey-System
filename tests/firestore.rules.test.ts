@@ -10957,3 +10957,58 @@ describe("the trainer lock", () => {
     await assertFails(getDocs(query(collection(testEnv.unauthenticatedContext().firestore(), "trainers"), where("primaryHomeStudioId", "in", ["studioA"]))));
   });
 });
+
+// Ask the Academy, phase 3 (Oct 19 2026; AJ's 3a): head office's list of the
+// questions the Academy can't answer and answers flagged wrong. Anyone who
+// works at the studio adds one in exactly head-office.ts's shape, never who
+// asked; only administrators read, mark or delete.
+describe("academy_questions: head office's list", () => {
+  const as = (uid: string) => testEnv.authenticatedContext(uid, { email: `${uid.toLowerCase()}@test.com` }).firestore();
+  const entry = (over: Record<string, unknown> = {}) => ({
+    question: "The leg press squeaks. How do I fix it?",
+    reason: "not_covered",
+    studioId: "studioA",
+    day: "2026-10-19",
+    mark: "open",
+    at: serverTimestamp(),
+    ...over,
+  });
+  async function seedAdmin() {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "trainers", "adminQ"), { fullName: "Admin Q", initials: "AQ", role: "Admin", primaryHomeStudioId: "studioA", accessibleStudioIds: ["studioA"] });
+      await setDoc(doc(context.firestore(), "academy_questions", "q1"), { ...entry(), at: new Date("2026-10-19T12:00:00Z") });
+    });
+  }
+
+  it("lets a trainer add a question for their own studio, and a flagged answer with its reason", async () => {
+    await assertSucceeds(addDoc(collection(as("trainerA"), "academy_questions"), entry()));
+    await assertSucceeds(addDoc(collection(as("trainerA"), "academy_questions"), entry({ reason: "flagged", why: "Wrong page.", answer: "Keep them breathing." })));
+    await assertSucceeds(addDoc(collection(as("trainerA"), "academy_questions"), entry({ reason: "conflicting" })));
+  });
+
+  it("refuses another studio, a name or id, a mark, a backdate, an unknown reason, or a reason on an unflagged one", async () => {
+    await assertFails(addDoc(collection(as("trainerB"), "academy_questions"), entry()));
+    await assertFails(addDoc(collection(as("trainerA"), "academy_questions"), entry({ uid: "trainerA" })));
+    await assertFails(addDoc(collection(as("trainerA"), "academy_questions"), entry({ mark: "done" })));
+    await assertFails(addDoc(collection(as("trainerA"), "academy_questions"), entry({ at: new Date("2026-10-01T12:00:00Z") })));
+    await assertFails(addDoc(collection(as("trainerA"), "academy_questions"), entry({ reason: "gossip" })));
+    await assertFails(addDoc(collection(as("trainerA"), "academy_questions"), entry({ why: "nothing flagged" })));
+    await assertFails(addDoc(collection(as("trainerA"), "academy_questions"), entry({ question: "x".repeat(301) })));
+    await assertFails(addDoc(collection(testEnv.unauthenticatedContext().firestore(), "academy_questions"), entry()));
+  });
+
+  it("lets only an administrator read, mark and delete", async () => {
+    await seedAdmin();
+    const listOpen = (db: ReturnType<typeof as>) => getDocs(query(collection(db, "academy_questions"), where("mark", "==", "open"), orderBy("at", "desc"), limit(300)));
+    await assertFails(getDoc(doc(as("trainerA"), "academy_questions", "q1")));
+    await assertFails(listOpen(as("ownerA")));
+    await assertFails(updateDoc(doc(as("ownerA"), "academy_questions", "q1"), { mark: "done" }));
+    await assertFails(deleteDoc(doc(as("trainerA"), "academy_questions", "q1")));
+    await assertSucceeds(listOpen(as("adminQ")));
+    await assertSucceeds(updateDoc(doc(as("adminQ"), "academy_questions", "q1"), { mark: "page" }));
+    // A mark only, and only one of the three.
+    await assertFails(updateDoc(doc(as("adminQ"), "academy_questions", "q1"), { mark: "lost" }));
+    await assertFails(updateDoc(doc(as("adminQ"), "academy_questions", "q1"), { question: "Edited" }));
+    await assertSucceeds(deleteDoc(doc(as("adminQ"), "academy_questions", "q1")));
+  });
+});

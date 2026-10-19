@@ -3269,6 +3269,26 @@ service cloud.firestore {
                     (isAuthenticated() && requestNamesStudioILead(resource.data));
     }
 
+    // Why: docs/ops/RULES-NOTES.md#academy-questions-id
+    match /academy_questions/{entryId} {
+      function academyEntryValid(d) {
+        return d.keys().hasAll(['question', 'reason', 'studioId', 'day', 'mark', 'at'])
+            && d.keys().hasOnly(['question', 'reason', 'studioId', 'day', 'mark', 'at', 'why', 'answer'])
+            && d.question is string && d.question.size() >= 3 && d.question.size() <= 300
+            && d.reason in ['not_covered', 'conflicting', 'flagged']
+            && d.studioId is string && d.day is string && d.day.size() == 10
+            && d.mark == 'open' && d.at == request.time
+            && (!('why' in d) || (d.reason == 'flagged' && d.why is string && d.why.size() <= 500))
+            && (!('answer' in d) || (d.reason == 'flagged' && d.answer is string && d.answer.size() <= 8000));
+      }
+      allow create: if isAuthenticated() && academyEntryValid(request.resource.data)
+                    && (isTrainerOfStudio(request.resource.data.studioId) || isSuperAdmin());
+      allow read, delete: if isSuperAdmin();
+      allow update: if isSuperAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mark'])
+                    && request.resource.data.mark in ['page', 'studio', 'done'];
+    }
+
     // Why: docs/ops/RULES-NOTES.md#bug-reports-reportid
     match /bug_reports/{reportId} {
       // Why: docs/ops/RULES-NOTES.md#bugreplyvalid

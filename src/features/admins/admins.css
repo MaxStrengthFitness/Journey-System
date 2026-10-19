@@ -1613,3 +1613,19 @@
   align-items: center;
   gap: 8px;
 }
+
+/* Standard → Academy questions (Ask the Academy, phase 3, Oct 19 2026). */
+.hq-aq__section { display: grid; gap: 10px; }
+.hq-aq__head { margin: 0; font-size: 15px; font-weight: 700; color: var(--adm-ink); }
+.hq-aq__list { margin: 0; padding: 0; list-style: none; display: grid; }
+.hq-aq__row { display: grid; gap: 6px; padding: 12px 0; border-top: 1px solid var(--adm-border); }
+.hq-aq__reason { font-size: 13px; font-weight: 650; color: var(--adm-ink-muted); }
+.hq-aq__reason--flag { color: var(--adm-warn); }
+.hq-aq__q { margin: 0; font-size: 15px; font-weight: 650; color: var(--adm-ink); overflow-wrap: anywhere; }
+.hq-aq__why { margin: 0; padding: 6px 10px; border-radius: var(--adm-radius); background: var(--adm-warn-fill); color: var(--adm-ink); font-size: 14px; }
+.hq-aq__answer summary { min-height: 40px; display: flex; align-items: center; cursor: pointer; color: var(--adm-live-text); font-size: 14px; font-weight: 650; }
+.hq-aq__answer p { margin: 0; padding: 8px 10px; border-radius: var(--adm-radius); background: var(--adm-surface-2); color: var(--adm-ink-2); font-size: 14px; white-space: pre-line; overflow-wrap: anywhere; }
+.hq-aq__meta { margin: 0; font-size: 13px; color: var(--adm-ink-muted); }
+.hq-aq__marks { display: flex; flex-wrap: wrap; gap: 8px; }
+.hq-aq__quiet { margin: 0; color: var(--adm-ink-muted); font-size: 14px; }
+.hq-aq__error { margin: 0; color: var(--adm-ink); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

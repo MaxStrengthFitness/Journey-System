@@ -76,6 +76,8 @@ export interface NeedInputs {
   shares?: { state: ReadState; pending: readonly PendingShare[] };
   /** The studios opening whose setup checklist has an item past its due day (overdue-setup.ts). */
   launches: OverdueRead;
+  /** Ask the Academy's list: unmarked entries (Oct 19 2026). Absent: not read. */
+  academy?: { state: ReadState; open: number };
   /** In-Progress sessions across every studio (Oct 2 2026); absent: not asked. */
   openSessions?: { state: ReadState; sessions: readonly WorkoutSession[] };
   /**
@@ -348,6 +350,22 @@ export function needItems(input: NeedInputs): { items: NeedItem[]; more: NeedIte
     }
   }
 
+  // 5c. Ask the Academy's list (Oct 19 2026; AJ's 3a): questions it couldn't
+  // answer and answers flagged wrong, waiting for an administrator's mark.
+  if (input.academy?.state === "ok" && input.academy.open > 0) {
+    const n = input.academy.open;
+    out.push({
+      id: "academy",
+      kind: "Academy questions",
+      tone: "live",
+      say: n === 1 ? "One Academy question waits for you." : `${n} Academy questions wait for you.`,
+      proof: "Questions the Academy couldn't answer, and answers trainers flagged wrong. Never who asked.",
+      door: { label: "Open Academy questions", page: "academy" },
+      clears: "Clears itself when each is marked.",
+      condition: String(n),
+    });
+  }
+
   // 7. What couldn't be read.
   const unknownSync = input.sync.filter((r) => r.kind === "unknown").map((r) => `${r.name}'s sync`);
   const unknownReads = [
@@ -357,6 +375,7 @@ export function needItems(input: NeedInputs): { items: NeedItem[]; more: NeedIte
     ...(input.offers.state === "failed" ? ["the machines offered to the catalog"] : []),
     ...(input.shares?.state === "failed" ? ["what is waiting for review"] : []),
     ...(input.bugs.state === "failed" ? ["the bug reports"] : []),
+    ...(input.academy?.state === "failed" ? ["the Academy questions"] : []),
     ...(input.openSessions?.state === "failed" ? ["the sessions left open"] : []),
     ...(input.waiting?.state === "failed" ? ["who is waiting to be let in"] : []),
   ];

@@ -36,6 +36,7 @@ export type AdminsPage =
   | "template"
   | "defaults"
   | "review"
+  | "academy"
   | "limbo"
   | "sync"
   | "bugs"
@@ -83,6 +84,8 @@ export const ADMINS_NAV: readonly AdminsNavGroup[] = [
       // Max Strength's default for every studio setting (the second wave, Sep 28 2026).
       { page: "defaults", label: "Studio defaults" },
       { page: "review", label: "Waiting for review" },
+      // Ask the Academy's list (phase 3, Oct 19 2026; AJ's 3a): questions it couldn't answer, answers flagged wrong.
+      { page: "academy", label: "Academy questions" },
     ],
   },
   {

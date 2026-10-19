@@ -1279,6 +1279,20 @@
       ]
     },
     {
+      "collectionGroup": "academy_questions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "mark",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "bug_reports",
       "queryScope": "COLLECTION",
       "fields": [

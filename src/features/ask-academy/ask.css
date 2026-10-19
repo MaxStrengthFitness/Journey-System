@@ -136,3 +136,47 @@
   border-radius: 4px;
   scroll-margin-top: 96px;
 }
+
+/* Head office's list (phase 3): the line that says where a question went, and
+   "This answer is wrong" with its box. */
+.aa__sent { margin: 0; font-size: 14px; color: var(--wk-ink-muted); }
+.aa__flag {
+  justify-self: start;
+  min-height: var(--wk-tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.aa__flag:focus-visible, .aa__cancel:focus-visible { outline: none; box-shadow: var(--wk-focus-ring); border-radius: 6px; }
+.aa__flagbox { display: grid; gap: 0.5rem; padding: 12px 14px; border-radius: var(--wk-radius); background: var(--wk-tray); }
+.aa__flag-label { font-size: 14px; font-weight: 600; }
+.aa__why {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 15px;
+  resize: vertical;
+}
+.aa__why:focus-visible { outline: none; box-shadow: var(--wk-focus-ring); }
+.aa__flag-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.aa__cancel {
+  min-height: var(--wk-tap);
+  padding: 0 1rem;
+  border: 1.5px solid var(--wk-border-strong);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}

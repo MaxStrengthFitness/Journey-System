@@ -166,6 +166,7 @@ describe("the Admins dashboard", () => {
       "Standard template",
       "Studio defaults",
       "Waiting for review",
+      "Academy questions",
       "Limbo",
       "Mindbody sync",
       "Bug reports",
@@ -201,6 +202,10 @@ describe("the Admins dashboard", () => {
     // The queue AJ asked for (Sep 28 2026), over a database with nothing offered.
     expect(el.textContent).toContain("Offered to every studio");
     expect(el.textContent).toContain("Nothing waiting");
+    await click(byText(el, ".hq-side .hq-nav__item", "Academy questions"));
+    // Ask the Academy's list (Oct 19 2026), over a database with nothing in it.
+    expect(el.textContent).toContain("Never who asked.");
+    expect(el.textContent).toContain("All clear.");
     await click(byText(el, ".hq-side .hq-nav__item", "Limbo"));
     expect(el.textContent).toContain("Limbo");
     await click(byText(el, ".hq-side .hq-nav__item", "Mindbody sync"));
@@ -241,7 +246,7 @@ describe("the Admins dashboard", () => {
     expect(el.querySelector(".hq-bar .hq-chip--on")?.textContent).toBe("Bug reports");
     expect(el.textContent).toContain("What people told us");
     await click(byText(el, ".hq-bar .hq-place", "Standard"));
-    expect(texts(el, ".hq-bar .hq-chip")).toEqual(["Machines", "Standard template", "Studio defaults", "Waiting for review"]);
+    expect(texts(el, ".hq-bar .hq-chip")).toEqual(["Machines", "Standard template", "Studio defaults", "Waiting for review", "Academy questions"]);
     expect(el.textContent).toContain("Machine catalog");
   });
 
