@@ -97,7 +97,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | Install | `npm ci` | `npm install` fails with an `edgesOut` error |
 | Run locally | `npm run dev` | Port 3000 |
 | Typecheck | `npx tsc --noEmit` | **0** errors since Oct 18 2026; CI holds it there (`.github/typecheck-baseline.txt`). History by round: `docs/KNOWN-TRAPS.md#baselines` |
-| Tests | `npx vitest run src` | **14,841** passing in 904 files (Oct 18 2026, the trainer lock). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
+| Tests | `npx vitest run src` | **15,935** passing in 961 files (Oct 19 2026, the Learning Mix). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
 | Build | `npx vite build` | Then `npm run check:bundle` (`scripts/check-bundle-budget.mjs`, a CI step since Oct 5 2026): the first screen at most 480 KB gzip, no charts, drag-and-drop or motion on it, and a PRODUCTION build (`NODE_ENV` unset or `production`; a `test` build ships React's development files and is refused). `src/first-screen.test.ts` names the import chain if the first screen reaches a heavy module |
 | Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken" means an old emulator still holds 8080 — stop it first. Runs in the cloud container too; AJ's run is the one that counts |
 

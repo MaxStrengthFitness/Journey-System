@@ -1,5 +1,7 @@
 # The Learning vault redesign — three designs for the morning (Oct 19 2026)
 
+> **AJ picked, Oct 19 2026, ~07:30 ET:** "Go with your recommended mix: the Codex as the base, plus the Course's lesson cards, scrubber, cue drills and glossary vault, and the Vault's map as a lens." Built the same morning as phase 8 (`f191fe25`): the Codex is now **the Mix** (prototype bar: Mix · Current). Topics have a Lesson tier (step cards, Check yourself, Lesson N of M from a path or module); the glossary is the filterable vault; the phrasebook can be drilled and the Overview deals a drill of the day; a machine's dials are tiles (Stop still first); the Catalog has a Floor · Map lens and the Academy a Chapters · Map lens; Linked here closes every article. The Course and Vault designs are deleted (their work stays in this branch's history). Sample marks appear only in a development build. 15,935 tests in 961 files, typecheck 0, first screen 471.0 KB. Built lean: the plan was near its limit. Everything below describes the night's three designs as they were.
+
 **Status:** three playable prototypes on branch `oct19/learning-vault` (worktree
 `.claude/worktrees/learning-vault`) over master `0f6a936f`. **Not pushed, not
 live.** Nothing in them reads or writes Firestore: every mark, note and
