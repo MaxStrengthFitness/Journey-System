@@ -15,7 +15,8 @@
 
 import type { SettingSource } from "../types";
 
-export type SetupMode = "check" | "setup" | "quick";
+/** "edit" is Edit all (the routine builder round, Oct 19 2026): every machine's settings and load, typed. */
+export type SetupMode = "edit" | "check" | "setup" | "quick";
 
 export interface MachineDraft {
   /** Storage key → the value on screen. Only fields that differ from what is saved. */
