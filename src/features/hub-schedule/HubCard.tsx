@@ -31,17 +31,41 @@
  * In YOUR column, read in words (`wordy`, the hub cherry round's focus
  * column), every glyph says its sayable word where the card has room, not
  * only the first. The words are still only ones fine to say out loud.
+ *
+ * THE NARROW CARD'S PARTS (the narrow cards round, Oct 18 2026; AJ: "Keep
+ * them side by side, cards say less", and initials for the very long
+ * names). When two or three bookings share a slot, a card is a half or a
+ * third of its column and says less. Its parts are drawn on every card and
+ * hub-card.css shows each where it belongs; on a full card they are hidden
+ * or `display: contents`, so a full card reads exactly as it did:
+ *   - the card's aria-label is the whole card in words (`spokenCard`,
+ *     card-words.ts), on a card with no profile too, so a word a narrow card
+ *     doesn't show is still heard;
+ *   - data-critical, data-span ("tall" for a span of 45 minutes or more),
+ *     and on a client's card data-name-over (name-fit.ts): the narrow lines
+ *     her name is too long for, where a narrow card says her initials;
+ *   - every time in one .hs-card-clock, a span also without its AM or PM
+ *     (.hs-card-clock-short), the time again (.hs-card-alt-time) where "In
+ *     session" or "Not synced yet" stands in its place;
+ *   - the state word and its dot as one part (.hs-card-state-part), and a
+ *     symbol for it (.hs-card-sym: a ring for Not logged, two bars for Left
+ *     open, a cross for a late cancel);
+ *   - the triangle a second time at the end of the time line
+ *     (.hs-tri--short), her initials (.hs-card-initials) on a client's card
+ *     only, and each glyph's place in the Key's order (data-rank).
  */
 import { memo, type ComponentType } from "react";
-import { Activity, AlertTriangle, Award, Cake, Check, CloudOff, FileSignature, MessageCircle, RefreshCw, Sparkles, Undo2 } from "lucide-react";
+import { Activity, AlertTriangle, Award, Cake, Check, Circle, CloudOff, FileSignature, MessageCircle, Pause, RefreshCw, Sparkles, Undo2, X } from "lucide-react";
 import type { Client, WorkoutSession } from "../../types";
 import { isStaffBlock, type BookingMarks, type LoggedSessions } from "../../lib/booking-state";
 import { hubCardIsNow, hubCardRecedes, hubCardState, type HubCardState } from "../../lib/hub-card-state";
-import { clientDisplayName } from "../../lib/client-name";
+import { clientDisplayName, clientInitials } from "../../lib/client-name";
 import { safeToDate } from "../../lib/utils";
 import { zonedHM } from "../../lib/studio-time";
 import type { MomentKind, RunSheetEntry } from "../hub-opportunities/moments-today";
 import { cardMarks, cardRestWords, cornerNumber } from "./card-marks";
+import { cardSpanKind, cardStateWords, initialsOf, spokenCard, timeAndSuffix } from "./card-words";
+import { nameOverAttr } from "./name-fit";
 import "./hub-card.css";
 
 /** One shape per kind of mark (the Key's). The Next 30 minutes strip draws with the same. */
@@ -85,6 +109,42 @@ export function cardTime(start: Date | null, end: Date | null, { span = false }:
   if (!start) return "";
   if (!cardTimeIsSpan(start, end, { span })) return clock(start, false);
   return `${clock(start, false)} – ${clock(end, true)}`;
+}
+
+/**
+ * Every time a card shows, in ONE part (the narrow cards round). On a full
+ * card it is `display: contents` (hub-card.css), so the time is the same
+ * text beside its dot and its word as it always was. A span's time stays ONE
+ * text node, AM or PM included: split in two, the browser lays it 1/64px
+ * wider (each piece is rounded on its own), and a full card would not be
+ * drawn exactly as before. So a span also carries itself without its AM or
+ * PM ("10:00 – 10:45") in an empty .hs-card-clock-short, which a narrow card
+ * shows in the clock's place (`content: attr(data-time)`) and leaves the AM
+ * or PM to the peek; hidden on a full card and from a screen reader, whose
+ * label says the whole time.
+ */
+function clockOf(time: string) {
+  const [main, suffix] = timeAndSuffix(time);
+  return (
+    <>
+      <span className="hs-card-clock">{time}</span>
+      {suffix && <span className="hs-card-clock-short" data-time={main} aria-hidden />}
+    </>
+  );
+}
+
+/** What happened, beside the time: the dot and the word as one part, so a consult can give it a line of its own. */
+function statePart(word: string, title?: string) {
+  return (
+    <span className="hs-card-state-part">
+      <span className="hs-card-sep" aria-hidden>
+        {" · "}
+      </span>
+      <strong className="hs-card-state" title={title}>
+        {word}
+      </strong>
+    </span>
+  );
 }
 
 export interface HubCardProps {
@@ -197,13 +257,14 @@ function HubCardView({
   if (isStaffBlock(booking)) {
     // Mindbody's "Unavailable": time that isn't a session. Never a booking (isStaffBlock), never tapped.
     const span = cardTime(start, end, { span: true });
+    const spanKind = cardSpanKind(start, end, cardTimeIsSpan(start, end, { span: true }));
     return (
-      <div className="hs-card" data-kind="staff" data-dim={dimmed ? "true" : undefined} aria-label={`Unavailable, ${span}: not a session`}>
+      <div className="hs-card" data-kind="staff" data-span={spanKind} data-dim={dimmed ? "true" : undefined} aria-label={`Unavailable, ${span}: not a session`}>
         <div className="hs-card-top">
           <span className="hs-card-name">Unavailable</span>
         </div>
         <div className="hs-card-meta">
-          <span className="hs-card-when">{span}</span>
+          <span className="hs-card-when">{clockOf(span)}</span>
         </div>
       </div>
     );
@@ -224,7 +285,10 @@ function HubCardView({
   const isNotLogged = cardState === "not-logged" && !isUnlinked;
   /* Someone at the studio marked a late cancel (Operations wave 3; anyone since Oct 2 2026): a fact, said as quietly as "Not logged". */
   const isDidntCome = cardState === "didnt-come" && !isUnlinked;
+  /* A session started and gone quiet for an hour (the staleness rule). */
+  const isLeftOpen = cardState === "left-open" && !isUnlinked;
   const isDone = cardState === "done";
+  const isSpan = cardTimeIsSpan(start, end);
 
   const name = client ? clientDisplayName(client, booking?.clientName || "Client") : (booking?.clientName || "Reservation").trim();
   const marks = recedes || isUnlinked ? cardMarks(null) : cardMarks(entry?.moments, undefined, { yours: wordy });
@@ -235,7 +299,7 @@ function HubCardView({
      beside the marks: there the card's mark says it alone (cards round, C3).
      Anywhere else short of room, the word drops whole (hub-card.css). */
   const clientNow = kind === "client" && isNow;
-  const nowWord = clientNow && !cardTimeIsSpan(start, end);
+  const nowWord = clientNow && !isSpan;
 
   /* Her number, in the card's top-right corner, quietly (AJ, Oct 1 2026: "i
      do wish the top right of the card said what session number they were
@@ -245,6 +309,26 @@ function HubCardView({
      number (hub cherry round). */
   const numberText = isUnlinked ? null : cornerNumber(sessionNumber, marks);
   const restParts = cardRestWords({ booking, moments: entry?.moments, numberShown: !!numberText, newToJourney, recedes, usualService });
+
+  /* The whole card in words, at every width (the narrow cards round): a
+     narrow card shows less, and its label still says it all. A card with
+     no profile gets one too, from Mindbody's name. */
+  const spoken = spokenCard({
+    name,
+    numberText,
+    stateWords: cardStateWords({ kind, state: cardState, now: clientNow, quietWord }),
+    time,
+    critical: marks.critical,
+    glyphs: marks.glyphs,
+    more: marks.more,
+    moreLabel: marks.moreLabel,
+    rest: isUnlinked ? [] : restParts,
+    staffName,
+  });
+  /* Her initials, for the narrowest card and for a name too long for a
+     narrow one (hub-card.css). Only on a client's card: one with no profile,
+     or still loading, opens no peek, so its name stays whole. */
+  const initials = interactive ? clientInitials(client) || initialsOf(name) : "";
 
   return (
     <div
@@ -256,9 +340,13 @@ function HubCardView({
       data-words={wordy ? "all" : undefined}
       data-open={open ? "true" : undefined}
       data-now={clientNow ? "true" : undefined}
+      data-critical={marks.critical ? "true" : undefined}
+      data-span={cardSpanKind(start, end, isSpan)}
+      data-name-over={interactive ? nameOverAttr(name) : undefined}
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : -1}
       aria-haspopup={interactive && opensPeek ? "dialog" : undefined}
+      aria-label={spoken}
       title={
         isUnknown
           ? `${booking?.clientName || "Reservation"} — couldn't check this client's profile just now.`
@@ -288,6 +376,14 @@ function HubCardView({
             </span>
           )}
           <span className="hs-card-name">{name}</span>
+          {/* Her initials ("MK"), shown in her name's place only where a
+              narrow card can't hold it (hub-card.css); her name is the first
+              thing her label says and the peek's first line. */}
+          {initials && (
+            <span className="hs-card-initials" aria-hidden>
+              {initials}
+            </span>
+          )}
         </span>
         {/* LOUD, and the only red on the grid: read this before the session.
             The words are in the label, whole; the note itself is first on the
@@ -307,22 +403,43 @@ function HubCardView({
       <div className="hs-card-meta">
         <span className="hs-card-when" data-now={nowWord ? "true" : undefined}>
           {isPending ? (
-            <span aria-label="Loading this client">{time}</span>
+            <span aria-label="Loading this client">{clockOf(time)}</span>
           ) : isUnknown ? (
-            <span aria-label="Couldn't check this client's profile">{time}</span>
+            <span aria-label="Couldn't check this client's profile">{clockOf(time)}</span>
           ) : isUnlinked ? (
             <>
               <CloudOff size={13} aria-label="Not synced to a Max Strength profile yet" />
-              {"Not synced yet"}
+              <span className="hs-card-unsynced">Not synced yet</span>
+              {/* Where "Not synced yet" doesn't fit, the time takes its place. */}
+              <span className="hs-card-alt-time">{clockOf(time)}</span>
             </>
           ) : cardState === "in-session" ? (
             <>
               <span className="hs-live-dot" aria-label="Session in progress" />
               <strong>In session</strong>
+              {/* Where the blue fill says "In session" alone, the time is shown. */}
+              <span className="hs-card-alt-time">{clockOf(time)}</span>
             </>
           ) : (
             <>
               {isDone && <Check size={13} aria-label="Done" />}
+              {/* What happened, as a shape, where its word doesn't fit: the
+                  word is in the label, the peek and the Key. */}
+              {isNotLogged && (
+                <span className="hs-card-sym" data-sym="not-logged" aria-hidden>
+                  <Circle size={12} strokeWidth={2.6} aria-hidden />
+                </span>
+              )}
+              {isLeftOpen && (
+                <span className="hs-card-sym" data-sym="left-open" aria-hidden>
+                  <Pause size={13} strokeWidth={2} fill="currentColor" aria-hidden />
+                </span>
+              )}
+              {isDidntCome && (
+                <span className="hs-card-sym" data-sym="late-cancel" aria-hidden>
+                  <X size={13} strokeWidth={2.6} aria-hidden />
+                </span>
+              )}
               {/* "Now · 4:30": a word, read out and seen without telling
                   colours apart. The word and its dot are one part, so short
                   of room they drop together and the time stays. */}
@@ -332,37 +449,18 @@ function HubCardView({
                   {" · "}
                 </span>
               )}
-              {time}
+              {clockOf(time)}
             </>
           )}
           {/* What happened, beside the time and never cut (hub fixes, Oct 1
               2026: it was cut to "Didn…"). It never competes with the marks:
               a card that is over has dropped them. */}
-          {isNotLogged && (
-            <>
-              {" · "}
-              <strong className="hs-card-state" title="No Journey session was completed for this client today">
-                Not logged
-              </strong>
-            </>
-          )}
-          {isDidntCome && (
-            <>
-              {" · "}
-              <strong className="hs-card-state">Late cancel</strong>
-            </>
-          )}
+          {isNotLogged && statePart("Not logged", "No Journey session was completed for this client today")}
+          {isDidntCome && statePart("Late cancel")}
           {/* A session open but gone quiet for an hour (the staleness rule;
               hub fixes, Oct 1 2026): never "In session" all day. Quiet ink,
               never the red kaizen mark; the peek offers to resume or close it. */}
-          {cardState === "left-open" && !isUnlinked && (
-            <>
-              {" · "}
-              <strong className="hs-card-state" title="A session was started and not finished, and nothing has been saved for over an hour">
-                {quietWord || "Left open"}
-              </strong>
-            </>
-          )}
+          {isLeftOpen && statePart(quietWord || "Left open", "A session was started and not finished, and nothing has been saved for over an hour")}
         </span>
         {/* The rest ("New to Journey", a service) says less when space is
             short: each part shows WHOLE or not at all, never "New to Jo…"
@@ -376,12 +474,20 @@ function HubCardView({
           </span>
         )}
 
+        {/* The triangle again, at the end of the time line, where a narrow
+            card's name needs its whole first line (hub-card.css). Its words
+            are the first triangle's and the label's. */}
+        {marks.critical && (
+          <span className="hs-tri hs-tri--short" aria-hidden>
+            <AlertTriangle size={13} strokeWidth={2.5} aria-hidden />
+          </span>
+        )}
         {(marks.glyphs.length > 0 || marks.more > 0) && (
           <span className="hs-glyphs">
             {marks.glyphs.map((g) => {
               const Icon = GLYPH[g.kind];
               return (
-                <span key={g.kind} className="hs-g" data-family={g.family} aria-label={g.label}>
+                <span key={g.kind} className="hs-g" data-family={g.family} data-rank={g.rank} aria-label={g.label}>
                   <Icon size={13} strokeWidth={2.4} aria-hidden />
                   {g.word && <span className="hs-g-word">{g.word}</span>}
                 </span>

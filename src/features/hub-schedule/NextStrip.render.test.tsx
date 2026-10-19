@@ -42,11 +42,11 @@ const ITEMS: NextStripItem[] = [
     name: "Belladonna Took",
     critical: "Critical: no overhead pressing",
     glyphs: [
-      { kind: "milestone", family: "celebrate", word: "100th", label: "100th today" },
-      { kind: "birthday", family: "celebrate", word: "turns 80", label: "Turns 80 Thu" },
+      { kind: "milestone", family: "celebrate", word: "100th", label: "100th today", rank: 0 },
+      { kind: "birthday", family: "celebrate", word: "turns 80", label: "Turns 80 Thu", rank: 1 },
     ],
   }),
-  item({ key: "estella", name: "Estella Bolger", when: "now", withText: "with Damrod", glyphs: [{ kind: "waiver", family: "watch", word: null, label: "No waiver signed" }] }),
+  item({ key: "estella", name: "Estella Bolger", when: "now", withText: "with Damrod", glyphs: [{ kind: "waiver", family: "watch", word: null, label: "No waiver signed", rank: 0 }] }),
   item({ key: "wilcome", name: "Wilcome Cotton", withText: "with Mablung", clientId: null }),
 ];
 

@@ -50,6 +50,21 @@ describe("the card's marks", () => {
     const marks = cardMarks([pulse]);
     expect(marks.glyphs[0]).toMatchObject({ label: "Sleep & Recovery is Red", word: null });
   });
+
+  it("keeps each glyph's place in the Key's order as its rank, though a worded one is drawn first (the narrow cards round)", () => {
+    const early = m({ kind: "early-session", family: "welcome", chip: "First session" });
+    const marks = cardMarks([critical, waiver, early, renew]);
+    // Drawn with the word first; ranked as the Key has them, the triangle apart.
+    expect(marks.glyphs.map((g) => [g.kind, g.rank])).toEqual([
+      ["early-session", 1],
+      ["waiver", 0],
+    ]);
+    // A card with room for one mark keeps rank 0: the waiver, not the one moved first for its word.
+    expect(marks.glyphs.find((g) => g.rank === 0)?.kind).toBe("waiver");
+    // In order, a plain card's ranks are its places.
+    expect(cardMarks([pulse, renew]).glyphs.map((g) => g.rank)).toEqual([0, 1]);
+    expect(cardMarks([milestone]).glyphs[0].rank).toBe(0);
+  });
 });
 
 describe("only sayable words beside a glyph (a client stands at the iPad)", () => {
@@ -94,7 +109,7 @@ describe("Get to know on the card (wave 2 hub): the ✎ alone, and the first to 
   it("is a glyph alone, in anyone's column and in your own: FORD's words never on the grid", () => {
     expect(sayableWord(ask)).toBeNull();
     expect(sayableWord(ask, { yours: true })).toBeNull();
-    expect(cardMarks([ask]).glyphs).toEqual([{ kind: "ask-about", family: "get-to-know", word: null, label: "Something to ask about" }]);
+    expect(cardMarks([ask]).glyphs).toEqual([{ kind: "ask-about", family: "get-to-know", word: null, label: "Something to ask about", rank: 0 }]);
   });
 
   it("keeps the two-glyph rule: behind two others it is part of the +N, labelled without the detail", () => {

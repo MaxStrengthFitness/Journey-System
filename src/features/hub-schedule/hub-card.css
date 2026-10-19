@@ -660,3 +660,37 @@
 @container ph-day (min-width: 367px) {
   .ph-day__card .hs-card[data-words="all"] .hs-g-word { display: inline; }
 }
+
+/* ---- the narrow card's parts (the narrow cards round, Oct 18 2026) ----
+   When two or three bookings start together they share their slot, and a
+   card a half or a third of its column says less (AJ: "Keep them side by
+   side, cards say less"). HubCard draws every card with the parts such a
+   card needs: the time in one part (.hs-card-clock; a span also without its
+   AM or PM, .hs-card-clock-short, an empty element that says it with
+   `content: attr(data-time)` where it is shown, so the span's own text
+   stays one node), the state word with its dot (.hs-card-state-part,
+   .hs-card-sep), "Not synced yet" in a part of its own, a symbol for the
+   state word (.hs-card-sym), the time again where "In session" or "Not
+   synced yet" stands (.hs-card-alt-time), the triangle again at the end of
+   the time line (.hs-tri--short) and her initials (.hs-card-initials). A
+   full card shows none of them as parts: the ones that wrap a time or a
+   word are display: contents, so the time, its dot and its word are the
+   same text and the same flex items they always were, and the extra ones
+   take no box. A full card is drawn exactly as before: measured in
+   headless Chrome over HubCard's own markup from before and after, every
+   case at the iPad's column widths, one, two and three to a slot, every
+   run of text and every element's box, and the sheets pixel for pixel. */
+.hs-card-clock,
+.hs-card-state-part,
+.hs-card-sep,
+.hs-card-unsynced {
+  display: contents;
+}
+
+.hs-card-initials,
+.hs-card-sym,
+.hs-card-alt-time,
+.hs-card-clock-short,
+.hs-tri.hs-tri--short {
+  display: none;
+}
