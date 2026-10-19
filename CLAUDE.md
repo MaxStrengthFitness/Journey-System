@@ -39,7 +39,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The Active Session's grid and Now Bar | `src/features/journey-grid/` |
 | The session record | `src/features/session-record/` — never lose or block a session: Finish counted once, the watching iPad, Continue on this iPad, a session left open cleared by anyone at the studio |
 | The open session | `src/features/open-session/` — a session started before its client is chosen: Start, Who's this? and Assign's one batch, the settings held until then (`heldSetup`; Oct 9 2026) |
-| A new client's first session and a routine's plan | `src/features/routine-plan/` (the plan, starting routines, B, focus, Can't do); also read both round documents it names. **Start from a routine…** in the session's corner lays one on today's list and writes no routine (`start-from.ts`, Oct 9 2026) |
+| A new client's first session and a routine's plan | `src/features/routine-plan/` (the plan, starting routines, B, focus, Can't do; read both round documents it names). **Start from a routine…** lays one on today's list and writes no routine (`start-from.ts`) |
 | The machine menu | `src/features/machine-menu/` — one card for a client on one machine, from the session and the profile. The Now Bar's **Set up** opens it on the first empty dial, on the number pad (`journey-grid/setup-button.ts`, Oct 9 2026) |
 | Machine fit | `src/features/machine-fit/` (predictive set-up, Programming → Setup, the Kaizen report); Operations → Machine fit is `src/features/admin/machine-fit/` |
 | Machine totals | `src/features/machine-totals/` — a client's machine maps in their own document |
@@ -50,7 +50,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The floor's notes on a machine | `src/features/floor-notes/` — one dated list per machine |
 | The client profile | `src/features/client-profile/` (the four tabs) and `src/features/client-codex/` |
 | Client history and past-session entry | `src/features/client-history/` — Activity Archive's Calendar and Sessions, the session pop-up, Log past session |
-| The FileMaker import | `src/features/filemaker-import/` and `scripts/import-filemaker.ts` (dry run by default): a client's FileMaker history written as finished sessions. **Production writes are switched off** (`PRODUCTION_IMPORT_READY`) until the reset, the full export and AJ's go |
+| The FileMaker import | `src/features/filemaker-import/` and `scripts/import-filemaker.ts` (dry run by default): FileMaker history as finished sessions. **Production writes are off** (`PRODUCTION_IMPORT_READY`) until the reset, the full export and AJ's go |
 | The progress report | `src/features/progress-report/` — the five-step conversation; one printed page (`ReportSheet`) and the client's view on screen (`ReportScreen`), both from `sheet-from-report.ts` (Oct 13 2026) |
 | The Client Directory | `src/features/client-directory/` |
 | The briefing and the Wrap-up | `src/features/briefing/`; the Wrap-up is `src/components/WrapUpScreen.tsx` |
@@ -68,12 +68,13 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The studio map and the machine's card | `src/features/studio-map/` (the floor drawn to size, a machine tapped to open) and `src/features/machine-card/` (Learn · Clean · Maintain · Set up, one card from every door) |
 | FileMaker floors | `src/features/filemaker-floors/` and `scripts/build-floors-from-filemaker.ts` — westlake's and Willoughby's floors from FileMaker's charts (Oct 12 2026) |
 | The Machine Codex and Compare | `src/features/machine-codex/`; Compare is `src/features/admin/machines/compare/` |
-| Machines: the catalog editor and a studio's own | `src/features/admin/machines/`. **`src/lib/machine-template.ts` is the template boundary**; `src/data/machine-definitions.ts` is generated from `docs/msf-academy/`. A machine becoming the standard is `src/features/admin/catalog/review.ts` |
+| Machines: the catalog editor and a studio's own | `src/features/admin/machines/`. **`src/lib/machine-template.ts` is the template boundary**; `src/data/machine-definitions.ts` is generated from `docs/msf-academy/`; a machine becoming the standard is `admin/catalog/review.ts` |
 | Machine trends | `src/features/machine-trends/` (Learning → Catalog → a machine → How it's used) |
 | Learning, sharing machines, comments | `src/features/learning/`, `src/features/machine-db/`, `src/features/comments/` |
 | Demo Mode | `src/features/demo-mode/` — the practice studio `demo-studio`, a real studio with no second code path |
 | The front door | `src/features/front-door/` — sign in, checking you in, the greeting, the studio picker; the boot report is `src/features/boot-timing/` |
 | Switching studio | `src/features/studio-switch/` — Switch studio from every screen, and a switch lets go of the client (`let-go.ts`) |
+| Journey links | `src/features/deep-link/` — a link pasted into Teams opens a client, a session, an ask or a Learning page (`shares/{shareId}` behind the first two) |
 | Signing out | `src/features/sign-out/`; who may open Operations is `src/features/admin/operations-access.ts` |
 | Unsaved changes | `src/features/unsaved-changes/` — the one registry and the one leave question |
 | A new version after a deploy | `src/features/new-version/` |
@@ -96,10 +97,10 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | --- | --- | --- |
 | Install | `npm ci` | `npm install` fails with an `edgesOut` error |
 | Run locally | `npm run dev` | Port 3000 |
-| Typecheck | `npx tsc --noEmit` | **0** errors since Oct 18 2026; CI holds it there (`.github/typecheck-baseline.txt`). History by round: `docs/KNOWN-TRAPS.md#baselines` |
-| Tests | `npx vitest run src` | **14,841** passing in 904 files (Oct 18 2026, the trainer lock). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
-| Build | `npx vite build` | Then `npm run check:bundle` (`scripts/check-bundle-budget.mjs`, a CI step since Oct 5 2026): the first screen at most 480 KB gzip, no charts, drag-and-drop or motion on it, and a PRODUCTION build (`NODE_ENV` unset or `production`; a `test` build ships React's development files and is refused). `src/first-screen.test.ts` names the import chain if the first screen reaches a heavy module |
-| Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken" means an old emulator still holds 8080 — stop it first. Runs in the cloud container too; AJ's run is the one that counts |
+| Typecheck | `npx tsc --noEmit` | **0** errors since Oct 18 2026; CI holds it there (`.github/typecheck-baseline.txt`) |
+| Tests | `npx vitest run src` | **14,920** passing in 913 files (Oct 19 2026, Journey links). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
+| Build | `npx vite build` | Then `npm run check:bundle` (CI, Oct 5 2026): the first screen at most 480 KB gzip, no charts, drag-and-drop or motion on it, and a PRODUCTION build (a `test` build ships React's development files and is refused). `src/first-screen.test.ts` names the import chain if the first screen reaches a heavy module |
+| Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken": an old emulator still holds 8080, stop it first. AJ's run is the one that counts |
 
 **Deploy order:** `firebase deploy --only firestore:indexes` → `npm run test:rules` → `firebase deploy --only firestore:rules` → `git push origin master` → on Render, Manual Deploy on the web service and Manual Build on both cron jobs (the app goes live; see Environments). Rules go first when they only add access, so the running app is unaffected and the new one finds its rules waiting. If the rules tests fail, stop. Releases are shipped with a staged PowerShell script (`scripts/ship/ship-*.ps1`): `-Stage prepare`, then `-Stage golive`.
 
@@ -120,6 +121,7 @@ Each is the rule, in AJ's words wherever AJ gave them. **More** opens its full e
 - **A client's pronoun follows their Mindbody gender** (AJ, Oct 15 2026: "We defiently need to read client gender"): Male he, Female she, blank or Other the first name or they; a sentence that reads well with no pronoun keeps none, and a wrong gender is fixed in Mindbody. Built: `pronounsFor` (codex `kit/pronouns.ts`) is the one place it is read. [More](docs/DECISIONS.md#no-guessed-gender)
 - **Names are never truncated, and a guard holds it** (Sep 29 2026): `src/lib/names-wrap.test.ts` reads the stylesheets and screens the audit found cutting a name short (the live session's bar and Now Bar, the calendar, history, My Profile's lists, the top strip's studio name, the profile's sub-tabs) and fails on an ellipsis, a line clamp, or nowrap with hidden overflow; a row that must hold a wrapped name has a minimum height, never a height.
 - **In-app only, for now** (AJ, Oct 15 2026: "this is not a NEVER do its a we arent doing yet"). **Never book a Mindbody visit** ("2.50 fee is crazy for that").
+- **A Journey link carries a share id, never a name or a record id; it opens, offers Switch, never switches; it waits for Finish** (AJ, Oct 19 2026, T2a). `/t/` a client or session, `/l/` Learning, `/a/` an ask; a refusal never says "not found". [More](docs/DECISIONS.md#journey-links)
 - **The standing week is a check, never a booking** (AJ, Sep 27 2026). A trainer proposes their usual week, a leader agrees it, and Journey checks the next 7 days of Mindbody bookings against it and says where they differ. It never writes a hold, a booking or availability to Mindbody. A day not read in full, or read offline or only from cache, is "can't tell", never "open". Days away block slots out ("if someone has a vacation then it should block it out"); colleagues see each other's agreed week. [More](docs/DECISIONS.md#the-standing-week)
 - **Openings is a screen a person opens: it never books, never pings, and says "room" only where it can stand behind it** (AJ, Sep 27 2026). A past day counts only if Journey read it in full; every offer ends "Check it in Mindbody before you promise it. Journey doesn't book." A Mindbody "Unavailable" block is never a booking (`isStaffBlock`). No Mindbody call and no new index ("i just dont want a big mindbody bill or firestore bill popping up"). [More](docs/DECISIONS.md#openings)
 - **How fresh each Mindbody fact must be** (AJ, Sep 26 2026). Today's and tomorrow's bookings within about 30 minutes; days 3–30 each morning; packages when a sale happens; client details when they change. **Nothing syncs a studio's clients on a timer before its cutover** ("we don't randomly sync all of our clients and have a big Mindbody bill"). A timer asking Mindbody more often needs AJ's OK; a schedule's pull rate is administrators' alone. **One Mindbody read serves a whole site** (Oct 12 2026); an older answer never overwrites or cancels a newer booking. [More](docs/DECISIONS.md#mindbody-freshness)

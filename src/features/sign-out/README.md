@@ -31,7 +31,10 @@ Everything else goes, in four places:
    fit's Setup hint) and leaves note drafts alone.
 4. **Module memory** - `memory.ts`. A module that keeps a memory in module
    scope (Relay's tab, My Studio's section, the Operations span, a
-   waiting Relay request (`PlannerIntent`), the Catalog scope, Relay's "Not me") registers its
+   waiting Relay request (`PlannerIntent`), the Catalog scope, Relay's "Not me",
+   a Journey link waiting to open (`deep-link/pending.ts`) and the session a
+   link asks the Activity Archive to open (`client-history/open-session-handoff.ts`),
+   both from the Teams link round of Oct 19 2026) registers its
    reset with `forgetOnSignOut` beside the variable. `memory.ts` imports
    nothing, so any module can use it without growing the main bundle.
 
