@@ -1,6 +1,10 @@
 /**
- * THE INTERACTIONS shots.mjs photographs, per design — the design agents'
- * own file to extend (shots.mjs reads it; nothing else needs touching).
+ * THE INTERACTIONS shots.mjs photographs, per design.
+ *
+ * Each design keeps its own steps in steps-<design>.mjs (codex, vault,
+ * course), so three design agents never edit one file. This file only
+ * gathers them, with three shared starting steps for a design that has not
+ * written its own file yet.
  *
  * A step is { name, query, actions }:
  *   name     the PNG's name: <out>/<design>/step-<name>.png (+ -tall.png)
@@ -19,40 +23,56 @@
  *              { wait: 600 }             milliseconds
  *            A tap that finds nothing is reported and the step still shoots.
  *
- * Every shot is 820x1180 (an iPad held upright), light, plus a tall one.
+ * A design file exports `steps` (an array) and `quiz` ({ query, actions }:
+ * how that design opens its quiz from a fresh page).
  *
- * `quiz` says how each design reaches its quiz (the quiz is a route a design
- * opens, not a Learning link): shots.mjs photographs it with the pages.
- *
- * Selectors that come from the shared parts (src/features/learning-vault/):
- *   a line          [data-vta-line]            (ArticleBlocks: role=button, aria-expanded)
- *   a linked term   [data-entity], .vtc__link  (LinkedText; adjust to the real markup)
+ * Selectors from the shared parts (src/features/learning-vault/):
+ *   a line          [data-vta-line]                  (ArticleBlocks)
+ *   a linked term   [data-vault-term], .vtc__term    (LinkedText)
  */
 
-const MACHINE = "&view=machine-anatomy&machine=m-leg-press";
-const TOPIC = `&view=academy&ref=${encodeURIComponent(JSON.stringify({ kind: "academy-topic", id: "performance-gradual-load-up" }))}`;
+export const MACHINE = "&view=machine-anatomy&machine=m-leg-press";
+export const TOPIC = `&view=academy&ref=${encodeURIComponent(JSON.stringify({ kind: "academy-topic", id: "performance-gradual-load-up" }))}`;
+export const LINE = "[data-vta-line]";
+export const TERM = "[data-vault-term], .vtc__term";
 
-const LINE = "[data-vta-line]";
-const TERM = "[data-entity], [data-entity-id], .vtc__link";
-
-/** The three interactions every design starts with; each design owns its copy below. */
-const common = () => [
+/** The three interactions every design starts with. */
+export const common = () => [
   { name: "line-tapped", query: MACHINE, actions: [{ tapSelector: LINE }, { wait: 400 }] },
   { name: "concept-card", query: TOPIC, actions: [{ tapSelector: TERM }, { wait: 500 }] },
   { name: "peek-sheet", query: TOPIC, actions: [{ tapSelector: TERM }, { wait: 400 }, { tap: "Peek" }, { wait: 600 }] },
 ];
 
-export const steps = {
-  codex: [...common()],
-  vault: [...common()],
-  course: [...common()],
+const defaultQuiz = { query: "&view=learning", actions: [{ tap: "Quiz" }, { wait: 600 }] };
+
+async function load(design) {
+  try {
+    const mod = await import(`./steps-${design}.mjs`);
+    return { steps: mod.steps ?? common(), quiz: mod.quiz ?? defaultQuiz };
+  } catch (e) {
+    if (e && (e.code === "ERR_MODULE_NOT_FOUND" || /Cannot find module/.test(String(e.message)))) {
+      return { steps: common(), quiz: defaultQuiz };
+    }
+    throw e;
+  }
+}
+
+const loaded = {
+  codex: await load("codex"),
+  vault: await load("vault"),
+  course: await load("course"),
 };
 
-/** How each design opens its quiz, from a fresh page. */
+export const steps = {
+  codex: loaded.codex.steps,
+  vault: loaded.vault.steps,
+  course: loaded.course.steps,
+};
+
 export const quiz = {
-  codex: { query: "&view=learning", actions: [{ tap: "Quiz" }, { wait: 600 }] },
-  vault: { query: "&view=learning", actions: [{ tap: "Quiz" }, { wait: 600 }] },
-  course: { query: "&view=learning", actions: [{ tap: "Quiz" }, { wait: 600 }] },
+  codex: loaded.codex.quiz,
+  vault: loaded.vault.quiz,
+  course: loaded.course.quiz,
 };
 
 export default steps;
