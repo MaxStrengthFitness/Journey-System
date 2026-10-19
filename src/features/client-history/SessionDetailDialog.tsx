@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ANOTHER_STUDIOS_TRAINER } from "../trainer-scope/names";
 import {
   Timestamp,
@@ -189,6 +189,13 @@ export interface SessionDetailDialogProps {
   /** Stamped onto sets added here, the same way the live flow stamps its own. */
   activeStudioId?: string | null;
   clientHomeStudioId?: string;
+  /**
+   * A quiet tool beside Close, for the session on screen (the Teams link
+   * round, Oct 19 2026: Copy link). Each host fills it, so this dialog
+   * imports nothing from features/deep-link and the Wrap-up, which reaches
+   * this file, carries no door to it.
+   */
+  tools?: (session: HistorySession) => ReactNode;
 }
 
 export function SessionDetailDialog({
@@ -203,6 +210,7 @@ export function SessionDetailDialog({
   trainers = [],
   activeStudioId,
   clientHomeStudioId,
+  tools,
 }: SessionDetailDialogProps) {
   const [daySessions, setDaySessions] = useState<HistorySession[]>(initialSessions);
   const [active, setActive] = useState(0);
@@ -585,6 +593,7 @@ export function SessionDetailDialog({
                       <Pencil size={14} strokeWidth={2.6} aria-hidden /> Edit
                     </button>
                   )}
+                  {!isEditMode && tools?.(selected)}
                   <Button variant="ghost" onClick={onClose} className="hsd-icon-btn" title="Close">
                     <X className="w-5 h-5" />
                   </Button>

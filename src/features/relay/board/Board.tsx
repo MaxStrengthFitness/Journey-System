@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Check, Hand, Map as MapIcon, UserRoundPlus, Undo2 } from "lucide-react";
+import { Check, Hand, Link2, Map as MapIcon, UserRoundPlus, Undo2 } from "lucide-react";
+import { appCopyLinkIo, copyPlainLink } from "../../deep-link/copy-link";
 import type { Client } from "../../../types";
 import { useToast } from "../../../contexts/ToastContext";
 import { notify } from "../../notifications";
@@ -500,6 +501,21 @@ export function Board({
             />
             {src.kind === "ask" && relay.canLead && card.state !== "done" && (
               <NameIt faces={faces} named={named} onName={(f) => void nameAsk(r, f)} />
+            )}
+            {/* Copy link (the Teams link round, Oct 19 2026): the ask's id and studio, never its title. */}
+            {src.kind === "ask" && relay.studioId && (
+              <button
+                type="button"
+                className="rbd-btn"
+                onClick={() =>
+                  copyPlainLink(
+                    { kind: "ask", askId: r.id, studioId: relay.studioId! },
+                    appCopyLinkIo({ success: toastSuccess, error: toastError }),
+                  )
+                }
+              >
+                <Link2 size={16} aria-hidden /> Copy link
+              </button>
             )}
           </>
         ),

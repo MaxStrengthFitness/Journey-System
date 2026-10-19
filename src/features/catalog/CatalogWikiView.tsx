@@ -634,7 +634,7 @@ export function CatalogWikiView({
       Boolean(uid && authorId === uid) || leadsStudioPerRules(authTrainer ?? null, activeStudioId);
 
     return (
-      <WikiShell crumbs={crumbs}>
+      <WikiShell crumbs={crumbs} pageRef={{ kind: "machine", id: selected.id }}>
         <MachineArticle
           machine={selected}
           found={route.found}

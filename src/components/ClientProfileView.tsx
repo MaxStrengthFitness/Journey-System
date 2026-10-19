@@ -99,6 +99,7 @@ import {
 } from "../types";
 import { OperationType, handleFirestoreError } from "../lib/firestore-errors";
 import { useToast } from "../contexts/ToastContext";
+import { useCopyShareLink } from "../features/deep-link/CopyShareLinkButton";
 import { runMasterSync } from "../lib/mindbody-master-sync";
 import { mindbodyIdOf } from "../lib/mindbody-id";
 import { masterSyncLabel } from "../features/client-profile/sync-label";
@@ -222,6 +223,7 @@ export function ClientProfileView({
   activeStudioId: string | null;
 }) {
   const { success: toastSuccess, error: toastError } = useToast();
+  const copyClientLink = useCopyShareLink();
   const [reportToDelete, setReportToDelete] = useState<ProgressReport | null>(
     null,
   );
@@ -2024,6 +2026,14 @@ export function ClientProfileView({
           setView("workouts");
         }}
         onQuickNote={() => setQuickNoteOpen(true)}
+        /* Copy link (the Teams link round, Oct 19 2026): at the client's
+           studio only. It copies in the tap and writes the share without
+           waiting; it navigates nowhere, so it asks no gate. */
+        onCopyLink={
+          client.id && activeStudioId && client.homeStudioId === activeStudioId
+            ? () => copyClientLink({ kind: "client", clientId: client.id!, studioId: activeStudioId })
+            : undefined
+        }
         /* Continue is this trainer's own session; anyone else's opens
            read-only, with Take over there (session record, Sep 26 2026). */
         sessionIsMine={

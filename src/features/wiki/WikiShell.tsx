@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
-import { ArrowLeft, ChevronRight, Search } from "lucide-react";
+import { ArrowLeft, ChevronRight, Link2, Search } from "lucide-react";
+import type { LearningRef } from "../learning/ref";
 import {
   UnsavedChangesScope,
   useLeaveScope,
@@ -91,6 +92,12 @@ export interface WikiShellProps {
   children: ReactNode;
   /** Extra class on the root, e.g. `wk--academy`. */
   className?: string;
+  /**
+   * The Learning ref this page is (the Teams link round, Oct 19 2026). With
+   * it, and a tab that copies links (`sections.onCopyLink`), the bar draws
+   * Copy link. An index gives none.
+   */
+  pageRef?: LearningRef;
 }
 
 export function WikiShell({
@@ -98,7 +105,8 @@ export function WikiShell({
   scrollKey,
   onOpenSearch: rawOpenSearch,
   searchLabel = "Search",
-  actions,
+  actions: rawActions,
+  pageRef,
   children,
   className,
 }: WikiShellProps) {
@@ -124,6 +132,20 @@ export function WikiShell({
     : undefined;
   const hideTrail = trailRepeatsSection(crumbs, sections);
   const pageKey = scrollKey ?? crumbs.map((c) => c.label).join(" / ");
+  // Copy link joins the page's actions: it copies and leaves nothing, so it asks no gate.
+  const onCopyLink = sections?.onCopyLink;
+  const actions =
+    pageRef && onCopyLink ? (
+      <>
+        {rawActions}
+        <button type="button" className="wk__searchbtn" onClick={() => onCopyLink(pageRef)} aria-label="Copy a link to this page">
+          <Link2 size={15} aria-hidden />
+          <span className="wk__searchbtn-label">Copy link</span>
+        </button>
+      </>
+    ) : (
+      rawActions
+    );
   // A top-level page — an index, a front page — keeps its place when the
   // reader comes back up to it; an article always opens at its top.
   const keepsPlace = crumbs.length <= 1;

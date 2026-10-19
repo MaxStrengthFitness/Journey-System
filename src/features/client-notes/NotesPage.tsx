@@ -38,6 +38,7 @@ import { ChevronRight, Info, PenLine } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { useToast } from "../../contexts/ToastContext";
+import { CopyShareLinkButton } from "../deep-link/CopyShareLinkButton";
 import type { Client, Machine, Trainer, WorkoutSession } from "../../types";
 import type { JournalDraft, JournalEntry } from "../../types/journal";
 import { canQuoteSessionNumber } from "../../lib/client-coverage";
@@ -516,6 +517,18 @@ export function NotesPage({
           trainers={trainers}
           activeStudioId={activeStudioId}
           clientHomeStudioId={client.homeStudioId}
+          // Copy link, at the client's studio only (the Teams link round).
+          tools={
+            activeStudioId && client.homeStudioId === activeStudioId
+              ? (s) =>
+                  s.id ? (
+                    <CopyShareLinkButton
+                      className="hsd-icon-btn"
+                      facts={{ kind: "session", targetId: s.id, clientId, studioId: activeStudioId }}
+                    />
+                  ) : null
+              : undefined
+          }
         />
       ) : null}
 

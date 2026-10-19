@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BookOpen, Dumbbell, GraduationCap, LayoutGrid } from "lucide-react";
 import type { Machine, Trainer } from "../../types";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
+import { useToastMaybe } from "../../contexts/ToastContext";
 import { auth } from "../../firebase";
+import { appCopyLinkIo, copyPlainLink } from "../deep-link/copy-link";
 import { CommentsProvider, mentionablePeople, type CommentsContextValue } from "../comments";
 import { useLeaveGuard } from "../unsaved-changes";
 import { WikiSectionsProvider, type WikiSectionsValue } from "../wiki";
@@ -99,6 +101,10 @@ export function LearningView({
   const [searchOpen, setSearchOpen] = useState(false);
 
   const canWritePages = canWriteStudioPages(authTrainer, activeStudioId);
+  // Copy link's "Link copied": said when there is a provider, silent without one (the harness, a test).
+  const toast = useToastMaybe();
+  const toastSuccess = toast?.success ?? (() => {});
+  const toastError = toast?.error ?? (() => {});
 
   /* Comments (Learning + Planner round): this studio's thread on every page,
      and the people here who can be tagged. The Auth uid, never the trainer
@@ -203,8 +209,12 @@ export function LearningView({
       },
       onSearch: () => setSearchOpen(true),
       searchLabel: "Search Learning",
+      // Copy link on a page (the Teams link round, Oct 19 2026): the page's
+      // kind and id, a studio's own page with its studio; never a title.
+      onCopyLink: (ref) =>
+        copyPlainLink({ kind: "learning", ref }, appCopyLinkIo({ success: toastSuccess, error: toastError })),
     }),
-    [view, onViewChange],
+    [view, onViewChange, toastSuccess, toastError],
   );
 
   return (

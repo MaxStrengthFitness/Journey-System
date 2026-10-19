@@ -20,7 +20,12 @@ import { safeToDate } from "../lib/utils";
 import { PulseQuickLog } from "../features/subjective-report";
 import { FordSweep } from "../features/ford/FordSweep";
 import { useClientFord } from "../features/ford/useClientFord";
-import { NoteSweep, discardUnfiledEntry, fileUnfiledEntry, isUnfiled } from "../features/client-notes";
+// The files, not the client-notes barrel (the Teams link round, Oct 19 2026):
+// the barrel reaches the Notes page and the session pop-up, and through them
+// Copy link, which the floor must never reach (deep-link/floor-guard.test.ts).
+import { NoteSweep } from "../features/client-notes/NoteSweep";
+import { discardUnfiledEntry, fileUnfiledEntry } from "../features/client-notes/file-unfiled";
+import { isUnfiled } from "../features/client-notes/note-catalog";
 import { isNextTrainerNote, type NextTrainerNoteMark } from "../features/client-notes/note-catalog";
 import { Dial, EFFORT_SCALE } from "../features/rating";
 import { NoteBox } from "../features/client-notes/NoteBox";

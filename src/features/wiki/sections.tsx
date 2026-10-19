@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
+import type { LearningRef } from "../learning/ref";
 
 /**
  * LEARNING — the Catalog and the Academy as one tab.
@@ -67,6 +68,13 @@ export interface WikiSectionsValue {
   onSearch?: () => void;
   /** What the search button says. */
   searchLabel?: string;
+  /**
+   * Copy link on a page (the Teams link round, Oct 19 2026): a page that
+   * says which Learning ref it is (`WikiShell`'s `pageRef`) draws Copy link
+   * in its bar, and this copies the link. Absent, no page draws it. The
+   * shell imports nothing from features/deep-link; the Learning tab does.
+   */
+  onCopyLink?: (ref: LearningRef) => void;
 }
 
 const WikiSectionsContext = createContext<WikiSectionsValue | null>(null);

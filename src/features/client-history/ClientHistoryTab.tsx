@@ -4,6 +4,7 @@ import { db } from "../../firebase";
 import type { Client, ExerciseLog, Machine, Routine, Trainer } from "../../types";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
 import { clearSessionHandoff, peekSessionHandoff } from "./open-session-handoff";
+import { CopyShareLinkButton } from "../deep-link/CopyShareLinkButton";
 import { useBookingMarks } from "../admin/attention/booking-marks";
 import { HistoryView, type HistoryViewMode } from "./HistoryView";
 import { LogPastSessionDialog } from "./LogPastSessionDialog";
@@ -203,6 +204,18 @@ export function ClientHistoryTab({
           trainers={trainers}
           activeStudioId={activeStudioId}
           clientHomeStudioId={client?.homeStudioId}
+          // Copy link, at the client's studio only (the Teams link round).
+          tools={
+            activeStudioId && client?.homeStudioId === activeStudioId
+              ? (s) =>
+                  s.id ? (
+                    <CopyShareLinkButton
+                      className="hsd-icon-btn"
+                      facts={{ kind: "session", targetId: s.id, clientId, studioId: activeStudioId }}
+                    />
+                  ) : null
+              : undefined
+          }
         />
       )}
 

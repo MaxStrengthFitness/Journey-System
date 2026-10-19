@@ -90,6 +90,10 @@ const RunSheet = React.lazy(() => import("../features/hub-opportunities/RunSheet
 const SessionDetailDialog = React.lazy(() =>
   import("../features/client-history/SessionDetailDialog").then((m) => ({ default: m.SessionDetailDialog })),
 );
+/** Copy link on that pop-up (the Teams link round): with the pop-up, never on the first screen. */
+const CopyShareLinkButton = React.lazy(() =>
+  import("../features/deep-link/CopyShareLinkButton").then((m) => ({ default: m.CopyShareLinkButton })),
+);
 
 /** One empty list, so a missing schedule doesn't look new on every render. */
 const NO_SCHEDULES: any[] = [];
@@ -1120,6 +1124,7 @@ export function ClientsView({
                     trainers={sortedTrainers}
                     activeStudioId={activeStudioId}
                     clientHomeStudioId={editing.homeStudioId}
+                    tools={editing.homeStudioId === activeStudioId ? (s) => (s.id ? <CopyShareLinkButton className="hsd-icon-btn" facts={{ kind: "session", targetId: s.id, clientId: editing.clientId, studioId: activeStudioId }} /> : null) : undefined}
                   />
                 </React.Suspense>
               </LoadBoundary>

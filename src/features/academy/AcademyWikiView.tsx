@@ -722,6 +722,7 @@ export function AcademyWikiView({
           { label: page.title },
         ]}
         onOpenSearch={() => setRoute({ kind: "search" })}
+        pageRef={activeStudio?.id ? { kind: "studio-page", id: page.id, studioId: activeStudio.id } : undefined}
         actions={
           canManagePages && author ? (
             <button
@@ -818,7 +819,11 @@ export function AcademyWikiView({
     ];
 
     return (
-      <WikiShell crumbs={crumbs} onOpenSearch={() => setRoute({ kind: "search" })}>
+      <WikiShell
+        crumbs={crumbs}
+        onOpenSearch={() => setRoute({ kind: "search" })}
+        pageRef={{ kind: "academy-topic", id: route.topicId, moduleId: route.moduleId }}
+      >
         {!topic && !mod ? (
           <GonePage onIndex={openIndex} />
         ) : !topic && content?.id === route.moduleId && !moduleLoading ? (
@@ -898,6 +903,7 @@ export function AcademyWikiView({
       <WikiShell
         crumbs={[...rootCrumbs(), { label: mod?.title ?? "Module" }]}
         onOpenSearch={() => setRoute({ kind: "search" })}
+        pageRef={{ kind: "academy-module", id: route.moduleId }}
       >
         <WikiIndexHeader
           title={mod?.title ?? "Module"}
@@ -952,6 +958,7 @@ export function AcademyWikiView({
       <WikiShell
         crumbs={[...rootCrumbs(), { label: entry?.name ?? "Card" }]}
         onOpenSearch={() => setRoute({ kind: "search" })}
+        pageRef={{ kind: "academy-card", id: route.cardId }}
       >
         {!card ? (
           cards ? <GonePage onIndex={openIndex} /> : <p className="wk__empty">Loading…</p>
@@ -1026,6 +1033,7 @@ export function AcademyWikiView({
       <WikiShell
         crumbs={[...rootCrumbs(), { label: entry?.name ?? "Script" }]}
         onOpenSearch={() => setRoute({ kind: "search" })}
+        pageRef={{ kind: "academy-script", id: route.scriptId }}
       >
         {!script ? (
           scripts ? <GonePage onIndex={openIndex} /> : <p className="wk__empty">Loading…</p>
@@ -1102,6 +1110,7 @@ export function AcademyWikiView({
       <WikiShell
         crumbs={[...rootCrumbs(), { label: entry?.name ?? overview?.title ?? "Deep dive" }]}
         onOpenSearch={() => setRoute({ kind: "search" })}
+        pageRef={{ kind: "academy-overview", id: route.overviewId }}
       >
         {!overview ? (
           overviews ? <GonePage onIndex={openIndex} /> : <p className="wk__empty">Loading…</p>
@@ -1154,6 +1163,7 @@ export function AcademyWikiView({
       <WikiShell
         crumbs={[...rootCrumbs(), { label: "Cueing phrasebook" }]}
         onOpenSearch={() => setRoute({ kind: "search" })}
+        pageRef={{ kind: "academy-cueing" }}
       >
         <WikiArticle
           accent={GROUP_ACCENT.language}
@@ -1195,6 +1205,7 @@ export function AcademyWikiView({
       <WikiShell
         crumbs={[...rootCrumbs(), { label: "Glossary" }]}
         onOpenSearch={() => setRoute({ kind: "search" })}
+        pageRef={{ kind: "academy-glossary" }}
       >
         <WikiArticle
           accent={GROUP_ACCENT.language}

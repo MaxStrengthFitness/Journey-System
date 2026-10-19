@@ -18,7 +18,7 @@
  *    Journey — see prior-history-door.ts.
  */
 import { useState, type ReactNode } from "react";
-import { BadgeCheck, ChevronLeft, Clock, Eye, History, NotebookPen, Play, RefreshCw, Trash2, UserCheck, AlertTriangle, User } from "lucide-react";
+import { BadgeCheck, ChevronLeft, Clock, Eye, History, Link2, NotebookPen, Play, RefreshCw, Trash2, UserCheck, AlertTriangle, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn, parseSessionDate } from "../../lib/utils";
@@ -138,6 +138,12 @@ export interface ProfileHeaderProps {
    * profile, whatever tab it is on. AJ, Sep 19: a note took too many taps.
    */
   onQuickNote?: () => void;
+  /**
+   * Copy link (the Teams link round, Oct 19 2026): the fourth quiet tool,
+   * offered by the profile only at the client's studio. It copies and
+   * navigates nowhere, so it asks no gate.
+   */
+  onCopyLink?: () => void;
   /**
    * The renewal line (Renewals round, Sep 2026), from the nightly snapshot.
    * When present, the package tile shows it and opens the Renewal card.
@@ -386,6 +392,7 @@ export function ProfileHeader({
   onBack,
   onStartSession,
   onQuickNote,
+  onCopyLink,
   sessionIsMine = true,
   onContinueSession,
   onWatchSession,
@@ -637,6 +644,14 @@ export function ProfileHeader({
             <RefreshCw className={cn("w-4 h-4", sync.busy && "animate-spin")} aria-hidden />
             <span className="hidden sm:inline">{sync.busy ? "Syncing" : "Sync"}</span>
             <span className="sr-only">{sync.label}</span>
+          </button>
+        )}
+        {/* Copy link (the Teams link round): the icon alone in the one-band
+            landscape (xl), where the band is tight; the word everywhere else. */}
+        {onCopyLink && (
+          <button type="button" onClick={onCopyLink} title="Copy a link to this client, to paste into Teams" aria-label="Copy a link to this client" className={toolBtn}>
+            <Link2 className="w-4 h-4" aria-hidden />
+            <span className="hidden sm:inline xl:hidden 2xl:inline">Link</span>
           </button>
         )}
       </div>

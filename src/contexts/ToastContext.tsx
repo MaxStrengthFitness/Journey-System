@@ -217,3 +217,12 @@ export function useToast() {
   }
   return context;
 }
+
+/**
+ * The toasts, or null where there is no provider (a screen mounted on its
+ * own in a test, the harness). For a screen that would rather say nothing
+ * than refuse to mount (the Teams link round, Oct 19 2026).
+ */
+export function useToastMaybe(): ToastContextType | null {
+  return useContext(ToastContext) ?? null;
+}
