@@ -24,7 +24,7 @@ only need to tighten use `@media (max-width: 599px)` or a container query.
 | --- | --- | --- |
 | Bottom bar | **Schedule · Operations · Clients · My Studio**, and **Session** while one runs (labelled "Session": five tabs leave no room for her name, and names are never cut). Operations only for `mayOpenOperations`. A tap switches the app mode itself (Schedule is the Hub in trainer mode, Operations is Operations) through AppContent's guarded `switchAppMode`. | `components/AppBottomBar.tsx` (`phone`) |
 | Header | The bell (and the reminders that ring it) and the avatar; Refresh, the theme, feedback and Settings move into the avatar menu, with **Learning** and **Calendar**. | `AppContent.tsx` |
-| The Hub | The day as **one list in time order** (`PhoneDayList`, ordering in `day-list.ts`): the grid's own blocks and its own `HubCard`s, the same Peek, the same top. Me narrows to your column; Everyone says "with Sam" under each time; a Now line on today. The top keeps one row for the layers and the doors (icons, with their names for a screen reader), and Me / Everyone takes the phone's width (`day-header.css`, container query at 520px). | `components/ClientsView.tsx`, `PhoneDayList.tsx`, `day-list.ts` |
+| The Hub | **The minimalist mode** (Oct 19 2026; AJ: "the phone mode is the minimalist mode, we can get rid of a lot of the features on the screen so that way we get more information on the screen"). The day as **one list in time order** (`PhoneDayList`, ordering in `day-list.ts`): a row per booking, the time (and whose, on Everyone) beside the Hub's own `HubCard` drawn **dense** (the name whole, the Critical triangle, a state word, the glyphs; no time, number, "New to Journey" or service), about a dozen to a screen, the same Peek. **My week** (`PhoneWeekList`, `week-list.ts`): the strip's seven days in one scroll, a heading each (Today · Mon 19 · 3 booked), from the Hub's own window (no new read); a tap on a card picks its day and opens its peek there. The top keeps the layers and the doors (Today, Tasks) on one row: no chips, no Key, no Next-30-minutes strip. Under the week, the phone's one switch: **My day · Everyone · My week** (`PhoneViewSwitch`; the focus and the range, `hub-schedule/focus.ts`, both remembered on the phone). | `components/ClientsView.tsx`, `PhoneDayList.tsx`, `PhoneWeekList.tsx`, `PhoneViewSwitch.tsx`, `day-list.ts`, `week-list.ts` |
 | The Active Session | The briefing, Start, every write, Finish, the Wrap-up and the watching view are the iPad's, unchanged. Only the live part is drawn differently: one **card per machine** in today's order (`PhoneSessionStage`). The briefing says once, above Start, that sessions are meant for the iPad; it is never a gate. The session bar wraps: the name first, whole. | `components/WorkoutTrackerView.tsx`, `PhoneSessionStage.tsx`, `phone-session.ts`, `briefing/BriefingScreen.tsx`, `journey-grid.css` |
 
 ## The session cards
@@ -111,12 +111,52 @@ machines on today's list, what is done kept first.
 
 ## Tests
 
-`phone-session.test.ts` and `day-list.test.ts` are the pure halves;
-`PhoneSessionStage.render.test.tsx` and `PhoneDayList.render.test.tsx` mount
-the screens. `home-screen.test.ts` counts the phone bar's bottom inset.
+`phone-session.test.ts`, `day-list.test.ts` and `week-list.test.ts` are the pure
+halves; `PhoneSessionStage.render.test.tsx`, `PhoneDayList.render.test.tsx` and
+`PhoneWeekList.render.test.tsx` mount the screens; the dense card is
+`hub-schedule/HubCard.dense.render.test.tsx`. `home-screen.test.ts` counts the phone bar's bottom inset.
 
 ## At a glance (from CLAUDE.md, Oct 9 2026)
 
 - The round is `docs/rounds/2026-10-01-journey-lite.md`.
 - Rooms tighten for a phone only (under `@media (max-width: 599px)`, or a
   container query where a part needs one), so the iPad is unchanged.
+
+## The minimalist mode (Oct 19 2026)
+
+AJ, from a phone screenshot of the Hub: the phone should help a trainer "at
+home to plan their week and know their schedules easy", and "really the
+phone mode is the minimalist mode, we can get rid of a lot of the features
+on the screen so that way we get more information on the screen". His
+answers: My week as the seven days in one scroll with headings ("3a").
+
+- **A row, not a card.** The iPad's card in a 72px box showed four bookings
+  a screen. The row is 44px: the time in its own column, the Hub's card
+  drawn dense (`HubCard` `dense`), about a dozen a screen. The card keeps
+  what the peek can't say first: the name whole, the Critical triangle, the
+  state word (In session, Not logged, Late cancel, Left open, Done), the
+  glyphs. It drops the time (the row's column), the number, "New to
+  Journey" and the service (the peek says them).
+- **My week** is the Hub's own window (hub-window.ts) laid out day by day
+  with the same column plan and the same list order, so no new read, no new
+  Mindbody call and no new index. A free day is a heading too ("Nothing
+  booked"; "Nobody booked with you." on My week), never a day gone missing;
+  a day not read yet says so under its heading. Another day's card shows
+  who and when and says nothing it hasn't worked out: the marks and the
+  number are the day on screen's (the engine runs for one day, R6). A tap
+  picks that day and opens the peek there, so the peek reads that day's
+  moments; the strip highlights the day and a strip tap scrolls the week
+  to it.
+- **Off the phone's top:** the family chips, the Key and the Next 30
+  minutes strip (the Now line says it). Kept: Schedule | Opportunities,
+  Today, Tasks with its count, the week with each day's count.
+- **One switch** under the week: My day · Everyone · My week; Day · Week
+  for someone with no column on the day. The focus (`journey.hub.focus`)
+  and the range (`journey.hub.range`) are remembered on the phone and
+  cleared by a sign-out with the rest.
+- **The bottom gap** (the Home Screen app on a phone) is the shell taking
+  the smallest height iOS reports (`home-screen/app-height.ts`), short by a
+  status bar that is about 59pt on a phone with the Dynamic Island, plus
+  the home inset painted navy under the bar. It waits for the numbers from
+  Settings → My account → This screen on a phone before the shell trusts a
+  taller height; not changed in this round.

@@ -147,6 +147,13 @@ export interface HubCardProps {
    * (speed round, Oct 5 2026, R7).
    */
   blockKey?: string;
+  /**
+   * A phone's list row (the phone minimalist round, Oct 19 2026): the name,
+   * the Critical triangle, the state word and the glyphs, and nothing the
+   * row already says or the peek says better — no time (the row's own
+   * column says it), no number, no "New to Journey" or service.
+   */
+  dense?: boolean;
   onOpen: (clientId: string, anchor: HTMLElement, blockKey?: string) => void;
 }
 
@@ -171,6 +178,7 @@ function HubCardView({
   opensPeek = true,
   readable = true,
   blockKey,
+  dense = false,
   onOpen,
 }: HubCardProps) {
   const openPeek = (clientId: string, anchor: HTMLElement) => (blockKey === undefined ? onOpen(clientId, anchor) : onOpen(clientId, anchor, blockKey));
@@ -217,8 +225,8 @@ function HubCardView({
      card with no profile, never a placeholder (card-marks, cornerNumber).
      It is never cut: a clipped "#212" reads as "#2", a confident wrong
      number (hub cherry round). */
-  const numberText = isUnlinked ? null : cornerNumber(sessionNumber, marks);
-  const restParts = cardRestWords({ booking, moments: entry?.moments, numberShown: !!numberText, newToJourney, recedes, usualService });
+  const numberText = isUnlinked || dense ? null : cornerNumber(sessionNumber, marks);
+  const restParts = dense ? [] : cardRestWords({ booking, moments: entry?.moments, numberShown: !!numberText, newToJourney, recedes, usualService });
 
   return (
     <div
@@ -229,6 +237,7 @@ function HubCardView({
       data-dim={dimmed ? "true" : undefined}
       data-words={wordy ? "all" : undefined}
       data-open={open ? "true" : undefined}
+      data-dense={dense ? "true" : undefined}
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : -1}
       aria-haspopup={interactive && opensPeek ? "dialog" : undefined}
@@ -296,7 +305,7 @@ function HubCardView({
           ) : (
             <>
               {isDone && <Check size={13} aria-label="Done" />}
-              {time}
+              {dense ? null : time}
             </>
           )}
           {/* What happened, beside the time and never cut (hub fixes, Oct 1
@@ -304,7 +313,7 @@ function HubCardView({
               a card that is over has dropped them. */}
           {isNotLogged && (
             <>
-              {" · "}
+              {dense ? null : " · "}
               <strong className="hs-card-state" title="No Journey session was completed for this client today">
                 Not logged
               </strong>
@@ -312,7 +321,7 @@ function HubCardView({
           )}
           {isDidntCome && (
             <>
-              {" · "}
+              {dense ? null : " · "}
               <strong className="hs-card-state">Late cancel</strong>
             </>
           )}
@@ -321,7 +330,7 @@ function HubCardView({
               never the red kaizen mark; the peek offers to resume or close it. */}
           {cardState === "left-open" && !isUnlinked && (
             <>
-              {" · "}
+              {dense ? null : " · "}
               <strong className="hs-card-state" title="A session was started and not finished, and nothing has been saved for over an hour">
                 {quietWord || "Left open"}
               </strong>
