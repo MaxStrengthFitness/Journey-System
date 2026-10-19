@@ -1,0 +1,2924 @@
+/* ==========================================================================
+   DESIGN 3 — THE INTERACTIVE COURSE & FIELD MANUAL (crs__)
+   The Learning vault redesign, Oct 19 2026. README.md beside this file.
+
+   Learning that teaches by doing: lessons as cards you step through, cue
+   drills you answer before you reveal, a glossary you browse as a vault, a
+   machine as a field manual with its dials pinned like a blueprint. The
+   feel is friendly and tactile (big targets, cards that slide), and still
+   Learning's: the Navy Frame, Refined Lift depth, --wk-* tokens only.
+
+   The house rules this sheet keeps (design-system.md §11):
+   - tokens only, no raw colour; blue acts and selects, green is right,
+     plum is caution, orange is Learning's brand mark (the featured course's
+     band) and nothing else, crimson is not used here;
+   - type at 11 / 12 / 14 / 17 / 22 / 30 (the search field 16); titles in
+     the display face upright 800, or 22/800, or 17/700; buttons 14/700 in
+     sentence case; no capitals style, no wide tracking, no slant;
+   - every tap 44px at least (--wk-tap); squares wide too; hover only inside
+     (hover: hover); focus is the 2px ring;
+   - panels on --wk-edge with the padding-box fill and the elev-2 lift (a
+     tile among many --wk-elev-list, the hero --wk-elev-3); a coloured band
+     is a background layer, never a thick border on a rounded box;
+   - words wrap (overflow-wrap: anywhere), never cut;
+   - motion is transform and opacity, once, and only with
+     (prefers-reduced-motion: no-preference); no blur, no will-change;
+   - one scroller (.wk__scroll): nothing here scrolls on its own.
+   ========================================================================== */
+
+/* ------------------------------------------------------------------ *
+ * The page
+ * ------------------------------------------------------------------ */
+
+.crs__page {
+  width: 100%;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding-bottom: 1.5rem;
+}
+
+.crs__head {
+  margin-top: 1.25rem;
+  min-width: 0;
+}
+.crs__eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wk-accent-text, var(--wk-ink-muted));
+  overflow-wrap: anywhere;
+}
+.crs__eyebrow--hero {
+  color: var(--wk-hero-text);
+}
+.crs__title {
+  margin: 0.25rem 0 0;
+  font-family: var(--wk-font-display);
+  font-size: 30px;
+  font-weight: 800;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.04;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__lede {
+  max-width: var(--wk-measure);
+  margin: 0.5rem 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.crs__meta {
+  margin-top: 0.5rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+.crs__draft {
+  max-width: var(--wk-measure);
+  margin: 0.5rem 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.crs__head-doors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-top: 1rem;
+}
+.crs__version {
+  margin-top: 1rem;
+}
+.crs__source {
+  max-width: var(--wk-measure);
+  margin: 1rem 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.crs__sec {
+  margin-top: 2rem;
+  min-width: 0;
+}
+.crs__sec-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.crs__h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+
+/* A well on the page ground: an empty or waiting place. */
+.crs__empty {
+  margin: 0.75rem 0 0;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ *
+ * Buttons (Learning's raised button, .wk__btn, in this design's name)
+ * ------------------------------------------------------------------ */
+
+.crs__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--wk-tap);
+  min-width: var(--wk-tap);
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.crs__btn svg {
+  flex: none;
+}
+.crs__btn:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.crs__btn:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+}
+.crs__btn:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__btn--primary {
+  border-color: var(--wk-live);
+  background: var(--wk-live);
+  color: var(--wk-live-on);
+  box-shadow: var(--wk-glow-live), var(--wk-solid-light);
+}
+.crs__btn--quiet {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--wk-live-text);
+}
+.crs__btn--big {
+  min-height: 52px;
+  padding: 0.625rem 1.25rem;
+}
+.crs__btn--icon {
+  width: var(--wk-tap);
+  padding: 0;
+}
+
+/* A door at a section's right ("The floor", "All 52 words"). */
+.crs__more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: var(--wk-tap);
+  padding: 0 0.875rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.crs__more:active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.crs__more:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+
+/* A deck chip on the Play card (a tappable chip on the 3:1 edge). */
+.crs__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: var(--wk-tap);
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.crs__chip svg {
+  flex: none;
+  color: var(--wk-live-text);
+}
+.crs__chip:active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.crs__chip:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+
+/* A machine's code: the Catalog's jersey tag, in the category's ink. */
+.crs__code {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--wk-accent-fill, var(--wk-surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent);
+  color: var(--wk-accent-text, var(--wk-ink-2));
+  font-family: var(--wk-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* ------------------------------------------------------------------ *
+ * The Overview: the featured course
+ * ------------------------------------------------------------------ */
+
+.crs__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "intro" "steps" "doors";
+  column-gap: 1.75rem;
+  margin-top: 1rem;
+  padding: calc(1.25rem + 3px) 1.25rem 1.25rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background:
+    linear-gradient(var(--wk-hero), var(--wk-hero)) top / 100% 3px no-repeat border-box,
+    var(--wk-surface) padding-box;
+  box-shadow: var(--wk-elev-3), var(--wk-panel-highlight);
+}
+.crs__hero-intro {
+  grid-area: intro;
+  min-width: 0;
+}
+.crs__hero-steps {
+  grid-area: steps;
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__hero-doors {
+  grid-area: doors;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-top: 1rem;
+}
+
+/* A lesson: a numbered row you tap to open (the hero, a course's list). */
+.crs__lesson {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  min-height: 56px;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-raised);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__lesson:active {
+  transform: translateY(1px);
+}
+.crs__lesson:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__lesson-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-live-fill);
+  color: var(--wk-live-text);
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+}
+.crs__lesson-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.crs__lesson-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__lesson-why {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.crs__lesson-kind {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-ink-muted);
+}
+.crs__lesson-kind:empty {
+  display: none;
+}
+.crs__lesson-go {
+  flex: none;
+  color: var(--wk-ink-faint);
+}
+.crs__lessons {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-width: 52rem;
+}
+
+/* ------------------------------------------------------------------ *
+ * The Overview: the other courses, each a little stack of lessons
+ * ------------------------------------------------------------------ */
+
+.crs__courses {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.375rem 0.875rem;
+}
+.crs__course {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  width: 100%;
+  min-height: 8rem;
+  padding: calc(1rem + 4px) 1rem 1rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background:
+    linear-gradient(var(--wk-accent, var(--wk-border-strong)), var(--wk-accent, var(--wk-border-strong))) top / 100% 4px no-repeat border-box,
+    var(--wk-surface) padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* The lessons under it: two cards' edges showing below, the deck it is. */
+.crs__course::before,
+.crs__course::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  border: 1px solid var(--wk-edge);
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  pointer-events: none;
+}
+/* The far card first, so the near one paints over it. */
+.crs__course::before {
+  left: 22px;
+  right: 22px;
+  height: 11px;
+  background: var(--wk-surface-3);
+}
+.crs__course::after {
+  left: 10px;
+  right: 10px;
+  height: 6px;
+  background: var(--wk-surface-2);
+}
+.crs__course:active {
+  transform: translateY(1px);
+}
+.crs__course:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__course-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__course-who {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.crs__course-meta {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.crs__course-first {
+  color: var(--wk-ink-2);
+}
+
+/* ------------------------------------------------------------------ *
+ * The Overview: Play, beside the drill of the day
+ * ------------------------------------------------------------------ */
+
+.crs__duo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.crs__play {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.crs__play-fan {
+  position: relative;
+  width: 132px;
+  height: 92px;
+  margin-bottom: 0.25rem;
+}
+.crs__fan-card {
+  position: absolute;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 80px;
+  border: 1px solid var(--wk-edge-control);
+  border-radius: 10px;
+  box-shadow: var(--wk-elev-1);
+  transform-origin: 50% 100%;
+}
+.crs__fan-card--1 {
+  left: 6px;
+  background: var(--wk-cat-hips-fill);
+  color: var(--wk-cat-hips-text);
+  transform: rotate(-14deg);
+}
+.crs__fan-card--2 {
+  left: 66px;
+  background: var(--wk-cat-push-fill);
+  color: var(--wk-cat-push-text);
+  transform: rotate(14deg);
+}
+.crs__fan-card--3 {
+  left: 36px;
+  bottom: 4px;
+  background: var(--wk-raised);
+  color: var(--wk-live-text);
+  box-shadow: var(--wk-elev-2);
+}
+.crs__play-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: var(--wk-ink);
+}
+.crs__play-words {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+}
+.crs__play-decks {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--wk-divider);
+}
+.crs__deckrow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: var(--wk-tap);
+  padding: 0.25rem 0.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--wk-divider);
+  background: transparent;
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__deckrow svg {
+  flex: none;
+  color: var(--wk-live-text);
+}
+.crs__deckrow-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.crs__deckrow .crs__deckrow-go {
+  color: var(--wk-ink-faint);
+}
+.crs__deckrow:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: -2px;
+}
+
+/* ------------------------------------------------------------------ *
+ * A drill: "What would you cue?", and the packages order
+ * ------------------------------------------------------------------ */
+
+.crs__drill {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+  padding: 1.125rem 1.125rem 1.25rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.crs__drill--wait {
+  min-height: 16rem;
+  box-shadow: var(--wk-elev-0);
+  background: var(--wk-tray);
+  border-color: transparent;
+}
+.crs__drill-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-live-text);
+}
+.crs__drill-kicker svg {
+  flex: none;
+}
+.crs__drill-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__drill[data-size="large"] .crs__drill-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+.crs__drill-eg {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--wk-ink-muted);
+}
+.crs__drill-eg svg {
+  flex: none;
+}
+/* The question, before the answer: a well inside the card. */
+.crs__drill-ask {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.crs__drill-bubble {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50% 50% 50% 8px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-edge-control);
+  color: var(--wk-live-text);
+}
+.crs__drill-prompt {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+}
+.crs__drill-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__drill-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.25rem;
+}
+.crs__drills {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr));
+  gap: 0.875rem;
+  align-items: stretch;
+}
+.crs__drills > .crs__anchor {
+  display: flex;
+}
+.crs__drills > .crs__anchor > .crs__drill {
+  flex: 1 1 auto;
+}
+.crs__drills--page {
+  margin-top: 1rem;
+}
+.crs__anchor {
+  scroll-margin-top: 1rem;
+  min-width: 0;
+}
+
+/* The order drill: holes that fill one at a time. */
+.crs__drill--order {
+  margin-top: 1rem;
+}
+.crs__order {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__order-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 52px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.crs__order-step[data-shown] {
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-list);
+}
+.crs__order-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-live-fill);
+  color: var(--wk-live-text);
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+}
+.crs__order-step .crs__line {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-top: 0.25rem;
+}
+/* The number is the order: no bullet beside it. */
+.crs__order-step .crs__line--bullet .crs__line-text {
+  padding-left: 0;
+}
+.crs__order-step .crs__line--bullet .crs__line-text::before {
+  display: none;
+}
+.crs__order-hole {
+  align-self: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+
+/* ------------------------------------------------------------------ *
+ * A line, read-only, with the studio's marks (cards and drills)
+ * ------------------------------------------------------------------ */
+
+.crs__line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.crs__line-label {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.crs__line-text {
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__line--bullet .crs__line-text {
+  position: relative;
+  padding-left: 1.25rem;
+}
+.crs__line--bullet .crs__line-text::before {
+  content: "";
+  position: absolute;
+  left: 0.25rem;
+  top: 0.62em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--wk-accent, var(--wk-live));
+}
+/* A cue is a short line said out loud: its bubble is as wide as its words. */
+.crs__line--cue {
+  align-items: flex-start;
+}
+/* What the trainer says: a speech bubble, the words in the live wash. */
+.crs__line--cue .crs__line-text,
+.crs__line--said .crs__line-text {
+  padding: 0.5rem 0.875rem;
+  border-radius: 16px 16px 16px 4px;
+  background: var(--wk-live-fill);
+  font-weight: 600;
+  line-height: 1.5;
+}
+/* What the trainer does: quieter, on a well. */
+.crs__line--do .crs__line-text {
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: var(--wk-surface-2);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink-2);
+}
+.crs__line-head {
+  margin: 0.25rem 0 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__line-head--subheading {
+  font-size: 14px;
+  color: var(--wk-ink-2);
+}
+
+.crs__struck {
+  color: var(--wk-ink-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.crs__line[data-struck] .crs__line-text {
+  background: transparent;
+  padding-left: 0;
+}
+/* The studio's marks: a reason, what it does instead, a note (as the page draws them). */
+.crs__instead,
+.crs__why,
+.crs__note {
+  display: block;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0 10px 10px 0;
+  background:
+    linear-gradient(var(--wk-border-strong), var(--wk-border-strong)) left / 3px 100% no-repeat,
+    var(--wk-surface-2);
+  overflow-wrap: anywhere;
+}
+.crs__instead {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--wk-ink);
+}
+.crs__why {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+}
+.crs__instead + .crs__why {
+  margin-top: -0.25rem;
+  border-radius: 0 0 10px 0;
+}
+.crs__note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.crs__note-body {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink);
+}
+.crs__note-by {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+}
+.crs__hidden {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0.5rem 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+.crs__hidden svg {
+  flex: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * The step deck: one card at a time
+ * ------------------------------------------------------------------ */
+
+.crs__mode {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 100%;
+  margin-top: 1.25rem;
+  padding: 3px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.crs__mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--wk-tap);
+  padding: 0.375rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+}
+/* The picked segment is raised out of the well, so it takes the 3:1 control
+   edge of its own (a transparent one holds its place when it is not). */
+.crs__mode-btn[aria-pressed="true"] {
+  border-color: var(--wk-border-strong);
+  background: var(--wk-raised);
+  color: var(--wk-live-text);
+  font-weight: 700;
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+}
+.crs__mode-btn:active {
+  transform: translateY(1px);
+}
+.crs__mode-btn:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 1px;
+}
+
+.crs__deck {
+  max-width: 50rem;
+  margin-top: 1rem;
+  outline: none;
+}
+.crs__deck-stage {
+  touch-action: pan-y;
+  overflow-x: clip;
+  padding: 2px 2px 6px;
+  margin: -2px -2px -6px;
+  scroll-margin-top: 1rem;
+}
+.crs__card {
+  display: flex;
+  flex-direction: column;
+  min-height: 18rem;
+  padding: 1.5rem 1.5rem 1.375rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.crs__card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: var(--wk-measure);
+}
+.crs__part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.crs__part-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__part-title[data-continued] {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--wk-ink-muted);
+}
+.crs__part-note {
+  margin: -0.375rem 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.crs__part-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+.crs__card-last {
+  margin-top: auto;
+  padding-top: 1.25rem;
+}
+.crs__again {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.crs__again-next {
+  flex: 1 0 100%;
+  margin: 0 0 0.25rem;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+/* Cards or the whole page, with the read time and the draft line beside it. */
+.crs__lesson-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 1rem;
+}
+.crs__lesson-bar .crs__mode {
+  margin-top: 0;
+}
+.crs__lesson-note {
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The deck's own bar: Back, where you are, Next. It rides the foot of the
+   screen while the deck is in view, so Next is always under the thumb. An
+   opaque ground, the scroller's padding taken back (the sticky rule). */
+.crs__deck-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.25rem -1rem 0;
+  padding: 1.25rem 1rem 0.75rem;
+  /* The card's words fade under the bar rather than being cut by it. */
+  background: linear-gradient(to bottom, transparent, var(--wk-bg) 1.125rem);
+}
+.crs__deck-back,
+.crs__deck-next {
+  min-height: 52px;
+  padding: 0.5rem 1.125rem;
+}
+.crs__deck-next {
+  min-width: 8.5rem;
+}
+.crs__deck-spacer {
+  min-width: 8.5rem;
+}
+.crs__dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.crs__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--wk-surface-3);
+  box-shadow: inset 0 0 0 1px var(--wk-edge-control);
+}
+.crs__dot[data-done] {
+  background: var(--wk-border-strong);
+}
+.crs__dot[data-on] {
+  width: 26px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-live);
+  box-shadow: none;
+}
+.crs__progress {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+.crs__progress-bar {
+  position: relative;
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface-3);
+  overflow: hidden;
+}
+.crs__progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-live);
+}
+.crs__progress-words {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-ink-2);
+}
+
+/* The last card: Check yourself and the next lesson. */
+.crs__end {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.crs__end-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--wk-ink);
+}
+.crs__end-doors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+.crs__end-next {
+  justify-content: space-between;
+  min-height: 60px;
+  text-align: left;
+}
+.crs__end-next-words {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.crs__end-next-kicker {
+  font-size: 12px;
+  font-weight: 600;
+}
+.crs__end-next-title {
+  font-size: 17px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* Check yourself */
+.crs__check-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--wk-ink);
+}
+.crs__check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__q {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.crs__q-prompt {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__q-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface-2);
+  box-shadow: inset 0 0 0 1px var(--wk-edge-control);
+  color: var(--wk-ink-2);
+  font-size: 14px;
+  font-weight: 700;
+}
+.crs__q-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+.crs__q-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 52px;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.crs__q-opt:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.crs__q-opt:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__q-opt:disabled {
+  cursor: default;
+}
+.crs__q-opt[data-state="right"] {
+  border-color: var(--wk-ok);
+  background: var(--wk-ok-fill);
+  color: var(--wk-ink);
+  box-shadow: none;
+}
+.crs__q-opt[data-state="picked"] {
+  border-color: var(--wk-border-strong);
+  background: var(--wk-surface-2);
+  box-shadow: none;
+}
+.crs__q-opt[data-state="rest"] {
+  opacity: 0.6;
+  box-shadow: none;
+}
+.crs__q-tick {
+  flex: none;
+  color: var(--wk-ok);
+}
+.crs__q-yours {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-ink-2);
+}
+.crs__q-why {
+  padding: 0.75rem 0.875rem;
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.crs__q-verdict {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wk-ink);
+}
+.crs__q-verdict[data-right] {
+  color: var(--wk-ok);
+}
+.crs__q-explain {
+  margin: 0.25rem 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink);
+}
+.crs__q-source {
+  margin: 0.375rem 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* The whole page, through ArticleBlocks (where a line takes actions). */
+.crs__whole {
+  margin-top: 1rem;
+  max-width: 50rem;
+}
+
+/* The lesson and, on a wide screen, its course beside it. */
+.crs__lesson-layout {
+  min-width: 0;
+}
+.crs__lesson-main {
+  min-width: 0;
+}
+.crs__rail {
+  display: none;
+}
+.crs__rail-title {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--wk-tap);
+  padding: 0.25rem 0.625rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.crs__rail-title:focus-visible,
+.crs__rail-row:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: -2px;
+}
+.crs__rail-list {
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__rail-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: var(--wk-tap);
+  padding: 0.375rem 0.625rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__rail-row[aria-current="page"] {
+  background:
+    linear-gradient(var(--wk-live), var(--wk-live)) left / 3px 100% no-repeat,
+    var(--wk-live-fill);
+  border-radius: 0 10px 10px 0;
+  color: var(--wk-ink);
+  font-weight: 700;
+  cursor: default;
+}
+.crs__rail-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface-2);
+  box-shadow: inset 0 0 0 1px var(--wk-edge-control);
+  font-family: var(--wk-font-display);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--wk-ink-2);
+}
+.crs__rail-row[aria-current="page"] .crs__rail-n {
+  background: var(--wk-live);
+  box-shadow: none;
+  color: var(--wk-live-on);
+}
+.crs__rail-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ *
+ * A course's place: the lesson bar over a lesson
+ * ------------------------------------------------------------------ */
+
+.crs__coursebar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 50rem;
+  margin-top: 1rem;
+  padding: 0.375rem 0.375rem 0.375rem 0.5rem;
+  border-radius: var(--wk-radius);
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+}
+.crs__coursebar-name {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  min-height: var(--wk-tap);
+  justify-content: center;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__coursebar-name:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 1px;
+}
+.crs__coursebar-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wk-live-text);
+  overflow-wrap: anywhere;
+}
+.crs__coursebar-at {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-2);
+}
+.crs__coursebar-steps {
+  flex: none;
+  display: flex;
+  gap: 0.375rem;
+}
+
+/* ------------------------------------------------------------------ *
+ * The field manual: the blueprint, Stop, the drills, the manual
+ * ------------------------------------------------------------------ */
+
+/* Blueprint paper: a fine grid in the divider ink, under the panel's fill. */
+.crs__blueprint {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background:
+    linear-gradient(var(--wk-divider) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--wk-divider) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--wk-surface) padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.crs__bp-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.crs__bp-body {
+  width: 100%;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.crs__bp-body > * {
+  max-height: 100%;
+}
+.crs__bp-body svg {
+  height: 100%;
+  max-height: 100%;
+  width: auto;
+  max-width: 100%;
+}
+.crs__bp-body--none {
+  height: 0;
+}
+.crs__bp-works {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__bp-works li {
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-live-fill);
+  color: var(--wk-live-text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.crs__bp-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+}
+.crs__pins {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* A pin: its number on the drawing, the dial's name, this unit's number. */
+.crs__pin {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 64px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-raised);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.crs__pin {
+  border-color: var(--wk-border-strong);
+  cursor: pointer;
+}
+button.crs__pin:active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+button.crs__pin:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__pin-head {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50% 50% 50% 4px;
+  background: var(--wk-live);
+  color: var(--wk-live-on);
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  box-shadow: var(--wk-elev-1);
+}
+.crs__pin-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.crs__pin-label {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__pin-value {
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--wk-ink);
+}
+.crs__pin-value[data-unset] {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+.crs__pin-go {
+  flex: none;
+  color: var(--wk-live-text);
+}
+.crs__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 36px;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface-2);
+  box-shadow: inset 0 0 0 1px var(--wk-edge-control);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__facts li svg {
+  flex: none;
+  color: var(--wk-ink-2);
+}
+.crs__facts li[data-tone="warn"] {
+  background: var(--wk-warn-fill);
+  box-shadow: inset 0 0 0 1px var(--wk-warn-border);
+  color: var(--wk-warn);
+}
+.crs__facts li[data-tone="warn"] svg {
+  color: var(--wk-warn);
+}
+
+/* Stop: the lines a trainer must not miss. Plum, never folded. */
+.crs__stop {
+  margin-top: 1.25rem;
+  padding: calc(1rem + 3px) 1.125rem 1.125rem;
+  border: 1px solid var(--wk-warn-border);
+  border-radius: var(--wk-radius-lg);
+  background:
+    linear-gradient(var(--wk-warn), var(--wk-warn)) top / 100% 3px no-repeat border-box,
+    var(--wk-warn-fill) padding-box;
+}
+.crs__stop-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--wk-warn);
+}
+.crs__stop-title svg {
+  flex: none;
+}
+.crs__stop-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  max-width: var(--wk-measure);
+}
+.crs__stop-lines .crs__line-text {
+  font-size: 14px;
+  line-height: 1.55;
+}
+.crs__stop-lines .crs__line-label {
+  color: var(--wk-warn);
+}
+
+/* The manual's chapters: a jump to each tier's first section. */
+.crs__tiers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.5rem;
+  max-width: 50rem;
+}
+.crs__tier {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: var(--wk-tap);
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.crs__tier[aria-pressed="true"] {
+  border-color: var(--wk-live);
+  background: var(--wk-live-fill);
+  color: var(--wk-live-text);
+}
+.crs__tier[aria-pressed="true"] .crs__tier-n {
+  background: var(--wk-live);
+  box-shadow: none;
+  color: var(--wk-live-on);
+}
+.crs__tier:active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.crs__tier:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__tier-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface-2);
+  box-shadow: inset 0 0 0 1px var(--wk-edge-control);
+  font-family: var(--wk-font-display);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--wk-ink-2);
+}
+.crs__manual .crs__whole {
+  margin-top: 0.5rem;
+}
+
+/* Read next: link cards that peek. */
+.crs__links {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 60px;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__link--wide {
+  max-width: 50rem;
+}
+.crs__link:active {
+  transform: translateY(1px);
+}
+.crs__link:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__link-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.crs__link-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__link-why {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.crs__link-go {
+  flex: none;
+  color: var(--wk-live-text);
+}
+
+/* ------------------------------------------------------------------ *
+ * The Overview's floor and the Catalog's route
+ * ------------------------------------------------------------------ */
+
+.crs__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__tile {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 52px;
+  padding: 0.375rem 0.625rem 0.375rem calc(0.625rem + 3px);
+  border: 1px solid var(--wk-edge);
+  border-radius: 12px;
+  background:
+    linear-gradient(var(--wk-accent, var(--wk-border-strong)), var(--wk-accent, var(--wk-border-strong))) left / 3px 100% no-repeat border-box,
+    var(--wk-surface) padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__tile:active {
+  transform: translateY(1px);
+}
+.crs__tile:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__tile-n {
+  flex: none;
+  min-width: 1.5rem;
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--wk-ink-muted);
+  text-align: right;
+}
+.crs__tile-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__tile .crs__code {
+  min-width: 40px;
+  font-size: 12px;
+}
+
+/* The Catalog: the floor as a walk, stop by stop, joined by a line. */
+.crs__route {
+  position: relative;
+  display: grid;
+  gap: 0.5rem;
+  max-width: 50rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__route::before {
+  content: "";
+  position: absolute;
+  left: 27px;
+  top: 28px;
+  bottom: 28px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--wk-border-strong);
+  opacity: 0.5;
+}
+.crs__stop-row {
+  position: relative;
+}
+.crs__station {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  min-height: 60px;
+  padding: 0.5rem 0.875rem 0.5rem 0.625rem;
+  border: 0;
+  border-radius: var(--wk-radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__station:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 0;
+}
+.crs__station-n {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 0 0 2px var(--wk-accent, var(--wk-border-strong));
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--wk-ink);
+}
+.crs__station-card {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 56px;
+  padding: 0.5rem 0.625rem 0.5rem 0.875rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: 12px;
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+}
+.crs__station-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.crs__station-name {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__station-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.crs__station-tags:empty {
+  display: none;
+}
+.crs__station-go {
+  flex: none;
+  color: var(--wk-ink-faint);
+}
+.crs__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+}
+.crs__tag svg {
+  flex: none;
+}
+.crs__tag[data-tone="warn"] {
+  color: var(--wk-warn);
+}
+
+.crs__others {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__other {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 52px;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: 12px;
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__other:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__other-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ *
+ * The Academy: practise doors, modules, playbooks
+ * ------------------------------------------------------------------ */
+
+.crs__doors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+.crs__door {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  min-height: 8rem;
+  padding: 1rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__door:active {
+  transform: translateY(1px);
+}
+.crs__door:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__door-icon {
+  flex: none;
+  color: var(--wk-live-text);
+}
+.crs__door-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__door-words {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.crs__modules {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__module {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 64px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__module:active {
+  transform: translateY(1px);
+}
+.crs__module:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__module-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: inset 0 0 0 1px var(--wk-edge-control);
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--wk-ink);
+}
+.crs__module-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.crs__module-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__module-meta {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+}
+.crs__module-go {
+  flex: none;
+  color: var(--wk-ink-faint);
+}
+
+.crs__pillars {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.875rem;
+  margin-top: 0.875rem;
+}
+.crs__pillar {
+  min-width: 0;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  overflow: hidden;
+}
+.crs__pillar-title {
+  margin: 0;
+  padding: 0.75rem 0.875rem 0.5rem;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.crs__pillar-list {
+  margin: 0;
+  padding: 0 0 0.25rem;
+  list-style: none;
+}
+.crs__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--wk-tap);
+  padding: 0.25rem 0.875rem;
+  border: 0;
+  border-top: 1px solid var(--wk-divider);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__row:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: -2px;
+}
+.crs__row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__row-go {
+  flex: none;
+  color: var(--wk-ink-faint);
+}
+
+/* ------------------------------------------------------------------ *
+ * The glossary vault
+ * ------------------------------------------------------------------ */
+
+.crs__vault {
+  margin-top: 1rem;
+}
+/* The vault's bar: search, filter, the letters. It stays at the top while
+   the cards scroll (an opaque ground, the scroller's padding taken back). */
+.crs__vault-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 -1rem;
+  padding: 0.625rem 1rem;
+  background: var(--wk-bg);
+  box-shadow: var(--wk-shelf);
+}
+.crs__vault[data-phone] .crs__vault-bar {
+  position: static;
+  box-shadow: none;
+}
+.crs__vault-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.crs__find {
+  flex: 1 1 15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: var(--wk-tap);
+  padding: 0 0.25rem 0 0.875rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-surface);
+  color: var(--wk-ink-muted);
+}
+.crs__find:focus-within {
+  border-color: var(--wk-live);
+  box-shadow: 0 0 0 3px var(--wk-live-fill);
+}
+.crs__find svg {
+  flex: none;
+}
+.crs__find-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 42px;
+  border: 0;
+  background: transparent;
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.crs__find-input::-webkit-search-cancel-button {
+  display: none;
+}
+.crs__find-clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--wk-tap);
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  cursor: pointer;
+}
+.crs__find-clear:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: -2px;
+}
+.crs__filters {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.crs__filter {
+  min-height: 40px;
+  padding: 0.25rem 0.875rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* As the mode switch's: the picked filter raised, on its own 3:1 edge. */
+.crs__filter[aria-pressed="true"] {
+  border-color: var(--wk-border-strong);
+  background: var(--wk-raised);
+  color: var(--wk-live-text);
+  font-weight: 700;
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+}
+.crs__filter:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 1px;
+}
+.crs__az {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 4px;
+}
+.crs__az-btn {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  height: var(--wk-tap);
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 10px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.crs__az-btn:active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.crs__az-btn:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 1px;
+}
+.crs__vault-group {
+  margin-top: 1.25rem;
+}
+.crs__vault-letter {
+  margin: 0 0 0.625rem;
+  font-family: var(--wk-font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink);
+  scroll-margin-top: var(--crs-bar-h, 10rem);
+}
+.crs__vault[data-phone] .crs__vault-letter {
+  scroll-margin-top: 1rem;
+}
+.crs__vault-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+}
+.crs__vcard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem 1rem 0.5rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  scroll-margin-top: var(--crs-bar-h, 10rem);
+}
+.crs__vcard[data-open] {
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.crs__vcard-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+}
+.crs__vcard-term {
+  margin: 0;
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__vcard-kind {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-cat-posterior-text);
+}
+.crs__vcard-first {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.crs__vcard-full {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.crs__vcard-full .crs__line-text {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.crs__vcard-more {
+  align-self: flex-start;
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: var(--wk-tap);
+  margin-left: -0.5rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.crs__vcard-more:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 1px;
+}
+.crs__taught {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--wk-divider);
+}
+.crs__taught-title {
+  margin: 0 0 0.25rem;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-ink-2);
+}
+.crs__taught-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crs__taught-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--wk-tap);
+  padding: 0.25rem 0.5rem;
+  margin-left: -0.5rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.crs__taught-row svg {
+  flex: none;
+}
+.crs__taught-row:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: -2px;
+}
+
+/* A glossary term on the Overview: a small card that opens the vault on it. */
+.crs__vault-peek {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+.crs__term {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  min-height: 7rem;
+  padding: 1rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__term:active {
+  transform: translateY(1px);
+}
+.crs__term:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__term-word {
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.crs__term-first {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* Head office's door on the Overview. */
+.crs__queue {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  min-height: 64px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.crs__queue:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.crs__queue-icon {
+  flex: none;
+  color: var(--wk-live-text);
+}
+.crs__queue-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.crs__queue-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--wk-ink);
+}
+.crs__queue-meta {
+  font-size: 14px;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ *
+ * Waiting, moved, the peek, the quiz
+ * ------------------------------------------------------------------ */
+
+.crs__state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 34rem;
+  margin: 2.5rem auto 0;
+  padding: 1.5rem;
+  border-radius: var(--wk-radius-lg);
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+}
+.crs__state-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--wk-ink);
+}
+.crs__state-words {
+  margin: 0 0 0.5rem;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+}
+
+.crs__peek {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.crs__peek-lede {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+}
+.crs__peek-wait {
+  padding: 1.5rem 0;
+}
+
+.crs__quiz {
+  margin-top: 0.5rem;
+}
+.crs__queue-page {
+  margin-top: 0.75rem;
+}
+.crs__scrubber {
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Hover, where there is a pointer to hover with
+ * ------------------------------------------------------------------ */
+
+@media (hover: hover) {
+  .crs__btn:not(:disabled):not(.crs__btn--primary):hover,
+  .crs__chip:hover,
+  .crs__more:hover,
+  .crs__tier:hover,
+  .crs__az-btn:hover,
+  button.crs__pin:hover {
+    border-color: var(--wk-live);
+  }
+  .crs__lesson:hover,
+  .crs__course:hover,
+  .crs__tile:hover,
+  .crs__link:hover,
+  .crs__door:hover,
+  .crs__module:hover,
+  .crs__term:hover,
+  .crs__other:hover,
+  .crs__queue:hover {
+    border-color: var(--wk-edge-control);
+  }
+  .crs__station:hover .crs__station-card {
+    border-color: var(--wk-edge-control);
+  }
+  .crs__row:hover,
+  .crs__rail-title:hover,
+  .crs__rail-row:not([aria-current]):hover,
+  .crs__deckrow:hover,
+  .crs__taught-row:hover,
+  .crs__vcard-more:hover,
+  .crs__coursebar-name:hover {
+    background: var(--wk-surface-2);
+  }
+  .crs__q-opt:not(:disabled):hover {
+    border-color: var(--wk-live);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Wider screens: the blueprint's two columns, the vault's three
+ * ------------------------------------------------------------------ */
+
+@media (min-width: 560px) {
+  .crs__courses {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 700px) {
+  .crs__courses {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .crs__blueprint {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    align-items: start;
+    padding: 1.25rem;
+  }
+  .crs__bp-body {
+    height: 340px;
+  }
+}
+
+/* A lesson with its course beside it, while the peek is not docked there. */
+@media (min-width: 1100px) {
+  .crs__lesson-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 50rem) minmax(14rem, 1fr);
+    gap: 1.75rem;
+    align-items: start;
+  }
+  .crs__rail {
+    position: sticky;
+    top: 1rem;
+    display: block;
+    max-width: 22rem;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    border: 1px solid var(--wk-edge);
+    border-radius: var(--wk-radius);
+    background: var(--wk-surface);
+    background-clip: padding-box;
+    box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  }
+  /* The rail names the course and its lessons, so the bar over the lesson goes. */
+  .crs__lesson-layout .crs__coursebar {
+    display: none;
+  }
+  .vtp__frame--open .crs__lesson-layout {
+    display: block;
+  }
+  .vtp__frame--open .crs__lesson-layout .crs__coursebar {
+    display: flex;
+  }
+  .vtp__frame--open .crs__rail {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  /* The featured course in two columns: its name and doors, its first lessons. */
+  .crs__hero {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    grid-template-areas: "intro steps" "doors steps";
+    grid-template-rows: auto 1fr;
+    padding: calc(1.5rem + 3px) 1.5rem 1.5rem;
+  }
+  .crs__hero-steps {
+    margin-top: 0;
+  }
+  .crs__hero-doors {
+    align-self: end;
+  }
+  .crs__vault-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  /* With the peek docked beside the page, the vault keeps two columns. */
+  .vtp__frame--open .crs__vault-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .crs__route {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+    column-gap: 1.5rem;
+  }
+  .crs__route::before {
+    display: none;
+  }
+}
+
+/* A phone: one column, nothing side by side. */
+@media (max-width: 599px) {
+  .crs__vault-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .crs__hero {
+    padding: calc(1rem + 3px) 1rem 1rem;
+  }
+  .crs__bp-body {
+    height: 240px;
+  }
+  .crs__card {
+    min-height: 14rem;
+    padding: 1.125rem 1rem 1rem;
+  }
+  .crs__line-text {
+    font-size: 17px;
+  }
+  .crs__deck-btn-words {
+    display: none;
+  }
+  .crs__deck-back {
+    width: 52px;
+    padding: 0;
+  }
+  .crs__deck-next,
+  .crs__deck-spacer {
+    min-width: 7rem;
+  }
+  .crs__duo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .crs__route::before {
+    left: 27px;
+  }
+  .crs__station {
+    padding-right: 0.25rem;
+  }
+  .crs__station-go {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Motion that teaches: a card slides in from the side it came from, a
+ * drill's lines arrive one after another, the Play cards fan out once.
+ * Transform and opacity only, once, never with reduced motion.
+ * ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .crs__card[data-dir="next"] {
+    animation: crs-from-right 240ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .crs__card[data-dir="back"] {
+    animation: crs-from-left 240ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .crs__drill-lines > li {
+    animation: crs-rise 260ms ease-out both;
+  }
+  .crs__order-step[data-shown] .crs__line {
+    animation: crs-rise 240ms ease-out both;
+  }
+  .crs__q-why {
+    animation: crs-rise 220ms ease-out both;
+  }
+  .crs__fan-card--1 {
+    animation: crs-fan-left 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .crs__fan-card--2 {
+    animation: crs-fan-right 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .crs__lesson,
+  .crs__course,
+  .crs__tile,
+  .crs__link,
+  .crs__door,
+  .crs__module,
+  .crs__term,
+  .crs__station-card,
+  .crs__dot {
+    transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease;
+  }
+}
+
+@keyframes crs-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes crs-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes crs-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes crs-fan-left {
+  from {
+    transform: rotate(0deg) translateX(30px);
+  }
+  to {
+    transform: rotate(-14deg);
+  }
+}
+@keyframes crs-fan-right {
+  from {
+    transform: rotate(0deg) translateX(-30px);
+  }
+  to {
+    transform: rotate(14deg);
+  }
+}
