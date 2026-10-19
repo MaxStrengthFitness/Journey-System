@@ -112,13 +112,20 @@ export interface DayHeaderProps {
    */
   chips?: ReadonlyArray<SummaryChip>;
   onSpot?: (family: MomentFamily) => void;
+  /**
+   * A phone (the phone minimalist round, Oct 19 2026; AJ: "get rid of a lot
+   * of the features on the screen"): the layers and the tools on one row, no
+   * chips and no Key. The marks' words are in the peek; the counts are the
+   * Opportunities layer's.
+   */
+  phone?: boolean;
 }
 
-export function DayHeader({ layer, onLayer, days, selected, onSelectDay, openTasks, onOpenTasks, onOpenKey, chips, onSpot }: DayHeaderProps) {
+export function DayHeader({ layer, onLayer, days, selected, onSelectDay, openTasks, onOpenTasks, onOpenKey, chips, onSpot, phone = false }: DayHeaderProps) {
   const today = days.find((d) => d.isToday);
-  const hasChips = Boolean(chips && chips.length > 0 && onSpot);
+  const hasChips = Boolean(chips && chips.length > 0 && onSpot && !phone);
   return (
-    <div className="hd">
+    <div className="hd" data-phone={phone ? "true" : undefined}>
       {/* ONE COMMAND BAR (AJ, Oct 3 2026, direction B): where you are, what is
           in front of you today, and the tools, on one surface split by
           hairlines. It never wraps: the chips give up room and scroll first. */}
@@ -141,10 +148,12 @@ export function DayHeader({ layer, onLayer, days, selected, onSelectDay, openTas
               {openTasks ? <strong className="hd-count">{openTasks}</strong> : null}
             </button>
           )}
-          <button type="button" className="hd-btn" onClick={onOpenKey} aria-label="Key: what the marks mean">
-            <KeyRound size={16} aria-hidden />
-            <span className="hd-btn-word">{"Key"}</span>
-          </button>
+          {!phone && (
+            <button type="button" className="hd-btn" onClick={onOpenKey} aria-label="Key: what the marks mean">
+              <KeyRound size={16} aria-hidden />
+              <span className="hd-btn-word">{"Key"}</span>
+            </button>
+          )}
         </div>
       </div>
       <div className="hd-week" role="tablist" aria-label="Pick a day">

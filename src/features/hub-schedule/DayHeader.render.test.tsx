@@ -198,3 +198,22 @@ describe("the chips, with Get to know (wave 2 hub)", () => {
     expect(el.querySelectorAll(".hd-bar .hd-rule")).toHaveLength(1);
   });
 });
+
+describe("on a phone, the minimalist mode (Oct 19 2026)", () => {
+  it("keeps the layers, Today and Tasks, and draws no chips and no Key", () => {
+    const { el, calls } = header({
+      phone: true,
+      selected: "2026-09-29",
+      chips: [{ id: "celebrate", label: "Celebrate", count: 1 }],
+      onSpot: () => {},
+    });
+    expect(el.querySelector(".hd")?.getAttribute("data-phone")).toBe("true");
+    expect(el.querySelector(".hd-chips")).toBeNull();
+    expect(btn(el, "Key")).toBeUndefined();
+    expect(btn(el, "Today")).toBeDefined();
+    expect(btn(el, "Tasks")).toBeDefined();
+    act(() => btn(el, "Tasks")!.click());
+    expect(calls.tasks).toBe(1);
+    expect(el.querySelectorAll(".hd-day").length).toBe(3);
+  });
+});

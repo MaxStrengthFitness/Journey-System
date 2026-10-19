@@ -64,7 +64,7 @@ const rows = () => Array.from(host!.querySelectorAll(".ph-day__list > li")).map(
 describe("PhoneDayList", () => {
   it("lists everyone's bookings in time order, never an Unavailable block", () => {
     mount(null, null);
-    expect(rows()).toEqual(["6AMFrodo Bagginswith you", "6:30AMMeriadoc Brandybuckwith Sam", "7AMPeregrin Tookwith you"]);
+    expect(rows()).toEqual(["6AMwith youFrodo Baggins", "6:30AMwith SamMeriadoc Brandybuck", "7AMwith youPeregrin Took"]);
   });
 
   it("narrows to your own on Me, and puts Now where the day is", () => {

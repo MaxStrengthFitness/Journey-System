@@ -624,3 +624,15 @@
     display: block;
   }
 }
+
+/* ---- on a phone, the minimalist mode (Oct 19 2026) ----
+   The layers and the tools (Today, Tasks) share ONE row: no chips, no Key
+   (DayHeader's `phone`). Under the week, the phone's own switch (My day ·
+   Everyone · My week, features/phone/PhoneViewSwitch) takes the line the
+   Focus switch had. */
+@container (max-width: 520px) {
+  .hd[data-phone="true"] .hd-bar { flex-wrap: nowrap; }
+  .hd[data-phone="true"] .hd-bar .hl-switch { flex: 1 1 auto; min-width: 0; }
+  .hd[data-phone="true"] .hd-bar .hd-gap { display: none; }
+  .hd[data-phone="true"] .hd-bar .hd-rule--tools { display: block; }
+}
