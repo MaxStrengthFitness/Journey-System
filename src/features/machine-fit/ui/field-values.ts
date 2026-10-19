@@ -8,6 +8,7 @@
  * fact. This file is the only place that crosses the line, in both directions.
  */
 
+import { isSeatBelt } from "../../equipment/seat-belt";
 import { displayValue } from "../../equipment/setting-suggestions";
 import type { SettingFieldSpec } from "../../equipment/types";
 import { normalizeSettingKey, normalizeSettingValue } from "../../machine-trends/trends";
@@ -26,11 +27,17 @@ export interface FitField {
   ghost: string | null;
 }
 
-/** A machine's fields with their engine keys. Two fields that normalise alike keep the first. */
+/**
+ * A machine's fields with their engine keys. Two fields that normalise alike
+ * keep the first. The seat belt is never one (Oct 19 2026): a belt is not a
+ * position that follows a body, so machine fit neither suggests nor judges
+ * it (equipment/seat-belt.ts). Setup draws it on its own.
+ */
 export function toFitFields(specs: readonly SettingFieldSpec[]): FitField[] {
   const seen = new Set<string>();
   const out: FitField[] = [];
   for (const f of specs) {
+    if (isSeatBelt(f.key) || isSeatBelt(f.label)) continue;
     const nk = normalizeSettingKey(f.key) || normalizeSettingKey(f.label);
     if (!nk || seen.has(nk)) continue;
     seen.add(nk);

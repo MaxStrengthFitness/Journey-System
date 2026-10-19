@@ -35,6 +35,7 @@ import { machineNoteCount, machineNoteLoudness } from "./machine-notes";
 import { MACHINE_DATABASE, type MachineKnowledge } from "../../data/machine-database";
 import { CANONICAL_TO_DB_KEY, canonicalMachineId } from "../catalog/machine-identity";
 import { isAbsoluteDial } from "./absolute-dials";
+import { withSeatBelt } from "./seat-belt";
 import { toIsoDay } from "../../lib/client-rollups";
 import { performedOnly } from "../../lib/set-outcome";
 import { tutOf } from "../clinical-review/facts";
@@ -204,7 +205,9 @@ export function buildFields(
     fields.push(specFromCatalogField(f, ghostFor(f.key, f.label)));
   }
 
-  return fields;
+  // 3. The seat belt, last, on every unit the studio hasn't said has none
+  //    (the seat belt round, Oct 19 2026; ./seat-belt.ts).
+  return withSeatBelt(fields, machine);
 }
 
 /**

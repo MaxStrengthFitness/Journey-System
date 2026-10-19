@@ -40,6 +40,7 @@
  * PURE — no React, no Firestore.
  */
 import { absoluteValueFor } from "../equipment/adapters";
+import { isSeatBelt } from "../equipment/seat-belt";
 import type { SettingSource } from "../machine-fit/types";
 import { HELD_SETUP_LINE } from "../open-session/held-setup";
 import { UNDO_REASON, type SettingPair } from "./setting-history";
@@ -150,9 +151,14 @@ export function changedKeys(fields: readonly DraftField[], draft: Values, saved:
  * Quick set-up: the empty dials, in order
  * ------------------------------------------------------------------ */
 
-/** The dials with nothing on them in this draft, in the field order. */
+/**
+ * The dials with nothing on them in this draft, in the field order. The seat
+ * belt is never one (the seat belt round, Oct 19 2026): nothing recorded
+ * there is not a dial left to fill, so it is not "1 not set" on the Now Bar,
+ * and Set up and Enter never stop on it (it is three buttons, not typed).
+ */
 export function emptyDials(fields: readonly DraftField[], draft: Values): string[] {
-  return fields.filter((f) => clean(draft[f.key]) === "").map((f) => f.key);
+  return fields.filter((f) => !isSeatBelt(f.key) && clean(draft[f.key]) === "").map((f) => f.key);
 }
 
 /** The first empty dial, where Set up opens the card; null when every dial has a value. */
@@ -188,7 +194,7 @@ export function notSetCount(fields: readonly DraftField[], saved: Values): numbe
 /** The empty dials that have a studio standard, dial key → the standard. */
 export function standardsForEmpty(fields: readonly DraftField[], draft: Values): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const f of fields) if (clean(draft[f.key]) === "" && clean(f.ghost) !== "") out[f.key] = clean(f.ghost);
+  for (const f of fields) if (!isSeatBelt(f.key) && clean(draft[f.key]) === "" && clean(f.ghost) !== "") out[f.key] = clean(f.ghost);
   return out;
 }
 

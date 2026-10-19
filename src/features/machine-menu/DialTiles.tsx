@@ -96,6 +96,7 @@ import { useUnsavedChanges } from "../unsaved-changes";
 import { saveSettings, type JournalContext, type MutationAuthor, type SaveSettingsResult } from "../equipment/mutations";
 import { parseHeightInches, suggestFromTrend } from "../equipment/setting-suggestions";
 import type { EquipmentMachine, SettingFieldSpec } from "../equipment/types";
+import { SEAT_BELT_CHOICES, beltChoiceOf, isSeatBelt } from "../equipment/seat-belt";
 import { useMachineTrend } from "../equipment/useMachineTrend";
 import type { FitData } from "../machine-fit/fit-store";
 import { acknowledgeFlag } from "../machine-fit/setup-save";
@@ -869,7 +870,56 @@ export function DialTiles({
 
   /* ---------------- drawing ---------------- */
 
+  /**
+   * The seat belt (the seat belt round, Oct 19 2026; AJ's "Aa"): the tile IS
+   * the switch, three buttons where a value sits (On · Off · Not needed),
+   * the chosen one filled blue. A tap is a change like any dial's: the tile
+   * turns blue with "was On", the change strip opens, and Save closes the
+   * card. No editor, no Use (nobody sets a standard for it), and nothing
+   * recorded is "Not set", never Off.
+   */
+  const beltTile = (f: TileField) => {
+    const state = tileState(f, draft, base);
+    const was = wasWords(state);
+    const value = clean(draft[f.key]);
+    const picked = beltChoiceOf(value) ?? value;
+    return (
+      <div className="mm-tile" key={f.key} data-dial={f.key} data-belt="" data-changed={state.was !== null ? "true" : undefined}>
+        <div className="mm-tile__label">
+          <span>{f.label}</span>
+        </div>
+        {readOnly ? (
+          state.kind === "empty" ? (
+            <span className="mm-tile__notset">Not set</span>
+          ) : (
+            <span className="mm-tile__word">{value}</span>
+          )
+        ) : (
+          <div className="mm-belt" role="group" aria-label={f.label}>
+            {SEAT_BELT_CHOICES.map((choice) => (
+              <button
+                key={choice}
+                type="button"
+                className="mm-opt mm-belt__opt"
+                aria-pressed={picked === choice}
+                aria-label={`${f.label} ${choice}`}
+                disabled={saving}
+                onClick={() => {
+                  if (picked !== choice) setValue(f.key, choice);
+                }}
+              >
+                {choice}
+              </button>
+            ))}
+          </div>
+        )}
+        {was ? <div className="mm-tile__was">{was}</div> : null}
+      </div>
+    );
+  };
+
   const tile = (f: TileField) => {
+    if (isSeatBelt(f.key)) return beltTile(f);
     const control = controlOf(f);
     const state = tileState(f, draft, base);
     const was = wasWords(state);

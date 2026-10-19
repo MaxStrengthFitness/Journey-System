@@ -252,9 +252,13 @@ describe("Studio setup on the floor", () => {
     const [m] = toFloorMachines([hoist()], {}, { [HOIST]: { settingOptions: ["Seat"], standardSettings: { Seat: "4" } } });
     // No catalog entry stands behind a studio-built machine.
     const fields = fieldsForMachine(m, {}, undefined);
-    expect(fields.map((f) => [f.key, f.label, f.type, f.ghost])).toEqual([["Seat", "Seat", "text", "4"]]);
-    // Before this round: no dial at all.
-    expect(fieldsForMachine(toFloorMachines([hoist()], {})[0], {}, undefined)).toEqual([]);
+    // The seat belt every unit carries comes last (the seat belt round, Oct 19 2026).
+    expect(fields.map((f) => [f.key, f.label, f.type, f.ghost])).toEqual([
+      ["Seat", "Seat", "text", "4"],
+      ["Seat belt", "Seat belt", "enum", null],
+    ]);
+    // Before this round: no dial to type into, only the belt.
+    expect(fieldsForMachine(toFloorMachines([hoist()], {})[0], {}, undefined).map((f) => f.key)).toEqual(["Seat belt"]);
   });
 
   it("puts Studio setup's names first on a studio-built machine, then its own it didn't name, never twice", () => {

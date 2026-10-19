@@ -73,6 +73,7 @@ import { forgetPersonalMemory } from "../sign-out/memory";
 import { LEG_PRESS_HISTORY, TODAY } from "./fixtures";
 import { UNDO_REASON, parseSettingHistory } from "./setting-history";
 import { heldClosedError } from "../open-session/held-setup";
+import { seatBeltField } from "../equipment/seat-belt";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -1083,5 +1084,61 @@ describe("the review: a kept set-up's sources, an Undo that outlives Assign, and
     await click(button(host, "Use 6 for Seat"));
     await click(byText(host, "Save set-up"));
     expect(saves.calls[0]).toMatchObject({ dialsOnly: false, homeStudioId: "westlake", isInitialSetup: true });
+  });
+});
+
+describe("the seat belt (the seat belt round, Oct 19 2026; AJ's Aa)", () => {
+  const BELT = seatBeltField();
+  const WITH_BELT: TileField[] = [...FIELDS, BELT];
+  const beltButtons = (host: HTMLElement) => [...tile(host, "Seat belt").querySelectorAll("button")];
+
+  it("is three buttons where a value sits, none picked while nothing is recorded, and On is one tap then Save", async () => {
+    const host = await mount(<Tiles fields={WITH_BELT} />);
+    expect(beltButtons(host).map((b) => b.getAttribute("aria-label"))).toEqual(["Seat belt On", "Seat belt Off", "Seat belt Not needed"]);
+    expect(beltButtons(host).every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
+    // Nothing recorded is never drawn as Off.
+    expect(tile(host, "Seat belt").textContent).not.toContain("Not set");
+
+    await click(button(host, "Seat belt On"));
+    expect(tile(host, "Seat belt").getAttribute("data-changed")).toBe("true");
+    expect(tile(host, "Seat belt").textContent).toContain("was not set");
+    expect(button(host, "Seat belt On")!.getAttribute("aria-pressed")).toBe("true");
+    expect(host.querySelector('[data-strip="edit"]')!.textContent).toContain("Seat belt — → On");
+
+    await click(byText(host, "Save Seat belt On"));
+    expect(saves.calls).toHaveLength(1);
+    expect(saves.calls[0]).toMatchObject({ draft: { ...SAVED, "Seat belt": "On" }, reason: "", isInitialSetup: false });
+  });
+
+  it("shows a recorded belt picked, and changing it is a change like any other: 'was On' and Why? (optional)", async () => {
+    const host = await mount(<Tiles fields={WITH_BELT} saved={{ ...SAVED, "Seat belt": "On" }} />);
+    expect(button(host, "Seat belt On")!.getAttribute("aria-pressed")).toBe("true");
+    expect(tile(host, "Seat belt").getAttribute("data-changed")).toBeNull();
+
+    await click(button(host, "Seat belt Not needed"));
+    expect(tile(host, "Seat belt").textContent).toContain("was On");
+    const strip = host.querySelector('[data-strip="edit"]')!;
+    expect(strip.textContent).toContain("Seat belt On → Not needed");
+    expect(strip.textContent).toContain("Why? (optional)");
+
+    // Tapping the one already picked changes nothing.
+    await click(button(host, "Seat belt Not needed"));
+    await click(byText(host, "Cancel"));
+    expect(button(host, "Seat belt On")!.getAttribute("aria-pressed")).toBe("true");
+    expect(host.querySelector('[data-strip="edit"]')).toBeNull();
+  });
+
+  it("is never one of Set up's empty dials: it opens on the typed one, and Enter there is the last", async () => {
+    const host = await mount(<Tiles fields={WITH_BELT} saved={{ seat: "4", backPad: "3" }} focusDial />);
+    expect(editorTitle(host)).toBe("Foot plate");
+    expect(field(host)!.getAttribute("enterkeyhint")).toBe("done");
+  });
+
+  it("gives a watched session the belt's word and no buttons, and 'Not set' when nothing is recorded", async () => {
+    const recorded = await mount(<Tiles fields={WITH_BELT} saved={{ ...SAVED, "Seat belt": "Off" }} readOnly />);
+    expect(beltButtons(recorded)).toHaveLength(0);
+    expect(tile(recorded, "Seat belt").textContent).toContain("Off");
+    const none = await mount(<Tiles fields={WITH_BELT} readOnly />);
+    expect(tile(none, "Seat belt").textContent).toContain("Not set");
   });
 });

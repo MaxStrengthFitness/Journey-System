@@ -22,6 +22,11 @@ import {
 const SEP_17_NOON = Date.UTC(2026, 8, 17, 16, 0, 0); // noon Eastern
 
 describe("toFitRow", () => {
+  it("leaves the seat belt out: it is not a position that follows a body (Oct 19 2026)", () => {
+    expect(toFitRow({ Seat: "4", "Seat belt": "On" }, { "Seat belt": "legacy" }, SEP_17_NOON)).toEqual({ s: { seat: "4" }, t: SEP_17_NOON });
+    expect(toFitRow({ "Seat belt": "Off" }, null, SEP_17_NOON)).toBeNull();
+  });
+
   it("normalises the legacy label keys and the catalog slugs to the same row", () => {
     const legacy = toFitRow({ "Back Pad": "6", Seat: "Seat 4", Gap: " 0 " }, null, SEP_17_NOON);
     const catalog = toFitRow({ "back-pad": "6", seat: "4", gap: "0" }, null, SEP_17_NOON);

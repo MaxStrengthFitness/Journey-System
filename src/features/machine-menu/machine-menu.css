@@ -1343,6 +1343,21 @@
   color: var(--eq-ink-muted);
 }
 
+/* The seat belt (Oct 19 2026; AJ's "Aa"): the tile is the switch. Three of
+   the option buttons where a value sits, as tall as the ± (56px), sharing
+   the row; "Not needed" wraps inside its button before the row does. */
+.mm-belt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mm-belt__opt {
+  flex: 1 1 0;
+  min-height: 56px;
+  padding: 0 8px;
+}
+
 .mm-pos__std {
   margin: 0;
   font-size: 14px;

@@ -33,6 +33,7 @@
  * rule, in one place, for both tiers.
  */
 
+import { isSeatBelt } from "../equipment/seat-belt.ts";
 import { normalizeSettingKey, normalizeSnapshot } from "../machine-trends/trends.ts";
 import { factorsOf, type FitClientInput } from "./factors.ts";
 import type { FitAck, FitFactors, FitSample, SettingSource } from "./types.ts";
@@ -97,6 +98,8 @@ export interface MachineFitDoc {
  * The row for one client's saved settings, or null when nothing usable is
  * set (the caller then deletes the row). `settings` and `sources` arrive in
  * the machine's STORAGE keys ("Back Pad" or "back-pad"); both leave normalised.
+ * The seat belt never goes in (Oct 19 2026): it is not a position that
+ * follows a body, so it is not evidence about one (equipment/seat-belt.ts).
  */
 export function toFitRow(
   settings: Record<string, unknown> | null | undefined,
@@ -104,7 +107,7 @@ export function toFitRow(
   savedAt: number,
   acks?: Record<string, { value?: unknown } | undefined> | null,
 ): FitRowDoc | null {
-  const s = normalizeSnapshot(settings ?? null);
+  const s = normalizeSnapshot(withoutSeatBelt(settings));
   if (!s) return null;
   const src: NonNullable<FitRowDoc["src"]> = {};
   for (const [rawKey, source] of Object.entries(sources ?? {})) {
@@ -117,6 +120,12 @@ export function toFitRow(
   if (Object.keys(src).length > 0) row.src = src;
   if (Object.keys(a).length > 0) row.a = a;
   return row;
+}
+
+/** The settings without the seat belt, whatever key it was saved under. */
+function withoutSeatBelt(settings: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!settings) return null;
+  return Object.fromEntries(Object.entries(settings).filter(([k]) => !isSeatBelt(k)));
 }
 
 const EASTERN_DAY = new Intl.DateTimeFormat("en-CA", {

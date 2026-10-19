@@ -335,6 +335,16 @@ describe("quick set-up: the empty dials (the open session round, Oct 9 2026; AJ'
     expect(notSetCount([], {})).toBe(0);
   });
 
+  it("never counts the seat belt, and Set up and Next never stop on it (Oct 19 2026)", () => {
+    const withBelt: DraftField[] = [...CHEST_FLY, { key: "Seat belt", label: "Seat belt", ghost: null }];
+    expect(notSetCount(withBelt, {})).toBe(2);
+    expect(notSetCount(withBelt, { Seat: "12", "Back Pad": "3" })).toBe(0);
+    const seed = seedDraft(withBelt, { Seat: "12" });
+    expect(emptyDials(withBelt, seed)).toEqual(["Back Pad"]);
+    expect(nextEmptyDial(withBelt, seed, "Back Pad")).toBeNull();
+    expect(standardsForEmpty([{ key: "Seat belt", label: "Seat belt", ghost: "On" }], {})).toEqual({});
+  });
+
   it("finds the first empty dial, and Next walks the rest in order, round to the start, never the one in hand", () => {
     const seed = seedDraft(CHEST_FLY, {});
     expect(emptyDials(CHEST_FLY, seed)).toEqual(["Back Pad", "Seat"]);
