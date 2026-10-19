@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   dayWords,
   finishedNow,
+  phaseDueWords,
   phaseLine,
   phaseOf,
   phasePlanOf,
@@ -102,6 +103,16 @@ describe("where it stands", () => {
     expect(stepWords({ from: "press", to: "curl" }, nameOf)).toBe("Leg Curl for Leg Press");
     expect(stepWords({ to: "curl" }, nameOf)).toBe("Add Leg Curl");
     expect(stepWords({ from: "press" }, nameOf)).toBe("Take out Leg Press");
+  });
+});
+
+describe("phaseDueWords", () => {
+  const plan = phasePlanOf({ base: ["press"], target: ["curl"], todayYmd: "2026-10-26", who });
+  it("says nothing before the step's week, then due, then behind", () => {
+    expect(phaseDueWords(plan, "2026-10-20", nameOf)).toBeNull();
+    expect(phaseDueWords(plan, "2026-10-28", nameOf)).toBe("Routine B · Leg Curl for Leg Press is due this week · Anyone");
+    expect(phaseDueWords(plan, "2026-11-03", nameOf)).toBe("Routine B · Leg Curl for Leg Press was due the week of Oct 26 · Anyone · behind");
+    expect(phaseDueWords(finishedNow(plan, who, "2026-10-28"), "2026-11-03", nameOf)).toBeNull();
   });
 });
 

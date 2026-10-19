@@ -259,6 +259,22 @@ export function phaseLine(plan: Pick<PhasePlan, "steps">, todayYmd: string, name
   ].join(" · ");
 }
 
+/**
+ * The briefing's line while a step is due (AJ: "so i can make sure the plan
+ * is followed"): "Routine B · Leg Curl for Leg Press is due this week ·
+ * Sarah", or "… was due the week of Oct 19 · behind". Nothing before a
+ * step's week, and nothing once every step is done. It says; it never makes
+ * the step.
+ */
+export function phaseDueWords(plan: Pick<PhasePlan, "steps">, todayYmd: string, nameOf: (id: string) => string): string | null {
+  const st = phaseStatus(plan, todayYmd);
+  if (!st.next || !st.due) return null;
+  const what = stepWords(st.next, nameOf);
+  return st.behind
+    ? `Routine B · ${what} was due the week of ${dayWords(st.next.week)} · ${ownerWords(st.next)} · behind`
+    : `Routine B · ${what} is due this week · ${ownerWords(st.next)}`;
+}
+
 /** A plan as it comes back from the database: a value that isn't usable is no plan, never a guess. */
 export function phaseOf(raw: unknown): PhasePlan | null {
   if (!raw || typeof raw !== "object") return null;

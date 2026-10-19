@@ -50,6 +50,7 @@ import { startingKindOf } from "../../routine-plan/client-kind";
 import type { PlanHost } from "../../routine-plan/ui/host";
 import { phasePlanOf } from "../phase";
 import type { PhaseSave, RoutineSave } from "../store";
+import { PhaseDueLine } from "./PhaseDueLine";
 import { RoutineBuilder } from "./RoutineBuilder";
 
 const FLOOR: Machine[] = [
@@ -220,6 +221,25 @@ describe("one builder for A and B", () => {
     await mount({ routines: [], host: hostOf({ status: "loading" }) });
     expect(text()).toContain("Reading Michael's routines…");
     expect(has(/^Save/)).toBe(false);
+  });
+
+  it("says a due step on the briefing, and nothing before its week", async () => {
+    const phase = phasePlanOf({ base: ["m-leg-press"], target: ["m-leg-curl"], todayYmd: TODAY, who: { uid: "u0" } });
+    const nameOf = (id: string) => FLOOR.find((m) => m.id === id)?.name ?? id;
+    el = document.createElement("div");
+    document.body.appendChild(el);
+    root = createRoot(el);
+    await act(async () => {
+      root!.render(
+        <>
+          <PhaseDueLine routineB={{ plan: { purpose: "", intended: [], building: false, madeByUid: "u0", phase } }} todayYmd="2026-10-27" nameOf={nameOf} />
+          <PhaseDueLine routineB={{ plan: { purpose: "", intended: [], building: false, madeByUid: "u0", phase } }} todayYmd="2026-10-12" nameOf={nameOf} />
+        </>,
+      );
+    });
+    const lines = document.body.querySelectorAll('[data-testid="phase-due"]');
+    expect(lines).toHaveLength(1);
+    expect(lines[0].textContent).toBe("Routine B · Leg Curl for Leg Press was due the week of Oct 19 · Anyone · behind");
   });
 
   it("asks the signed-in person to sign in again before anything saves", async () => {
