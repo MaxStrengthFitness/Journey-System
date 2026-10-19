@@ -14,6 +14,7 @@ import type {
   TurnaroundRule,
 } from "../../../../types/machines";
 import { settingFieldKey } from "../../../../types/machines";
+import { isSeatBelt } from "../../../equipment/seat-belt";
 import "../../admin.css";
 
 /**
@@ -537,6 +538,42 @@ export function SettingFields({
   );
 }
 
+/**
+ * Does this unit have a seat belt (the seat belt round, Oct 19 2026)? The
+ * studio's answer, Yes or No (AJ: "if the machine has it installed is
+ * another question that the studio needs to answer"). Unanswered shows the
+ * belt on the floor (his "Ba"); No takes it off this unit's card.
+ */
+export function SeatBeltAnswer({
+  value,
+  onChange,
+  readOnly,
+}: {
+  value: boolean | undefined;
+  onChange: (next: boolean) => void;
+  readOnly?: boolean;
+}) {
+  if (readOnly) return <ReadValue value={value === undefined ? "" : value ? "Yes" : "No"} />;
+  return (
+    <div className="adm-me__chips" role="group" aria-label="Seat belt on this unit">
+      {([true, false] as const).map((answer) => {
+        const on = value === answer;
+        return (
+          <button
+            key={String(answer)}
+            type="button"
+            aria-pressed={on}
+            className={`adm-me__chip${on ? " adm-me__chip--on" : ""}`}
+            onClick={() => onChange(answer)}
+          >
+            {answer ? "Yes" : "No"}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function NewDial({
   existing,
   onAdd,
@@ -546,7 +583,10 @@ function NewDial({
 }) {
   const [label, setLabel] = React.useState("");
   const key = settingFieldKey(label);
-  const clash = !!key && existing.includes(key);
+  // Every unit carries the seat belt already (Oct 19 2026): a second one
+  // typed here would be a text box beside the switch.
+  const belt = isSeatBelt(label);
+  const clash = !!key && (existing.includes(key) || belt);
   return (
     <div className="adm-me__stack">
       <div className="adm-me__row">
@@ -574,7 +614,11 @@ function NewDial({
           <Plus className="w-4 h-4" /> Add a dial
         </AdminButton>
       </div>
-      {clash && <p className="adm-hint--error">This unit already has a “{label}”.</p>}
+      {clash && (
+        <p className="adm-hint--error">
+          {belt ? "Every machine has a seat belt already: answer “Seat belt on this unit” below." : <>This unit already has a “{label}”.</>}
+        </p>
+      )}
     </div>
   );
 }

@@ -192,6 +192,32 @@ describe("a studio's copy of a catalog machine", () => {
     expect(writes[0].data.overrides).toEqual({});
     expect(toasts[0]).toContain("follows the Max Strength standard exactly");
   });
+
+  it("writes the studio's seat belt answer, No as a real answer, and says what the floor differs on (Oct 19 2026)", async () => {
+    const el = await mount({ entry: rosterEntry, resolved: legPress, catalogEntry: legPress });
+    const group = el.querySelector('[aria-label="Seat belt on this unit"]')!;
+    const [yes, no] = [...group.querySelectorAll("button")];
+    expect([yes.textContent, no.textContent]).toEqual(["Yes", "No"]);
+    // Unanswered: neither picked (the floor shows the belt until it is answered).
+    expect([yes, no].map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "false"]);
+
+    await act(async () => no.click());
+    expect(no.getAttribute("aria-pressed")).toBe("true");
+    await save(el);
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0].data.overrides).toEqual({ hasSeatBelt: false });
+    expect(toasts[0]).toContain("differs from the standard on seat belt");
+  });
+
+  it("refuses a dial called Seat belt: every machine has one already", async () => {
+    const el = await mount({ entry: rosterEntry, resolved: legPress, catalogEntry: legPress });
+    const input = el.querySelector('input[placeholder^="Another dial"]') as HTMLInputElement;
+    await type(input, "Seat belt");
+    const add = [...el.querySelectorAll("button")].find((b) => b.textContent?.includes("Add a dial"))!;
+    expect(add.disabled).toBe(true);
+    expect(el.textContent).toContain("Every machine has a seat belt already");
+  });
 });
 
 describe("a copy without one of Max Strength's safety lines (the Sep 21 rule)", () => {

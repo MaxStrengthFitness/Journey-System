@@ -23,6 +23,7 @@ import {
   FieldShell,
   MuscleChips,
   ReadValue,
+  SeatBeltAnswer,
   SettingFields,
   StringList,
   Turnaround,
@@ -684,6 +685,7 @@ function Safety(p: SectionProps) {
 // ── 8. The dials ─────────────────────────────────────────────────────
 
 function Dials(p: SectionProps) {
+  const f = useFieldProps(p);
   const v = p.value;
   return (
     <div className="adm-me__fields">
@@ -699,6 +701,9 @@ function Dials(p: SectionProps) {
         onChangeDefaults={(next) => p.set("defaultSettings", next)}
         readOnly={p.readOnly}
       />
+      <FieldShell {...f("hasSeatBelt", "Seat belt on this unit", "No takes the belt off this unit's card. Until it is answered, trainers see it.")}>
+        <SeatBeltAnswer value={v.hasSeatBelt} onChange={(next) => p.set("hasSeatBelt", next)} readOnly={p.readOnly} />
+      </FieldShell>
       <div className="adm-grid">
         <FieldShell
           label="Starting weight — male"
