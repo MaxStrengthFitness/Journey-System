@@ -439,15 +439,15 @@ describe("the switch's place does not hang on the lens", () => {
 describe("the floor glance", () => {
   const s = (id: string) => ({ id, title: id, blocks: [] as VaultSection["blocks"] });
 
-  it("leads with the set-up, the Stop well straight after it, the rest in their order", () => {
+  it("keeps the Codex's order, Stop first (Safety, the settings, then Notes)", () => {
     const order = floorGlanceOrder([s("leaf-stop"), s("leaf-setup"), s("leaf-getset"), s("leaf-begin")]).map((x) => x.id);
-    expect(order).toEqual(["leaf-setup", "leaf-stop", "leaf-getset", "leaf-begin"]);
+    expect(order).toEqual(["leaf-stop", "leaf-setup", "leaf-getset", "leaf-begin"]);
     // No set-up written: nothing moves, nothing is dropped.
     expect(floorGlanceOrder([s("leaf-stop"), s("leaf-begin")]).map((x) => x.id)).toEqual(["leaf-stop", "leaf-begin"]);
     expect(floorGlanceOrder([])).toEqual([]);
   });
 
-  it("reorders the floor glance alone, and keeps every tier's number and title", () => {
+  it("keeps every tier's sections, number and title", () => {
     const tiers = [
       { id: "glance", n: 1, title: "Floor glance", sections: [s("leaf-stop"), s("leaf-setup")] },
       { id: "adapt", n: 3, title: "Adapt & clinical", sections: [s("leaf-wrong"), s("leaf-setup")] },
@@ -457,7 +457,7 @@ describe("the floor glance", () => {
       ["glance", 1, "Floor glance", true],
       ["adapt", 3, "Adapt & clinical", true],
     ]);
-    expect(layers[0].sections.map((x) => x.id)).toEqual(["leaf-setup", "leaf-stop"]);
+    expect(layers[0].sections.map((x) => x.id)).toEqual(["leaf-stop", "leaf-setup"]);
     expect(layers[1].sections.map((x) => x.id)).toEqual(["leaf-wrong", "leaf-setup"]);
     expect(machineLayers(undefined)).toEqual([]);
   });

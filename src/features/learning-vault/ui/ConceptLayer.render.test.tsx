@@ -263,7 +263,9 @@ describe("ConceptLayer + LinkedText", () => {
     expect(title()).toBe("Osteoporosis / Severe Osteopenia");
     expect(pop()!.textContent).not.toContain("Not for the card.");
     expect([...pop()!.querySelectorAll(".vtc__chip")].map((c) => c.textContent)).toEqual(["LEG PRESS"]);
-    await click(buttonNamed("Show on the map"));
+    // "Open", never "Show on the map": the Course draws no map (recheck fix).
+    expect(buttonNamed("Show on the map")).toBeNull();
+    await click(buttonNamed("Open"));
     expect(onOpen).toHaveBeenCalledWith({ kind: "map", focus: "clinical:bone-osteoporosis" });
   });
 

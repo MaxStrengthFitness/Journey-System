@@ -783,15 +783,13 @@ function ArticleScreen({ route, page }: { route: VaultRoute; page: VaultPage }) 
   const partial = body !== sections;
   // The gutter is where this design keeps a studio's marks. On an iPad, a
   // page with a studio's version lines its words up past the gutter in BOTH
-  // versions, so switching to the MSF original never moves the line being
-  // compared (recheck fix, Oct 19 2026): ArticleBlocks draws the gutter only
-  // where a mark can show, and on the original this page keeps the same
-  // room empty (.vm__room). A phone, where 48px of a 358px column is too
-  // much to give (as in the peek), and a viewer with no studio read at the
-  // page's edge.
+  // versions: ArticleBlocks keeps the gutter's column, empty, on the MSF
+  // original, so switching versions never moves the line being compared or
+  // the Stop well's edge (recheck fix, Oct 19 2026). A phone, where 48px of
+  // a 358px column is too much to give (as in the peek), and a viewer with
+  // no studio read at the page's edge.
   const gutterPage = !phone && studio.id !== null;
   const annotate = gutterPage ? "gutter" : "inline";
-  const keepRoom = gutterPage && !applied.studioLens;
   const letters = route.kind === "glossary" ? letterIndex(body) : [];
   const care = route.kind === "machine" ? data.care?.[route.id] : undefined;
 
@@ -889,18 +887,14 @@ function ArticleScreen({ route, page }: { route: VaultRoute; page: VaultPage }) 
 
         <div className="vm__main">
           <div className="vm__body" ref={bodyRef} data-annotate={annotate}>
-            {/* Always drawn (a wrapper that came and went would start the body
-                over, and any typing in it); only its room changes. */}
-            <div className="vm__room" data-room={keepRoom ? "" : undefined}>
-              <ArticleBlocks
-                target={page.target}
-                sections={body}
-                annotate={annotate}
-                accent={pageAccent(page)}
-                showOrphans={!partial}
-                renderText={(t) => <LinkedText text={t} skip={page.nodeId} />}
-              />
-            </div>
+            <ArticleBlocks
+              target={page.target}
+              sections={body}
+              annotate={annotate}
+              accent={pageAccent(page)}
+              showOrphans={!partial}
+              renderText={(t) => <LinkedText text={t} skip={page.nodeId} />}
+            />
             {/* A body that leaves sections out says the page's own changed lines once, over the whole page. */}
             {partial && <OrphanMarks target={page.target} orphans={applied.orphans} />}
             {/* A source a reader would recognise; a topic's file path is not one (its lines name their topic). */}

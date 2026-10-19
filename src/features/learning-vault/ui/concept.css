@@ -246,8 +246,8 @@
 /* Open page and Peek: raised buttons (.wk__btn's recipe), side by side. */
 .vtc__actions { display: flex; flex-wrap: wrap; gap: 8px; padding-right: 4px; }
 .vtc__btn {
-  /* Each as wide as its words, the room left shared: "Show on the map"
-     stays on one line beside "Peek". */
+  /* Each as wide as its words, the room left shared: "Open page" stays
+     on one line beside "Peek". */
   flex: 1 1 auto;
   display: inline-flex;
   align-items: center;

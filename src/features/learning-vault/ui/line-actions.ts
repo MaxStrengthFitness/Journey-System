@@ -241,6 +241,55 @@ export function lineHintWords(actions: readonly LineAction[]): string {
   return `Tap a line to ${list}.`;
 }
 
+/** Where the one hint sits: under a line ("{section}.{block}" indices), or above the page's first section. */
+export type HintSpot = { kind: "line"; section: number; index: number } | { kind: "top" };
+
+/**
+ * Where the one hint goes (recheck fix, Oct 19 2026). Under the page's first
+ * line the reader can see that is NOT in a toned section (a machine's Stop
+ * list is the plum caution well: the hint is not a warning, and must not read
+ * as one), and never between a label and the lines it is said once over
+ * (labelRuns): when that line heads a run ("Primary muscle" over Quadriceps
+ * and Gluteus Maximus), the hint waits until the run's last line on screen.
+ * A page whose every line is in a well says it above the first section; a
+ * page with no line to tap says nothing (null).
+ *
+ * A run here is what labelRuns draws as one: the same label (as words), with
+ * hidden lines skipped and a heading or an unlabelled line ending it.
+ */
+export function hintSpot(
+  sections: readonly {
+    id: string;
+    blocks: readonly { kind: VaultBlockKind; label?: string; hidden?: boolean }[];
+  }[],
+): HintSpot | null {
+  let anyLine = false;
+  for (let si = 0; si < sections.length; si++) {
+    const blocks = sections[si].blocks;
+    const toned = sectionTone(sections[si].id) !== null;
+    for (let bi = 0; bi < blocks.length; bi++) {
+      const b = blocks[bi];
+      if (!isMarkableKind(b.kind) || b.hidden) continue;
+      anyLine = true;
+      if (toned) break;
+      const label = (b.label ?? "").trim();
+      if (!label) return { kind: "line", section: si, index: bi };
+      const key = labelKey(label);
+      let last = bi;
+      for (let j = bi + 1; j < blocks.length; j++) {
+        const next = blocks[j];
+        if (!isMarkableKind(next.kind)) break;
+        if (next.hidden) continue;
+        const nextLabel = (next.label ?? "").trim();
+        if (!nextLabel || labelKey(nextLabel) !== key) break;
+        last = j;
+      }
+      return { kind: "line", section: si, index: last };
+    }
+  }
+  return anyLine ? { kind: "top" } : null;
+}
+
 /* ------------------------------------------------------------------ *
  * Head office's answer, under the line it is about (review fix, Oct 19 2026)
  * ------------------------------------------------------------------ */

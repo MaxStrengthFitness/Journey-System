@@ -304,7 +304,7 @@ describe("the clinical matrix: names and counts, never the instruction text", ()
     expect(onTheMap.length).toBeGreaterThan(10);
     for (const flag of CLINICAL_FLAGS_MATRIX) {
       if (onTheMap.includes(flag)) continue;
-      // Not on the map, so "Show on the map" would land on nothing: no card
+      // Not on the map, so its card's "Open" would land on nothing: no card
       // (wave A integration, Oct 19 2026).
       expect(realIndex.byId.has(`clinical:${flag.id}`), flag.id).toBe(false);
     }

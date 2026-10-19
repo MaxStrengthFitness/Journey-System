@@ -8,6 +8,7 @@ import {
   hideAgainLabel,
   isMarkableKind,
   isMarked,
+  hintSpot,
   labelRuns,
   lineActions,
   lineHintWords,
@@ -199,6 +200,52 @@ describe("the one hint that a line can be tapped (review fix)", () => {
     expect(lineHintWords(["submit", "share"])).toBe("Tap a line to tell head office or ask in Teams.");
     expect(lineHintWords(["share"])).toBe("Tap a line to ask in Teams.");
     expect(lineHintWords([])).toBe("Tap a line for what you can do with it.");
+  });
+});
+
+describe("where the one hint sits (recheck fix)", () => {
+  type B = { kind: "heading" | "line" | "bullet"; label?: string; hidden?: boolean };
+  const ln = (label?: string, hidden = false): B => ({ kind: "line", label, hidden });
+  const sec = (id: string, ...blocks: B[]) => ({ id, blocks });
+
+  it("goes under the first line outside the Stop well, never inside it", () => {
+    expect(hintSpot([sec("leaf-stop", ln("Clinical warning")), sec("leaf-setup", ln(), ln())])).toEqual({
+      kind: "line",
+      section: 1,
+      index: 0,
+    });
+  });
+
+  it("waits until a label's run ends, so it never splits a label from its lines", () => {
+    // "Primary muscle" over Quadriceps and Gluteus Maximus: under Gluteus Maximus.
+    expect(
+      hintSpot([sec("science", ln("Primary muscle"), ln("Primary muscle"), ln("Synergist"), ln("Synergist"))]),
+    ).toEqual({ kind: "line", section: 0, index: 1 });
+    // Compared as words, as labelRuns does ("Primary muscles" is the same run).
+    expect(hintSpot([sec("s", ln("Primary muscle"), ln("primary  Muscles "), ln())])).toEqual({
+      kind: "line",
+      section: 0,
+      index: 1,
+    });
+    // A heading or an unlabelled line ends the run.
+    expect(hintSpot([sec("s", ln("Cue"), { kind: "heading" }, ln("Cue"))])).toEqual({ kind: "line", section: 0, index: 0 });
+    expect(hintSpot([sec("s", ln("Cue"), ln(), ln("Cue"))])).toEqual({ kind: "line", section: 0, index: 0 });
+  });
+
+  it("skips lines the reader cannot see, inside a run and before it", () => {
+    expect(hintSpot([sec("s", ln("A", true), ln("B"), ln("B", true), ln("B"), ln("C"))])).toEqual({
+      kind: "line",
+      section: 0,
+      index: 3,
+    });
+    // The run's last line hidden: the last one still on screen.
+    expect(hintSpot([sec("s", ln("B"), ln("B"), ln("B", true), ln("C"))])).toEqual({ kind: "line", section: 0, index: 1 });
+  });
+
+  it("says it above the first section when every line is in a well, and nothing with no line to tap", () => {
+    expect(hintSpot([sec("leaf-stop", ln("Clinical warning"), ln("Clinical warning"))])).toEqual({ kind: "top" });
+    expect(hintSpot([sec("s", { kind: "heading" }), sec("t", ln(undefined, true))])).toBeNull();
+    expect(hintSpot([])).toBeNull();
   });
 });
 

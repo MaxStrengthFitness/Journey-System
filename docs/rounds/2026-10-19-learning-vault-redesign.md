@@ -125,8 +125,14 @@ them out of 10:
   Learning does and a recorded decision requires. Fixed in the last round
   (below), with the substitutes said one way on a machine page ("If Leg Press
   can't be used: Leg Extension + Leg Curl + Hip Abduction"), the Codex's
-  Floor glance leading with the dials and set-up, and Quick ten drawing only
-  from the method's decks.
+  dials leading the page, and Quick ten drawing only from the method's decks.
+- **Where I disagreed with a judge**: the trainer's judge wanted the Codex's
+  Floor glance to start with the set-up, above Stop. A fixer did that; I put
+  it back. Your machine-card decision reads "Safety, the settings, then
+  Notes" (Oct 4) and the Machine Codex puts Stop first, so Stop (the plum
+  well: stop rules, clinical warnings, who it is not for) stays first. The
+  dials already sit above the tier bar in the bento. If you want set-up first
+  on this page, it is one constant (`GLANCE_LEAD` in `codex/codex-model.ts`).
 - Their open worries, for the build of the pick: a single "our changes" list
   per studio; head office's queue grouped by page with "N of M studios" and a
   "taken, edit pending" state (taking a dispute changes no words yet);
@@ -304,8 +310,8 @@ The morning page has these as taps; your answers save to it and I read them.
 ## Measured
 
 `npx tsc --noEmit`: 0 errors. The whole suite (`TZ=America/New_York npx
-vitest run --dir src`): **16,002 tests in 958 files**, all passing, run twice
-(master: 14,865 in 908). `vite build` and `npm run check:bundle`: the first
+vitest run --dir src`): **16,063 tests in 960 files**, all passing (master:
+14,865 in 908). `vite build` and `npm run check:bundle`: the first
 screen is 471.0 KB gzip of the 480 budget (+0.3 KB); each design loads only
 when picked (about 10–15 KB gzip of its own plus a 77 KB chunk of the shared
 parts, once). No file names that differ only by case; no invisible
@@ -327,7 +333,9 @@ branches are changing it too); it moves with the pick.
 | `993e192b` | 3e: every new stylesheet held by the style guards |
 | `91d19acc` | 4: content checked against its sources (67 fixes) |
 | `0e96dfd1` | 5: the design review's 89 findings fixed; the shared parts' README |
-| (the last) | this round document |
+| `e86c4ed0` | this round document and its index line |
+| `7f1c5e8e` | 6: what three judges caught (Relay's floor status back, substitutes one way, Quick ten from the method), and the recheck's 15 regressions |
+| (the last) | 7: the line hint placed once for all three, the body's edge steady across versions, "Open" on a clinical card, Stop first again on the Codex |
 
 ## How the night went
 
@@ -336,4 +344,6 @@ shared parts against one contract; three designers built a design each,
 photographing and fixing their own screens; a content review (five readers,
 five skeptics) and a design review (six reviewers, six skeptics: visual,
 correctness, house rules) found 156 problems that survived a second look (67 in
-the content, 89 in the screens and the code), and fixers fixed them. Every agent worked in this worktree only.
+the content, 89 in the screens and the code), and fixers fixed them. Then
+three role judges scored the designs, a regression recheck found 15 more,
+and a last round fixed those and what the judges caught. Every agent worked in this worktree only.

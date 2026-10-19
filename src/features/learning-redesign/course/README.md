@@ -61,7 +61,7 @@ Tests: `steps.test.ts`, `drills.test.ts`, `vault.test.ts`, and `CourseLearning.r
 - **Substitutes say one thing:** *If LEG PRESS can't be used*, one line a set, no "Together:" (the shared `substituteSection`); never which machines this one helps replace.
 - **A course never dead-ends.** A machine, the glossary vault or the phrasebook that is a course's lesson ends on **Next lesson** (`CourseNext`); the quiz always ends its course, so it has none.
 - **Another moment arrives closed**, its reveal holding the focus the pressed button had (`focusReveal`).
-- **Say it once in the peek**: a word or a moment is named by the sheet's header only. A clinical flag's peek and crumb take the flag's name (`courseTitleOf`), never "Map"; its machines take their categories' colours (`categoryNodeStyle`). The concept card's own button still says "Show on the map" (`ConceptLayer`'s `openLabel`, shared, not changed here).
+- **Say it once in the peek**: a word or a moment is named by the sheet's header only. A clinical flag's peek and crumb take the flag's name (`courseTitleOf`), never "Map"; its machines take their categories' colours (`categoryNodeStyle`). The concept card's own button says "Open" (`ConceptLayer`'s `openLabel`, shared by all three designs: the Course draws no map, so it never says "Show on the map").
 - **No repository path as a source**: `sourceLine` says a topic's calm label ("Academy 4.6 Turnaround Technique") or nothing.
 
 ### The review fixes (Oct 19 2026)

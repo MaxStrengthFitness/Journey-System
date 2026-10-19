@@ -34,6 +34,7 @@ import {
   canRemoveNote,
   hiddenLabel,
   hideAgainLabel,
+  hintSpot,
   isMarkableKind,
   labelRuns,
   lineActions,
@@ -79,9 +80,13 @@ import "./article.css";
  *   taps the line); a keyboard or VoiceOver reader lands on it after the
  *   line's words and terms, and its focus ring outlines the whole line. The
  *   terms and that button are siblings, never nested.
- * - Until the reader has chosen a line once (on this iPad), the page's first
- *   line says so in one quiet line: "Tap a line to …" (line-hint.ts). There
- *   is no hover on an iPad to find it with.
+ * - Until the reader has chosen a line once (on this iPad), the page says so
+ *   in one quiet line: "Tap a line to …" (line-hint.ts). There is no hover
+ *   on an iPad to find it with. It sits under the first line on screen
+ *   outside the plum Stop well, after the run of lines that line's label is
+ *   said over, never between the two (hintSpot); a page whose lines are all
+ *   in the well says it above its first section. All three designs draw it
+ *   here, the same way (recheck fix, Oct 19 2026).
  * - Each action opens its form IN PLACE under the line, never a dialog
  *   (InheritedSafety's manner, admin/machines/editor/safety-removal.tsx).
  *   While a form is open a stray tap elsewhere does nothing; moving to
@@ -120,10 +125,13 @@ export interface ArticleBlocksProps {
   /**
    * inline: a studio's notes and reasons under each line (Designs 1 and 3);
    * gutter: markers in a left gutter that open the line's notes (Design 2).
-   * The gutter is drawn only where a mark can be: on the studio's version,
-   * and never in a compact body (a peek, where 58px of empty gutter halves
-   * the column). Elsewhere a gutter page is laid out inline; the root's
-   * data-annotate says which was drawn, for anything that lines up with it.
+   * The gutter is drawn wherever the page has a studio's version, in BOTH
+   * versions: on the MSF original it is kept empty, so switching versions
+   * never moves a word or the Stop well's edge sideways (recheck fix, Oct 19
+   * 2026). Never in a compact body (a peek, where 58px of empty gutter halves
+   * the column), nor with no studio (no version to switch to); those are
+   * laid out inline. The root's data-annotate says which was drawn, for
+   * anything that lines up with it.
    */
   annotate?: "inline" | "gutter";
   /** Usually (t) => <LinkedText text={t} />. Applied to every line but headings, and never to struck words. */
@@ -154,10 +162,11 @@ export interface ArticleBlocksProps {
    */
   accent?: CSSProperties | null;
   /**
-   * The one quiet "Tap a line to …" under the page's first line, until the
-   * reader has chosen a line once on this iPad. Default true; never in a
-   * compact body (a peek). A design that draws the same page twice on one
-   * screen passes false to the second.
+   * The one quiet "Tap a line to …" (under the first line outside the Stop
+   * well, after its label's run: hintSpot), until the reader has chosen a
+   * line once on this iPad. Default true; never in a compact body (a peek).
+   * A design that draws the same page twice on one screen passes false to
+   * the second.
    */
   tapHint?: boolean;
 }
@@ -256,9 +265,10 @@ function ArticleBody({
   const { studioLens } = applied;
   const studioId = vault.studio.id;
   const studio = studioInSentence(vault.studio.name);
-  // A gutter only where a mark can show (see the prop): no empty column on
-  // the MSF original or in a peek.
-  const gutter = annotate === "gutter" && studioLens && !compact;
+  // The gutter wherever the page has a studio's version, in either version
+  // (see the prop): empty on the MSF original, so the lens never slides the
+  // words or the Stop well sideways; never in a peek.
+  const gutter = annotate === "gutter" && !compact && studioId !== null;
   const drawn: "inline" | "gutter" = gutter ? "gutter" : "inline";
   const { canStrike, canNote } = vault.viewer;
 
@@ -612,23 +622,21 @@ function ArticleBody({
       block.text,
     );
 
-  // The one quiet hint, under the page's first line the reader can see.
+  // The one quiet hint: under the first line on screen outside the Stop
+  // well, after its label's run (never between a label and its lines), else
+  // above the first section (hintSpot).
   const hintWords =
     tapHint && !compact && !hintSeen
       ? lineHintWords(lineActions({ studioLens, canStrike, canNote, struck: false }))
       : null;
-  let hintUnit: string | null = null;
-  if (hintWords) {
-    outer: for (let si = 0; si < applied.sections.length; si++) {
-      const blocks = applied.sections[si].blocks;
-      for (let bi = 0; bi < blocks.length; bi++) {
-        if (isMarkableKind(blocks[bi].kind) && !blocks[bi].hidden) {
-          hintUnit = `${si}.${bi}`;
-          break outer;
-        }
-      }
-    }
-  }
+  const spot = hintWords ? hintSpot(applied.sections) : null;
+  const hintUnit = spot?.kind === "line" ? `${spot.section}.${spot.index}` : null;
+  const renderHint = (where: "line" | "top") => (
+    <p className={where === "top" ? "vta__tap-hint vta__tap-hint--top" : "vta__tap-hint"}>
+      <Pointer size={14} aria-hidden />
+      <span>{hintWords}</span>
+    </p>
+  );
 
   const renderLine = (block: MarkedBlock, unit: string, section: VaultSection, showLabel: boolean) => {
     if (!isMarkableKind(block.kind)) return renderHeading(block, unit);
@@ -708,12 +716,7 @@ function ArticleBody({
             </ul>
           )}
           {told.length > 0 && renderAnswers(told)}
-          {hintWords && hintUnit === unit && !isOpen && (
-            <p className="vta__tap-hint">
-              <Pointer size={14} aria-hidden />
-              <span>{hintWords}</span>
-            </p>
-          )}
+          {hintUnit === unit && !isOpen && renderHint("line")}
         </div>
       </div>
     );
@@ -762,6 +765,7 @@ function ArticleBody({
       data-compact={compact ? "" : undefined}
       style={accentVars}
     >
+      {spot?.kind === "top" && renderHint("top")}
       {lineCount === 0 && noteCount === 0 ? (
         <p className="vta__empty">Nothing written here yet.</p>
       ) : (

@@ -240,11 +240,14 @@ const KIND_GLYPH: Record<EntityKind, Glyph> = {
 };
 
 /**
- * The words on the card's main button: what it does. A clinical flag opens on
- * the map (its machines around it), not on a page of its own.
+ * The words on the card's main button: what it does. A clinical flag has no
+ * page of its own: it opens as its `map` route, which each design draws its
+ * own way (the Vault's map focused on it, the Codex's entry, the Course's
+ * connections), so its button says only "Open", true in all three (recheck
+ * fix, Oct 19 2026: "Show on the map" promised a map the Course does not have).
  */
 export function openLabel(route: VaultRoute): string {
-  return route.kind === "map" ? "Show on the map" : "Open page";
+  return route.kind === "map" ? "Open" : "Open page";
 }
 
 /** A card's taps go no further than the card (see the header: the line underneath). */

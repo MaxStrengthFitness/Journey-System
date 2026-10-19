@@ -287,21 +287,23 @@ export function hideReserved(input: { studioOpen: boolean; canStrike: boolean; s
  * ------------------------------------------------------------------ */
 
 /**
- * The floor glance, set-up first (the floor judge, Oct 19 2026: "Floor
- * glance should start with dials and set-up"). Between two sets a trainer
- * looks for how the unit is set; the Stop well (stop rules, clinical
- * warnings, who it is not for) comes straight after the set-up, still
- * before Get set and Begin, so nothing in it is passed before the load
- * comes on. Every other section keeps its order; nothing is dropped.
+ * The floor glance keeps the Codex's own order: Stop first, then Set up,
+ * Get set and Begin. A judge (the trainer between sets, Oct 19 2026) asked
+ * for the set-up first, and a fixer moved it; that was put back the same
+ * morning, because a recorded decision says the machine card reads "Safety,
+ * the settings, then Notes" (AJ, Oct 4 2026, docs/DECISIONS.md#the-machine-card)
+ * and the Machine Codex puts Stop first. The dials still lead the page in
+ * the bento above the tier bar. GLANCE_LEAD names sections to lift ahead of
+ * the rest; it is empty while that decision stands.
  */
-export const GLANCE_LEAD: readonly string[] = ["leaf-setup"];
+export const GLANCE_LEAD: readonly string[] = [];
 
 export function floorGlanceOrder<T extends { id: string }>(sections: readonly T[]): T[] {
   const lead = GLANCE_LEAD.flatMap((id) => sections.filter((s) => s.id === id));
   return [...lead, ...sections.filter((s) => !GLANCE_LEAD.includes(s.id))];
 }
 
-/** A machine's tiers as the bar draws them, the floor glance set-up first. */
+/** A machine's tiers as the bar draws them (the floor glance in floorGlanceOrder). */
 export function machineLayers(
   tiers: readonly { id: string; n: number; title: string; sections: VaultSection[] }[] | null | undefined,
 ): CodexLayer[] {

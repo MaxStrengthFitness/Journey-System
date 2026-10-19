@@ -417,16 +417,21 @@ describe("the Living Vault, after the review", () => {
     expect(title()).toBe("LEG PRESS");
   });
 
-  it("draws the gutter only on the studio's version, and keeps its room empty on the MSF original so no word moves", async () => {
+  it("keeps the gutter's column on both versions, empty on the MSF original, so neither a word nor the Stop well moves", async () => {
     await mount("machine-anatomy", { kind: "machine", id: "m-leg-press" });
-    const room = host.querySelector(".vm__room");
-    expect(host.querySelector('.vm__body[data-annotate="gutter"] .vm__room:not([data-room]) .vta[data-annotate="gutter"]')).toBeTruthy();
+    const body = host.querySelector(".vta");
+    const gutters = host.querySelectorAll(".vta__gutter").length;
+    expect(host.querySelector('.vm__body[data-annotate="gutter"] > .vta[data-annotate="gutter"]')).toBeTruthy();
+    expect(gutters).toBeGreaterThan(0);
     await tap(button("MSF original"));
-    // No empty gutter column inside the body: the page keeps the same room around it.
-    expect(host.querySelector('.vm__body[data-annotate="gutter"] .vm__room[data-room] .vta[data-annotate="inline"]')).toBeTruthy();
-    expect(host.querySelector(".vta__gutter")).toBeNull();
-    // The same wrapper, never a new one (a body started over loses its typing).
-    expect(host.querySelector(".vm__room")).toBe(room);
+    // The body draws the same column, empty, rather than the page padding around it
+    // (which slid the plum Stop well's edge 48px to the right).
+    expect(host.querySelector('.vm__body[data-annotate="gutter"] > .vta[data-annotate="gutter"]')).toBeTruthy();
+    expect(host.querySelectorAll(".vta__gutter")).toHaveLength(gutters);
+    expect(host.querySelector(".vta__marker")).toBeNull();
+    expect(host.querySelector(".vm__room")).toBeNull();
+    // The same body, never a new one (a body started over loses its typing).
+    expect(host.querySelector(".vta")).toBe(body);
   });
 
   it("gives the glossary a row of letters that jump inside the page's one scroller", async () => {
@@ -570,9 +575,9 @@ describe("the Vault's stylesheet, after the review", () => {
     expect(rule(".vm__pillars")).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
   });
 
-  it("keeps the gutter's exact room on the MSF original, and lays a phone's letters in rows of six", () => {
-    // ArticleBlocks' gutter: a 40px column and its 0.5rem gap (article.css).
-    expect(rule(".vm__room[data-room]")).toMatch(/padding-left:\s*calc\(40px \+ 0\.5rem\)/);
+  it("leaves the gutter's room to the body, and lays a phone's letters in rows of six", () => {
+    // ArticleBlocks keeps its own gutter on both versions: no room padded around it here.
+    expect(css).not.toMatch(/\.vm__room/);
     expect(css).toMatch(/\.vm__letters\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*repeat\(6, minmax\(40px, 1fr\)\);/);
   });
 

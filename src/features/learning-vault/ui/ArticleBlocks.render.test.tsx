@@ -666,14 +666,32 @@ describe("the gutter", () => {
   });
 });
 
-describe("the gutter only where a mark can be (review fix, Oct 19 2026)", () => {
-  it("is laid out inline on the MSF original and in a peek, where no gutter pays for itself", async () => {
-    await mount({ props: { annotate: "gutter" } });
+describe("the gutter keeps its room on either version (recheck fix, Oct 19 2026)", () => {
+  it("stays, empty, on the MSF original, so nothing slides sideways when the version changes", async () => {
+    await mount({
+      props: { annotate: "gutter" },
+      seed: [markup({ strikes: [strikeOn(STACK)], notes: [noteOn(SPEED)] })],
+    });
+    const gutters = () => [...host.querySelectorAll(".vta__gutter")];
+    const count = gutters().length;
     expect(host.querySelector(".vta")?.getAttribute("data-annotate")).toBe("gutter");
-    await mount({ props: { annotate: "gutter", compact: true } });
-    expect(host.querySelector(".vta")?.getAttribute("data-annotate")).toBe("inline");
-    await mount({ props: { annotate: "gutter" } });
+    expect(count).toBe(lines().length);
+    expect(host.querySelector(".vta__marker")).not.toBeNull();
+
     await click(host.querySelector('[data-testid="original"]'));
+    // The same column under every line, with nothing in it: no mark shows on the original.
+    expect(host.querySelector(".vta")?.getAttribute("data-annotate")).toBe("gutter");
+    expect(gutters()).toHaveLength(count);
+    expect(gutters().every((g) => g.childElementCount === 0)).toBe(true);
+    expect(host.querySelector(".vta__marker")).toBeNull();
+
+    await click(host.querySelector('[data-testid="studio"]'));
+    expect(gutters()).toHaveLength(count);
+    expect(host.querySelector(".vta__marker")).not.toBeNull();
+  });
+
+  it("is laid out inline in a peek, where no gutter pays for itself", async () => {
+    await mount({ props: { annotate: "gutter", compact: true } });
     expect(host.querySelector(".vta")?.getAttribute("data-annotate")).toBe("inline");
     expect(host.querySelector(".vta__gutter")).toBeNull();
   });
@@ -883,6 +901,49 @@ describe("the one hint that a line can be tapped", () => {
     expect(hint()?.textContent).toBe("Tap a line to note it, tell head office or ask in Teams.");
     await mount({ props: { compact: true } });
     expect(hint()).toBeNull();
+  });
+
+  /* A machine's floor glance: the plum Stop well first, then a run of lines
+     under one label (recheck fix, Oct 19 2026). */
+  const WARN = "Stop if the client feels sharp pain.";
+  const QUAD = "Quadriceps";
+  const GLUTE = "Gluteus Maximus";
+  const SEAT = "Set the seat so the knees start at ninety degrees.";
+  const machine = (): VaultSection[] => [
+    { id: "leaf-stop", title: "Stop", blocks: [{ key: blockKeyFor(WARN), kind: "line", text: WARN, label: "Clinical warning" }] },
+    {
+      id: "leaf-understand",
+      title: "Understand",
+      blocks: [
+        { key: blockKeyFor(QUAD), kind: "line", text: QUAD, label: "Primary muscle" },
+        { key: blockKeyFor(GLUTE), kind: "line", text: GLUTE, label: "Primary muscle" },
+        { key: blockKeyFor(SEAT), kind: "line", text: SEAT, label: "Seat" },
+      ],
+    },
+  ];
+
+  it("never sits in the Stop well, nor between a label and its run: under the run's last line", async () => {
+    await mount({ props: { sections: machine() } });
+    expect(host.querySelectorAll(".vta__tap-hint")).toHaveLength(1);
+    expect(hint()?.closest("[data-tone]")).toBeNull();
+    // "Primary muscle" over Quadriceps and Gluteus Maximus: the hint comes after both.
+    expect(hint()?.closest(".vta__unit")).toBe(lineOf(GLUTE).closest(".vta__unit"));
+    expect(lineOf(QUAD).closest(".vta__unit")?.querySelector(".vta__tap-hint")).toBeNull();
+  });
+
+  it("goes above the first section when every line is in the well, in line with the words", async () => {
+    await mount({ props: { sections: machine().slice(0, 1) } });
+    expect(hint()?.classList.contains("vta__tap-hint--top")).toBe(true);
+    expect(hint()?.closest("[data-tone]")).toBeNull();
+    expect(hint()?.nextElementSibling?.getAttribute("data-tone")).toBe("stop");
+  });
+
+  it("is the same in the gutter, on either version", async () => {
+    await mount({ props: { sections: machine(), annotate: "gutter" } });
+    expect(hint()?.closest(".vta__unit")).toBe(lineOf(GLUTE).closest(".vta__unit"));
+    await click(host.querySelector('[data-testid="original"]'));
+    expect(hint()?.textContent).toBe("Tap a line to tell head office or ask in Teams.");
+    expect(hint()?.closest(".vta__unit")).toBe(lineOf(GLUTE).closest(".vta__unit"));
   });
 });
 

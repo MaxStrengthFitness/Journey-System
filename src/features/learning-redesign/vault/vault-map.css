@@ -1463,17 +1463,6 @@
   padding-left: calc(40px + 0.5rem + 0.625rem);
 }
 
-/* The MSF original on an iPad: the gutter's room, kept empty, so its words
-   sit exactly where the studio's version puts them and switching versions
-   never moves the line being compared (the body draws the gutter only where
-   a mark can show: 40px and its 0.5rem gap). */
-.vm__room {
-  min-width: 0;
-}
-.vm__room[data-room] {
-  padding-left: calc(40px + 0.5rem);
-}
-
 /* Out of service and Flagged under a machine's title (FloorStatus keeps no
    outer margin: the page sets the gap). */
 .vm__status {

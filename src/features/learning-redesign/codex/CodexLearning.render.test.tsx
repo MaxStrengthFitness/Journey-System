@@ -331,10 +331,10 @@ describe("the Tactical Codex", () => {
     expect(text()).toContain("If LEG PRESS can't be used");
   });
 
-  it("opens the floor glance on the set-up, with the Stop well straight after it, and Connected after the layers on an iPad", async () => {
+  it("opens the floor glance on the Stop well, then the set-up (Safety, the settings, then Notes), and Connected after the layers on an iPad", async () => {
     await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
     const heads = all(".cdx__tierpanel h2").map((h) => h.textContent);
-    expect(heads.slice(0, 2)).toEqual(["Set up", "Stop"]);
+    expect(heads.slice(0, 2)).toEqual(["Stop", "Set up"]);
     expect(heads.indexOf("Begin")).toBeGreaterThan(1);
     // The bento is the body, the facts and the dials; what it connects to follows the tiers.
     expect(host.querySelector(".cdx__bento .cdx__tile--links")).toBeNull();
@@ -409,7 +409,7 @@ describe("the Tactical Codex", () => {
     }
   });
 
-  it("says 'Tap a line…' once, above the lines, never inside the Stop well", async () => {
+  it("says 'Tap a line…' once, the body's own, never inside the Stop well or inside a label's run", async () => {
     try {
       localStorage.removeItem(LINE_HINT_KEY);
     } catch {
@@ -417,18 +417,20 @@ describe("the Tactical Codex", () => {
     }
     resetLineHint();
     await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
-    const hints = all(".cdx__tap-hint");
+    // One hint, drawn by the shared body as in the other two designs (the
+    // Codex's own workaround is gone).
+    expect(all(".cdx__tap-hint")).toHaveLength(0);
+    const hints = all(".vta__tap-hint");
     expect(hints).toHaveLength(1);
     expect(hints[0].textContent).toContain("Tap a line to");
     expect(hints[0].closest("[data-tone]")).toBeNull();
-    // The body's own hint, under its first line, is not drawn here.
-    expect(host.querySelector(".vta__tap-hint")).toBeNull();
-    // Above the first section's title.
-    const first = host.querySelector(".cdx__tierpanel h2");
-    expect(first && hints[0].compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Never between a label and the lines it is said over: the line it sits
+    // under is the last of its run.
+    const unit = hints[0].closest(".vta__unit");
+    if (unit) expect(unit.nextElementSibling?.getAttribute("data-run")).not.toBe("cont");
     // Gone for good once a line is chosen.
     await click(host.querySelector(".cdx__tierpanel [data-vta-line]"));
-    expect(all(".cdx__tap-hint")).toHaveLength(0);
+    expect(all(".vta__tap-hint")).toHaveLength(0);
   });
 
   it("never says who a path is for twice on the Academy's index", async () => {

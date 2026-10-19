@@ -63,7 +63,7 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
   const applied = useAppliedMarkup(page.target, page.sections);
   const { actions, inline } = useVersionSlot(applied.struck, page);
 
-  // The floor glance set-up first (machineLayers): what a trainer looks for between two sets.
+  // The tiers as the bar draws them (machineLayers): the floor glance Stop first, then the set-up.
   const layers = useMemo<CodexLayer[]>(() => machineLayers(page.tiers), [page.tiers]);
   const { active, pick } = useLayer(pageKey(page.route), layers, wanted);
   const layer = layers.find((l) => l.id === active) ?? null;

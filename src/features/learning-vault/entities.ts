@@ -855,7 +855,7 @@ export function buildEntityIndex(input: {
     const machineIds = clinicalMachineIds(flag);
     // A flag that names none of the Academy's machines is not on the map
     // (graph.ts leaves it out: it connects to nothing there), so its card's
-    // "Show on the map" would land on nothing, and its words would only say
+    // "Open" would land on nothing, and its words would only say
     // it names no machines. It gets no card (wave A integration, Oct 19 2026).
     if (!machineIds.some((mid) => machineEntities.has(mid))) continue;
     const entity: VaultEntity = {

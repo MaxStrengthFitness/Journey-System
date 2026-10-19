@@ -28,7 +28,7 @@ import "./codex.css";
 
 /**
  * A page in the peek: its first layer, compact. A machine shows its floor
- * glance (what you need at the machine, set-up first, as on its page) under
+ * glance (what you need at the machine, Stop first, as on its page) under
  * the floor's status (Out of service, Flagged) and its preset; a word,
  * its one line; a cue moment, its lines; anything else, every line. The
  * peek's own "Open full page" goes to the rest.

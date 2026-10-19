@@ -405,7 +405,10 @@
 }
 
 /* The one hint that a line can be tapped (an iPad has no hover to find it
-   with): under the page's first line, until the reader has chosen one. */
+   with), until the reader has chosen one: under the first line outside the
+   Stop well, after its label's run (hintSpot), so it never sits in the plum
+   well or between a label and its lines; on a page whose every line is in
+   the well, above the first section, lined up with the words. */
 .vta__tap-hint {
   display: flex;
   align-items: flex-start;
@@ -415,6 +418,10 @@
   line-height: 1.5;
   color: var(--wk-ink-2);
   overflow-wrap: anywhere;
+}
+.vta__tap-hint--top {
+  margin: 0 0 -0.75rem;
+  padding-inline: var(--vta-indent);
 }
 .vta__tap-hint svg {
   flex: none;
