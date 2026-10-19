@@ -197,12 +197,13 @@ This is **Gate B** (`docs/ARCHITECTURE.md` §5.3): the list that separates
     default #4, kept): ask head office before the first franchise signs, and
     build the location check before any franchise on a shared account goes
     live. Defaults 1, 2, 3 and 5 are kept too.
-  - **Parked, first on the next 1-on-1:** lock the trainer records. Each holds
-    its Kaizen Roster (a client's name, a reason and a note), and until Round
-    4a any signed-in account can list every trainer record, because the
-    sign-in's own lookup reads `trainers` by email before anyone is let in
-    (strangers out §3). Recommended as the next small round after strangers
-    out.
+  - ~~**Lock the trainer records.**~~ Built Oct 18 2026 as **the trainer
+    lock** (`docs/rounds/2026-10-18-trainer-lock.md`; AJ: "1a 2a 3a"): an
+    iPad holds the trainers of the studios the person works at or runs, the
+    rules refuse the rest, a stranger reads one record by their own sign-in
+    email. On `claude/keen-elbakyan-b06716`, not pushed; it ships the app
+    first and the rules second (its §8). The corporate group rule for
+    leaders (Q12's follow-up) waits for the bookings lock.
 - **A Wi-Fi drop in the middle of a set, on an iPad**: this week's walk (Now 3).
 - **CI as a required check on `master`**: needs the repo's owner. Its
   typecheck gate is 2, and the tests run on the studios' clock
@@ -283,7 +284,9 @@ from it:
 - **Strongsville's Hoist leg press** (Q15 = A: it counts as a leg press in the
   routine builder's checks). It has no "most like" (`basedOn`) and is filed
   under Horizontal Push, and `basedOn` can be chosen only when a machine is
-  made: this round makes it editable and corrects the Hoist.
+  made: this round makes it editable. The Hoist's own lineage is corrected
+  ahead of the round, for its missing watch-outs (Oct 15 2026,
+  `scripts/fix-hoist-lineage.ts`, written when AJ runs `--commit`).
 - **The maker's machines, with their sizes.** Most studios use Imagine Strength
   machines; the twenty models are seeded with their footprints
   (`machineModels/{id}.size`, Oct 12 2026), and a unit can carry its own size

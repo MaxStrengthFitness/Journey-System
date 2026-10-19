@@ -219,8 +219,9 @@ describe("trainerMetrics", () => {
   it("uses the supplied name, and says so plainly when it has none", () => {
     const rows = trainerMetrics([session({ trainerId: "a" })], { a: "Marina" });
     expect(rows[0].label).toBe("Marina");
+    // An id with no name on the list is a trainer from another studio (the trainer lock).
     expect(trainerMetrics([session({ trainerId: "z" })])[0].label).toBe(
-      "Unnamed trainer",
+      "A trainer from another studio",
     );
   });
 

@@ -102,7 +102,8 @@ describe("buildRoutineChanges", () => {
   it("names added and removed machines and resolves the trainer", () => {
     const [c1, c2] = buildRoutineChanges(adjustments, routines, machines, trainers);
     expect(c1).toMatchObject({ routineLabel: "A", kind: "machines", added: ["Compound Row"], removed: [], trainerInitials: "AJ", trainerName: "Austin Jurgens", notes: "added row" });
-    expect(c2).toMatchObject({ routineLabel: "B", kind: "enabled", added: [], removed: [], trainerInitials: "T-", notes: null });
+    // An id the list doesn't hold (the trainer lock): said so, never the raw id.
+    expect(c2).toMatchObject({ routineLabel: "B", kind: "enabled", added: [], removed: [], trainerInitials: "?", trainerName: "A trainer from another studio", notes: null });
   });
 
   it("finds the newest change per routine and counts this month's", () => {

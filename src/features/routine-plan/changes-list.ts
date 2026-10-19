@@ -26,6 +26,7 @@
  * adjustments, and passes the floor's names (never truncated).
  */
 import type { RoutineAdjustment, Trainer } from "../../types";
+import { ANOTHER_STUDIOS_TRAINER } from "../trainer-scope/names";
 import { B_PLANNED, B_START, B_START_WHOLE, B_SWAP_KEPT, B_SWAP_MADE, B_SWAP_PLANNED } from "./b-routine";
 import { cantDoLine, listWords, parseCantDoValue } from "./cant-do";
 import { FOCUS_AREAS } from "./focus";
@@ -118,10 +119,20 @@ function trainerById(trainers: readonly TrainerLike[], id: string): TrainerLike 
   return trainers.find((t) => t.id === id) ?? trainers.find((t) => t.authUid === id);
 }
 
-function person(t: TrainerLike | undefined, signedAs: string | undefined): { who: string; initials: string; key: string | null } {
+/**
+ * Who a change was by: the record's name, else the name the change carries,
+ * else "A trainer from another studio" when it carries an id the list
+ * doesn't hold (the trainer lock, Oct 18 2026). The key pairs a plan change
+ * with the adjustment of the same save: the record's id, else the id both
+ * carry, else the name.
+ */
+function person(t: TrainerLike | undefined, signedAs: string | undefined, id?: string | null): { who: string; initials: string; key: string | null } {
   const name = t?.fullName?.trim() || signedAs?.trim() || "";
-  if (!name) return { who: UNKNOWN_WHO, initials: "?", key: null };
-  return { who: name, initials: t?.initials?.trim() || initialsOf(name), key: t ? t.id : `name:${name}` };
+  const uid = (id ?? "").trim();
+  if (!name) {
+    return uid ? { who: ANOTHER_STUDIOS_TRAINER, initials: "?", key: `uid:${uid}` } : { who: UNKNOWN_WHO, initials: "?", key: null };
+  }
+  return { who: name, initials: t?.initials?.trim() || initialsOf(name), key: t ? t.id : uid ? `uid:${uid}` : `name:${name}` };
 }
 
 function columnWords(value: string | undefined): string {
@@ -249,7 +260,7 @@ function sameMoment(a: number | null, b: number | null): boolean {
  */
 export function planChangesAndAdjustments(input: ChangesListInput): ChangeRow[] {
   const rows: ChangeRow[] = [];
-  const planPeople = input.planChanges.map((c) => person(trainerByUid(input.trainers, c.byUid), c.byName));
+  const planPeople = input.planChanges.map((c) => person(trainerByUid(input.trainers, c.byUid), c.byName, c.byUid));
 
   input.planChanges.forEach((c, i) => {
     const reasonParts = c.kind === "replan" ? [c.value, c.reason] : [c.reason];
@@ -277,7 +288,7 @@ export function planChangesAndAdjustments(input: ChangesListInput): ChangeRow[] 
     .filter((a) => a.routineId === input.routineId)
     .forEach((adj, i) => {
       const at = millisOf(adj.createdAt);
-      const p = person(trainerById(input.trainers, adj.trainerId), undefined);
+      const p = person(trainerById(input.trainers, adj.trainerId), undefined, adj.trainerId);
       const kind = adjustmentKind(adj);
       const notes = adj.notes?.trim() || null;
       if (kind === "machines" || kind === "created") {

@@ -12,8 +12,9 @@
 
 import { useMemo, useState } from "react";
 import { ArrowRight, Check, Search } from "lucide-react";
-import type { Client } from "../../../types";
+import type { Client, Trainer } from "../../../types";
 import { useToast } from "../../../contexts/ToastContext";
+import { trainerScopeFor } from "../../trainer-scope/scope";
 import {
   AdminBadge,
   AdminButton,
@@ -29,6 +30,8 @@ import { NAME_SEARCH_PROPS } from "../../../lib/name-search-input";
 export interface ReconcileDialogProps {
   temp: Client;
   clients: Client[];
+  /** Who is merging: the Kaizen Rosters repointed are the ones they may read. */
+  authTrainer: Trainer;
   onClose: () => void;
   onMerged?: () => Promise<void> | void;
 }
@@ -47,6 +50,7 @@ const COMPARE: { label: string; get: (c: Client) => string }[] = [
 export function ReconcileDialog({
   temp,
   clients,
+  authTrainer,
   onClose,
   onMerged,
 }: ReconcileDialogProps) {
@@ -84,7 +88,7 @@ export function ReconcileDialog({
     if (!survivor || problem) return;
     setRunning(true);
     try {
-      const res = await mergeProvisionalClient(temp, survivor, setProgress);
+      const res = await mergeProvisionalClient(temp, survivor, trainerScopeFor(authTrainer) ?? { kind: "studios", ids: [] }, setProgress);
       toastSuccess(
         `Merged into ${survivor.firstName} ${survivor.lastName}. ${res.total} record${res.total === 1 ? "" : "s"} moved.`,
       );

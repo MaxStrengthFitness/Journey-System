@@ -65,6 +65,12 @@ export function moreHeights(win: Window = window): { lvh: number | null; screen:
   return { lvh: unitNow(win.document, "lvh"), screen: held > 0 ? held : null };
 }
 
+/** True while the page is pinch-zoomed in (the visual viewport scaled past 1). */
+export function isZoomed(win: Pick<Window, "visualViewport"> = window): boolean {
+  const scale = win.visualViewport?.scale;
+  return typeof scale === "number" && Number.isFinite(scale) && scale > 1.01;
+}
+
 let watching = false;
 
 /**
@@ -77,6 +83,11 @@ export function watchAppHeight(win: Window = window): void {
   const root = win.document.documentElement;
 
   const apply = () => {
+    // A zoomed page reports the zoomed (smaller) height, and taking it left
+    // the bar floating over a blank band (AJ's iPad, Oct 18 2026). Zoom is
+    // off since then (no-zoom.ts), but a measurement taken mid-zoom is never
+    // the screen's: keep the last good one until the page is back at 1.
+    if (isZoomed(win)) return;
     const r = reportedHeights(win);
     const h = visibleHeight([r.inner, r.client, r.dvh]);
     if (h === null) {
@@ -97,6 +108,7 @@ export function watchAppHeight(win: Window = window): void {
   };
 
   soon();
+  win.visualViewport?.addEventListener("resize", soon);
   win.addEventListener("resize", soon);
   win.addEventListener("orientationchange", soon);
   win.addEventListener("pageshow", soon);

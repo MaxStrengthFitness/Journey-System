@@ -27,7 +27,9 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "../../../firebase";
-import type { Client, Trainer } from "../../../types";
+import type { Client } from "../../../types";
+import { readTrainers } from "../../trainer-scope/read";
+import type { TrainerScope } from "../../trainer-scope/scope";
 import {
   CLIENT_COMPOSITE_ID_COLLECTION,
   CLIENT_REFERENCE_FIELDS,
@@ -114,18 +116,20 @@ async function rekeyMachineSettings(
  * A tracked client keeps its place on every trainer's Kaizen Roster.
  *
  * The roster is an array of objects on the trainer document, so it cannot be
- * queried on — the trainers are read in full instead, which is fine at this
- * collection's size and is what the app already does everywhere else.
- * De-duplicated, because a trainer could plausibly be tracking both records.
+ * queried on — the trainers are read instead: every record the merging
+ * person may read (the trainer lock, Oct 18 2026: the people of the studios
+ * they run, or everyone for an administrator), which is every roster that
+ * could name a client of theirs. De-duplicated, because a trainer could
+ * plausibly be tracking both records.
  */
 async function repointKaizenRosters(
   fromId: string,
   toId: string,
+  scope: TrainerScope,
 ): Promise<number> {
-  const snap = await getDocs(collection(db, "trainers"));
+  const trainers = (await readTrainers(scope, "server")).docs;
   let touched = 0;
-  for (const d of snap.docs) {
-    const t = d.data() as Trainer;
+  for (const t of trainers) {
     const roster = t.kaizenRoster;
     if (!Array.isArray(roster) || !roster.some((e) => e?.clientId === fromId)) {
       continue;
@@ -139,7 +143,7 @@ async function repointKaizenRosters(
         seen.add(key);
         return true;
       });
-    await updateDoc(d.ref, { kaizenRoster: next });
+    await updateDoc(doc(db, "trainers", t.id), { kaizenRoster: next });
     touched += 1;
   }
   return touched;
@@ -148,6 +152,8 @@ async function repointKaizenRosters(
 export async function mergeProvisionalClient(
   temp: Client,
   survivor: Client,
+  /** Whose rosters the merge may read and repoint: the merging person's scope. */
+  scope: TrainerScope,
   onProgress?: (p: MergeProgress) => void,
 ): Promise<MergeResult> {
   const problem = checkMerge(temp, survivor);
@@ -178,7 +184,7 @@ export async function mergeProvisionalClient(
   report(
     "kaizenRoster",
     "Updated Kaizen Rosters",
-    await repointKaizenRosters(fromId, toId),
+    await repointKaizenRosters(fromId, toId, scope),
   );
 
   // The survivor learns where its history came from BEFORE the temporary

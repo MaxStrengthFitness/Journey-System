@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { buildNameIndex, compareTier, searchNames } from "../client-directory/search";
 import { clientDirectoryName, goesByNickname } from "../../lib/client-name";
+import { NAME_SEARCH_PROPS } from "../../lib/name-search-input";
 
 export function ClientSelectionDialog({
   clients,
@@ -87,6 +88,7 @@ export function ClientSelectionDialog({
             <Input
               placeholder="Find a client"
               aria-label="Find a client"
+              {...NAME_SEARCH_PROPS}
               className="pl-10 h-11 rounded-xl"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

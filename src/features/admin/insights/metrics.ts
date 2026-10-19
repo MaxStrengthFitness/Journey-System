@@ -38,6 +38,7 @@
  */
 
 import type { WorkoutSession } from "../../../types";
+import { ANOTHER_STUDIOS_TRAINER } from "../../trainer-scope/names";
 import { studioDateKey } from "../../../lib/studio-time";
 
 /* ------------------------------------------------------------------ *
@@ -209,7 +210,7 @@ export function trainerMetrics(
         names[trainerKey] ??
         (trainerKey.startsWith("initials:")
           ? trainerKey.slice("initials:".length)
-          : "Unnamed trainer"),
+          : ANOTHER_STUDIOS_TRAINER),
       sessions: own.length,
       completed,
       unclosed: own.length - completed,

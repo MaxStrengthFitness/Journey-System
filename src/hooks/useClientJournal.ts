@@ -33,6 +33,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ANOTHER_STUDIOS_TRAINER, findTrainerRecord } from "../features/trainer-scope/names";
 import {
   collection,
   query,
@@ -551,9 +552,13 @@ function resolveTrainer(
   trainerId?: string | null,
   initials?: string | null,
 ): JournalAuthor {
-  const byId = trainerId ? trainers.find((t) => t.id === trainerId) : undefined;
+  // By id (the document id or an older account's sign-in uid). An id the
+  // list doesn't hold is a trainer from another studio (the trainer lock,
+  // Oct 18 2026), never a guess by initials; initials match only a record
+  // that carries no id at all (an import).
+  const byId = findTrainerRecord(trainers, trainerId);
   const byInitials =
-    !byId && initials
+    !byId && !trainerId && initials
       ? trainers.find(
           (t) => (t.initials || "").toUpperCase() === initials.toUpperCase(),
         )
@@ -562,7 +567,7 @@ function resolveTrainer(
   return {
     id: t?.id || trainerId || "unknown",
     initials: (t?.initials || initials || "—").toUpperCase(),
-    fullName: t?.fullName || initials || "Unknown coach",
+    fullName: t?.fullName || initials || (trainerId ? ANOTHER_STUDIOS_TRAINER : "Unknown coach"),
   };
 }
 

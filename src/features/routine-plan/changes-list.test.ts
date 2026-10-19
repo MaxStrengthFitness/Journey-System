@@ -100,7 +100,8 @@ describe("who", () => {
     expect(rows.map((r) => [r.who, r.initials])).toEqual([
       ["Casey Park", "CP"],
       ["Jo Ray", "JR"],
-      ["A trainer", "?"],
+      // An id the list doesn't hold, and no name on the change (the trainer lock).
+      ["A trainer from another studio", "?"],
     ]);
   });
 });

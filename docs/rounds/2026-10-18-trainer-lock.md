@@ -1,0 +1,366 @@
+# The trainer lock: an iPad holds its own studios' trainers (Oct 18 2026)
+
+**Branch:** `claude/keen-elbakyan-b06716` (a desktop worktree), cut from
+master `878c7f95` (the Wrap-up round), with master `b7773a53` (the Gemini
+review round, which changed no rule or index) merged in at the end, so the
+push to master fast-forwards. One commit per phase, each typechecked on its
+own. App, rules and indexes; no Cloud Function, cron, Mindbody or Firestore
+structure change, and no new field.
+
+*Proposed Oct 18 2026, answered the same day (§9), built the same day (§7,
+§10, §11). Not pushed; AJ ships it (§8).*
+
+## 1. What this is
+
+Every trainer record in the company is open to every iPad today. The app
+subscribes to the whole `trainers` collection the moment someone signs in
+(`src/hooks/useTrainers.ts`), the boot reads the whole collection a second
+time (`useAuthInitialization.ts`), and the database lets any signed-in
+account read any trainer document (`firestore.rules`: `allow read: if
+isAuthenticated()`). A trainer record is a person: name, email, role, photo,
+which studios they work at, and their Kaizen Roster, which names clients
+with a reason and a note. The Gemini review of Oct 18 flagged it, AJ
+answered **3a** on the Gemini Review Check page, and the ROADMAP had it
+parked as "lock the trainer records", first on the next 1-on-1.
+
+After this round an iPad holds only the trainers of the studios the
+signed-in person works at or runs, and the database refuses a read of
+anyone else. The Kaizen Roster stays what it is: your studio's team can
+read yours, as the roster round intended; another studio's team cannot.
+
+## 2. Who sees whom
+
+"Works at" and "runs" are the words the rules already use for clients,
+sessions and every studio-scoped read, so nothing new has to be defined.
+
+| Who you are | Whose records your iPad holds |
+| --- | --- |
+| A Life Transformer | Everyone who works at your home studio, at a studio you also work at, or at one you are a guest at: your colleagues, their leaders, and the franchise owner of those studios. Plus Demo Mode's three practice trainers, as today |
+| A head trainer, studio leader or studio owner, or a trainer with the grant | The same, for every studio you run |
+| A franchise owner | Your home studio and every studio you own, exactly as its leaders see it (the franchise partition, Oct 10 2026) |
+| An administrator, the founder, the overseer | Everyone, as today |
+| Someone signed in with no account yet | One thing: a profile made for them in advance, found by their own sign-in email, so they can claim it. Nothing else (the strangers-out round left this one read open on purpose until the trainer lock) |
+
+Two people can read each other's record when they share a studio, in any of
+the ways a person is tied to one: home, also works at, a guest, the grant,
+or owns. A visiting trainer at Willoughby sees Willoughby's team while they
+are on its list, and Willoughby sees them.
+
+## 3. What changes on an iPad
+
+**For a trainer at one studio: nothing they can see.** The Hub, the Active
+Session, the Calendar, Relay, My Studio → Team, Openings and the profile
+list the same people as before, because those screens already show the
+studio's team (`src/lib/who-works-here.ts`).
+
+**Where a screen names a person from outside your studios**, it will say
+**"a trainer from another studio"** rather than show nothing or break. The
+name Start stamps on a session stays on the session, so a client's history
+still reads "with Sam" after Sam moves to Strongsville; only what needs
+Sam's record itself (their photo, their initials' colour, their profile)
+says it is someone from another studio. Phase 3 walks every screen that
+reads the list and records each place in this document.
+
+**Fewer documents on every iPad, and fewer re-sends.** Today each iPad
+downloads every trainer record in the company and is sent every change to
+any of them (a roster edit at Solon reaches every iPad at Strongsville). At
+fifty studios that is hundreds of records per iPad for a team of eight.
+After this round it is the team, through five small reads instead of one
+big one.
+
+**What does not change:** who may edit whom (the update rules are
+untouched), a trainer's counters (`trainers/{id}/stats`, still readable by
+anyone let in), the Cloud Functions, the Mindbody sync and the webhook (they
+read with the Admin SDK, outside the rules), the server's cron jobs (the
+same), Demo Mode, and the sign-in of anyone who already has an account.
+
+## 4. What it costs
+
+Five small listeners per iPad (home, also works at, guest, owns, the grant)
+in place of one; each returns a handful of documents. A trainer on two
+lists is read twice, which at a team's size is nothing. Five composite
+indexes on `trainers`, one per query (the Enterprise edition builds none by
+itself). No Mindbody call, no Cloud Function, no new field.
+
+## 5. Three questions for AJ
+
+**Q1. A profile made in advance, and a Microsoft account with no email.**
+When a leader or an administrator makes a profile for someone before they
+sign in (Operations' Temporary profiles, or the old Add New), Journey finds
+it at their first sign-in by email. A Google account always tells Journey
+its email. Some Microsoft accounts don't: the address sits on the account's
+provider entry only, and the sign-in itself carries none. The lock can match
+"your own email" to a record only when the sign-in carries one.
+
+- **a. (recommended) Keep the lock strict.** Such a person taps Request
+  Access, as a new person does; their leader lets them in from My Studio →
+  Team (which writes their record at their own sign-in id, no email match
+  needed); the profile made in advance is a spare that an administrator
+  removes. Nothing is open to strangers. Microsoft sign-in is not switched
+  on yet, so nobody is in this position today.
+- **b. Leave profiles nobody has claimed yet readable by anyone signed in**,
+  so the match by email still works for those accounts. The price: anyone
+  with a Google account could list the names, emails and studios of people
+  who haven't signed in yet (not their rosters: a profile made in advance
+  has none).
+
+**Q2. A leader of a corporate studio: one studio, or the group?** On Oct 14,
+for bookings, AJ said head trainers and studio leaders should see every
+studio in their own group (westlake, Strongsville and Willoughby for the
+corporate studios; a franchise's studios for its leaders). That rule is not
+built yet; it was filed under the bookings lock, because "group" is not yet
+something the rules can read.
+
+- **a. (recommended) This round: the studios a person runs** (home, the
+  grant, owned), as the rules already define it for clients and sessions. A
+  westlake head trainer sees westlake's team. The group rule comes with the
+  bookings lock, for trainers and bookings together, once a group is one
+  thing the rules read.
+- **b. Build the group rule now, for the trainer list alone.** A bigger
+  round: the rules would read the studio's network on every trainer read,
+  and the same rule would be built a second time for bookings later.
+
+**Q3. Ship it in two steps, or one?** This round takes a read away, so the
+order is the reverse of the usual one: the app first, the rules last
+(`docs/KNOWN-TRAPS.md`, the franchise partition: "a round that takes access
+away ships the app first and the rules last"). An iPad still on the old
+build asks for every trainer; once the new rules are live that ask is
+refused, and the iPad shows a red "Firestore Action Failed" and stale names
+until it loads the new build (Journey reloads itself on the Hub after a
+deploy, `features/new-version`).
+
+- **a. (recommended) Two steps.** Day one: the indexes, then the push and
+  Render (the web service, and Manual Build on both cron jobs so they stay
+  on the same commit). Day two, or once Render's boot report shows every
+  iPad on the new build: the rules tests, then the rules.
+- **b. One sitting:** the app, then the rules straight after, accepting
+  that an iPad which hasn't reloaded yet shows the error until its next trip
+  to the Hub.
+
+AJ answers in chat ("1a 2a 3a" is enough).
+
+## 6. How it is built (for the record; AJ can skip this)
+
+**The scope** (`src/features/trainer-scope/scope.ts`, pure, with its tests):
+the studios whose trainers this person may hold. For anyone below the
+company tier, `readableStudioIds` (`src/lib/tenancy.ts`: home, also works
+at, guests, and owned for a role that runs its own studios) plus the grant
+(`managedStudioIds`) plus `demo-studio` (everyone works there in the
+rules), capped at Firestore's 30 (`capStudioIds`). For an administrator,
+the founder or the overseer, "all".
+
+**The queries**, one listener each, merged by id and delivered as one list:
+
+| Reads | Query |
+| --- | --- |
+| People homed at my studios | `where("primaryHomeStudioId", "in", S)` |
+| People who also work at one | `where("accessibleStudioIds", "array-contains-any", S)` |
+| Guests at one | `where("activeGuestStudioIds", "array-contains-any", S)` |
+| The owner of one | `where("ownedStudioIds", "array-contains-any", S)` |
+| Someone with the grant at one | `where("managedStudioIds", "array-contains-any", S)` |
+
+Administrators keep the one unfiltered listener. `useTrainers` opens the
+set, holds each listener's latest answer, and hands on the merged list once
+every listener has answered, with `fromCache` true until every one has the
+server's answer, through the same delivery gate as today (first answer, any
+change, the moment the server confirms the copy). The boot's own read
+(`bootRead("trainers")`) runs the same set, the iPad's copy first; so does
+the Operations and Admins "refresh" (`handleManualRefresh`). The
+provisional merge's roster repoint (`mergeClient.ts`, which read every
+trainer) repoints the rosters the merging person can read, which is every
+roster at the studios they run.
+
+**The rule** (`firestore.rules`, `match /trainers/{trainerId}`):
+
+```text
+allow read: if trainerRecordReadable(trainerId, resource.data);
+
+readable when  request.auth.uid == trainerId
+            or the caller is an administrator (roleIsSuper)
+            or the record's email equals the token's email, lower-cased, and is not empty
+            or the caller has a record and the two records share a studio:
+                 the record's home is in the caller's studios,
+                 or its also-works-at / guest / owned / grant list has any of them
+```
+
+The caller's studios are built once (`let`) from their own record, the
+rules' `trainerWorksAt` and `trainerLeads` ties plus `demo-studio`. One
+`getRole()`, one `callerTrainer()`: within the 1,000-expression budget by a
+wide margin. Proved on the emulator before this proposal was written: the
+rules engine proves an `in` filter against the `in` test and an
+`array-contains-any` filter against `hasAny`, accepts the email lookup from
+a token that carries the email in any case, refuses the lookup from a token
+with none, and refuses the unfiltered list and another studio's.
+
+**The indexes** (`firestore.indexes.json`): five composites on `trainers`,
+each leading with the query's field (`primaryHomeStudioId` ascending; the
+four lists `arrayConfig: CONTAINS`) with `fullName` as the second field a
+composite needs. `src/lib/firestore-indexes.test.ts` holds them.
+
+**The rules tests** (`tests/firestore.rules.test.ts`, a new block): a
+trainer reads their studio's five queries and a colleague's record, and is
+refused the unfiltered list, another studio's query and another studio's
+record; a leader, a guest, the grant and a franchise owner each read what §2
+says and no more; the owner is readable by the studio's people; an
+administrator lists everyone; a stranger reads a profile by their own
+email, not by another's, and not the list; Demo Mode's trainers are
+readable by anyone let in; the existing "allows regular Trainer to read
+trainers collection" test flips to the scoped reads.
+
+**Not changed, on purpose:** `trainers/{id}/stats` (any reader let in; not
+in scope), the update and create rules, the Cloud Functions' claim mirror,
+and nothing adds a `studioIds` field to the record. A denormalised list of
+every studio a person is tied to would make this one query and one index
+instead of five, at the price of a new field every writer (the app, the
+staff webhook, the seeder, four scripts) must keep, and a backfill. Worth
+it only if the five listeners ever show up in the boot report.
+
+## 7. The phases
+
+1. **Scoped reads and their indexes.** `trainer-scope/` (pure, tested),
+   `useTrainers`, the boot read, the refresh, the merge's repoint; the five
+   indexes. The app under the OLD rules behaves exactly as today (every
+   query is narrower), so this phase can ride ahead of the rules.
+2. **The rules and their tests.** The read rule above and the block of
+   rules tests; the rules lint and comment proof.
+3. **Every screen that reads the list.** Walk each consumer of the
+   `trainers` prop from `AppContent.tsx` (the picker, the Hub, the Active
+   Session, the profile, the Calendar, Relay, My Studio, Operations, the
+   Admins dashboard, the importer, the bell) and the hooks beneath them;
+   "a trainer from another studio" where a record outside the scope is
+   named.
+4. **The written record.** `docs/business/roles-and-permissions.md` (a row
+   for the trainer record), the ROADMAP (the parked item goes), one
+   decision in `CLAUDE.md` and its entry in `docs/DECISIONS.md`, the
+   feature's README, `docs/KNOWN-TRAPS.md` if anything bit.
+
+Then the gates: typecheck at 0, the suite with `--dir src`, the rules tests
+on the emulator, `firestore-indexes.test.ts`, the bundle budget.
+
+## 8. How it ships (if 3a)
+
+**Day one.** `firebase deploy --only firestore:indexes --non-interactive`
+(the five indexes; the note about two field overrides not present is the
+TTL policies and is expected). `git push origin master`. On Render: Manual
+Deploy on the web service, Manual Build on both cron jobs. The app under
+the old rules reads exactly what it read before.
+
+**Day two**, once the iPads have the build (Render's boot report, or a trip
+to the Hub on each): `npm run test:rules` on AJ's PC (the run that counts),
+then `firebase deploy --only firestore:rules`.
+
+**The undo**: the rules back first (`docs/ops/DEPLOYS-AND-ROLLBACK.md`,
+"The rules"), then the app if wanted. The indexes can stay.
+
+**The check afterwards**, because every rule passes an administrator first,
+so AJ's own walk can't see it: signed in as a **Life Transformer at a live
+studio**, the Hub's cards show their trainers, My Studio → Team lists the
+team, a client's history names its coaches; and nothing red.
+
+## 9. AJ's answers
+
+**Oct 18 2026, in chat: "1a 2a 3a".**
+
+- **1a.** The lock stays strict. A Microsoft account whose sign-in carries no
+  email finds no profile made in advance; that person uses Request Access,
+  their leader lets them in from My Studio → Team, and a spare profile is an
+  administrator's to remove. Nothing about an unclaimed profile is open to
+  anyone signed in.
+- **2a.** This round: the studios a person runs (home, the grant, owned). The
+  corporate group rule (westlake, Strongsville and Willoughby seeing each
+  other's teams) waits for the bookings lock, for trainers and bookings
+  together.
+- **3a.** Two steps: the indexes, the push and Render first; the rules once
+  the iPads have the build (§8).
+
+## 10. Gates
+
+On the merged tip (master `b7773a53` in), Oct 18 2026:
+
+| Gate | Result |
+| --- | --- |
+| Typecheck (`npx tsc --noEmit`) | **0** (CI holds it at 0 since the Gemini review round) |
+| The suite (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`) | **14,841** pass in 904 files (14,805 in 899 on `878c7f95` before the round) |
+| Rules tests (`npm run test:rules`, the emulator, Java 26) | **627** pass: 601 in `firestore.rules.test.ts` (14 of them "the trainer lock"), plus the rules lint and the comment proof |
+| `src/lib/firestore-indexes.test.ts` | green: the five queries and their composites |
+| `src/claude-md.test.ts` | green: `CLAUDE.md` at 44,797 of 45,000 characters (three stale parentheticals trimmed to make room for the decision) |
+| The build and the budget (`NODE_ENV=production npx vite build`, `npm run check:bundle`) | the first screen 470.6 KB gzip of the 480 KB budget |
+| `firestore.rules` | 180,054 bytes as written (178,098 before) |
+
+The commits: `77b59dbe` the proposal (phase 0); `05c3a3b3` the scoped reads
+and their five indexes (phase 1); `aa42778a` the rules and their tests
+(phase 2); `47ce18d6` every screen that reads the list (phase 3);
+`7bb392bd` the written record (phase 4); `3b9261a5` the merge of master;
+then the counts.
+
+**AJ's `test:rules` run is the one that counts**, as always.
+
+## 11. Phase 3: every screen that reads the list
+
+A helper walked every consumer of the `trainers` prop from `AppContent.tsx`
+and the hooks beneath them (about ninety places), asking what each does when
+an id it holds is not on the list. **Nothing crashes**: every lookup already
+reads through `?.` or a guard. What was wrong, and what changed:
+
+**Named the wrong person** (an initials fallback that, with a scoped list,
+would hand a session to the one trainer HERE who shares the initials):
+
+- `client-history/trainers.ts` (History's rows, the session pop-up, Notes): by
+  id, then an older account's sign-in uid; initials only for a session with no
+  id at all (an import), and only when one person on the list has them.
+- `hooks/useClientJournal.ts` (the legacy journal's authors): the same.
+- `admin/data/useStudioExports.ts` (the payroll CSV): the same; the name is
+  the session's own when the list can't name the coach.
+
+**Wrote a placeholder into a record:** `client-profile/useTopTrainer.ts`'s
+one-time backfill wrote `topTrainerName: "Unknown trainer"` to the client
+when the top trainer's record was missing. `lib/client-rollups.ts` now names
+a coach the list doesn't hold by what Start stamped on the sessions
+(`storedNamesFromSessions`), says "A trainer from another studio" only on
+screen (`named: false`), and writes only a name that names the person.
+
+**Showed a raw id:** `routines/routine-rows.ts` (Programming's change log)
+showed the trainer's document id as the name and its first two letters as
+initials. Now "A trainer from another studio" and "?".
+
+**Signed by the wrong trainer:** a kept set-up handed over in Who's this?
+(`WorkoutTrackerView.tsx`, `queueHeldMoves`'s `authorOf`) was signed by the
+trainer finishing now when the keeper's record wasn't on the list. It is
+signed by the keeper's id, named as a trainer from another studio.
+
+**Lost a pairing:** `routine-plan/changes-list.ts` pairs the drawer's one save
+(a plan change and an adjustment) by the person's key; with no record there
+was no key, so one save showed twice. Both now key by the id they carry.
+
+**A select that lied:** the Renewal Brief's "Leading the conversation"
+showed "Nobody yet" for a lead the list doesn't hold. The lead stays in the
+options as "A trainer from another studio".
+
+**Placeholders that said the wrong thing** ("Unknown trainer", "Unnamed
+trainer", "A former trainer"): the session pop-up's coach, the profile
+header's top trainer and "every trainer who trained her", Operations' Hours,
+Insights and the month tally rows, the renewal outcomes by trainer, Team's
+renewal counts. Each now says "A trainer from another studio"
+(`trainer-scope/names.ts`), after the name the record carries where there
+is one. "Started by …" on a taken-over session says "a trainer from another
+studio" rather than dropping the line (`session-record/watch.ts`). The
+journey list's win-back case says "her usual trainer is from another
+studio" rather than "no usual trainer on record" (`usualElsewhere`).
+
+**Left as they are, on purpose** (an omission, not a wrong word): the Hub and
+the Calendar put a booking whose trainer isn't on this studio's team in the
+Unassigned column with Mindbody's own staff name (`hub-schedule/columns.ts`,
+as before); Ahead's trainer filter offers chips only for trainers it can
+name (a client of someone elsewhere is under Everyone); "set by", "measured
+by", "offered by" and a notice author's role are left off when the record
+is missing; a network notice's "N of M have read it" counts the people the
+reader can see; My Studio → Team's roster can't tell that a sign-up request
+belongs to someone who already has an account at another studio, so such a
+request reads as awaiting approval and the approval is refused by the
+rules (the account's home is elsewhere); the trainer-profile screen for an
+id outside the list renders nothing, but nothing opens it with one (Team's
+roster comes from the list).
+
+Tests: `client-history/trainers.test.ts`, `lib/client-rollups.names.test.ts`,
+`trainer-scope/names.test.ts`, and the changed cases in `routine-rows`,
+`changes-list`, `watch` and `metrics` tests.

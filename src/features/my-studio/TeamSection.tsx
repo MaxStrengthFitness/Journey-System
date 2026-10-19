@@ -12,6 +12,7 @@ import { TeamPanel } from "../relay/team/TeamPanel";
 import { StandingWeeksPanel } from "../standing-week/StandingWeeksPanel";
 import "../admin/admin.css";
 import "./my-studio.css";
+import { NAME_SEARCH_PROPS } from "../../lib/name-search-input";
 
 /**
  * MY STUDIO → TEAM — people and standards.
@@ -162,7 +163,9 @@ function StaffPanel({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search"
+              aria-label="Search the team"
               style={{ width: 160 }}
+              {...NAME_SEARCH_PROPS}
             />
           </span>
         }

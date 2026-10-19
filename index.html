@@ -5,8 +5,14 @@
     <!-- viewport-fit=cover lets the page run under the iPad status bar and the
          home indicator, and is what makes env(safe-area-inset-*) report real
          values. Without it every inset in the app is 0. The app pads for the
-         insets itself: src/features/home-screen/README.md. -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+         insets itself: src/features/home-screen/README.md.
+         No zoom (AJ, Oct 18 2026: "I always want those icons to be at the
+         bottom. I don't want to be able to zoom that in and out"): a pinch
+         left the bottom bar floating over a blank band. maximum-scale=1 also
+         stops Safari zooming into a small text box when it is tapped; a
+         Safari tab ignores user-scalable=no, so index.css turns the pinch off
+         as well (touch-action on <html>) and so does no-zoom.ts. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <!-- iPad Safari otherwise guesses that "54 LB 7 REPS" on a routine row is
          an address or a phone number and underlines it. Nothing in this app
          is a link unless it is drawn as one. -->

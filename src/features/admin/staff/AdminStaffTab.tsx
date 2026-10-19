@@ -52,6 +52,7 @@ import { ADMIN_TIER_ROLES, OWNER_TIER_ROLES, STATE_BADGE, StaffEditor } from "./
 import type { StaffRow } from "./roster";
 import { useStaffRoster } from "./useStaffRoster";
 import { useOperationsScope } from "../scope-context";
+import { NAME_SEARCH_PROPS } from "../../../lib/name-search-input";
 
 export interface AdminStaffTabProps {
   /** The signed-in person: the pending requests are read only for someone the rules let read them. */
@@ -173,6 +174,7 @@ export function AdminStaffTab({
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search"
                 aria-label="Search staff"
+                {...NAME_SEARCH_PROPS}
                 style={{ width: 180 }}
               />
             }

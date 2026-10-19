@@ -39,6 +39,7 @@
  * trainer.
  */
 import { useMemo, useState } from "react";
+import { ANOTHER_STUDIOS_TRAINER } from "../../trainer-scope/names";
 import { Award, Check, Lock, UsersRound } from "lucide-react";
 import type { Client, Studio, Trainer } from "../../../types";
 import { ROLE_LABELS } from "../../../types";
@@ -126,7 +127,7 @@ export function TeamWeekPage({ studio, studios, clients, trainers, authTrainer }
   const [quarter] = useMemo(() => recentQuarters(today || "2026-01-01", 1), [today]);
   const outcomes = useOutcomes(leads ? [studioId] : [], quarter.from, quarter.to);
   const counts = useMemo(() => {
-    const nameOf = (id: string) => trainers.find((t) => t.id === id || t.authUid === id)?.fullName ?? "A former trainer";
+    const nameOf = (id: string) => trainers.find((t) => t.id === id || t.authUid === id)?.fullName ?? ANOTHER_STUDIOS_TRAINER;
     return renewalCounts(outcomes.rows, { payAsYouGoCountsAs: outcomes.paygRule[studioId] ?? "retained" }, nameOf);
   }, [outcomes.rows, outcomes.paygRule, studioId, trainers]);
   const [checkOpen, setCheckOpen] = useState(false);
