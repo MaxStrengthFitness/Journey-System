@@ -1,0 +1,166 @@
+/* ==========================================================================
+   The one routine builder (Programming → Routines, Oct 19 2026): the floor
+   beside Routine A and Routine B. Drawn with routine-plan.css's parts and
+   the Hub's palette (--eq-*); this file holds only the layout and the
+   builder's own marks. Names wrap and are never cut short.
+   ========================================================================== */
+
+/* Add to, and Start from…, over the builder. */
+.abb-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.abb-target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.abb-target__label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--eq-ink);
+}
+
+/* One column on a phone; the floor over A and B on a portrait iPad; the
+   floor, A and B side by side on a landscape iPad. */
+.abb-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+@media (min-width: 700px) {
+  .abb-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .abb-floor { grid-column: 1 / -1; }
+}
+@media (min-width: 1180px) {
+  .abb-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .abb-floor { grid-column: auto; }
+}
+
+/* A tile's mark: the routines that hold the machine. On the blue when the
+   tile is in the routine being built into, an outline when it is only in
+   the other one. */
+.abb-mark {
+  flex: none;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--eq-live-on);
+  color: var(--eq-live);
+  font-size: 12px;
+  font-weight: 700;
+}
+.abb-mark--quiet {
+  background: transparent;
+  color: var(--eq-ink-2);
+  border: 1px solid var(--eq-border-strong);
+}
+
+.abb-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--eq-ink);
+}
+
+.abb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+/* Phasing in, on B's card: a well inside the panel. */
+.abb-phase {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--eq-surface-2);
+  box-shadow: var(--eq-elev-0);
+}
+.abb-phase__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* The phase-in sheet's steps. */
+.abb-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.abb-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--eq-edge);
+}
+.abb-step__name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--eq-ink);
+  overflow-wrap: anywhere;
+}
+.abb-step__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 12px;
+}
+
+/* Routine A's plan, under the builder: one head a tap opens. */
+.abb-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+.abb-plan__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--eq-border-strong);
+  border-radius: 12px;
+  background: var(--eq-raised);
+  box-shadow: var(--eq-elev-1), inset 0 1px 0 var(--eq-highlight);
+  color: var(--eq-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.abb-plan__head:active { transform: translateY(1px); box-shadow: var(--eq-press); }
+.abb-plan__head:focus-visible { outline: 2px solid var(--eq-focus-ring); outline-offset: 1px; }
+.abb-plan__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.abb-plan__meta {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--eq-ink-2);
+}

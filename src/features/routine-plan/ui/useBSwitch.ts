@@ -37,6 +37,13 @@ export interface BSwitchInput {
   onCantTell: (message: string) => void;
   /** Called just before Plan B opens: what must close for it (the Edit routine drawer). */
   beforePlanB?: () => void;
+  /**
+   * Turning B on with nothing in Routine B, since the routine builder round
+   * (Oct 19 2026): B is built whole on Programming → Routines, whose Save
+   * turns it on, so the caller takes the trainer there instead of Plan B
+   * (`beforePlanB` is still called first). Absent: Plan B opens, as before.
+   */
+  onEmptyB?: () => void;
 }
 
 export interface BSwitch {
@@ -65,7 +72,10 @@ export function useBSwitch(input: BSwitchInput): BSwitch {
       const { routines, routinesKnown, onSwitch, onCantTell } = ref.current;
       switch (bSwitchStep(on, savedRoutineB(routines), routinesKnown)) {
         case "plan-b":
-          openPlanB();
+          if (ref.current.onEmptyB) {
+            ref.current.beforePlanB?.();
+            ref.current.onEmptyB();
+          } else openPlanB();
           return;
         case "cant-tell":
           onCantTell(B_SWITCH_CANT_TELL);

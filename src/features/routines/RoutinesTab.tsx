@@ -96,6 +96,11 @@ export interface RoutinesTabProps {
    * in) the single Routine B view draws B's plan beside A too.
    */
   plan?: PlanHost | null;
+  /**
+   * Draw Routine A's plan with no B column: under the one routine builder
+   * (the routine builder round, Oct 19 2026), where B is its own list.
+   */
+  withoutB?: boolean;
 }
 
 /* ------------------------------------------------------------------ *
@@ -289,6 +294,7 @@ export function RoutinesTab({
   hideSummary = false,
   model,
   plan: host = null,
+  withoutB = false,
 }: RoutinesTabProps) {
   // Hooks are unconditional; the computed model is thrown away when the
   // parent supplied one. Cheap — every memo inside it is keyed on the same
@@ -371,7 +377,7 @@ export function RoutinesTab({
    */
   const bSaved = !!b.id && !b.id.startsWith("temp-");
   const aRuns = useMemo(() => aRunsSince(sessions, aSaved ? a.id : null), [sessions, aSaved, a.id]);
-  const bSide: BSide | null = host
+  const bSide: BSide | null = host && !withoutB
     ? {
         routine: bSaved ? { ...b, id: b.id as string } : null,
         isBActive,

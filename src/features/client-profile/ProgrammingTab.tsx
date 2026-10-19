@@ -7,10 +7,12 @@
  * the Routines round deliberately rebuilt the prescription rows in the
  * Equipment rail's vocabulary. Two tabs for one sentence.
  *
- * One tab now, four segments:
+ * One tab now, three segments (the routine builder round, Oct 19 2026: A
+ * and B were two segments until then; AJ: "we dont even need Routine B to
+ * have its own tab"):
  *
- *   ROUTINE A      the prescription, full width, one at a time
- *   ROUTINE B      the same, and the switch that turns it on
+ *   ROUTINES       Routine A and Routine B in one builder (features/ab-builder),
+ *                  the switch that turns B on, and Routine A's plan under it
  *   ALL MACHINES   the roster — every machine, its settings, its history
  *   SETUP          every machine's settings on ONE list: check them, fill them
  *                  in from what similar clients use, or copy a FileMaker chart
@@ -69,6 +71,8 @@ import { RoutinesTab } from "../routines";
 import { relativeTime, type RoutineName } from "../routines/routine-rows";
 import { useRoutinesModel } from "../routines/useRoutinesModel";
 import { ProfileSubnav, type SubnavItem } from "./ProfileSubnav";
+import { RoutineBuilder } from "../ab-builder/ui/RoutineBuilder";
+import { savedRoutineA } from "../routine-plan/ui/host";
 import type { ProgrammingView } from "./profile-nav";
 import "./profile-nav.css";
 
@@ -111,6 +115,8 @@ export interface ProgrammingTabProps {
   onViewChange: (view: ProgrammingView) => void;
   onEdit: (name: RoutineName) => void;
   onToggleB: (checked: boolean) => void;
+  /** A refused save on Routines, in a sentence (the profile's toast). */
+  onError?: (message: string) => void;
   onSelectMachine?: (machineId: string) => void;
   /**
    * The machine menu's door on the profile (ClientProfileView builds it):
@@ -148,6 +154,7 @@ export function ProgrammingTab({
   onViewChange,
   onEdit,
   onToggleB,
+  onError,
   onSelectMachine,
   machineMenuHost,
   disabled = false,
@@ -161,10 +168,31 @@ export function ProgrammingTab({
    * scope and a move never asks about Setup's drafts.
    */
   const segments = useLeaveScope();
+  // "routine-b" is a door from before the routine builder round: it opens Routines too.
+  const routinesView = view === "routine-a" || view === "routine-b";
   const changeView = (next: ProgrammingView) => {
-    if (next === view) return;
+    if (next === view || (routinesView && next === "routine-a")) return;
     segments.guard(() => onViewChange(next));
   };
+  const aSaved = savedRoutineA(routines);
+  const aHasPlan = !!aSaved?.plan;
+  // Routine A's plan under the builder: open by itself while Routine A is empty and the plan runs day one.
+  const [planOpenState, setPlanOpen] = useState<boolean | null>(null);
+  const planOpen = planOpenState ?? (aHasPlan && (aSaved?.machineIds.length ?? 0) === 0);
+  /*
+   * A client with no routine and no plan who is starting out at the studio
+   * (or whom Journey can't place yet) keeps Start a plan: the starting
+   * lineup, day one and the consult (routine-plan/ui/StartPlanPanel). A
+   * client who trained here before Journey gets the builder, which is the
+   * A builder AJ liked with B beside it.
+   */
+  const starting =
+    !!plan &&
+    plan.status === "ready" &&
+    !aHasPlan &&
+    (aSaved?.machineIds.length ?? 0) === 0 &&
+    !routines.some((r) => r.machineIds.length > 0) &&
+    plan.kind.kind !== "new-to-journey";
   /*
    * The roster is mounted the first time it is opened and never unmounted
    * after that — "keep alive from first use". Mounting it up front would cost
@@ -274,35 +302,25 @@ export function ProgrammingTab({
   const items = useMemo<SubnavItem<ProgrammingView>[]>(
     () => [
       {
+        // Routine A and Routine B, one builder (the routine builder round,
+        // Oct 19 2026). The id stays "routine-a", and "routine-b" opens the
+        // same segment, so every door and stored place still lands here.
         id: "routine-a",
-        label: "Routine A",
-        meta: aPlanMeta
-          ? aPlanMeta
-          : model.rowsA.length === 0
-            ? // A read that hasn't answered, or failed, never says "not set up".
-              plan?.status === "loading"
-              ? "reading"
-              : plan?.status === "failed"
-                ? "can't tell"
-                : "not set up"
-            : `${model.rowsA.length} machines${model.todayName === "Routine A" ? " · today" : ""}`,
+        label: "Routines",
+        meta:
+          // A read that hasn't answered, or failed, never says "not set up".
+          plan?.status === "loading"
+            ? "reading"
+            : plan?.status === "failed"
+              ? "can't tell"
+              : [
+                  `A ${aPlanMeta && model.rowsA.length === 0 ? "day one" : model.rowsA.length}`,
+                  `B ${isBActive ? (bPlanMeta ?? model.rowsB.length) : "off"}`,
+                  ...(model.todayName ? [`${model.todayName.slice(-1)} today`] : []),
+                ].join(" · "),
         // The dot is "there is something here to deal with", and the only
         // thing on a prescription that qualifies is a machine with no load.
-        flag: model.rowsA.some((r) => r.weight === null),
-      },
-      {
-        id: "routine-b",
-        // Never hidden when B is off. A segment that disappears is a feature
-        // the studio forgets it has — and turning B on lives behind it.
-        label: "Routine B",
-        meta: !isBActive
-          ? "off"
-          : bPlanMeta
-            ? bPlanMeta
-            : model.rowsB.length === 0
-            ? "not set up"
-            : `${model.rowsB.length} machines${model.todayName === "Routine B" ? " · today" : ""}`,
-        flag: isBActive && model.rowsB.some((r) => r.weight === null),
+        flag: model.rowsA.some((r) => r.weight === null) || (isBActive && model.rowsB.some((r) => r.weight === null)),
       },
       {
         id: "machines",
@@ -404,14 +422,46 @@ export function ProgrammingTab({
       <ProfileSubnav
         label="Programming views"
         items={items}
-        value={view}
+        value={routinesView ? "routine-a" : view}
         onChange={changeView}
         context={context}
       />
 
       <UnsavedChangesScope scope={segments}>
-        {view === "routine-a" && <RoutinesTab {...routineProps} view="Routine A" plan={plan} />}
-        {view === "routine-b" && <RoutinesTab {...routineProps} view="Routine B" plan={plan} />}
+        {routinesView && (starting || !plan) && <RoutinesTab {...routineProps} view={plan ? "Routine A" : "both"} plan={plan} />}
+        {routinesView && plan && !starting && (
+          <>
+            <RoutineBuilder
+              host={plan}
+              client={client}
+              clientId={clientId}
+              routines={routines}
+              machines={routineMachines}
+              isBActive={isBActive}
+              trainers={trainers}
+              adjustments={adjustments}
+              authTrainer={authTrainer}
+              activeStudioId={activeStudioId}
+              onToggleB={onToggleB}
+              onError={onError}
+              disabled={disabled}
+            />
+            {aHasPlan && (
+              <section className="abb-plan">
+                <button
+                  type="button"
+                  className="abb-plan__head"
+                  aria-expanded={planOpen}
+                  onClick={() => setPlanOpen(!planOpen)}
+                >
+                  <span className="abb-plan__title">Routine A's plan</span>
+                  <span className="abb-plan__meta">On deck, can't do, weak area and the plan's changes</span>
+                </button>
+                {planOpen && <RoutinesTab {...routineProps} view="Routine A" plan={plan} withoutB />}
+              </section>
+            )}
+          </>
+        )}
       </UnsavedChangesScope>
 
       {/* Mounted from the first time the roster is opened, hidden after that.
