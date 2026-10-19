@@ -68,7 +68,20 @@ describe("the studio map's look", () => {
   it("marks Used since its wipe in plum and Wiped today in the done green, and nothing in orange (phase 4)", () => {
     expect(ruleFor(".smap-m__used").flatMap((r) => declared(r.body, "fill"))).toEqual(["var(--eq-warn)"]);
     expect(ruleFor(".smap-m__tick").flatMap((r) => declared(r.body, "stroke"))).toEqual(["var(--eq-ok)"]);
-    expect(ruleFor(".smap-mode__btn[aria-pressed=\"true\"]").flatMap((r) => declared(r.body, "background"))).toEqual(["var(--eq-live)"]);
+    expect(ruleFor(".smap-mode__btn[aria-pressed=\"true\"]").flatMap((r) => declared(r.body, "background"))).toEqual(["var(--eq-live-fill)"]);
+  });
+
+  it("draws the picked Look up | Cleaning in the quiet blue, and Mark all wiped in the solid blue (the dark round's Q2, AJ \"2a\", Oct 17 2026)", () => {
+    // Still the selection's blue, only quieter: blue words on the blue tint inside a blue ring,
+    // as Relay's Map | Tiles (src/quiet-blue.test.ts measures both in both modes).
+    const picked = ruleFor(".smap-mode__btn[aria-pressed=\"true\"]");
+    expect(picked.flatMap((r) => declared(r.body, "color"))).toEqual(["var(--eq-live-text)"]);
+    expect(picked.flatMap((r) => declared(r.body, "box-shadow"))).toEqual(["inset 0 0 0 1px var(--eq-live)"]);
+    // The switch keeps its 3:1 edge round both segments.
+    expect(ruleFor(".smap-mode").flatMap((r) => declared(r.body, "border"))).toEqual(["1px solid var(--eq-border-strong)"]);
+    const markAll = ruleFor(".smap-btn--primary");
+    expect(markAll.flatMap((r) => declared(r.body, "background"))).toEqual(["var(--eq-live)"]);
+    expect(markAll.flatMap((r) => declared(r.body, "color"))).toEqual(["var(--eq-live-on)"]);
   });
 
   it("draws a machine still to wipe as an empty box on the control edge, in the tick's place (phase 4 review fixes)", () => {

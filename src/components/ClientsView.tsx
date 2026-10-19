@@ -17,7 +17,7 @@ import { useHubCriticalNotes } from "../hooks/useHubCriticalNotes";
 // ClientsView is in the initial bundle; pulling the barrel in here would drag
 // the whole Studio Hub UI in with it and defeat AppContent's lazy import.
 import { useStudioTasks } from "../features/studio-tasks/useStudioTasks";
-import { dayTitle, pickDay, shownDay, stripFrom } from "../features/hub-schedule/hub-day";
+import { dayTitle, loggingFrom, pickDay, shownDay, stripFrom } from "../features/hub-schedule/hub-day";
 import { UNASSIGNED_ID, orderColumnsBySessions, planColumns, staffLabel } from "../features/hub-schedule/columns";
 import { staffIdsAt } from "../features/standing-week/check";
 import type { DayReadState } from "../lib/schedule-window";
@@ -672,6 +672,17 @@ export function ClientsView({
   }, [todaysSchedules, columnPlan]);
   const gridNowMin = gridDayKey === studioDateKey(currentTime) ? studioMinutes(currentTime) : null;
   /*
+   * DOES THIS STUDIO LOG THE DAY IN JOURNEY? (the cards round, Oct 17 2026;
+   * AJ's 1A): from the studio's Journey cutover date on, a session nobody
+   * recorded stays a whole card with the plum mark; before it (or with no
+   * date set) Not logged steps back and keeps its words. The grid and the
+   * phone's list set it on the day (`data-logging`, hub-card.css).
+   */
+  const gridLogging = loggingFrom(
+    gridDayKey,
+    (cutoverStudios ?? []).find((s) => s.id === activeStudioId)?.journeyCutoverDate ?? null,
+  );
+  /*
    * YOUR OWN COLUMN, IN WORDS (hub cherry round, Sep 28 2026; Hub direction
    * B's focus column): your column takes more of the spare room, its head
    * says your day in words, and its cards say every mark they may say out
@@ -1267,6 +1278,7 @@ export function ClientsView({
                 withWords={(b) => (focusId !== null || b.columnId === UNASSIGNED_ID ? null : withTrainer(b.columnId))}
                 emptyWords={bookingsRead === "ready" ? NOBODY_BOOKED : bookingsRead === "loading" ? "Reading the day’s bookings…" : null}
                 hidden={layer !== "schedule"}
+                logging={gridLogging}
               />
             ) : (
             <HubGrid
@@ -1280,6 +1292,7 @@ export function ClientsView({
               focusId={focusId}
               emptyWords={bookingsRead === "ready" ? NOBODY_BOOKED : bookingsRead === "loading" ? "Reading the day\u2019s bookings\u2026" : null}
               onOpenColumn={openColumn}
+              logging={gridLogging}
             />
             )}
 

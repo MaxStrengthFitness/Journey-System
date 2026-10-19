@@ -23,7 +23,9 @@ import { describe, expect, it } from "vitest";
  *      transition-shadow with a shadow (nor a plain transition with a shadow
  *      that changes on hover, press or focus). A press is a transform.
  *  11. No coloured rule tapers into a crescent: no side border wider than
- *      the rest on a rounded corner. The Hub's state rails stay on purpose.
+ *      the rest on a rounded corner. The few rails that stay are listed
+ *      (the Hub's bookings and the Next 30 minutes strip draw their state
+ *      as a straight band since the cards round, Oct 17 2026).
  *  12. Nothing tappable under 40px: no button rule sets a height under 40.
  *  13. A raised control keeps a 3:1 edge (AJ's 2A): a button, segment or
  *      filter that reads an elev-1 lift draws its border in a 3:1 control
@@ -188,8 +190,9 @@ describe("every shadow is navy, never black", () => {
         expect(c, `${token}: ${l.colour} is an rgba()`).not.toBeNull();
         const ink = c!.slice(0, 3);
         expect(INKS[theme].some((k) => k.every((v, i) => v === ink[i])), `${token}: ${l.colour}`).toBe(true);
-        // White is a top light (inset), or the 1px hairline the frame draws
-        // on its edge in dark; never a glow.
+        // White is a top light (inset), or a 1px hairline with no blur (the
+        // frame's dark edge was one until phase D3 drew it in the pale rim);
+        // never a glow.
         if (ink.every((v) => v === 255)) expect(l.inset || l.blur === 0, `${token}: white is only a light or a hairline`).toBe(true);
       }
     });
@@ -234,6 +237,43 @@ describe("a resting shadow is short", () => {
       const up = layers(CORE[theme]["--elev-4-up"]);
       expect(up.length).toBe(down.length);
       down.forEach((d, i) => expect(same(up[i], d.replace(/^0 (\d)/, "0 -$1")), `${theme} layer ${i}`).toBe(true));
+    }
+  });
+});
+
+/**
+ * The frame's edge and a room's shelf are one 1px line, never a cast (the
+ * light round, phase 3, Oct 17 2026; AJ's 1A). On the plain grey page the
+ * navy casts under the header, over the bottom bar and under a room's bar
+ * read as navy bleeding onto it; buttons and panels keep their lift. Dark
+ * takes the line too (the dark round, phase D3), in the pale rim: there the
+ * frame's cast dug a groove under the header, and the line is what tells the
+ * frame from the page.
+ */
+const LINES: Theme[] = BOTH;
+describe("the frame and the shelf are one 1px line, not a cast", () => {
+  for (const theme of LINES) {
+    it.each([
+      ["--frame-down", 1],
+      ["--frame-up", -1],
+      ["--shelf", 1],
+    ] as const)(`${theme}: %s is one layer, %ipx, no blur`, (token, y) => {
+      const all = layers(CORE[theme][token]);
+      expect(all, `${theme} ${token}`).toHaveLength(1);
+      const l = layer(all[0]);
+      const [dx, dy] = all[0].slice(0, all[0].search(/rgba?\(/)).trim().split(/\s+/).map((v) => parseFloat(v));
+      expect(l.inset, token).toBe(false);
+      expect([dx, dy, l.blur, l.spread], token).toEqual([0, y, 0, 0]);
+    });
+  }
+
+  it("draws the line in the frame's deepest navy and the logo navy in light, the pale rim in dark", () => {
+    for (const token of ["--frame-down", "--frame-up"]) {
+      expect(rgba(layer(CORE.light[token]).colour)!.slice(0, 3), `light ${token}`).toEqual([0, 18, 36]);
+    }
+    expect(rgba(layer(CORE.light["--shelf"]).colour)!.slice(0, 3), "light --shelf").toEqual([25, 45, 65]);
+    for (const token of ["--frame-down", "--frame-up", "--shelf"]) {
+      expect(rgba(layer(CORE.dark[token]).colour)!.slice(0, 3), `dark ${token}`).toEqual([150, 180, 210]);
     }
   });
 });
@@ -650,14 +690,13 @@ function widthOf(value: string, side?: Side): number {
  * The list is exact both ways: an entry that no longer tapers fails too.
  */
 const KEPT_RAILS: Record<string, string> = {
-  "features/hub-schedule/hub-card.css .hs-card": "the Hub booking's 4px state rail; the plan's section 6 keeps the Hub's state rails",
-  "features/hub-schedule/next-strip.css .hn-item": "Next 30 minutes draws the Hub booking's rail, so the two read as one",
-  "features/phone/phone.css .ph-card": "the phone's machine card keeps the rail it shares with the Hub booking (phase 10)",
-  'features/hub-schedule/day-header.css .hd-swatch[data-state="live"]': "the Key's picture of a booking draws the card's rail as it is",
-  'features/hub-schedule/day-header.css .hd-swatch[data-state="in-session"]': "the Key's picture of a booking in session, with its rail",
-  'features/hub-schedule/day-header.css .hd-swatch[data-state="left-open"]': "the Key's picture of a booking left open, with its rail",
+  "features/phone/phone.css .ph-card": "the phone's machine card keeps the 4px rail it took from the Hub booking (phase 10)",
+  // The Hub booking (.hs-card), the Next 30 minutes item (.hn-item) and the
+  // Key's swatches (left open in C3, coming up and in session in C5) left
+  // the list in the cards round (Oct 17 2026): each draws its state as a
+  // straight 3px band painted as a background.
   // The calendar's .cal-block left with the swimlanes (the rooms round, Oct
-  // 10 2026): the Calendar's Day draws the Hub's own card, held above.
+  // 10 2026): the Calendar's Day draws the Hub's own card.
 };
 
 function crescents(): string[] {

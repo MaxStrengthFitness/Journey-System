@@ -233,6 +233,28 @@
   padding: 8px 12px 8px 0;
   flex: none;
 }
+/* The quiet repeated blue (the dark round's Q2, AJ "2a", Oct 17 2026). A
+   row's own blue button (Acknowledge, Seen, Got it, Still matters) repeats
+   down the list, so each is the quiet blue, not a column of solid lamps:
+   blue words on the blue tint (7.1:1 light, 6.2 dark), a firm blue edge
+   (6.7 / 4.4 on its own tint, 7.7 / 6.1 on the card), the raised lift and
+   the press kept. Still blue, only quieter. The one "Acknowledge all" in
+   the section's door is not a row's and stays solid. The tint is restated
+   under a pointer (an iPad keeps :hover after a tap); the lift is set
+   apart so the press (.adm-btn:not(:disabled):active) still outranks it,
+   and a disabled or busy button lies flat as every .adm-btn does. */
+.adm-ov__row-actions .adm-btn--primary,
+.adm-ov__row-actions .adm-btn--primary:not(:disabled):hover {
+  background: var(--adm-live-fill);
+  color: var(--adm-live-text);
+  border-color: var(--adm-live);
+}
+.adm-ov__row-actions .adm-btn--primary {
+  box-shadow: var(--adm-elev-1), inset 0 1px 0 var(--adm-highlight);
+}
+.adm-ov__row-actions .adm-btn--primary:disabled {
+  box-shadow: none;
+}
 .adm-ov__row-below {
   padding: 0 14px 12px;
 }

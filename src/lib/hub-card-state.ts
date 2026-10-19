@@ -12,6 +12,8 @@
  * to what happened to a booking, and this is only how the floor draws it.
  *
  *   live        ahead, or in its slot with nothing finished: every flag shown.
+ *               Once its time has come it is also NOW (`hubCardIsNow`,
+ *               below; the cards round, Oct 17 2026), still "live".
  *   in-session  a Journey session is open and running for this client that
  *               day: live, tinted, pulsing — past its slot too while it runs.
  *   left-open   a session is open but has gone quiet (the staleness rule,
@@ -21,10 +23,12 @@
  *   not-logged  the slot (plus five minutes) is over and nothing was logged.
  *               Recedes, with a quiet "Not logged" — AJ, Sep 24: a grey card
  *               with no word would read as done when it is not.
- *   didnt-come  a leader marked it "didn't come" (studios/{s}/bookingMarks,
- *               Operations room wave 3, Sep 29 2026), or Mindbody said
- *               No-Show. Recedes, with a quiet "Didn't come" — a no-show is
- *               a fact the floor may say, and it is not "Not logged".
+ *   didnt-come  someone at the studio marked a late cancel
+ *               (studios/{s}/bookingMarks, Operations room wave 3, Sep 29
+ *               2026; anyone at the studio since Oct 2 2026), or Mindbody
+ *               said No-Show. Recedes, with a quiet "Late cancel" (it said
+ *               "Didn't come" before eec4ca97) — a fact the floor may say,
+ *               and it is not "Not logged".
  *   past        over, and nothing to claim: the sessions could not be read (a
  *               failed read is unknown, never "not logged"), a cancellation.
  *               Recedes and says nothing.
@@ -48,7 +52,7 @@
  */
 import type { WorkoutSession } from "../types";
 import { sessionDayKey } from "../features/client-history/model";
-import { bookingState, type BookingLike, type BookingMarks, type LoggedSessions, type SessionLike } from "./booking-state";
+import { bookingState, SLOT_SLACK_MS, type BookingLike, type BookingMarks, type LoggedSessions, type SessionLike } from "./booking-state";
 import { toDate } from "./studio-time";
 import { isSessionValid } from "./utils";
 
@@ -136,6 +140,50 @@ export function hubCardState(
 /** Does the card fade and hide its flags? Everything that is over. */
 export function hubCardRecedes(state: HubCardState): boolean {
   return state === "done" || state === "not-logged" || state === "didnt-come" || state === "left-open" || state === "past";
+}
+
+/** A booking with no end time is drawn as the usual half hour (the grid's span, `cardTime`). */
+const HALF_HOUR_MS = 30 * 60_000;
+
+const msOf = (t: Date | number | null | undefined): number => (t instanceof Date ? t.getTime() : typeof t === "number" ? t : Number.NaN);
+
+/**
+ * NOW (the cards round, Oct 17 2026; AJ's "Now, Next, Done"): a card whose
+ * time has come and whose session has not started in Journey. The card and
+ * the Next 30 minutes strip both ask this, so they can't disagree.
+ *
+ * True only while the card is `live` and `start <= now < end + SLOT_SLACK_MS`:
+ * from its start until the five minutes after its end at which, with
+ * nothing logged, it turns "not-logged" (`slotOver`, lib/booking-state). So
+ * a card still unstarted at 5:02 reads Now, not "coming up", and goes from
+ * Now straight to Not logged. (At the one instant end + 5:00 exactly the
+ * card is no longer Now and `slotOver`, which is strict, has not yet turned
+ * it: a millisecond, never a minute the floor sees.) An end at or before the
+ * start, or none, is the half hour, as the grid draws it. In session, over,
+ * or a day the sessions don't cover ("unread": only today has a now) is
+ * never Now.
+ *
+ * `start`, `end` and `now` are Dates or milliseconds on one axis (since the
+ * epoch, or since the studio's midnight, as the strip's spans are).
+ */
+export function hubCardIsNow({
+  state,
+  start,
+  end = null,
+  now,
+}: {
+  state: HubCardState;
+  start: Date | number | null | undefined;
+  end?: Date | number | null;
+  now: Date | number;
+}): boolean {
+  if (state !== "live") return false;
+  const from = msOf(start);
+  const at = msOf(now);
+  if (!Number.isFinite(from) || !Number.isFinite(at) || at < from) return false;
+  let to = msOf(end);
+  if (!Number.isFinite(to) || to <= from) to = from + HALF_HOUR_MS;
+  return at < to + SLOT_SLACK_MS;
 }
 
 /**

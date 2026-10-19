@@ -43,7 +43,7 @@
      straight through. --background is the app's own page token, which
      ThemeProvider already flips; the hex is the same value, as a fallback for
      a frame rendered before the theme has been applied. */
-  --psub-page:          var(--background, #dee6ee);
+  --psub-page:          var(--background, #eeeeee);
 
   --psub-h:             48px;      /* >= 40px floor, on both axes           */
   --psub-radius:        14px;

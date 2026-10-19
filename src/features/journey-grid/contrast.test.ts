@@ -103,13 +103,16 @@ const PAIRINGS: Array<[string, string, string, number]> = [
   ["--jg-ink-muted", "--jg-surface-2", "session numbers on the header band", TEXT],
   ["--jg-live-text", "--jg-surface-2", "blue dates in the Analytics rail", TEXT],
   ["--jg-ink-muted", "--jg-bg", "the section divider's label", TEXT],
-  // The Today column (and the LATEST column and a selected row) is the live
-  // fill, the write-in column of every set: the words drawn on it. The muted
-  // pair is the one the Navy Frame's first dark fill failed (4.41, 3.96 on a
-  // banded row), so it is held here.
-  ["--jg-live-text", "--jg-live-fill", "the blue weight in the Today column", TEXT],
-  ["--jg-ink-2", "--jg-live-fill", "reps in the Today column", TEXT],
-  ["--jg-ink-muted", "--jg-live-fill", "muted words on the Today and LATEST columns", TEXT],
+  // The live fill, and the words drawn on it. The grid is drawn only in the
+  // Journey look now (.jg-look: the profile's chart and the Active Session),
+  // where the Today and LATEST columns are the cells' own colour: the live
+  // fill paints a tapped date's head and that date's empty cells, a tapped
+  // row's tint, and the session's "Still sending" and watching lines. The
+  // muted pair is the one the Navy Frame's first dark fill failed (4.41,
+  // 3.96 on a banded row), so it is held here.
+  ["--jg-live-text", "--jg-live-fill", "the blue weight and dates on a tapped date", TEXT],
+  ["--jg-ink-2", "--jg-live-fill", "reps on a tapped date or row", TEXT],
+  ["--jg-ink-muted", "--jg-live-fill", "muted words on a tapped date or row", TEXT],
   ["--jg-live-on", "--jg-live", "the machine being performed, in the Today column", TEXT],
   // The one loud orange (Finish, the paused clock, the routine's number
   // chips) carries navy words, never white (Oct 4 2026).
@@ -124,6 +127,11 @@ const PAIRINGS: Array<[string, string, string, number]> = [
   ["--jg-pf-now-ink", "--jg-pf-now-tile", "the newest day's weight on its orange tile", TEXT],
   ["--jg-pf-now-sub", "--jg-pf-now-tile", "today's reps on the orange tile, in the session", TEXT],
   ["--jg-pf-now-sub", "--jg-surface", "today's waiting prescription, in the session", TEXT],
+  // The Now Bar's gain since the starting weight ("+196%"), on the bar's
+  // header-band grey. Nothing held it before the light round (Oct 17 2026):
+  // on the old blue-grey bar it was 4.17:1. The bar is not a row, so the
+  // banded check below is stricter than it needs to be; it clears both.
+  ["--jg-pf-gain", "--jg-surface-2", "the load's gain on the Now Bar", TEXT],
 ];
 
 /**

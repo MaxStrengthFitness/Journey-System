@@ -17,12 +17,12 @@
    ========================================================================== */
 
 .cr {
-  --cr-bg: var(--jg-bg, #dee6ee);
-  --cr-surface: var(--jg-surface, #f3f6f9);
-  --cr-surface-2: var(--jg-surface-2, #e4ebf3);
-  --cr-surface-3: var(--jg-surface-3, #d4dee8);
-  --cr-border: var(--jg-border, #d1dae4);
-  --cr-border-strong: var(--jg-border-strong, #a3aebb);
+  --cr-bg: var(--jg-bg, #eeeeee);
+  --cr-surface: var(--jg-surface, #fcfcfc);
+  --cr-surface-2: var(--jg-surface-2, #f2f2f2);
+  --cr-surface-3: var(--jg-surface-3, #e6e6e6);
+  --cr-border: var(--jg-border, #e2e2e2);
+  --cr-border-strong: var(--jg-border-strong, #acacac);
   --cr-ink: var(--jg-ink, #192d41);
   --cr-ink-2: var(--jg-ink-2, #3f4f60);
   --cr-ink-muted: var(--jg-ink-muted, #546271);
@@ -33,7 +33,7 @@
   --cr-hero-fill: var(--jg-hero-fill, #ffe9d8);
   --cr-live: var(--jg-live, #0a548b);
   --cr-live-text: var(--jg-live-text, #064f89);
-  --cr-live-fill: var(--jg-live-fill, #d6e8f8);
+  --cr-live-fill: var(--jg-live-fill, #e1ecf5);
   --cr-poor: var(--jg-q-poor, #c0203f);
   --cr-poor-text: var(--jg-q-poor-text, #a3122f);
   --cr-poor-fill: var(--jg-q-poor-fill, #f8bcc6);
@@ -62,10 +62,10 @@
      and the grid's inner shadow. Not --cr-surface-2: the grid's surface-2
      is its header band, which goes LIGHTER than the card in dark (#1b3044
      on #14293d), so a well drawn in it would rise instead of sink. The
-     well tone is darker than the card in both modes (#e4ebf3, #0d2235). */
-  --cr-well: var(--eq-surface-2, #e4ebf3);
+     well tone is darker than the card in both modes (#f2f2f2, #0d2235). */
+  --cr-well: var(--eq-surface-2, #f2f2f2);
   /* Below the page in both modes: a well on the page ground (AJ's 1A). */
-  --cr-tray: var(--eq-tray, #d1dae4);
+  --cr-tray: var(--eq-tray, #dadada);
   --cr-elev-0: var(--jg-elev-0, var(--elev-0));
   /* Go's depth on Generate (type and depth, phase 8): the grid's orange
      glow, top light and press, or the app's before the grid's tokens load. */

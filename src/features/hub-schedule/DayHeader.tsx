@@ -36,16 +36,20 @@ import {
   ArrowDown,
   Award,
   Cake,
+  Check,
   ChevronRight,
+  Circle,
   Eye,
   FileSignature,
   KeyRound,
   ListChecks,
   MessageCircle,
   PartyPopper,
+  Pause,
   RefreshCw,
   Sparkles,
   Undo2,
+  X,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { LayerSwitch, type HubLayer } from "../hub-opportunities/LayerSwitch";
@@ -291,15 +295,34 @@ const MARKS: ReadonlyArray<{ family: MomentFamily; icon: Icon; name: string; mea
   },
 ];
 
+/*
+ * ON THE GRID (the cards round, Oct 17 2026; AJ's "Now, Next, Done"): one
+ * row per way a card looks, in the order a day runs, each swatch drawn as
+ * the card is (day-header.css). Now is "its time has come", never "its half
+ * hour": a 45-minute consult and the five minutes after a slot are Now too
+ * (`hubCardIsNow`). Not logged says what happens before the studio's Journey
+ * cutover (`loggingFrom`, hub-day.ts).
+ */
 const STATES: ReadonlyArray<{ state: string; name: string; means: string }> = [
-  { state: "live", name: "Coming up", means: "Every mark shows until the session is done." },
+  { state: "live", name: "Coming up", means: "Booked and still to come. Every mark shows until the session is done." },
+  { state: "now", name: "Now", means: "Its time has come and no session has started in Journey yet." },
   { state: "in-session", name: "In session", means: "A Journey session is open for this client." },
+  {
+    state: "done",
+    name: "Done · Late cancel",
+    means: "Recorded: a Journey session was finished (a check before the time), or the client late-cancelled. It steps back and goes quiet.",
+  },
+  {
+    state: "not-logged",
+    name: "Not logged",
+    means: "Its time is over and no session was finished in Journey: worth checking what happened. Before the studio starts logging in Journey, it steps back like Done and keeps its words.",
+  },
   {
     state: "left-open",
     name: "Left open · Paused · At End Session",
-    means: "Started but not finished, and nothing saved for an hour (the app’s one rule for an unfinished session). Tap it to resume it or close it.",
+    means: "Started but not finished, and nothing saved for an hour. Tap it to resume it or close it.",
   },
-  { state: "done", name: "Done or not logged", means: "It steps back and goes quiet. “Not logged” says nobody pressed End Session." },
+  { state: "past", name: "Over, no word", means: "Journey couldn’t check this one just now. It never says Not logged on a guess." },
   { state: "unlinked", name: "Not synced yet", means: "No Max Strength profile yet; the next Mindbody sync links it." },
   {
     state: "unlinked",
@@ -308,6 +331,28 @@ const STATES: ReadonlyArray<{ state: string; name: string; means: string }> = [
   },
   { state: "staff", name: "Not a session", means: "Mindbody’s “Unavailable”: lunch, a one-on-one. Never counted." },
   { state: "off", name: "Not working", means: "Outside the trainer’s agreed week, or a day away. Nothing is shaded without an agreed week." },
+];
+
+/*
+ * ON A NARROW CARD (the narrow cards round, phase 3, Oct 18 2026; AJ: "Keep
+ * them side by side, cards say less"): two or three booked at once share
+ * their slot, and a card a half or a third of its column says what happened
+ * as a symbol beside its time, the word in its label and its peek. Each is
+ * drawn here as the card draws it (HubCard's done check and .hs-card-sym:
+ * the same icon, size, stroke and colour).
+ */
+export const NARROW_SYMBOLS: ReadonlyArray<{
+  sym: "done" | "not-logged" | "left-open" | "late-cancel";
+  icon: ComponentType<{ size?: number; strokeWidth?: number; fill?: string; "aria-hidden"?: boolean }>;
+  size: number;
+  strokeWidth: number;
+  fill?: string;
+  word: string;
+}> = [
+  { sym: "done", icon: Check, size: 13, strokeWidth: 2, word: "Done" },
+  { sym: "not-logged", icon: Circle, size: 12, strokeWidth: 2.6, word: "Not logged" },
+  { sym: "left-open", icon: Pause, size: 13, strokeWidth: 2, fill: "currentColor", word: "Left open" },
+  { sym: "late-cancel", icon: X, size: 13, strokeWidth: 2.6, word: "Late cancel" },
 ];
 
 export function KeySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -360,6 +405,23 @@ export function KeySheet({ open, onClose }: { open: boolean; onClose: () => void
             </li>
           ))}
         </ul>
+        <p className="hd-key-note hd-key-narrow">
+          <strong>On a narrow card:</strong>{" "}
+          {NARROW_SYMBOLS.map((row, i) => {
+            const I = row.icon;
+            return (
+              <span key={row.sym} className="hd-key-sym-item">
+                {i > 0 && " · "}
+                <span className="hd-key-sym" data-sym={row.sym} aria-hidden>
+                  {/* Fill only where the card fills it: an unset fill would take the icon's own default away. */}
+                  <I size={row.size} strokeWidth={row.strokeWidth} {...(row.fill ? { fill: row.fill } : {})} aria-hidden />
+                </span>
+                {row.word}
+              </span>
+            );
+          })}
+          {". Two or three booked at once share the slot, so each card shows its time, one mark and a symbol for what happened, and where the name won’t fit, the client’s initials. Tap it for the rest."}
+        </p>
       </DialogContent>
     </Dialog>
   );

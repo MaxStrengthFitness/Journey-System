@@ -16,13 +16,13 @@
  * (--chrome-go) with a navy icon on its solid box. Until then the bar was
  * white in the light theme and its orange Tailwind's orange-500 (2.8:1).
  *
- * Its top edge is a CAST (type and depth, Oct 4 2026): the frame's
- * --frame-up, a line in the deepest navy and a navy shadow up onto the page
- * (a faint rim and the deepest navy in dark), where a black 5% shadow was
- * invisible on the navy and a white hairline drew a second edge. The
- * Operations bar keeps its orange hairline: it says which mode you are in.
- * z-30 keeps the bar over everything a room pins near its foot, so the cast
- * falls on it.
+ * Its top edge is the frame's --frame-up (type and depth, Oct 4 2026), where
+ * a black 5% shadow was invisible on the navy and a white hairline drew a
+ * second edge: in light one 1px line in the deepest navy (the light round,
+ * Oct 17 2026: the navy shadow it cast up onto the grey page is gone), in
+ * dark one 1px pale rim. The Operations bar keeps its orange hairline: it
+ * says which mode you are in. z-30 keeps the bar over everything a room pins
+ * near its foot, so its edge falls on it.
  */
 import {
   Building2,

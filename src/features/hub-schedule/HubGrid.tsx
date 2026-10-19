@@ -26,6 +26,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { bandWords, clockWords, layoutDay, placeColumn, yOf, type Placed, type Span } from "./grid-model";
+import type { LoggingFrom } from "./hub-day";
 import type { TrainerDayFrame } from "./off-hours";
 import type { YourDay } from "./your-day";
 import "./hub-grid.css";
@@ -90,6 +91,15 @@ export interface HubGridProps {
    * or passes null for no words.
    */
   restWords?: string | null;
+  /**
+   * Whether the studio logs the day on screen in Journey (`loggingFrom`,
+   * hub-day.ts: the studio's Journey cutover date; the cards round, Oct 17
+   * 2026), set as `data-logging` on the scroller. "not-yet": a Not logged
+   * card lies down as a recorded tile and keeps its words (hub-card.css).
+   * Absent: no attribute, and Not logged is drawn as after the cutover; the
+   * Hub and the Calendar's Day always pass it.
+   */
+  logging?: LoggingFrom;
 }
 
 export const NOBODY_BOOKED = "Nobody is booked on this day.";
@@ -118,7 +128,7 @@ export function HubNotice({ words, onRetry }: { words: string; onRetry?: () => v
   );
 }
 
-function HubGridView({ dayKey, columns, blocks, nowMin, renderCard, frameOf, hidden = false, focusId = null, emptyWords = NOBODY_BOOKED, onOpenColumn, restWords = NOBODY_ELSE_BOOKED }: HubGridProps) {
+function HubGridView({ dayKey, columns, blocks, nowMin, renderCard, frameOf, hidden = false, focusId = null, emptyWords = NOBODY_BOOKED, onOpenColumn, restWords = NOBODY_ELSE_BOOKED, logging }: HubGridProps) {
   const [opened, setOpened] = useState<{ day: string; from: ReadonlySet<number> }>({ day: dayKey, from: new Set() });
   const openedFrom = opened.day === dayKey ? opened.from : EMPTY_SET;
 
@@ -181,6 +191,8 @@ function HubGridView({ dayKey, columns, blocks, nowMin, renderCard, frameOf, hid
       // and the rest of the row says so (Oct 3 2026, AJ: one column across a
       // whole iPad "looks so fat").
       data-solo={columns.length === 1 ? "true" : undefined}
+      // Before the studio's Journey cutover, Not logged steps back (hub-card.css).
+      data-logging={logging}
     >
       <div className="hs-canvas">
         <div ref={headRef} className="hs-head">

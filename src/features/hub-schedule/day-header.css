@@ -136,13 +136,14 @@
   white-space: nowrap;
 }
 
-/* The day's numeral is a headline figure: the display face, upright, 17 at
-   800 with tabular digits (type and depth, phase 11). Its line is about 3px
-   taller than at 14, and the pill still fits its 44px. */
+/* The day's numeral is a headline figure: the display face, upright, 17
+   with tabular digits (type and depth, phase 11), at 700 since the light
+   round's A4 (lighter Hub type). Its line is about 3px taller than at 14,
+   and the pill still fits its 44px. */
 .hd-day-name strong {
   font-family: var(--font-display);
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--eq-ink);
 }
@@ -153,7 +154,7 @@
   gap: 3px;
   min-height: 14px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   color: var(--eq-ink-muted);
   font-variant-numeric: tabular-nums;
@@ -178,14 +179,16 @@
   color: var(--eq-hero-text);
 }
 
-/* The picked day lifts as a solid blue does: a blue-tinted drop and a top
-   light (type and depth, phase 11). Today AND picked keeps exactly its
-   orange underline below instead (that rule outranks this one). */
+/* The picked day is the solid blue chip with its top light (type and
+   depth, phase 11), without the blue glow under it since the light round's
+   A3 (both modes): the week is calmer, and the chip still stands out by
+   its fill. Today AND picked keeps exactly its orange underline below
+   instead (that rule outranks this one). */
 .hd-day[aria-selected="true"] {
   border-color: var(--eq-live);
   background: var(--eq-live);
   color: var(--eq-live-on);
-  box-shadow: var(--eq-glow-live), var(--eq-solid-light);
+  box-shadow: var(--eq-solid-light);
 }
 
 .hd-day[aria-selected="true"] .hd-day-name strong,
@@ -202,10 +205,10 @@
    OUTSIDE the blue chip (an outset shadow, never inset), on the day
    header: 3.68:1 light, 4.96 dark. Inside the chip it would be carried by
    hue alone (1.98 / 1.22 on the blue). The week's gap and the top's bottom
-   padding leave it room. */
+   padding leave it room. 2px since the light round's A3 (it was 3). */
 .hd-day[data-today="true"][aria-selected="true"] {
   border-color: var(--eq-live);
-  box-shadow: 0 3px 0 var(--eq-hero);
+  box-shadow: 0 2px 0 var(--eq-hero);
 }
 
 .hd-day[data-today="true"][aria-selected="true"] .hd-day-name strong {
@@ -242,13 +245,13 @@
   color: var(--eq-ink-2);
   font: inherit;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .hd-btn strong {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--eq-ink);
   font-variant-numeric: tabular-nums;
 }
@@ -298,7 +301,7 @@
   background: var(--eq-live-fill);
   color: var(--eq-live-text);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 18px;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -327,7 +330,7 @@
 }
 
 .hd-sum-words strong {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--eq-ink);
 }
 
@@ -357,13 +360,13 @@
   color: var(--eq-ink-2);
   font: inherit;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .hd-chip-n {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--eq-ink);
   font-variant-numeric: tabular-nums;
 }
@@ -516,38 +519,59 @@
   color: var(--eq-ink-2);
 }
 
+/* Each swatch is drawn as its card is (the cards round, Oct 17 2026): no
+   border, the card's 1px outline, no opacity, and a state's mark a
+   straight 3px band painted as a background layer, 4px in from the left
+   and the top (a 4px border on the rounded swatch tapered into a crescent).
+   On the Key's sheet every swatch keeps the full edge, the pale tiles
+   included: the cards sit on the page, the swatches on the sheet. */
 .hd-swatch {
   width: 24px;
   height: 20px;
   border-radius: 6px;
-  border: 1px solid var(--eq-border-strong);
+  border: 0;
+  outline: 1px solid var(--eq-card-edge);
   background: var(--eq-surface);
+  background-clip: padding-box;
 }
 
-/* Coming up: the card's quiet blue edge (AJ's answer 2A, Oct 4 2026). */
+/* Coming up: the card's quiet blue mark (AJ's answer 2A, Oct 4 2026). */
 .hd-swatch[data-state="live"] {
-  border-left: 4px solid var(--eq-rail-booked);
+  background: linear-gradient(var(--eq-rail-booked), var(--eq-rail-booked)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface);
+}
+
+/* Now: the orange mark. */
+.hd-swatch[data-state="now"] {
+  background: linear-gradient(var(--eq-now-mark), var(--eq-now-mark)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface);
 }
 
 .hd-swatch[data-state="in-session"] {
-  border-left: 4px solid var(--eq-live);
-  background: var(--eq-live-fill);
+  background: linear-gradient(var(--eq-live), var(--eq-live)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-live-fill);
 }
 
-/* Over: the swatches recede as the cards do (hub-card.css, 0.70). */
-.hd-swatch[data-state="left-open"] {
-  border-left: 4px solid var(--eq-warn);
-  background: var(--eq-surface-2);
-  opacity: 0.7;
-}
-
+/* Recorded: the pale tile, the card mixed --eq-done-mix into the page. */
 .hd-swatch[data-state="done"] {
-  background: var(--eq-surface-2);
-  opacity: 0.7;
+  background: color-mix(in srgb, var(--eq-surface) var(--eq-done-mix), var(--eq-bg));
 }
 
+/* Not recorded: a whole card with the plum mark. */
+.hd-swatch[data-state="not-logged"],
+.hd-swatch[data-state="left-open"] {
+  background: linear-gradient(var(--eq-unlogged-mark), var(--eq-unlogged-mark)) 4px 4px / 3px calc(100% - 8px) no-repeat, var(--eq-surface);
+}
+
+/* Over, no word: A2's flat fill, 62% card into the page. */
+.hd-swatch[data-state="past"] {
+  background: color-mix(in srgb, var(--eq-surface) 62%, var(--eq-bg));
+}
+
+/* Not synced yet and Unassigned: dashed all round in the hairline, no
+   outline, as the unlinked card is. The fill runs under the dashes
+   (no padding-box clip): on the Key's sheet a clipped fill left the gaps
+   showing the sheet, and in dark the dashes vanished (1.11:1). */
 .hd-swatch[data-state="unlinked"] {
-  border-style: dashed;
+  outline: 0;
+  border: 1px dashed var(--eq-border);
   background: var(--eq-surface-2);
 }
 
@@ -555,7 +579,10 @@
   background: repeating-linear-gradient(135deg, var(--eq-surface-2) 0 4px, var(--eq-surface-3) 4px 8px);
 }
 
+/* Not working is the grid's hatching, not a card: its firm edge stays. */
 .hd-swatch[data-state="off"] {
+  outline: 0;
+  border: 1px solid var(--eq-border-strong);
   background: repeating-linear-gradient(135deg, transparent 0 4px, var(--eq-border-strong) 4px 5px);
 }
 
@@ -635,4 +662,36 @@
   .hd[data-phone="true"] .hd-bar .hl-switch { flex: 1 1 auto; min-width: 0; }
   .hd[data-phone="true"] .hd-bar .hd-gap { display: none; }
   .hd[data-phone="true"] .hd-bar .hd-rule--tools { display: block; }
+}
+
+/* On a narrow card (the narrow cards round, phase 3, Oct 18 2026): the
+   symbols a card sharing its slot draws for what happened, here as the card
+   draws them, in the card's colours (hub-card.css's .hs-card-sym and the
+   done check, which takes the time's muted ink). Each stays beside its
+   word. */
+.hd-key-sym-item {
+  white-space: nowrap;
+}
+
+.hd-key-sym {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
+.hd-key-sym[data-sym="done"],
+.hd-key-sym[data-sym="late-cancel"] {
+  color: var(--eq-ink-muted);
+}
+
+.hd-key-sym[data-sym="not-logged"] {
+  color: var(--eq-ink);
+}
+
+.hd-key-sym[data-sym="left-open"] {
+  color: var(--eq-warn);
 }

@@ -6,6 +6,8 @@
  * loading, the chips that light the grid, the spotlight's bar, and the Key.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { StrictMode, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { DayHeader, DaySummary, KeySheet, type DayHeaderProps, type DaySummaryProps } from "./DayHeader";
@@ -160,6 +162,61 @@ describe("the Key", () => {
     expect(text).toContain("The Key");
     expect(text).toContain("No waiver signed.");
     expect(text).toContain("Not working.");
+  });
+
+  it("says the grid's states in the order a day runs, each with its swatch, and Now as \"its time has come\" (the cards round, Oct 17 2026)", () => {
+    render(<KeySheet open onClose={() => {}} />);
+    const lists = [...document.querySelectorAll(".hd-key-list")];
+    const grid = [...lists[lists.length - 1].querySelectorAll("li")];
+    expect(grid.map((li) => [li.querySelector(".hd-swatch")?.getAttribute("data-state"), li.querySelector("strong")?.textContent])).toEqual([
+      ["live", "Coming up."],
+      ["now", "Now."],
+      ["in-session", "In session."],
+      ["done", "Done · Late cancel."],
+      ["not-logged", "Not logged."],
+      ["left-open", "Left open · Paused · At End Session."],
+      ["past", "Over, no word."],
+      ["unlinked", "Not synced yet."],
+      ["unlinked", "Unassigned."],
+      ["staff", "Not a session."],
+      ["off", "Not working."],
+    ]);
+    const words = (name: string) => grid.find((li) => li.querySelector("strong")?.textContent === name)?.textContent ?? "";
+    // Not "its half hour": a 45-minute consult, and the five minutes after a slot, are Now too.
+    expect(words("Now.")).toContain("Its time has come and no session has started in Journey yet.");
+    expect(words("Now.")).not.toContain("half hour");
+    expect(words("Not logged.")).toContain("Before the studio starts logging in Journey, it steps back like Done and keeps its words.");
+    expect(words("Over, no word.")).toContain("It never says Not logged on a guess.");
+    // Every state the Key names has its swatch drawn in the stylesheet.
+    const css = readFileSync(resolve(__dirname, "day-header.css"), "utf8");
+    for (const state of new Set(grid.map((li) => li.querySelector(".hd-swatch")?.getAttribute("data-state")))) {
+      expect(css, String(state)).toContain(`.hd-swatch[data-state="${state}"]`);
+    }
+  });
+
+  it("says a narrow card's four symbols, each drawn beside its word, after the grid's states (the narrow cards round, phase 3)", () => {
+    render(<KeySheet open onClose={() => {}} />);
+    const row = document.querySelector(".hd-key-narrow");
+    expect(row?.tagName).toBe("P");
+    // The row AJ's design names, then one sentence: what a narrow card shows, and where the rest is.
+    expect(row?.textContent).toMatch(/^On a narrow card: Done · Not logged · Left open · Late cancel\. /);
+    expect(row?.textContent).toContain("one mark and a symbol for what happened");
+    expect(row?.textContent).toContain("the client’s initials");
+    expect(row?.textContent).toContain("Tap it for the rest.");
+    const syms = [...row!.querySelectorAll(".hd-key-sym")];
+    expect(syms.map((s) => s.getAttribute("data-sym"))).toEqual(["done", "not-logged", "left-open", "late-cancel"]);
+    // A symbol is a picture of its word, which follows it: unheard, and never wrapped away from it.
+    for (const s of syms) {
+      expect(s.getAttribute("aria-hidden")).toBe("true");
+      expect(s.parentElement?.classList.contains("hd-key-sym-item")).toBe(true);
+    }
+    expect(syms.map((s) => s.querySelector("svg")?.getAttribute("class"))).toEqual(["lucide lucide-check", "lucide lucide-circle", "lucide lucide-pause", "lucide lucide-x"]);
+    // After the grid's states: the last list is still the grid's (the test above), and the row is not a state.
+    const lists = [...document.querySelectorAll(".hd-key-list")];
+    expect(lists[lists.length - 1].compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Each symbol has its ink in the stylesheet.
+    const css = readFileSync(resolve(__dirname, "day-header.css"), "utf8");
+    for (const sym of ["done", "not-logged", "left-open", "late-cancel"]) expect(css, sym).toContain(`.hd-key-sym[data-sym="${sym}"]`);
   });
 
   it("explains the ✎ Ask about, and says its words stay off the card (wave 2 hub)", () => {

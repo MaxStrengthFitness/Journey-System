@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -80,8 +80,25 @@ function ratio(a: string, b: string): number {
 /** The prefix is the only thing allowed to differ — including inside var(). */
 const renamed = (value: string) => value.replace(/--eq-/g, "--adm-");
 
+/**
+ * The names equipment has that the admin kit does not: the rail's width, and
+ * the Hub card's own states (the cards round, Oct 17 2026), which only the
+ * Hub's stylesheets read. No admin or Admins screen draws a Hub card, its
+ * strip or its Key, so a --adm- twin of these would be a name with no reader
+ * (the light round's preferred way, as for the head row before them).
+ */
+const HUB_CARD_ONLY = [
+  "--eq-done-mix",
+  "--eq-unlogged-mark",
+  "--eq-now-mark",
+  "--eq-now-text",
+  "--eq-card-edge",
+  "--eq-card-edge-quiet",
+];
+const NOT_IN_ADMIN = ["--eq-rail-w", ...HUB_CARD_ONLY];
+
 /** Every colour token, minus the ones equipment has that the admin kit does not. */
-const SHARED = Object.keys(eqLight).filter((k) => k !== "--eq-rail-w");
+const SHARED = Object.keys(eqLight).filter((k) => !NOT_IN_ADMIN.includes(k));
 
 describe("the admin palette is the app's palette", () => {
   it.each(SHARED)("light %s matches its --adm- counterpart", (eqKey) => {
@@ -107,6 +124,30 @@ describe("the admin palette is the app's palette", () => {
       (k) => eqLight[k.replace("--adm-", "--eq-")] === undefined,
     );
     expect(invented).toEqual([]);
+  });
+
+  it("leaves the Hub card's own names to the Hub: declared in equipment, no --adm- twin, no admin reader", () => {
+    // Excluded above because no admin screen draws a Hub card. If one ever
+    // does, it reads the --eq- names through hub-card.css; a twin here would
+    // be a second spelling for one look.
+    for (const name of HUB_CARD_ONLY) {
+      expect(eqLight[name], `${name} in equipment :root`).toBeDefined();
+      expect(eqDark[name], `${name} in equipment .dark`).toBeDefined();
+      const twin = name.replace("--eq-", "--adm-");
+      expect(admLight[twin], `${twin} in :root`).toBeUndefined();
+      expect(admDark[twin], `${twin} in .dark`).toBeUndefined();
+    }
+    const adminCss = (dir: string): string[] =>
+      readdirSync(dir).flatMap((f) => {
+        const p = join(dir, f);
+        if (statSync(p).isDirectory()) return adminCss(p);
+        return f.endsWith(".css") ? [p] : [];
+      });
+    const readers = [...adminCss(here), ...adminCss(join(here, "..", "admins"))].filter((file) => {
+      const css = readFileSync(file, "utf8");
+      return HUB_CARD_ONLY.some((name) => css.includes(name) || css.includes(name.replace("--eq-", "--adm-")));
+    });
+    expect(readers).toEqual([]);
   });
 });
 

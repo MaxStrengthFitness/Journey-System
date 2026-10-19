@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkoutSession } from "../types";
 import { bookingMarks, loggedSessions, type BookingLike } from "./booking-state";
-import { cardDayReadable, hubCardRecedes, hubCardState, sessionsByClientDay } from "./hub-card-state";
+import { cardDayReadable, hubCardIsNow, hubCardRecedes, hubCardState, sessionsByClientDay, type HubCardState } from "./hub-card-state";
 
 const TZ = "America/New_York";
 const at = (day: string, hm: string) => new Date(`${day}T${hm}:00-04:00`);
@@ -121,6 +121,71 @@ describe("hubCardRecedes", () => {
 
   it("never fades an unread card: a grey card with no word would read as done (AJ, Sep 24)", () => {
     expect(hubCardRecedes("unread")).toBe(false);
+  });
+});
+
+describe("hubCardIsNow — a card whose time has come and whose session has not started (cards round, Oct 17 2026)", () => {
+  // A 4:30-5:00 PM booking: Not logged comes five minutes after its end (SLOT_SLACK_MS).
+  const START = at(DAY, "16:30");
+  const END = at(DAY, "17:00");
+  const plus = (d: Date, ms: number) => new Date(d.getTime() + ms);
+  const isNow = (now: Date, state: HubCardState = "live", end: Date | number | null = END) => hubCardIsNow({ state, start: START, end, now });
+
+  it("is not Now before its start", () => {
+    expect(isNow(at(DAY, "16:20"))).toBe(false);
+    expect(isNow(plus(START, -1))).toBe(false);
+  });
+
+  it("is Now from its start, through the slot", () => {
+    expect(isNow(START)).toBe(true);
+    expect(isNow(at(DAY, "16:40"))).toBe(true);
+    expect(isNow(plus(END, -1))).toBe(true);
+  });
+
+  it("stays Now through the five minutes after its end, and not a moment past them", () => {
+    expect(isNow(END)).toBe(true);
+    expect(isNow(plus(END, 4 * 60_000 + 59_000))).toBe(true); // 5:04:59
+    expect(isNow(plus(END, 5 * 60_000))).toBe(false); // 5:05:00
+    expect(isNow(at(DAY, "17:06"))).toBe(false);
+  });
+
+  it("is never Now in session, over, or on a day the sessions don't cover", () => {
+    const mid = at(DAY, "16:40");
+    for (const state of ["in-session", "left-open", "done", "not-logged", "didnt-come", "past", "unread"] as HubCardState[]) {
+      expect(isNow(mid, state), state).toBe(false);
+    }
+  });
+
+  it("a booking with no end time, or an end before its start, is the half hour", () => {
+    expect(isNow(at(DAY, "16:40"), "live", null)).toBe(true);
+    expect(isNow(at(DAY, "17:04"), "live", null)).toBe(true);
+    expect(isNow(at(DAY, "17:05"), "live", null)).toBe(false);
+    expect(isNow(at(DAY, "16:40"), "live", at(DAY, "16:00"))).toBe(true);
+    expect(isNow(at(DAY, "17:05"), "live", at(DAY, "16:00"))).toBe(false);
+  });
+
+  it("claims nothing without a start or a readable time", () => {
+    expect(hubCardIsNow({ state: "live", start: null, end: END, now: at(DAY, "16:40") })).toBe(false);
+    expect(hubCardIsNow({ state: "live", start: new Date(Number.NaN), end: END, now: at(DAY, "16:40") })).toBe(false);
+    expect(hubCardIsNow({ state: "live", start: START, end: END, now: Number.NaN })).toBe(false);
+  });
+
+  it("reads minutes since the studio's midnight the same way, as the Next 30 minutes strip hands them", () => {
+    const min = 60_000;
+    expect(hubCardIsNow({ state: "live", start: 990 * min, end: 1020 * min, now: 1024 * min })).toBe(true);
+    expect(hubCardIsNow({ state: "live", start: 990 * min, end: 1020 * min, now: 1025 * min })).toBe(false);
+    expect(hubCardIsNow({ state: "live", start: 990 * min, end: 1020 * min, now: 989 * min })).toBe(false);
+  });
+
+  it("goes from Now straight to Not logged: minute by minute it agrees with the card's own state", () => {
+    const b = booking("16:30");
+    // 4:20 to 5:10 PM. The state turns a moment after 5:05 (slotOver is strict); Now ends at 5:05.
+    for (let minutesIn = -10; minutesIn <= 40; minutesIn++) {
+      const now = plus(START, minutesIn * 60_000);
+      const state = hubCardState(b, nothing, now, { tz: TZ });
+      expect(state, `${minutesIn} min`).toBe(minutesIn <= 35 ? "live" : "not-logged");
+      expect(hubCardIsNow({ state, start: START, end: END, now }), `${minutesIn} min`).toBe(minutesIn >= 0 && minutesIn < 35);
+    }
   });
 });
 

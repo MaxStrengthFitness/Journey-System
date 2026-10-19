@@ -23,12 +23,12 @@
    ========================================================================== */
 
 :root {
-  --adm-bg:              #dee6ee;   /* page                                  */
-  --adm-surface:         #f3f6f9;   /* panels; never pure white              */
-  --adm-surface-2:       #e4ebf3;   /* panel headers, read-only chips        */
-  --adm-surface-3:       #d4dee8;   /* hover / pressed                       */
-  --adm-border:          #d1dae4;   /* hairlines                     1.3:1   */
-  --adm-border-strong:   #7a8694;   /* dividers, focused input       3.4:1   */
+  --adm-bg:              #eeeeee;   /* page                                  */
+  --adm-surface:         #fcfcfc;   /* panels; never pure white              */
+  --adm-surface-2:       #f2f2f2;   /* panel headers, read-only chips        */
+  --adm-surface-3:       #e6e6e6;   /* hover / pressed                       */
+  --adm-border:          #e2e2e2;   /* hairlines                     1.3:1   */
+  --adm-border-strong:   #808386;   /* dividers, focused input       3.4:1   */
 
   --adm-ink:             #192d41;   /* names, figures (deep navy)   13.0:1   */
   --adm-ink-2:           #3f4f60;   /* secondary                     7.8:1   */
@@ -55,9 +55,9 @@
 
   /* The Hub's "yours" and a coming-up card's edge, kept in step with the
      equipment set so the two palettes stay one. */
-  --adm-mine:            #d3e2f1;
-  --adm-mine-head:       #cbe1f7;
-  --adm-rail-booked:     #668fba;   /*                               3.1:1   */
+  --adm-mine:            #d9e3ef;
+  --adm-mine-head:       #d4e1ef;
+  --adm-rail-booked:     #6e93b9;   /*                               3.1:1   */
 
   --adm-ok:              #17714b;   /* 5.5:1, 5.2:1 on its fill              */
   --adm-ok-fill:         #e3f1ea;
@@ -74,8 +74,8 @@
 
   /* Depth (type and depth, phase 3, Oct 4 2026), value for value as
      equipment.tokens.css. */
-  --adm-raised:          #f8fafc;
-  --adm-tray:            #d1dae4;
+  --adm-raised:          #fdfdfd;
+  --adm-tray:            #dadada;
   --adm-edge:            rgba(25, 45, 65, 0.13);
   --adm-edge-control:    rgba(25, 45, 65, 0.26);
   --adm-divider:         rgba(25, 45, 65, 0.10);
@@ -108,7 +108,7 @@
   --adm-surface-2:       #0d2235;
   --adm-surface-3:       #203549;
   --adm-border:          #2b3e50;   /* 1.4:1 on surface                      */
-  --adm-border-strong:   #6e8397;   /* 3.8:1                                 */
+  --adm-border-strong:   #8393a3;   /* 4.7:1                                 */
 
   --adm-ink:             #dfe7ef;   /* 11.9:1 on surface; never pure white   */
   --adm-ink-2:           #b8c6d3;   /* 8.5:1                                 */
@@ -132,7 +132,7 @@
 
   --adm-mine:            #0e243a;
   --adm-mine-head:       #133555;
-  --adm-rail-booked:     #4675a4;   /* 3.1:1                                 */
+  --adm-rail-booked:     #5581b0;   /* 3.6:1                                 */
 
   --adm-ok:              #52d7c1;   /* 8.4:1, 6.7:1 on its fill              */
   --adm-ok-fill:         #113e36;
@@ -155,7 +155,7 @@
   --adm-popover-rim:     rgba(255, 255, 255, 0.055);
   --adm-popover-light:   rgba(255, 255, 255, 0.07);
   --adm-popover-raised:  #283e54;
-  --adm-popover-edge:    #7d92a6;
+  --adm-popover-edge:    #8da0b3;
   --adm-elev-0:          var(--elev-0);
   --adm-elev-1:          var(--elev-1);
   --adm-elev-2:          var(--elev-2);
@@ -179,7 +179,7 @@
     --adm-surface-2:       #0d2235;
     --adm-surface-3:       #203549;
     --adm-border:          #2b3e50;
-    --adm-border-strong:   #6e8397;
+    --adm-border-strong:   #8393a3;
     --adm-ink:             #dfe7ef;
     --adm-ink-2:           #b8c6d3;
     --adm-ink-muted:       #9dadbe;
@@ -196,7 +196,7 @@
     --adm-live-on:         #071727;
     --adm-mine:            #0e243a;
     --adm-mine-head:       #133555;
-    --adm-rail-booked:     #4675a4;
+    --adm-rail-booked:     #5581b0;
     --adm-ok:              #52d7c1;
     --adm-ok-fill:         #113e36;
     --adm-warn:            #d98cbd;
@@ -214,7 +214,7 @@
     --adm-popover-rim:     rgba(255, 255, 255, 0.055);
     --adm-popover-light:   rgba(255, 255, 255, 0.07);
     --adm-popover-raised:  #283e54;
-    --adm-popover-edge:    #7d92a6;
+    --adm-popover-edge:    #8da0b3;
     --adm-elev-0:          var(--elev-0);
     --adm-elev-1:          var(--elev-1);
     --adm-elev-2:          var(--elev-2);
