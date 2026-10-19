@@ -265,3 +265,52 @@ describe("a whole chart pasted at once", () => {
     expect(lines[2]).toEqual({ line: "Rowing ergometer 10 minutes", machineId: null, result: null });
   });
 });
+
+describe("the seat belt (Oct 19 2026)", () => {
+  /** The Pulldown as the floor holds it: its own dials, then the belt every unit carries. */
+  const PULLDOWN: ShorthandField[] = [
+    { key: "Gap", label: "Gap", type: "text" },
+    { key: "Back Pad", label: "Back Pad", type: "text" },
+    { key: "Seat", label: "Seat", type: "text" },
+    { key: "Handles", label: "Handles", type: "text" },
+    { key: "Seat belt", label: "Seat belt", type: "enum", options: ["On", "Off", "Not needed"] },
+  ];
+
+  it("reads Judy Gibson's Pulldown line: the bare word Belt is On, and S- 4 is still the seat", () => {
+    expect(parseShorthand("B- 4 S- 4 G- 3 Belt", PULLDOWN)).toEqual({
+      values: { "Back Pad": "4", Seat: "4", Gap: "3", "Seat belt": "On" },
+      leftovers: [],
+      notes: [],
+    });
+  });
+
+  it("never lets the belt answer to the seat's letter or the seat's word", () => {
+    expect(matchField("S", PULLDOWN).field?.key).toBe("Seat");
+    expect(matchField("Seat", PULLDOWN).field?.key).toBe("Seat");
+    expect(matchField("Belt", PULLDOWN).field?.key).toBe("Seat belt");
+    expect(matchField("Seat belt", PULLDOWN).field?.key).toBe("Seat belt");
+    expect(matchField("Be", PULLDOWN).field).toBeNull();
+  });
+
+  it("takes No belt as Off, and a word after it as which", () => {
+    expect(parseShorthand("No belt, G:2", PULLDOWN).values).toEqual({ "Seat belt": "Off", Gap: "2" });
+    expect(parseShorthand("Belt: off", PULLDOWN).values).toEqual({ "Seat belt": "Off" });
+    expect(parseShorthand("Seat belt Y S 5", PULLDOWN).values).toEqual({ "Seat belt": "On", Seat: "5" });
+    expect(parseShorthand("Belt not needed", PULLDOWN).values).toEqual({ "Seat belt": "Not needed" });
+    expect(parseShorthand("Belt S- 4", PULLDOWN).values).toEqual({ "Seat belt": "On", Seat: "4" });
+  });
+
+  it("reads an empty box before it as empty, never as a gap of Belt", () => {
+    expect(parseShorthand("G- Belt S- 4", PULLDOWN)).toEqual({ values: { "Seat belt": "On", Seat: "4" }, leftovers: [], notes: [] });
+  });
+
+  it("keeps a second belt, and keeps Belt as a leftover on a unit with none", () => {
+    expect(parseShorthand("Belt, no belt", PULLDOWN)).toMatchObject({ values: { "Seat belt": "On" }, leftovers: ["no belt"] });
+    expect(parseShorthand("G- 3 Belt", PULLDOWN.slice(0, 4))).toMatchObject({ values: { Gap: "3" }, leftovers: ["Belt"] });
+  });
+
+  it("places it from a whole chart too", () => {
+    const lines = parseShorthandBlock("Pulldown: B- 4 S- 4 G- 3 Belt", [{ id: "m-pulldown", name: "Pulldown", fields: PULLDOWN }]);
+    expect(lines[0]).toMatchObject({ machineId: "m-pulldown", result: { values: { "Seat belt": "On", Seat: "4" }, leftovers: [] } });
+  });
+});

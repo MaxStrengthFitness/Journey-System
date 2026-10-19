@@ -20,6 +20,7 @@
  *
  * PURE — no React.
  */
+import { beltWords, isSeatBelt } from "../equipment/seat-belt";
 import type { JourneyMachine } from "./types";
 
 export type SetupButton =
@@ -72,7 +73,8 @@ export function setupButtonOf(
     const words = stillEmpty > 0 ? `Settings · ${notSetWords(stillEmpty)}` : "Settings";
     return { kind: "settings", pairs, notSet: stillEmpty, words, aria: `${name} settings. Opens the machine card.` };
   }
-  const said = pairs.map(([k, v]) => `${k} ${v}`);
+  // The seat belt in its own words: "Belt on" (AJ's "Aa", Oct 19 2026).
+  const said = pairs.map(([k, v]) => (isSeatBelt(k) ? beltWords(v) : `${k} ${v}`));
   const words = [...said, ...(stillEmpty > 0 ? [notSetWords(stillEmpty)] : [])].join(" · ");
   return {
     kind: "settings",

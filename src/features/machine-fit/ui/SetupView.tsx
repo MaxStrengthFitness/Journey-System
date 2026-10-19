@@ -49,7 +49,8 @@ import { formatInches } from "../factors";
 import { DEFAULT_MATCH_SPEC, activeFactors } from "../match-spec";
 import { planSetupSave, type SetupMachineInput } from "../setup-plan";
 import { acknowledgeFlag, commitSetupSave } from "../setup-save";
-import { parseShorthand, type ShorthandBlockLine } from "../shorthand";
+import { parseShorthand, type ShorthandBlockLine, type ShorthandField } from "../shorthand";
+import { SEAT_BELT_CHOICES } from "../../equipment/seat-belt";
 import type { FitFlag, MachineAudit, MatchSpec } from "../types";
 import { isSingleKeyField, shownValue } from "./field-values";
 import { MatchPanel } from "./MatchPanel";
@@ -62,6 +63,15 @@ import { EMPTY_DRAFTS, countDrafts, setupDraftReducer, type SetupMode } from "./
 import { useSetupModel, type RowFilter, type SetupRowModel } from "./useSetupModel";
 import { SPEC_STORE, readStoredSpec } from "./stored-spec";
 import "./machine-fit.css";
+
+/**
+ * A row's fields as the shorthand reader takes them: the cells, then the seat
+ * belt when the unit has one, so "Belt" on a chart lands on it (Oct 19 2026).
+ */
+function shorthandFieldsOf(row: SetupRowModel): ShorthandField[] {
+  const cells: ShorthandField[] = row.fields.map((f) => ({ key: f.key, label: f.label, type: f.type, options: f.options }));
+  return row.belt ? [...cells, { key: row.belt.key, label: row.belt.label, type: "enum", options: [...SEAT_BELT_CHOICES] }] : cells;
+}
 
 export interface SetupViewProps {
   client: Client | null | undefined;
@@ -364,10 +374,7 @@ export function SetupView({
   };
 
   const fillShorthand = (row: SetupRowModel, text: string) => {
-    const result = parseShorthand(
-      text,
-      row.fields.map((f) => ({ key: f.key, label: f.label, type: f.type, options: f.options })),
-    );
+    const result = parseShorthand(text, shorthandFieldsOf(row));
     dispatch({
       type: "shorthand",
       machineId: row.machine.id,
@@ -442,7 +449,8 @@ export function SetupView({
       inputs.push({
         machineId,
         machineName: row.machine.name,
-        fields: row.fields.map((f) => ({ key: f.key, label: f.label })),
+        // The belt is saved with the dials (Oct 19 2026), though machine fit never sees it.
+        fields: [...row.fields.map((f) => ({ key: f.key, label: f.label })), ...(row.belt ? [row.belt] : [])],
         saved: row.machine.settings,
         draft: d.values,
         existingSources: row.machine.sources ?? null,
@@ -651,7 +659,7 @@ export function SetupView({
               .map((r) => ({
                 id: r.machine.id,
                 name: r.machine.name,
-                fields: r.fields.map((f) => ({ key: f.key, label: f.label, type: f.type, options: f.options })),
+                fields: shorthandFieldsOf(r),
               }))}
             onFill={fillBlock}
             onClose={() => setPanel(null)}

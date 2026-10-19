@@ -30,6 +30,20 @@ describe("setupButtonOf", () => {
     ]);
   });
 
+  it("says the seat belt in its own words: Belt on, Belt off, Belt not needed (Oct 19 2026)", () => {
+    const at = (v: string) =>
+      setupButtonOf({
+        name: "Pulldown",
+        settings: { G: "3", S: "4", Belt: v },
+        settingLabels: { G: "Gap", S: "Seat", Belt: "Seat belt" },
+        dialsNotSet: 0,
+        firstSetup: false,
+      })!.words;
+    expect(at("On")).toBe("Gap 3 · Seat 4 · Belt on");
+    expect(at("Off")).toBe("Gap 3 · Seat 4 · Belt off");
+    expect(at("Not needed")).toBe("Gap 3 · Seat 4 · Belt not needed");
+  });
+
   it("adds what is still empty once the settings are known", () => {
     const b = setupButtonOf({ name: "Chest Fly", settings: { S: "12" }, settingLabels: { S: "Seat" }, dialsNotSet: 1, firstSetup: false });
     expect(b!.words).toBe("Seat 12 · 1 not set");

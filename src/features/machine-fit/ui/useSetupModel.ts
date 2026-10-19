@@ -16,6 +16,7 @@
  * is plain `useMemo`; nothing is cached by hand.
  */
 
+import { isSeatBelt } from "../../equipment/seat-belt";
 import { useMemo } from "react";
 import type { Client, ClientMachineSetting, Machine, Routine } from "../../../types";
 import type { MachineCatalogEntry } from "../../../types/machines";
@@ -43,6 +44,13 @@ export interface Offer {
 export interface SetupRowModel {
   machine: EquipmentMachine;
   fields: FitField[];
+  /**
+   * The seat belt, when the unit has one (Oct 19 2026): drawn as three
+   * buttons beside the cells, never one of them (it is tapped, not typed),
+   * and never part of machine fit (`fields` leaves it out). Its value is in
+   * `shown` and `dirty` under its key like any field's.
+   */
+  belt: { key: string; label: string } | null;
   /** What each field shows right now (storage key → value). */
   shown: Record<string, string>;
   /** Fields whose on-screen value differs from what is saved. */
@@ -137,10 +145,12 @@ export function useSetupModel({
   const allRows = useMemo<SetupRowModel[]>(() => {
     return equipment.map((machine) => {
       const fields = toFitFields(machine.fields);
+      const beltSpec = machine.fields.find((f) => isSeatBelt(f.key));
+      const belt = beltSpec ? { key: beltSpec.key, label: beltSpec.label } : null;
       const draft = drafts.drafts[machine.id];
       const shown: Record<string, string> = {};
       const dirty = new Set<string>();
-      for (const f of fields) {
+      for (const f of belt ? [...fields, belt] : fields) {
         shown[f.key] = shownOf(draft, machine.settings, f.key);
         if (draft && f.key in draft.values) dirty.add(f.key);
       }
@@ -198,6 +208,7 @@ export function useSetupModel({
       return {
         machine,
         fields,
+        belt,
         shown,
         dirty,
         routines: prescribed.get(machine.id) ?? [],

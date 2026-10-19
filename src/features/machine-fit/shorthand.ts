@@ -32,8 +32,16 @@
  * hard-coded letters that did not know which machine they were reading
  * ("C:4" had nowhere to go, and "Gap: 4" with a space lost its value).
  *
+ * THE SEAT BELT (Oct 19 2026) is placed by its own rule, because FileMaker
+ * prints it as a bare word: Judy Gibson's Pulldown reads "B- 4 S- 4 G- 3
+ * Belt". Its name alone is On; "No belt" is Off; a word after it says which
+ * ("Belt: off", "Belt N", "Belt not needed"). And it answers only to its
+ * whole name ("Belt", "Seat belt"), never to a letter or its first word:
+ * "Seat belt" answering to "Seat" would have taken "S- 4" off the seat.
+ *
  * Pure. No regex lookbehind (older iPadOS Safari throws on parse).
  */
+import { SEAT_BELT_OFF, SEAT_BELT_ON, beltChoiceOf, isSeatBelt, type SeatBeltChoice } from "../equipment/seat-belt";
 
 export interface ShorthandField {
   /** The field's STORAGE key — what clientMachineSettings.settings is keyed by for this machine. */
@@ -101,9 +109,18 @@ interface FieldNames {
   names: string[];
   /** Initials of multi-word names ("bp" for Back Pad). */
   initials: string[];
+  /** Answers to a whole name only: never initials, a prefix or a letter (the seat belt). */
+  exact: boolean;
 }
 
+/** The field is the seat belt (equipment/seat-belt.ts). */
+const isBeltField = (field: ShorthandField): boolean => isSeatBelt(field.key) || isSeatBelt(field.label);
+
 function namesOf(field: ShorthandField): FieldNames {
+  if (isBeltField(field)) {
+    const names = new Set(["seatbelt", "belt", ...(field.aliases ?? []).map(labelToken)].filter(Boolean));
+    return { field, names: [...names], initials: [], exact: true };
+  }
   const raw = [field.label, field.key, ...(field.aliases ?? [])].filter(Boolean);
   const names = new Set<string>();
   const initials = new Set<string>();
@@ -117,7 +134,7 @@ function namesOf(field: ShorthandField): FieldNames {
       names.add(singular(parts[0]));
     }
   }
-  return { field, names: [...names], initials: [...initials] };
+  return { field, names: [...names], initials: [...initials], exact: false };
 }
 
 /**
@@ -139,6 +156,7 @@ export function matchField(
   for (const candidate of fields.map(namesOf)) {
     let score = 0;
     if (candidate.names.includes(token)) score = 4;
+    else if (candidate.exact) score = 0;
     else if (candidate.initials.includes(token)) score = 3;
     else if (token.length >= 2 && candidate.names.some((n) => n.startsWith(token))) score = 2;
     else if (token.length === 1 && candidate.names.some((n) => n.startsWith(token))) score = 1;
@@ -221,6 +239,41 @@ function looksLikeValue(token: string, field: ShorthandField): boolean {
   return token.length <= 4;
 }
 
+/**
+ * The seat belt starting at `i`, or null: "Belt", "Seat belt", "No belt",
+ * then an optional separator and a word that says which ("off", "Y", "not
+ * needed"). Its name alone is On. `next` is the first token after it.
+ */
+function beltAt(
+  chunk: readonly string[],
+  i: number,
+  belt: ShorthandField,
+): { field: ShorthandField; value: SeatBeltChoice; next: number } | null {
+  const nameLength = (at: number): number => {
+    const w = norm(chunk[at] ?? "");
+    if (w === "belt" || w === "seatbelt") return 1;
+    if (w === "seat" && norm(chunk[at + 1] ?? "") === "belt") return 2;
+    return 0;
+  };
+  let at = i;
+  const negated = norm(chunk[at] ?? "") === "no" && nameLength(at + 1) > 0;
+  if (negated) at += 1;
+  const length = nameLength(at);
+  if (length === 0) return null;
+  at += length;
+  if (negated) return { field: belt, value: SEAT_BELT_OFF, next: at };
+  let k = at;
+  if (chunk[k] === SEP) k += 1;
+  const word = (t: string | undefined) => (t === undefined || t === SEP ? null : t);
+  const a = word(chunk[k]);
+  const b = word(chunk[k + 1]);
+  const two = a !== null && b !== null ? beltChoiceOf(`${a} ${b}`) : null;
+  if (two) return { field: belt, value: two, next: k + 2 };
+  const one = a !== null ? beltChoiceOf(a) : null;
+  if (one) return { field: belt, value: one, next: k + 1 };
+  return { field: belt, value: SEAT_BELT_ON, next: k };
+}
+
 export function parseShorthand(text: string, fields: readonly ShorthandField[]): ShorthandResult {
   const values: Record<string, string> = {};
   const leftovers: string[] = [];
@@ -250,12 +303,27 @@ export function parseShorthand(text: string, fields: readonly ShorthandField[]):
     return true;
   };
 
+  const beltField = fields.find(isBeltField) ?? null;
+
   for (const chunk of tokenize(text || "")) {
     let i = 0;
     while (i < chunk.length) {
       const w = chunk[i];
       if (w === SEP) {
         i += 1;
+        continue;
+      }
+
+      // The seat belt, by its own rule (the header): "Belt" alone is On.
+      const belt = beltField ? beltAt(chunk, i, beltField) : null;
+      if (belt) {
+        if (values[belt.field.key] !== undefined) {
+          notes.push(`${belt.field.label} was given twice; kept ${values[belt.field.key]}`);
+          leftovers.push(chunk.slice(i, belt.next).filter((t) => t !== SEP).join(" "));
+        } else {
+          values[belt.field.key] = belt.value;
+        }
+        i = belt.next;
         continue;
       }
 
@@ -287,7 +355,9 @@ export function parseShorthand(text: string, fields: readonly ShorthandField[]):
           value === SEP ||
           chunk[at + 1] === SEP ||
           WEIGHT_LABEL.test(value) ||
-          (chunk[at + 1] !== undefined && matchField(value, fields, true).field !== null);
+          (chunk[at + 1] !== undefined && matchField(value, fields, true).field !== null) ||
+          // "G- Belt": an empty gap, then the belt (never a gap of "Belt").
+          (beltField !== null && beltAt(chunk, at, beltField) !== null);
         if (empty) {
           i = at;
           continue;

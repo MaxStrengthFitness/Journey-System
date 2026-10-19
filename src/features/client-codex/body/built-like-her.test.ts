@@ -25,6 +25,7 @@ function row(id: string, suggestion: SuggestionResult | null, over: Partial<Setu
   return {
     machine: { id, name: id.replace(/^m-/, "").replace(/-/g, " ") } as SetupRowModel["machine"],
     fields: FIELDS,
+    belt: null,
     shown: {},
     dirty: new Set(),
     routines: ["A"],

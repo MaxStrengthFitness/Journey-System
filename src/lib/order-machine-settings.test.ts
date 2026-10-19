@@ -137,3 +137,15 @@ describe("orderMachineSettings — the canonical order survives", () => {
     expect(map).toEqual({ S: "1.5", H: "N", B: "SH" });
   });
 });
+
+describe("orderMachineSettings — the seat belt (Oct 19 2026)", () => {
+  it("comes after everything, handles included, and reads as a word, so the seat keeps its S", () => {
+    const entries = orderMachineSettings({ "Seat belt": "On", Handles: "N", Seat: "4", Gap: "3" });
+    expect(fullNames(entries)).toEqual(["Gap", "Seat", "Handles", "Seat belt"]);
+    expect(asMap(entries)).toEqual({ G: "3", S: "4", H: "N", Belt: "On" });
+  });
+
+  it("keeps Not needed whole", () => {
+    expect(asMap(orderMachineSettings({ "Seat belt": "Not needed" }))).toEqual({ Belt: "Not needed" });
+  });
+});

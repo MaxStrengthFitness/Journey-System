@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { getMachineStyle } from './machine-colors';
+import { isSeatBelt } from '../features/equipment/seat-belt';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -417,6 +418,8 @@ export function orderMachineSettings(
   // Shoulder Pads "SP". The full name still travels as the third element
   // (settingLabels), so the rail shows "SA" and speaks "Seat Angle".
   const preferredShort = (key: string): string => {
+    // The seat belt reads as a word (Oct 19 2026), so the seat keeps its "S".
+    if (isSeatBelt(key)) return 'Belt';
     const lower = key.toLowerCase();
     if (lower.includes('arm')) return 'A';
     if (lower.includes('back')) return 'B';
@@ -467,6 +470,10 @@ export function orderMachineSettings(
 
 function getSettingOrderScore(key: string): number {
   const k = key.trim().toLowerCase();
+
+  // The seat belt, after everything (Oct 19 2026): it would otherwise sort
+  // with the seat for the word in its name.
+  if (isSeatBelt(k)) return 2000;
   
   // Gap always first
   if (k.includes('gap') || k === 'g') return 0;

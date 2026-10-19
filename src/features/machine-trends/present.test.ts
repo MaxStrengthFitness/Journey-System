@@ -82,6 +82,15 @@ describe("presentMachineTrends", () => {
     expect(view.settings[1].rows[0]).toEqual({ value: "5", clients: 7, sets: 40, medianBest: 130 });
   });
 
+  it("never says the seat belt, which the job still counts (Oct 19 2026)", () => {
+    const view = presentMachineTrends({
+      trend: doc({ settings: { seat: { "5": sv(7, 40, 130) }, "seat-belt": { on: sv(9, 50, 120), "not_needed": sv(3, 20, 150) } } }),
+      failed: false,
+    });
+    if (view.kind !== "ready") throw new Error("expected ready");
+    expect(view.settings.map((s) => s.key)).toEqual(["seat"]);
+  });
+
   it("keeps a withheld median as null rather than turning it into a zero", () => {
     const view = presentMachineTrends({
       trend: doc({ settings: { gap: { "3": sv(2, 4, null) } } }),

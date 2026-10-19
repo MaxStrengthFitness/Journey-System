@@ -257,6 +257,40 @@ describe("the Setup screen", () => {
     });
   });
 
+  it("draws the seat belt beside the cells, tapped not typed, and saves it with the dials (Oct 19 2026)", async () => {
+    const el = mount(saved({ Gap: "0", Seat: "4", Chest: "3" }));
+    // Check: the belt's value, read only, and never a box of its own.
+    expect(el.querySelector('input[aria-label="Compound Row Seat belt"]')).toBeNull();
+    expect(el.textContent).toContain("Seat belt");
+    click(button(el, /^Set up/));
+    const on = el.querySelector('button[aria-label="Compound Row Seat belt On"]')!;
+    expect(on.getAttribute("aria-pressed")).toBe("false");
+    click(on);
+    expect(on.getAttribute("aria-pressed")).toBe("true");
+    await clickAsync(button(el, "Save set-up"));
+    expect(spy.commits[0].plan.entries[0]).toMatchObject({
+      machineId: "m-compound-row",
+      isInitialSetup: false,
+      settings: { Gap: "0", Seat: "4", Chest: "3", "Seat belt": "On" },
+    });
+  });
+
+  it("puts a chart's bare Belt on the seat belt in Quick entry, as copied from the chart", async () => {
+    const el = mount(saved({ Seat: "5" }));
+    click(button(el, /^Quick entry/));
+    click(el.querySelector('button[aria-label="Type Compound Row as a line of chart shorthand"]')!);
+    const line = el.querySelector('input[aria-label="Compound Row shorthand"]') as HTMLInputElement;
+    type(line, "G- 4 S- 3 Belt");
+    act(() => (line.form as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(el.querySelector('button[aria-label="Compound Row Seat belt On"]')!.getAttribute("aria-pressed")).toBe("true");
+    expect(el.textContent).not.toContain("Kept as a note");
+    await clickAsync(button(el, "Save set-up"));
+    expect(spy.commits[0].plan.entries[0]).toMatchObject({
+      settings: { Gap: "4", Seat: "3", "Seat belt": "On" },
+      sources: { Gap: "legacy", Seat: "legacy", "Seat belt": "legacy" },
+    });
+  });
+
   it("filters to the machines in the client's routines", () => {
     const el = mount();
     click(button(el, "In routines"));

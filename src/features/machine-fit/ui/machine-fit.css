@@ -365,6 +365,10 @@
 .fit-cell--edit[data-dirty] .fit-cell__input { border-color: var(--eq-live); background: var(--eq-live-fill); }
 .fit-cell--edit[data-active] .fit-cell__input { outline: 3px solid var(--eq-live); outline-offset: 1px; border-color: transparent; }
 .fit-cell--weight .fit-cell__input { width: 96px; }
+/* The seat belt (Oct 19 2026): On · Off · Not needed as chips, the chosen
+   one in the live tint; changed, the cell takes the live edge like a box. */
+.fit-belt { display: flex; flex-wrap: wrap; gap: 6px; }
+.fit-cell--belt[data-dirty] .fit-belt { padding: 2px; border-radius: 14px; outline: 2px solid var(--eq-live); }
 .fit-cell--weight { margin-left: 8px; padding-left: 12px; border-left: 1px solid var(--eq-border); }
 
 .fit-cell--read {
