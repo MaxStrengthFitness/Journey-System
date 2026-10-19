@@ -1,0 +1,1933 @@
+/* ====================================================================
+ * THE TACTICAL CODEX — Design 1 of the Learning vault redesign
+ * (Oct 19 2026). Owns the cdx__ prefix and nothing else.
+ *
+ * Learning's palette only (--wk-*, wiki.tokens.css, reached through
+ * wiki.css, which WikiShell imports): no raw colour, no new tokens. Blue
+ * acts and selects, orange is Learning's brand mark (the lead path's
+ * band), plum is caution, crimson is never used here, green is never used
+ * here. Type on Learning's scale: 11 / 12 / 14 / 17 / 22 / 30. Titles and
+ * numbers in the display face, upright; everything else Geist. No new
+ * capitals, no tracking, no slant.
+ *
+ * Depth is the house's "Refined Lift": panels on a 1px edge with the
+ * navy lift, tiles among many on --wk-elev-list, raised buttons on the
+ * firm 3:1 edge that press on :active, wells sunk in the tray. A category
+ * colour is a 3px band painted as a background layer, never a border.
+ *
+ * The page is a container (cdx-page), so a layout answers the page's own
+ * width: with the peek docked beside it, the machine's bento stacks.
+ * ------------------------------------------------------------------ */
+
+.cdx__page {
+  container: cdx-page / inline-size;
+  min-width: 0;
+}
+
+/* ── a page's head ─────────────────────────────────────────────────── */
+
+.cdx__head {
+  padding: 1.25rem 0 0;
+  min-width: 0;
+}
+
+.cdx__eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wk-accent-text, var(--wk-ink-muted));
+  overflow-wrap: anywhere;
+}
+
+.cdx__eyebrow--machine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.cdx__title {
+  margin: 0;
+  font-family: var(--wk-font-display);
+  font-size: 30px;
+  font-weight: 800;
+  font-style: normal;
+  text-transform: none;
+  line-height: 1.04;
+  letter-spacing: 0;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+
+.cdx__lede {
+  margin: 0.5rem 0 0;
+  max-width: var(--wk-measure);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wk-ink-2);
+}
+
+.cdx__version {
+  margin-top: 0.875rem;
+}
+
+.cdx__factline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0.625rem 0 0;
+}
+.cdx__factline-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.cdx__factline dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+.cdx__factline dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+
+/* "A draft from Journey's notes…": said once, quietly, in a well. */
+.cdx__draft {
+  align-self: flex-start;
+  margin: 0.625rem 0 0;
+  padding: 0.375rem 0.75rem;
+  border-radius: 10px;
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* ── index pages: bands of sections ────────────────────────────────── */
+
+.cdx__home,
+.cdx__index {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 1.25rem 0 1.5rem;
+  min-width: 0;
+}
+.cdx__index > .cdx__head {
+  padding-top: 0;
+  margin-bottom: -0.75rem;
+}
+
+.cdx__band {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.cdx__band-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/* The section voice: Geist 22/800 in its own capitalisation. */
+.cdx__h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+
+/* The panel-title voice: 17/700. */
+.cdx__h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+
+/* A door to another section, beside a section head: Learning's raised "more". */
+.cdx__more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: var(--wk-tap);
+  padding: 0 0.875rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cdx__more:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+
+/* ── buttons ───────────────────────────────────────────────────────── */
+
+.cdx__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: var(--wk-tap);
+  padding: 0 1rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.cdx__btn svg {
+  flex: none;
+}
+.cdx__btn--primary {
+  border-color: var(--wk-live);
+  background: var(--wk-live);
+  color: var(--wk-live-on);
+  box-shadow: var(--wk-glow-live), var(--wk-solid-light);
+}
+/* Raised, words in blue: an action that is not the page's one loud one. */
+.cdx__btn--go {
+  color: var(--wk-live-text);
+}
+.cdx__btn:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+
+/* ── paths ─────────────────────────────────────────────────────────── */
+
+.cdx__paths {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+/* A path card: a tile among many. */
+.cdx__path {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+}
+
+/* The lead path is the page's hero: the brand band along its top. */
+.cdx__path--lead {
+  padding: calc(1.125rem + 3px) 1.25rem 1.125rem;
+  border-radius: var(--wk-radius-lg);
+  background:
+    linear-gradient(var(--wk-hero), var(--wk-hero)) top / 100% 3px no-repeat border-box,
+    var(--wk-surface) padding-box;
+  box-shadow: var(--wk-elev-3), var(--wk-panel-highlight);
+}
+
+.cdx__path-who {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.cdx__path--lead .cdx__path-who {
+  color: var(--wk-hero-text);
+}
+
+.cdx__path-title {
+  margin: 0;
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  font-style: normal;
+  line-height: 1.08;
+  letter-spacing: 0;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.cdx__path--lead .cdx__path-title {
+  font-size: 30px;
+}
+
+.cdx__path-steps {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.375rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cdx__path-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+/* A step's number: the display face on a sunk tile. */
+.cdx__path-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink-2);
+}
+
+.cdx__path-step-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 4px;
+}
+.cdx__path-step-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.cdx__path-step-why {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.cdx__path-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.cdx__path-more {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+
+@container cdx-page (min-width: 640px) {
+  .cdx__paths {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cdx__path--lead {
+    grid-column: 1 / -1;
+  }
+  /* The lead's three steps side by side, each in its own well. */
+  .cdx__path--lead .cdx__path-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.625rem;
+  }
+  .cdx__path--lead .cdx__path-step {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 12px;
+    background: var(--wk-surface-2);
+    box-shadow: var(--wk-elev-0);
+  }
+  .cdx__path--lead .cdx__path-n {
+    background: var(--wk-raised);
+    box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-edge-control), inset 0 1px 0 var(--wk-highlight);
+  }
+  .cdx__path--lead .cdx__path-step-words {
+    padding-top: 0;
+  }
+}
+
+/* ── rows: the other paths ─────────────────────────────────────────── */
+
+.cdx__rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__rows > li {
+  display: flex;
+}
+@container cdx-page (min-width: 640px) {
+  .cdx__rows--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cdx__row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0.5rem 0.75rem 0.5rem 0.875rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: 12px;
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__row-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cdx__row-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.cdx__row-sub {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.cdx__chev {
+  flex: none;
+  color: var(--wk-ink-faint);
+}
+
+/* ── the floor as tiles (the Overview) ─────────────────────────────── */
+
+.cdx__floor {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__floor > li {
+  display: flex;
+}
+
+/* A machine as a codex entry: its category's band across the top. */
+.cdx__mtile {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 84px;
+  padding: calc(0.625rem + 3px) 0.75rem 0.75rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: 12px;
+  background:
+    linear-gradient(var(--wk-accent, var(--wk-border-strong)), var(--wk-accent, var(--wk-border-strong))) top / 100% 3px no-repeat border-box,
+    var(--wk-surface) padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__mtile-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.cdx__mtile-n {
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink-muted);
+}
+.cdx__mtile-name {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.cdx__mtile:not(:disabled):active,
+.cdx__row:not(:disabled):active,
+.cdx__ref:not(:disabled):active,
+.cdx__link:not(:disabled):active,
+.cdx__step:not(:disabled):active,
+.cdx__entry:not(:disabled):active,
+.cdx__shelf-row:not(:disabled):active,
+.cdx__deeper:not(:disabled):active,
+.cdx__ho:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+/* ── the floor as the Catalog's list ───────────────────────────────── */
+
+.cdx__entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+  overflow: hidden;
+}
+.cdx__entries > li + li {
+  border-top: 1px solid var(--wk-divider);
+}
+
+/* A row's category band down its left side (the row is square; the list clips). */
+.cdx__entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 60px;
+  padding: 0.5rem 0.875rem 0.5rem calc(0.875rem + 3px);
+  border: 0;
+  background:
+    linear-gradient(var(--wk-accent, var(--wk-border-strong)), var(--wk-accent, var(--wk-border-strong))) left / 3px 100% no-repeat,
+    transparent;
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__entry-n {
+  flex: none;
+  width: 1.75rem;
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink-muted);
+}
+/* The code chip's own column, so the names beside a column of codes line up. */
+.cdx__entry-code {
+  flex: none;
+  display: flex;
+  width: 4.5rem;
+}
+.cdx__entry-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cdx__entry-name {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.cdx__entry-sub {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.cdx__entry-cat {
+  flex: 0 1 9rem;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: right;
+  color: var(--wk-accent-text, var(--wk-ink-muted));
+  overflow-wrap: anywhere;
+}
+@container cdx-page (max-width: 520px) {
+  .cdx__entry-cat {
+    display: none;
+  }
+}
+
+/* ── the method: chapters ──────────────────────────────────────────── */
+
+.cdx__method {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.cdx__chapters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0.375rem;
+  list-style: none;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+@container cdx-page (min-width: 700px) {
+  /* Two columns that read down, one then the other, as a contents page does. */
+  .cdx__chapters:not(.cdx__chapters--topics) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(var(--cdx-rows, 7), auto);
+    grid-auto-flow: column;
+    column-gap: 0.375rem;
+  }
+}
+
+.cdx__chapter {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 52px;
+  padding: 0.5rem 0.625rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__chapter:active {
+  background: var(--wk-surface-2);
+}
+.cdx__chapter-n {
+  flex: none;
+  min-width: 1.75rem;
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink-muted);
+}
+.cdx__chapter-n--topic {
+  min-width: 2.5rem;
+  font-size: 17px;
+}
+.cdx__chapter-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cdx__chapter-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.cdx__chapter-blurb {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.cdx__chapter-time {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+.cdx__chapters--topics {
+  margin-top: 1.25rem;
+  max-width: 46rem;
+}
+.cdx__chapters--moments {
+  margin-top: 1.25rem;
+}
+
+/* ── the glossary as an index of words ─────────────────────────────── */
+
+.cdx__words {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+@container cdx-page (min-width: 640px) {
+  .cdx__words {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container cdx-page (min-width: 1000px) {
+  .cdx__words {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.cdx__letter {
+  display: flex;
+  gap: 0.625rem;
+  min-width: 0;
+  padding: 0.625rem 0.5rem 0.625rem 0.75rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+}
+.cdx__letter-head {
+  flex: none;
+  width: 1.75rem;
+  margin: 0;
+  padding-top: 0.5rem;
+  font-family: var(--wk-font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink-muted);
+}
+.cdx__word-list {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__word {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--wk-tap);
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__word-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cdx__word-tag {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--wk-surface-2);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+.cdx__word:active {
+  background: var(--wk-surface-2);
+}
+
+/* Every definition, every phrase: the whole list under its index. */
+.cdx__all {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2rem;
+}
+.cdx__all > .cdx__tierpanel {
+  margin-top: 0.5rem;
+}
+
+/* ── reference entries: the glossary and the phrasebook ────────────── */
+
+.cdx__refs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__refs > li {
+  display: flex;
+}
+@container cdx-page (min-width: 640px) {
+  .cdx__refs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cdx__ref {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 64px;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: 12px;
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__ref-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-edge-control), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink-2);
+}
+.cdx__ref-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cdx__ref-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.cdx__ref-sub {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ── playbook shelves ──────────────────────────────────────────────── */
+
+.cdx__shelves {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.625rem;
+}
+@container cdx-page (min-width: 700px) {
+  .cdx__shelves {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cdx__shelf {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.75rem 0.5rem 0.375rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+}
+.cdx__shelf-title {
+  margin: 0 0.375rem 0.25rem;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.cdx__shelf-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__shelf-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: var(--wk-tap);
+  padding: 0.375rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__shelf-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* ── glyphs ────────────────────────────────────────────────────────── */
+
+.cdx__glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--wk-surface-2);
+  color: var(--wk-ink-2);
+}
+
+/* ── play ──────────────────────────────────────────────────────────── */
+
+.cdx__play {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.cdx__play-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 0.875rem;
+}
+.cdx__play-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--wk-live-fill);
+  color: var(--wk-live-text);
+}
+.cdx__play-words {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.cdx__play-title {
+  margin: 0;
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--wk-ink);
+}
+.cdx__play-sub {
+  margin: 0.125rem 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+}
+.cdx__decks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A deck: a firm chip, its deck's colour as a dot. */
+.cdx__deck {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--wk-tap);
+  padding: 0.375rem 0.875rem 0.375rem 0.75rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.cdx__deck::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-accent, var(--wk-border-strong));
+}
+.cdx__deck:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+
+/* ── head office's door ────────────────────────────────────────────── */
+
+.cdx__ho {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  min-height: 64px;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__ho-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--wk-live-fill);
+  color: var(--wk-live-text);
+}
+.cdx__ho-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cdx__ho-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.cdx__ho-sub {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* ── wells: an honest empty, a page that moved ─────────────────────── */
+
+.cdx__well,
+.cdx__gone {
+  margin: 0;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink-2);
+}
+.cdx__gone {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 34rem;
+  margin-top: 1.5rem;
+}
+.cdx__gone-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--wk-ink);
+}
+.cdx__gone-body {
+  margin: 0 0 0.25rem;
+}
+
+.cdx__quiet {
+  margin: 1.25rem 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-muted);
+}
+
+/* ── an article ────────────────────────────────────────────────────── */
+
+.cdx__article {
+  min-width: 0;
+  padding-bottom: 1.5rem;
+}
+
+/* ── the machine's bento ───────────────────────────────────────────── */
+
+/* The figure, a size worth looking at inside the tile. Its root is sized
+   here (MachineFigure's className); the body takes what the Anterior /
+   Posterior controls under it leave, about 58px, so the body itself is
+   220px to 320px. */
+.cdx__figure-in {
+  height: clamp(278px, calc(30dvh + 58px), 378px);
+}
+
+.cdx__bento {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  margin-top: 1rem;
+  min-width: 0;
+}
+@container cdx-page (min-width: 700px) {
+  /* The body on the left, as tall as the facts and the dials beside it (the
+     figure takes the room they leave); what the machine connects to across
+     the foot, its groups side by side. */
+  .cdx__bento {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "body facts"
+      "body dials"
+      "links links";
+    align-items: stretch;
+  }
+  .cdx__bento[data-figure="no"] {
+    grid-template-areas:
+      "facts dials"
+      "links links";
+  }
+  .cdx__tile--body { grid-area: body; }
+  .cdx__tile--facts { grid-area: facts; }
+  .cdx__tile--dials { grid-area: dials; }
+  .cdx__tile--links { grid-area: links; }
+  .cdx__figure {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  /* The figure asks for no height of its own (MachineFigure's sized root),
+     so the facts and dials beside it set the row and the body fills it:
+     220px to 360px of body, the controls under it. */
+  .cdx__figure-in {
+    flex: 1;
+    height: auto;
+    min-height: 278px;
+    max-height: 418px;
+  }
+}
+
+/* A tile: a panel with the machine's category band across its top. */
+.cdx__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+  padding: calc(0.875rem + 3px) 0.875rem 0.875rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background:
+    linear-gradient(var(--wk-accent, var(--wk-border-strong)), var(--wk-accent, var(--wk-border-strong))) top / 100% 3px no-repeat border-box,
+    var(--wk-surface) padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+
+.cdx__tile--body {
+  justify-content: center;
+}
+
+
+/* The dials: the unit's numbers in the display face, each on a sunk tile. */
+.cdx__dials {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.cdx__dial-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__dial-row > li {
+  display: flex;
+}
+.cdx__dial {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 60px;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 10px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__dial--still {
+  border-color: transparent;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+  cursor: default;
+}
+.cdx__dial[aria-expanded="true"] {
+  border-color: var(--wk-live);
+  box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-live);
+}
+.cdx__dial:not(.cdx__dial--still):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.cdx__dial-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.cdx__dial-letter {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--wk-surface-3);
+  font-family: var(--wk-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-ink);
+}
+.cdx__dial-n {
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink);
+}
+.cdx__dial-unset {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+.cdx__dial-rule {
+  padding: 0.75rem 0.875rem;
+  border-radius: 10px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+}
+.cdx__dial-rule p {
+  margin: 0;
+}
+.cdx__dial-rule p + p {
+  margin-top: 0.375rem;
+}
+.cdx__dial-rule-head {
+  font-weight: 700;
+  color: var(--wk-ink);
+}
+.cdx__dial-first {
+  font-size: 12px;
+  color: var(--wk-ink-muted);
+}
+/* No number set and no rule written: the dials by name, and that, said once. */
+.cdx__dial-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__dial-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 8px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.cdx__dials-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--wk-ink-muted);
+}
+.cdx__dials-none {
+  margin: 0;
+  font-size: 12px;
+  color: var(--wk-ink-muted);
+}
+
+/* The facts: label and value on one line, a hairline between. */
+.cdx__facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.cdx__fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--wk-divider);
+}
+.cdx__fact:first-child {
+  padding-top: 0.125rem;
+}
+.cdx__fact dt {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+.cdx__fact dd {
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: right;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+
+/* The Academy's own pieces on this machine: doors that peek. */
+.cdx__pieces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__piece {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: var(--wk-tap);
+  padding: 0 0.75rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cdx__piece svg {
+  flex: none;
+}
+.cdx__piece:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+
+
+
+/* ── the tier bar ──────────────────────────────────────────────────── */
+
+.cdx__tiermark {
+  height: 0;
+}
+
+/* Sticky in the page's one scroller, on the page's own ground so the lines
+   scroll under it; the shelf's short cast under it, as Learning's bars. */
+.cdx__tierbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 1rem -0.5rem 0;
+  padding: 0.5rem;
+  background: var(--wk-bg);
+  box-shadow: var(--wk-shelf);
+}
+
+.cdx__tiers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 14px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.cdx__tiers[data-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.cdx__tiers[data-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.cdx__tiers[data-count="1"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cdx__tier {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0.375rem 0.625rem;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__tier[aria-selected="true"] {
+  background: var(--wk-raised);
+  color: var(--wk-live-text);
+  font-weight: 700;
+  box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-edge-control), inset 0 1px 0 var(--wk-highlight);
+}
+.cdx__tier:active {
+  transform: translateY(1px);
+}
+.cdx__tier-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--wk-tray);
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink-2);
+}
+.cdx__tier[aria-selected="true"] .cdx__tier-n {
+  background: var(--wk-live);
+  color: var(--wk-live-on);
+}
+.cdx__tier-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@container cdx-page (max-width: 600px) {
+  .cdx__tier {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.375rem 0.25rem;
+    font-size: 12px;
+    text-align: center;
+  }
+}
+
+/* ── a tier's body ─────────────────────────────────────────────────── */
+
+.cdx__tierpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 46rem;
+  margin-top: 1rem;
+  min-width: 0;
+}
+
+.cdx__blocks {
+  min-width: 0;
+}
+.cdx__rep {
+  min-width: 0;
+}
+
+.cdx__orphans {
+  max-width: 46rem;
+  margin-top: 1.5rem;
+}
+
+/* "One layer deeper": the door at the foot of a tier. */
+.cdx__deeper {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  min-height: 64px;
+  margin-top: 0.5rem;
+  padding: 0.625rem 1rem 0.625rem 0.75rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: var(--wk-radius);
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__deeper > svg {
+  flex: none;
+  color: var(--wk-live-text);
+}
+.cdx__deeper-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--wk-live-fill);
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-live-text);
+}
+.cdx__deeper-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cdx__deeper-kicker {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+.cdx__deeper-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.cdx__chapters--topics + .cdx__deeper {
+  max-width: 46rem;
+  margin-top: 1rem;
+}
+
+/* "From the cueing phrasebook": where the Say it tier's lines live. */
+.cdx__from {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--wk-tap);
+  padding: 0 0.75rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cdx__from svg {
+  flex: none;
+}
+
+/* ── read next ─────────────────────────────────────────────────────── */
+
+.cdx__next {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-top: 2rem;
+  min-width: 0;
+}
+.cdx__next-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__next-grid > li {
+  display: flex;
+}
+@container cdx-page (min-width: 640px) {
+  .cdx__next-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cdx__link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: 12px;
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__link-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cdx__link-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.cdx__link-why {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ── a path's steps ────────────────────────────────────────────────── */
+
+.cdx__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 46rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cdx__steps > li {
+  display: flex;
+}
+.cdx__step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+  min-height: 64px;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: 12px;
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__step-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink);
+}
+.cdx__step-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cdx__step-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.cdx__step-why {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* A word's or a moment's links, and the door back to the whole list. */
+.cdx__entry-links {
+  max-width: 46rem;
+  margin-top: 1.25rem;
+}
+.cdx__wide-door {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 46rem;
+  min-height: 52px;
+  margin-top: 1.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.cdx__wide-door svg {
+  flex: none;
+}
+.cdx__wide-door:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+
+/* ── the peek's body ───────────────────────────────────────────────── */
+
+.cdx__peekbody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+}
+.cdx__peek-eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wk-accent-text, var(--wk-ink-muted));
+  overflow-wrap: anywhere;
+}
+.cdx__peek-preset {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.cdx__peek-lede {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink-2);
+}
+.cdx__peek-wait {
+  padding: 1rem 0;
+}
+.cdx__peek-gone {
+  margin: 0;
+  font-size: 14px;
+  color: var(--wk-ink-2);
+}
+
+/* ── the quiz and head office's queue, inside the page ─────────────── */
+
+.cdx__quiz,
+.cdx__queue {
+  padding: 1.25rem 0 1.5rem;
+  min-width: 0;
+}
+
+/* ── wide pages: a reading column; the machine in two columns ───────── */
+
+@container cdx-page (min-width: 1000px) {
+  .cdx__article:not(.cdx__article--machine) {
+    max-width: 48rem;
+    margin-inline: auto;
+  }
+  .cdx__article--machine {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    grid-template-rows: auto 1fr;
+    column-gap: 1.5rem;
+    align-items: start;
+  }
+  .cdx__article--machine > .cdx__head {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .cdx__article--machine > .cdx__bento {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "body" "facts" "dials" "links";
+  }
+  .cdx__article--machine > .cdx__bento[data-figure="no"] {
+    grid-template-areas: "facts" "dials" "links";
+  }
+  .cdx__article--machine > .cdx__layers {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+  }
+  .cdx__figure-in {
+    flex: none;
+    height: clamp(278px, calc(32dvh + 58px), 358px);
+  }
+}
+
+/* ── focus and hover ───────────────────────────────────────────────── */
+
+.cdx__btn:focus-visible,
+.cdx__more:focus-visible,
+.cdx__row:focus-visible,
+.cdx__mtile:focus-visible,
+.cdx__entry:focus-visible,
+.cdx__chapter:focus-visible,
+.cdx__word:focus-visible,
+.cdx__ref:focus-visible,
+.cdx__shelf-row:focus-visible,
+.cdx__deck:focus-visible,
+.cdx__ho:focus-visible,
+.cdx__dial:focus-visible,
+.cdx__piece:focus-visible,
+.cdx__tier:focus-visible,
+.cdx__deeper:focus-visible,
+.cdx__from:focus-visible,
+.cdx__link:focus-visible,
+.cdx__step:focus-visible,
+.cdx__wide-door:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.cdx__entry:focus-visible,
+.cdx__chapter:focus-visible,
+.cdx__shelf-row:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .cdx__more:hover,
+  .cdx__piece:hover,
+  .cdx__from:hover,
+  .cdx__wide-door:hover,
+  .cdx__deeper:hover {
+    border-color: var(--wk-live);
+  }
+  .cdx__btn:not(.cdx__btn--primary):hover,
+  .cdx__deck:hover,
+  .cdx__dial:not(.cdx__dial--still):hover {
+    border-color: var(--wk-live);
+  }
+  .cdx__row:hover,
+  .cdx__mtile:hover,
+  .cdx__ref:hover,
+  .cdx__link:hover,
+  .cdx__step:hover,
+  .cdx__ho:hover {
+    border-color: var(--wk-border-strong);
+  }
+  .cdx__entry:hover,
+  .cdx__chapter:hover,
+  .cdx__word:hover,
+  .cdx__shelf-row:hover {
+    background-color: var(--wk-surface-2);
+  }
+  .cdx__tier:not([aria-selected="true"]):hover {
+    color: var(--wk-ink);
+  }
+}
+
+/* ── motion: a new tier settles in once ────────────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  .cdx__tierpanel > .cdx__blocks {
+    animation: cdx-settle 160ms ease-out;
+  }
+}
+
+@keyframes cdx-settle {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
