@@ -1,0 +1,5 @@
+# Vite's pre-bundle cache, one per port (vite.config.ts), and any output a
+# run is pointed at inside this folder. The PNGs and the Chrome profile go to
+# %TEMP%\journey-learning\ by default, outside the Vite root.
+.vite-cache*/
+out/

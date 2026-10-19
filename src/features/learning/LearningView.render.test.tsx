@@ -85,6 +85,43 @@ vi.mock("../academy/AcademyWikiView", async () => {
   return { AcademyWikiView };
 });
 
+/* A prototype design (the Learning vault redesign, Oct 19 2026): it shows
+   which design and role it was given, honours a jump the way the real ones
+   do (records it, then says so), and reaches the masthead's search. */
+const fx = vi.hoisted(() => ({ jumps: [] as { design: string; jump: unknown; section: string }[] }));
+vi.mock("../learning-redesign/LearningRedesign", async () => {
+  const React = await import("react");
+  const { useWikiSections } = await import("../wiki/sections");
+  function LearningRedesign({
+    design,
+    viewAs,
+    section,
+    jump,
+    onJumpHandled,
+  }: {
+    design: string;
+    viewAs: string | null;
+    section: string;
+    jump: unknown;
+    onJumpHandled: () => void;
+  }) {
+    const sections = useWikiSections();
+    React.useEffect(() => {
+      if (!jump) return;
+      fx.jumps.push({ design, jump, section });
+      onJumpHandled();
+    }, [design, jump, section, onJumpHandled]);
+    return (
+      <div data-screen="redesign" data-design={design} data-view-as={viewAs ?? ""} data-section={section}>
+        <button type="button" data-action="redesign-search" onClick={() => sections?.onSearch?.()}>
+          Search Learning
+        </button>
+      </div>
+    );
+  }
+  return { LearningRedesign };
+});
+
 vi.mock("./LearningHome", () => ({ LearningHome: () => <div data-screen="overview" /> }));
 vi.mock("./LearningSearch", () => ({
   LearningSearch: ({ onOpen }: { onOpen: (ref: { kind: "machine"; id: string }) => void }) => (
@@ -99,11 +136,16 @@ vi.mock("./LearningSearch", () => ({
 import { UnsavedChangesProvider, useGuardedSetter, useLeaveGuard } from "../unsaved-changes";
 import { LearningView, type LearningViewId } from "./LearningView";
 import type { LearningRef } from "./ref";
+import type { LearningDesign } from "../learning-vault/types";
+import { DESIGN_KEY } from "../learning-redesign/design";
 
 let root: Root;
 let host: HTMLDivElement;
 
 beforeEach(() => {
+  // The prototype bar remembers its pick on this iPad: every test starts on Current.
+  localStorage.clear();
+  fx.jumps.length = 0;
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -114,7 +156,15 @@ afterEach(async () => {
 });
 
 /** AppContent, as far as Learning sees it: a guarded screen and the outside door. */
-function App({ start, startJump }: { start: LearningViewId; startJump: LearningRef | null }) {
+function App({
+  start,
+  startJump,
+  initialDesign,
+}: {
+  start: LearningViewId;
+  startJump: LearningRef | null;
+  initialDesign?: LearningDesign;
+}) {
   const [view, setView] = useState<LearningViewId>(start);
   const setCurrentView = useGuardedSetter(view, setView);
   const [jump, setJump] = useState<LearningRef | null>(startJump);
@@ -139,16 +189,17 @@ function App({ start, startJump }: { start: LearningViewId; startJump: LearningR
         authTrainer={null}
         jump={jump}
         onJumpHandled={() => setJump(null)}
+        initialDesign={initialDesign}
       />
     </>
   );
 }
 
-async function mount(start: LearningViewId, startJump: LearningRef | null = null) {
+async function mount(start: LearningViewId, startJump: LearningRef | null = null, initialDesign?: LearningDesign) {
   await act(async () => {
     root.render(
       <UnsavedChangesProvider>
-        <App start={start} startJump={startJump} />
+        <App start={start} startJump={startJump} initialDesign={initialDesign} />
       </UnsavedChangesProvider>,
     );
   });
@@ -254,5 +305,97 @@ describe("a Learning link from outside the tab", () => {
     expect(question()).toBeNull();
     expect(machineOnScreen()).toBe("m-leg-press");
     expect(draft()).toBe("");
+  });
+});
+
+/* The prototype bar (the Learning vault redesign, Oct 19 2026). */
+const onBar = (label: string) =>
+  [...document.querySelectorAll<HTMLButtonElement>(".ld button")].find(
+    (x) => x.getAttribute("aria-label") === label || x.textContent === label,
+  ) ?? null;
+const pressed = (label: string) => onBar(label)?.getAttribute("aria-pressed") ?? null;
+const bar = (label: string) =>
+  act(async () => {
+    const b = onBar(label);
+    if (!b) throw new Error(`${label} is not on the bar`);
+    b.click();
+  });
+const redesign = () => screen("redesign");
+
+describe("the prototype bar", () => {
+  it("sits above Learning with Current picked, and today's sections under it", async () => {
+    await mount("machine-anatomy");
+    const strip = host.querySelector(".ld");
+    expect(strip).not.toBeNull();
+    expect(pressed("Current")).toBe("true");
+    expect(pressed("1 Codex")).toBe("false");
+    expect(screen("catalog")).not.toBeNull();
+    expect(redesign()).toBeNull();
+    expect(strip!.compareDocumentPosition(screen("catalog")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // No View as while today's Learning is on.
+    expect(host.textContent).not.toContain("View as");
+  });
+
+  it("picking Codex draws the prototype in place of the sections, and remembers it", async () => {
+    await mount("machine-anatomy");
+    await bar("1 Codex");
+    expect(question()).toBeNull();
+    expect(redesign()?.getAttribute("data-design")).toBe("codex");
+    expect(redesign()?.getAttribute("data-section")).toBe("machine-anatomy");
+    expect(screen("catalog")).toBeNull();
+    expect(pressed("1 Codex")).toBe("true");
+    expect(host.textContent).toContain("View as");
+    expect(localStorage.getItem(DESIGN_KEY)).toBe("codex");
+    await bar("Current");
+    expect(redesign()).toBeNull();
+    expect(screen("catalog")).not.toBeNull();
+  });
+
+  it("asks before a pick takes typing away; Keep editing keeps today's Learning and the draft", async () => {
+    await mount("machine-anatomy", chestPress);
+    await type("Left pad sticks.");
+    await bar("2 Vault map");
+    expect(question()!.textContent).toContain("Solon’s notes on m-chest-press");
+    await answer("keep-editing");
+    expect(redesign()).toBeNull();
+    expect(draft()).toBe("Left pad sticks.");
+    expect(pressed("Current")).toBe("true");
+    await bar("2 Vault map");
+    await answer("leave");
+    expect(redesign()?.getAttribute("data-design")).toBe("vault");
+  });
+
+  it("opens on the prototype last picked on this iPad", async () => {
+    localStorage.setItem(DESIGN_KEY, "course");
+    await mount("learning");
+    expect(redesign()?.getAttribute("data-design")).toBe("course");
+  });
+
+  it("View as reaches the prototype; the real viewer's own role is picked until then", async () => {
+    await mount("learning", null, "codex");
+    expect(redesign()?.getAttribute("data-view-as")).toBe("");
+    // authTrainer is null here: the real viewer reads as a trainer.
+    expect(pressed("Trainer")).toBe("true");
+    await bar("Head office");
+    expect(redesign()?.getAttribute("data-view-as")).toBe("head-office");
+    expect(pressed("Head office")).toBe("true");
+  });
+
+  it("a pick in search goes to the prototype as its jump, and the masthead moves to its section", async () => {
+    await mount("learning", null, "codex");
+    await click('[data-action="redesign-search"]');
+    expect(screen("search")).not.toBeNull();
+    await click('[data-action="pick"]');
+    expect(screen("search")).toBeNull();
+    expect(fx.jumps).toEqual([{ design: "codex", jump: { kind: "machine", id: "m-leg-press" }, section: "machine-anatomy" }]);
+    expect(redesign()?.getAttribute("data-section")).toBe("machine-anatomy");
+  });
+
+  it("a jump from outside reaches the prototype once, never today's Catalog", async () => {
+    await mount("academy", chestPress, "course");
+    expect(fx.jumps).toEqual([{ design: "course", jump: chestPress, section: "machine-anatomy" }]);
+    // Back to Current: no jump was left behind for the Catalog.
+    await bar("Current");
+    expect(machineOnScreen()).toBe("");
   });
 });

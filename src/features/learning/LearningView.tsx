@@ -17,6 +17,10 @@ import { LearningHome } from "./LearningHome";
 import { LearningSearch } from "./LearningSearch";
 import { canWriteStudioPages } from "./permissions";
 import type { LearningRef } from "./ref";
+import type { LearningDesign } from "../learning-vault/types";
+import { DesignSwitcher } from "../learning-redesign/DesignSwitcher";
+import { LearningRedesign } from "../learning-redesign/LearningRedesign";
+import { naturalViewAs, rememberDesign, rememberedDesign, type ViewAs } from "../learning-redesign/design";
 import "./learning.css";
 
 /**
@@ -54,6 +58,16 @@ import "./learning.css";
  * draft written for one machine can never be saved onto the next. A jump from
  * OUTSIDE the tab (`jump`) does not ask again: AppContent's openLearning asked
  * before it set it.
+ *
+ * THE PROTOTYPE BAR (the Learning vault redesign, Oct 19 2026, this branch)
+ * -------------------------------------------------------------------------
+ * A strip above the masthead picks one of three prototype designs, or today's
+ * Learning ("Current", the default, so nothing changes for anyone who never
+ * taps it). With a prototype on, LearningRedesign is drawn in place of the
+ * three sections, inside the same comments and masthead, and every door
+ * above that would open a page here (search, a jump from outside) hands the
+ * design that page as its `jump` instead. Picking a design or "View as" asks
+ * the gate first and changes only inside the answer, like every door.
  */
 
 export type LearningViewId = "learning" | "machine-anatomy" | "academy";
@@ -78,6 +92,13 @@ export interface LearningViewProps {
    * Arrange the floor.
    */
   onOpenFloorEditor?: (view?: "map" | "list" | "arrange") => void;
+  /**
+   * The prototype the tab opens on (the redesign's harness). Absent: the one
+   * last picked on this iPad, else today's Learning.
+   */
+  initialDesign?: LearningDesign;
+  /** Who a prototype reads as at first (the harness). Absent: the real viewer. */
+  initialViewAs?: ViewAs | null;
 }
 
 export function LearningView({
@@ -89,14 +110,23 @@ export function LearningView({
   jump,
   onJumpHandled,
   onOpenFloorEditor,
+  initialDesign,
+  initialViewAs = null,
 }: LearningViewProps) {
-  const { activeStudioId, activeStudio } = useActiveStudio();
+  const { activeStudioId, activeStudio, isAdmin } = useActiveStudio();
 
   const [catalogJump, setCatalogJump] = useState<string | null>(null);
   const [catalogGroup, setCatalogGroup] = useState<string | null>(null);
   const [catalogScope, setCatalogScope] = useState<CatalogScope | null>(null);
   const [academyJump, setAcademyJump] = useState<AcademyJump | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  /* The prototype bar: which Learning, as whom, and the page a prototype is
+     asked to open (its own `jump`, cleared once it has opened it). */
+  const [design, setDesign] = useState<LearningDesign>(() => initialDesign ?? rememberedDesign() ?? "current");
+  const [viewAs, setViewAs] = useState<ViewAs | null>(initialViewAs);
+  const [designJump, setDesignJump] = useState<LearningRef | null>(null);
+  const clearDesignJump = useCallback(() => setDesignJump(null), []);
 
   const canWritePages = canWriteStudioPages(authTrainer, activeStudioId);
 
@@ -141,6 +171,12 @@ export function LearningView({
   const openRefNow = useCallback(
     (ref: LearningRef) => {
       setSearchOpen(false);
+      if (design !== "current") {
+        // A prototype opens the page itself; the masthead moves to its section.
+        setDesignJump(ref);
+        onViewChange(ref.kind === "machine" ? "machine-anatomy" : "academy");
+        return;
+      }
       if (ref.kind === "machine") {
         setCatalogJump(ref.id);
         onViewChange("machine-anatomy");
@@ -149,7 +185,7 @@ export function LearningView({
         onViewChange("academy");
       }
     },
-    [onViewChange],
+    [design, onViewChange],
   );
 
   /** The one door into a page, from inside the tab. */
@@ -183,6 +219,26 @@ export function LearningView({
     [through, onViewChange],
   );
 
+  /* The bar's two picks. Each asks the gate first (a design or a role that
+     goes away takes its open forms with it) and changes only inside the
+     answer. A jump not yet honoured is dropped with the Learning it was
+     meant for, so it can never fire later in another one. */
+  const pickDesign = useCallback(
+    (next: LearningDesign) =>
+      through(() => {
+        setDesign(next);
+        rememberDesign(next);
+        setDesignJump(null);
+        setCatalogJump(null);
+        setCatalogGroup(null);
+        setCatalogScope(null);
+        setAcademyJump(null);
+      }),
+    [through],
+  );
+  const pickViewAs = useCallback((next: ViewAs) => through(() => setViewAs(next)), [through]);
+  const shownViewAs = viewAs ?? naturalViewAs({ canStrike: canWritePages, isHeadOffice: Boolean(isAdmin) });
+
   const sections = useMemo<WikiSectionsValue>(
     () => ({
       title: "Learning",
@@ -210,64 +266,82 @@ export function LearningView({
   return (
     <CommentsProvider value={comments}>
     <WikiSectionsProvider value={sections}>
+      <DesignSwitcher design={design} onDesign={pickDesign} viewAs={shownViewAs} onViewAs={pickViewAs} />
       {/* Hidden, not unmounted, while search is open: closing search returns
           the trainer to the page they left, not to its section's index. */}
       <div className={searchOpen ? "lv__stash" : "lv__pass"}>
-        {view === "learning" && (
-          <LearningHome
-            machines={machines}
-            canWritePages={canWritePages && Boolean(author)}
-            onOpen={openRef}
-            onOpenSearch={() => setSearchOpen(true)}
-            onOpenCatalog={openCatalog}
-            onOpenDatabase={() =>
-              through(() => {
-                setCatalogScope("msf");
-                onViewChange("machine-anatomy");
-              })
-            }
-            onOpenAcademy={openAcademy}
-            onNewPage={() =>
-              through(() => {
-                setAcademyJump({ newPage: true });
-                onViewChange("academy");
-              })
-            }
-          />
-        )}
-        {view === "machine-anatomy" && (
-          <CatalogView
-            machines={machines}
+        {design !== "current" ? (
+          <LearningRedesign
+            design={design}
+            viewAs={viewAs}
             authTrainer={authTrainer}
-            openMachineId={catalogJump}
-            onOpenedMachine={() => setCatalogJump(null)}
-            openGroupKey={catalogGroup}
-            onOpenedGroup={() => setCatalogGroup(null)}
-            openScope={catalogScope}
-            onOpenedScope={() => setCatalogScope(null)}
-            onOpenAcademy={(machineId, focus, machineName) =>
-              through(() => {
-                setAcademyJump({ machineId, focus, fromLabel: machineName });
-                onViewChange("academy");
-              })
-            }
-            onOpenFloorEditor={onOpenFloorEditor ? (view) => through(() => onOpenFloorEditor(view)) : undefined}
+            section={view}
+            onSection={onViewChange}
+            machines={machines}
+            studioId={activeStudioId}
+            studioName={activeStudio?.name ?? "This studio"}
+            jump={designJump}
+            onJumpHandled={clearDesignJump}
           />
-        )}
-        {view === "academy" && (
-          <AcademyWikiView
-            jump={academyJump}
-            onClearJump={() => setAcademyJump(null)}
-            canManagePages={canWritePages}
-            author={author}
-            catalogMachines={machines}
-            onOpenMachine={(machineId) =>
-              through(() => {
-                setCatalogJump(machineId);
-                onViewChange("machine-anatomy");
-              })
-            }
-          />
+        ) : (
+          <>
+            {view === "learning" && (
+              <LearningHome
+                machines={machines}
+                canWritePages={canWritePages && Boolean(author)}
+                onOpen={openRef}
+                onOpenSearch={() => setSearchOpen(true)}
+                onOpenCatalog={openCatalog}
+                onOpenDatabase={() =>
+                  through(() => {
+                    setCatalogScope("msf");
+                    onViewChange("machine-anatomy");
+                  })
+                }
+                onOpenAcademy={openAcademy}
+                onNewPage={() =>
+                  through(() => {
+                    setAcademyJump({ newPage: true });
+                    onViewChange("academy");
+                  })
+                }
+              />
+            )}
+            {view === "machine-anatomy" && (
+              <CatalogView
+                machines={machines}
+                authTrainer={authTrainer}
+                openMachineId={catalogJump}
+                onOpenedMachine={() => setCatalogJump(null)}
+                openGroupKey={catalogGroup}
+                onOpenedGroup={() => setCatalogGroup(null)}
+                openScope={catalogScope}
+                onOpenedScope={() => setCatalogScope(null)}
+                onOpenAcademy={(machineId, focus, machineName) =>
+                  through(() => {
+                    setAcademyJump({ machineId, focus, fromLabel: machineName });
+                    onViewChange("academy");
+                  })
+                }
+                onOpenFloorEditor={onOpenFloorEditor ? (view) => through(() => onOpenFloorEditor(view)) : undefined}
+              />
+            )}
+            {view === "academy" && (
+              <AcademyWikiView
+                jump={academyJump}
+                onClearJump={() => setAcademyJump(null)}
+                canManagePages={canWritePages}
+                author={author}
+                catalogMachines={machines}
+                onOpenMachine={(machineId) =>
+                  through(() => {
+                    setCatalogJump(machineId);
+                    onViewChange("machine-anatomy");
+                  })
+                }
+              />
+            )}
+          </>
         )}
       </div>
 

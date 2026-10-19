@@ -1,0 +1,8 @@
+/* The Learning redesign preview's stylesheet: the app's own, with Tailwind
+   told to read the app's files (this page's root is harness/learning-redesign,
+   so on its own it would generate none of the classes the app's components
+   use). Unlike the briefing preview this does NOT let the page grow:
+   Learning's one scroller is .wk__scroll inside the bounded shell, so a tall
+   photograph grows the VIEWPORT instead (shots.mjs). Never ships. */
+@import "../../src/index.css";
+@source "../../src";
