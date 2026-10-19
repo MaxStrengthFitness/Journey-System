@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../firebase";
 import type { Client, ExerciseLog, Machine, Routine, Trainer } from "../../types";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
+import { clearSessionHandoff, peekSessionHandoff } from "./open-session-handoff";
 import { useBookingMarks } from "../admin/attention/booking-marks";
 import { HistoryView, type HistoryViewMode } from "./HistoryView";
 import { LogPastSessionDialog } from "./LogPastSessionDialog";
@@ -126,6 +129,36 @@ export function ClientHistoryTab({
   const openSessions = useCallback((sessions: HistorySession[]) => {
     if (sessions.length > 0) setOpened({ key: Date.now(), sessions });
   }, []);
+
+  /* A session a Journey link asked for (./open-session-handoff.ts): opened
+     from the list once it has answered, else from its own document, one
+     read. A session the rules refuse, or that is gone, opens nothing: the
+     link's refusal was already said where the link was read. */
+  const [wantedSessionId] = useState(() => peekSessionHandoff(clientId));
+  useEffect(() => {
+    if (!wantedSessionId || history.status === "loading") return;
+    const held = history.sessions.find((s) => s.id === wantedSessionId);
+    if (held) {
+      clearSessionHandoff(wantedSessionId);
+      openSessions([held]);
+      return;
+    }
+    let cancelled = false;
+    getDoc(doc(db, "sessions", wantedSessionId))
+      .then((snap) => {
+        if (cancelled || !snap.exists()) return;
+        openSessions([{ id: snap.id, ...snap.data() } as HistorySession]);
+      })
+      .catch(() => {
+        /* said where the link was read */
+      })
+      .finally(() => clearSessionHandoff(wantedSessionId));
+    return () => {
+      cancelled = true;
+    };
+    // Once the list has answered; the list changing later must not reopen it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantedSessionId, history.status === "loading"]);
 
   return (
     <>

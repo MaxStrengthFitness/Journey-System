@@ -24,6 +24,7 @@ import { watchAppHeight } from './features/home-screen/app-height';
 import { blockPinchZoom } from './features/home-screen/no-zoom';
 import { reportClientError } from './lib/client-error-report';
 import { startBootTiming } from './features/boot-timing/boot-timing';
+import { captureLinkFromAddress } from './features/deep-link/pending';
 
 declare global {
   interface Window {
@@ -41,6 +42,11 @@ window.__appLoaded = true;
 // it (features/feedback/capture.ts), so "it broke" arrives with the version it
 // broke in. Declared long ago and never set until now.
 window.__appVersion = APP_BUILD;
+
+// A Journey link (/t/…, /l/…, /a/…; features/deep-link) is read off the
+// address once, here, and the address becomes "/" before anything else
+// runs: a reload or a sign-in redirect must not open it a second time.
+captureLinkFromAddress(window);
 
 // A screen's file could not be loaded (new-version round, Sep 26 2026): after
 // a deploy the old files are gone. Vite says so here before React hears of it.

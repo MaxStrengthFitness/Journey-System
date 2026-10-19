@@ -62,9 +62,21 @@ export interface StudioHubViewProps {
   /** Open this team job's sheet on arrival (a notification's link). */
   openJobId?: string | null;
   onOpenedJob?: () => void;
+  /** Open this ask's panel on arrival (a Journey link). */
+  openRequestId?: string | null;
+  onOpenedRequest?: () => void;
 }
 
-export function StudioHubView({ authTrainer, clients, trainers, onOpenClientTask, openJobId = null, onOpenedJob }: StudioHubViewProps) {
+export function StudioHubView({
+  authTrainer,
+  clients,
+  trainers,
+  onOpenClientTask,
+  openJobId = null,
+  onOpenedJob,
+  openRequestId = null,
+  onOpenedRequest,
+}: StudioHubViewProps) {
   const { activeStudioId, activeStudio } = useActiveStudio();
   const [noteRow, setNoteRow] = useState<TaskRow | null>(null);
   /*
@@ -95,7 +107,7 @@ export function StudioHubView({ authTrainer, clients, trainers, onOpenClientTask
 
   const { rows, loading, error: tasksError, outOfServiceIds } = useStudioTasks(activeStudioId, { ownerId, clientNames });
   const { categories } = useStudioTaskCategories(activeStudioId);
-  const { open: openRequests, recentlyResolved, failed: requestsFailed } = useStudioRequests(activeStudioId ?? null);
+  const { open: openRequests, recentlyResolved, failed: requestsFailed, loading: requestsLoading } = useStudioRequests(activeStudioId ?? null);
   const { entries: playbookEntries } = usePlaybook(activeStudioId ?? null);
   /*
    * TEAM JOBS (Planner rework, Sep 2026) — one piece of work several people
@@ -169,8 +181,10 @@ export function StudioHubView({ authTrainer, clients, trainers, onOpenClientTask
             categories={categories}
             outOfServiceIds={outOfServiceIds}
             clients={clients}
-            loading={loading && rows.length === 0}
+            loading={(loading && rows.length === 0) || (Boolean(openRequestId) && requestsLoading)}
             unknown={Boolean(tasksError) || requestsFailed || Boolean(teamJobs.error)}
+            openRequestId={openRequestId}
+            onOpenedRequest={onOpenedRequest}
             quietFloorSessions={quietFloor ?? undefined}
             news={<SinceYouWereIn rows={rows} jobs={teamJobs.jobs} resolved={recentlyResolved} playbook={playbookEntries} pill />}
           />

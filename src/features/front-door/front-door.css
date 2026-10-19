@@ -98,6 +98,8 @@
 .fd-btn:active:not(:disabled) { transform: scale(0.985); }
 .fd-btn:disabled { opacity: 0.55; cursor: default; }
 .fd-btn--primary { background: var(--fd-action); border-color: var(--fd-action); color: #fff; }
+/* Copy link on a Journey link's landing: the logo blue of a selection, never the orange of Start (the Navy Frame). */
+.fd-btn--link { min-height: 48px; font-size: 16px; background: var(--fd-blue); border-color: var(--fd-blue); color: #fff; }
 .fd-btn--provider { justify-content: flex-start; }
 .fd-btn--provider .fd-btn__sub { margin-left: auto; font-size: 13px; font-weight: 500; color: var(--fd-muted); }
 .fd-btn--quiet { min-height: 48px; font-size: 16px; background: transparent; }

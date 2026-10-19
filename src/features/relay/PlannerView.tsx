@@ -96,7 +96,7 @@ export const PLANNER_TABS: { id: PlannerTab; label: string; icon: LucideIcon }[]
 
 /** Which tab an arrival request opens. */
 function tabFor(intent: PlannerIntent): PlannerTab {
-  if (intent.kind === "open-job") return "floor";
+  if (intent.kind === "open-job" || intent.kind === "open-ask") return "floor";
   if (intent.kind === "open-tab") return intent.tab;
   return "notes";
 }
@@ -160,6 +160,8 @@ export function PlannerView({ authTrainer, clients, trainers, onOpenClientTask, 
             onOpenClientTask={onOpenClientTask}
             openJobId={intent?.kind === "open-job" ? intent.jobId : null}
             onOpenedJob={clearIntent}
+            openRequestId={intent?.kind === "open-ask" ? intent.requestId : null}
+            onOpenedRequest={clearIntent}
           />
         )}
         {tab === "mine" && (

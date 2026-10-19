@@ -104,6 +104,9 @@ export interface BoardProps {
    * floor work. Absent, the app's default.
    */
   quietFloorSessions?: number;
+  /** Open this ask's panel on arrival (a Journey link, the Teams link round, Oct 19 2026). */
+  openRequestId?: string | null;
+  onOpenedRequest?: () => void;
 }
 
 export function Board({
@@ -123,6 +126,8 @@ export function Board({
   unknown = false,
   news,
   quietFloorSessions,
+  openRequestId = null,
+  onOpenedRequest,
 }: BoardProps) {
   const relay = useRelay();
   const { now } = relay;
@@ -528,6 +533,19 @@ export function Board({
     setOpenId(card.id);
     relay.openPanel(content);
   }
+
+  // Arrived from a Journey link: open that ask's panel once the board has it.
+  // An ask that is closed or not on this board is said once, never searched for.
+  useEffect(() => {
+    if (!openRequestId || loading) return;
+    const card = cards.find((c) => c.id === `ask:${openRequestId}`);
+    if (card) open(card);
+    else if (!unknown) toastError("That ask is closed, or it isn't on this board.");
+    else return; // a read failed: the board does not know yet
+    onOpenedRequest?.();
+    // Only when the arrival or the cards change: `open` is this render's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRequestId, cards, loading, unknown]);
 
   // The panel follows the live documents while it's open (a machine ticked, a claim taken),
   // only while it is still this card's: another panel opened over it (a machine's card) is left alone.

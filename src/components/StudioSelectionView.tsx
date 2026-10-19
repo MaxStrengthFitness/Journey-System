@@ -84,6 +84,12 @@ interface StudioSelectionViewProps {
   greet?: boolean;
   /** The studio already open, when this is Change studio from inside the app. */
   currentStudioId?: string | null;
+  /**
+   * The studio a Journey link is at (the Teams link round, Oct 19 2026): on
+   * a cold open the greeting offers it first, when the person works there.
+   * The person still taps it; nothing is chosen for them.
+   */
+  preferStudioId?: string | null;
 }
 
 /**
@@ -120,6 +126,7 @@ export function StudioSelectionView({
   onBack,
   onSignOut,
   greet = false,
+  preferStudioId = null,
   currentStudioId = null,
 }: StudioSelectionViewProps) {
   const { success: toastSuccess, error: toastError } = useToast();
@@ -176,15 +183,16 @@ export function StudioSelectionView({
     return { demo, mine, others };
   }, [studios, hasAccessToStudio, authTrainer?.primaryHomeStudioId, pinnedStudioId]);
 
-  /** The studio the greeting greets you with: this iPad's, else home, else your only one. */
+  /** The studio the greeting greets you with: the link's, else this iPad's, else home, else your only one. */
   const greetStudio = useMemo(() => {
     if (!greet || showAll) return null;
     return (
+      (preferStudioId ? mine.find((s) => s.id === preferStudioId) : undefined) ??
       mine.find((s) => s.id === pinnedStudioId) ??
       mine.find((s) => s.id === authTrainer?.primaryHomeStudioId) ??
       (mine.length === 1 ? mine[0] : null)
     );
-  }, [greet, showAll, mine, pinnedStudioId, authTrainer?.primaryHomeStudioId]);
+  }, [greet, showAll, mine, preferStudioId, pinnedStudioId, authTrainer?.primaryHomeStudioId]);
 
   /** The one studio whose day is read: the greeted one, or the picker's first. */
   const featured = greetStudio ?? (currentStudioId ? null : mine[0] ?? null);

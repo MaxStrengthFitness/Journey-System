@@ -28,18 +28,23 @@ export type PlannerIntent =
      reminder opens My tasks; a colleague's shared note opens it in Notes. */
   | { kind: "open-job"; jobId: string }
   | { kind: "open-tab"; tab: "mine" | "floor" }
-  | { kind: "open-share"; noteId: string };
+  | { kind: "open-share"; noteId: string }
+  /* A Journey link to an ask (the Teams link round, Oct 19 2026): the Board
+     opens its panel. */
+  | { kind: "open-ask"; requestId: string };
 
 /**
  * A notification's `link.id` for the Planner, turned into a request.
  * "job:abc" opens a team job, "mine" opens My tasks, "share:abc" opens a
- * note a colleague shared; anything else (older links carry a request id or
- * nothing) just opens the Planner.
+ * note a colleague shared, "ask:abc" opens an ask on the Board (a Journey
+ * link); anything else (older links carry a request id or nothing) just
+ * opens the Planner.
  */
 export function plannerIntentFromLink(id: string | undefined): PlannerIntent | null {
   if (!id) return null;
   if (id.startsWith("job:") && id.length > 4) return { kind: "open-job", jobId: id.slice(4) };
   if (id.startsWith("share:") && id.length > 6) return { kind: "open-share", noteId: id.slice(6) };
+  if (id.startsWith("ask:") && id.length > 4) return { kind: "open-ask", requestId: id.slice(4) };
   if (id === "mine") return { kind: "open-tab", tab: "mine" };
   return null;
 }

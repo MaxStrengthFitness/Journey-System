@@ -173,6 +173,15 @@ import { FeedbackProvider, FeedbackButton } from "./features/feedback";
 import { NotificationBell } from "./features/notifications";
 import { plannerIntentFromLink, requestPlanner } from "./features/relay/intent";
 import { PlannerReminders } from "./features/relay/reminders/PlannerReminders";
+// A Journey link (the Teams link round, Oct 19 2026; features/deep-link): the
+// signed-out landing, the hook that acts on the link, and its one quiet line.
+import { LinkLanding, outsideHomeScreenOnIPad } from "./features/deep-link/LinkLanding";
+import { DeepLinkLine } from "./features/deep-link/DeepLinkLine";
+import { useDeepLink } from "./features/deep-link/useDeepLink";
+import { peekPendingLink } from "./features/deep-link/pending";
+import type { OpenTarget as LinkOpenTarget, SessionCase as LinkSessionCase } from "./features/deep-link/decide";
+import { handOffSession } from "./features/client-history/open-session-handoff";
+import { readableStudioIds } from "./lib/tenancy";
 import { LeaveConfirmDialog, useGuardedSetter, useLeaveGuard } from "./features/unsaved-changes";
 import { sendSetsNow, signOutQuestion, unsentWritesWaiting } from "./features/session-record/sign-out-check";
 // Type-only, and from the module rather than the barrel, so nothing about the
@@ -789,6 +798,99 @@ export default function AppContent({
   };
 
   /**
+   * THE ONE WAY A LINK OPENS A PLACE: the bell's, and since the Teams link
+   * round (Oct 19 2026) a Journey link's too. A Learning page wins over the
+   * view; a page at another studio is said, not shown; everything else asks
+   * the unsaved-changes gate once and then selects the client, requests the
+   * Relay intent and switches the view.
+   */
+  const openLinkedPlace = useCallback(
+    (view: string, id?: string, learning?: unknown, atStudioId?: string) => {
+      // A Learning page wins: it names the exact page. The machine-flagged
+      // link predates Learning refs and stores { view, id }; before this
+      // the id was dropped and it opened the Catalog's front page.
+      const ref =
+        parseLearningRef(learning) ??
+        (view === "machine-anatomy" && id ? ({ kind: "machine", id } as LearningRef) : null);
+      if (ref) {
+        // A comment thread, a flag or a studio's own page belongs to the
+        // studio it happened at. Opened here it would show this studio's
+        // instead, so say where it was rather than show the wrong one.
+        if (atStudioId && activeStudioId && atStudioId !== activeStudioId) {
+          const where = studios.find((s) => s.id === atStudioId)?.name ?? "another studio";
+          toastInfo(`That was at ${where}. Switch to ${where} to see it there.`, 6000);
+          return;
+        }
+        openLearning(ref);
+        return;
+      }
+      // One question for the whole link, asked before any of it happens:
+      // a Relay intent requested and then refused would open the next
+      // time My Studio did.
+      guardLeave(() => {
+        if (id && (view === "profile" || view === "workouts")) setSelectedClientId(id);
+        if (view === "studio-tasks") {
+          const intent = plannerIntentFromLink(id);
+          if (intent) requestPlanner(intent);
+        }
+        setCurrentView(view as View);
+      });
+    },
+    [activeStudioId, studios, toastInfo, openLearning, guardLeave, setSelectedClientId],
+  );
+
+  /* A Journey link's target, opened through the same path (features/deep-link). */
+  const openLinkTarget = useCallback(
+    (target: LinkOpenTarget, session?: LinkSessionCase) => {
+      if (target.kind === "learning") {
+        openLearning(target.ref);
+        return;
+      }
+      if (target.kind === "ask") {
+        openLinkedPlace("studio-tasks", `ask:${target.askId}`);
+        return;
+      }
+      if (target.kind === "client") {
+        openLinkedPlace("profile", target.clientId);
+        return;
+      }
+      if (session?.kind === "watch") {
+        // Another trainer's running session: the Active Session draws it
+        // read-only (features/session-record/WatchingSession).
+        openLinkedPlace("workouts", target.clientId);
+        return;
+      }
+      if (session?.kind === "finished") {
+        // The Activity Archive's pop-up, from the session document.
+        handOffSession(target.clientId, target.sessionId);
+        openProfileAt(target.clientId, { tab: "clinical", view: "sessions" });
+        openLinkedPlace("profile", target.clientId);
+      }
+    },
+    [openLearning, openLinkedPlace],
+  );
+  const myStudioIdsForLinks = useMemo(
+    () => [...new Set([...readableStudioIds(authTrainer), ...(authTrainer?.managedStudioIds ?? [])])],
+    [authTrainer],
+  );
+  const myIdsForLinks = useMemo(() => myTrainerIds(authTrainer, user?.uid), [authTrainer, user?.uid]);
+  const studioNameOf = useCallback((id: string) => studios.find((s) => s.id === id)?.name ?? null, [studios]);
+  const deepLink = useDeepLink({
+    uid: user?.uid ?? null,
+    ready: !!user && !!authTrainer && !!activeStudioId && !isChangingStudio,
+    activeStudioId,
+    myStudioIds: myStudioIdsForLinks,
+    myTrainerIds: myIdsForLinks,
+    studioNameOf,
+    sessionRunning: currentView === "workouts",
+    open: openLinkTarget,
+    // The person tapped Switch: the switch itself is the studio-switch
+    // feature's (the let-go effect releases the client), asked about typing first.
+    switchStudio: (studioId) => guardLeave(() => setActiveStudioId(studioId)),
+    say: { info: toastInfo, error: toastError },
+  });
+
+  /**
    * The progress report to open, pinned to the client it was chosen for and
    * forgotten whenever the report screen is left, however it was left. Every
    * way in says whether it wants a filed report or a new one. See
@@ -1158,6 +1260,9 @@ export default function AppContent({
 
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  /* A signed-out tab that opened from a Journey link sees the link's landing
+     first; Sign in there brings the sign-in screen (features/deep-link). */
+  const [linkSignIn, setLinkSignIn] = useState(false);
   /* The popup helper, loaded as the sign-in screen appears; on Safari the
      buttons wait for it (the speed round, Oct 5 2026, R14). */
   const signInReady = useSignInReady({ active: !user, prepare: prepareSignIn, mustWait: signInNeedsHelperFirst() });
@@ -1238,6 +1343,16 @@ export default function AppContent({
   };
 
   if (!user) {
+    const pendingLink = peekPendingLink();
+    if (pendingLink && !linkSignIn) {
+      return (
+        <LinkLanding
+          href={pendingLink.href}
+          offerIcon={outsideHomeScreenOnIPad()}
+          onSignIn={() => setLinkSignIn(true)}
+        />
+      );
+    }
     return (
       <LoginScreen
         isLoggingIn={isLoggingIn}
@@ -1336,6 +1451,7 @@ export default function AppContent({
         onSignOut={() => handleLogout().catch(console.error)}
         greet={!activeStudioId && !isChangingStudio}
         currentStudioId={activeStudioId}
+        preferStudioId={deepLink.linkStudioId}
       />
     );
   }
@@ -1505,43 +1621,7 @@ export default function AppContent({
         trainers={trainers}
         activeStudioId={activeStudioId}
         className={headerIconClass}
-        onNavigate={(view, id, learning, atStudioId) => {
-          // A Learning page wins: it names the exact page. The machine-flagged
-          // link predates Learning refs and stores { view, id }; before this
-          // the id was dropped and it opened the Catalog's front page.
-          const ref =
-            parseLearningRef(learning) ??
-            (view === "machine-anatomy" && id
-              ? ({ kind: "machine", id } as LearningRef)
-              : null);
-          if (ref) {
-            // A comment thread, a flag or a studio's own page belongs to the
-            // studio it happened at. Opened here it would show this studio's
-            // instead, so say where it was rather than show the wrong one.
-            if (atStudioId && activeStudioId && atStudioId !== activeStudioId) {
-              const where =
-                studios.find((s) => s.id === atStudioId)?.name ?? "another studio";
-              toastInfo(
-                `That was at ${where}. Switch to ${where} to see it there.`,
-                6000,
-              );
-              return;
-            }
-            openLearning(ref);
-            return;
-          }
-          // One question for the whole link, asked before any of it happens:
-          // a Relay intent requested and then refused would open the next
-          // time My Studio did.
-          guardLeave(() => {
-            if (view === "profile" && id) setSelectedClientId(id);
-            if (view === "studio-tasks") {
-              const intent = plannerIntentFromLink(id);
-              if (intent) requestPlanner(intent);
-            }
-            setCurrentView(view as any);
-          });
-        }}
+        onNavigate={openLinkedPlace}
       />
       {!isPhone && (
       <Button
@@ -1792,6 +1872,9 @@ export default function AppContent({
           {/* A new version is waiting: one quiet line, never on the Active
               Session (features/new-version). */}
           <NewVersionLine line={newVersion.line} busy={newVersion.busy} onLoad={newVersion.loadNow} />
+          {/* A Journey link waiting for Finish: one quiet line, never a
+              dialog over the floor (features/deep-link). */}
+          <DeepLinkLine line={deepLink.holdLine} />
 
           {/* Main Content */}
           {/* Under 640px (a phone: Journey Lite) the shell pads 12px, not 24px,
