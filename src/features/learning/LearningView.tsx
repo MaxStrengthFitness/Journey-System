@@ -312,6 +312,7 @@ export function LearningView({
           machines={machines}
           onClose={() => setSearchOpen(false)}
           onOpen={openRef}
+          sender={uid ? { uid, name: authTrainer?.fullName ?? "" } : null}
         />
       )}
     </WikiSectionsProvider>

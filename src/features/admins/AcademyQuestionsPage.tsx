@@ -7,7 +7,8 @@
  * never who asked. His 3a on the phase 3 plan: each row is marked Needs an
  * Academy page, Studio's call, or Done. The same question asked again is one
  * row, with how often and where; a flagged answer stands alone, with exactly
- * what the trainer saw and their reason.
+ * what the trainer saw, their reason and their name (AJ, Oct 19 2026: names on
+ * flagged answers only).
  *
  * Two reads, both on the (mark, at) index: the unmarked entries and the ones
  * marked Needs an Academy page (the Academy's to-write list). Studio's call
@@ -85,6 +86,7 @@ export function AcademyQuestionsPage({
       <span className={g.reason === "flagged" ? "hq-aq__reason hq-aq__reason--flag" : "hq-aq__reason"}>{REASON[g.reason]}</span>
       <p className="hq-aq__q">{g.question}</p>
       {g.why ? <p className="hq-aq__why">“{g.why}”</p> : null}
+      {g.byName ? <p className="hq-aq__meta">From {g.byName}</p> : null}
       {g.answer ? (
         <details className="hq-aq__answer">
           <summary>The answer the trainer saw</summary>
@@ -110,7 +112,7 @@ export function AcademyQuestionsPage({
       <AdminHeader
         icon={<MessageCircleQuestion className="w-5 h-5" />}
         title="Academy questions"
-        subtitle="What Ask the Academy couldn't answer, and answers trainers flagged wrong. Never who asked."
+        subtitle="What Ask the Academy couldn't answer, and answers trainers flagged wrong. A flagged answer shows who sent it; a question never shows who asked."
       />
       {error ? (
         <p className="hq-aq__error" role="alert">

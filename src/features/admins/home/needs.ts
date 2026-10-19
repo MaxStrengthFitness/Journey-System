@@ -359,7 +359,7 @@ export function needItems(input: NeedInputs): { items: NeedItem[]; more: NeedIte
       kind: "Academy questions",
       tone: "live",
       say: n === 1 ? "One Academy question waits for you." : `${n} Academy questions wait for you.`,
-      proof: "Questions the Academy couldn't answer, and answers trainers flagged wrong. Never who asked.",
+      proof: "Questions the Academy couldn't answer, and answers trainers flagged wrong.",
       door: { label: "Open Academy questions", page: "academy" },
       clears: "Clears itself when each is marked.",
       condition: String(n),

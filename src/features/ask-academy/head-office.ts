@@ -8,6 +8,14 @@
  * entry Needs an Academy page, Studio's call, or Done. And from the first
  * plan (3a, Oct 16): the question, the studio and the day, never who asked.
  *
+ * One exception, AJ, Oct 19 2026 ("admins should know who asked"; then
+ * "yes" to names on flagged answers only): a flagged answer carries who sent
+ * it, because the trainer chose to send it and head office will want to ask
+ * what they meant. A question the Academy couldn't answer goes on its own and
+ * stays anonymous, so asking a basic question never becomes a report on the
+ * trainer. The name is for administrators only; the rules check it is the
+ * signed-in person (the Auth uid, never the trainer document's id).
+ *
  * One document per ask in `academy_questions` (AJ's 3a was the OK for this
  * new collection). The rules let anyone who works at the studio add one in
  * exactly this shape, and only administrators read, mark or delete
@@ -51,6 +59,8 @@ export interface HeadOfficeEntry {
   why?: string;
   /** Flagged only: the answer exactly as the trainer saw it, as text. */
   answer?: string;
+  /** Flagged only: who sent it (AJ, Oct 19 2026). Never on an unanswered question. */
+  by?: { uid: string; name: string };
 }
 
 /** An answer as the trainer saw it, as plain text for head office to judge. */
@@ -67,7 +77,7 @@ export function entryFor(
   question: string,
   reason: HeadOfficeReason,
   studioId: string,
-  flagged?: { result: AskResult; why: string },
+  flagged?: { result: AskResult; why: string; by: { uid: string; name: string } | null },
   now: Date = new Date(),
 ): HeadOfficeEntry {
   const entry: HeadOfficeEntry = {
@@ -82,6 +92,7 @@ export function entryFor(
     if (why) entry.why = why;
     const answer = answerAsText(flagged.result);
     if (answer) entry.answer = answer;
+    if (flagged.by?.uid) entry.by = { uid: flagged.by.uid, name: (flagged.by.name || "").slice(0, 120) };
   }
   return entry;
 }
@@ -120,6 +131,8 @@ export interface QuestionGroup {
   /** Flagged only. */
   why?: string;
   answer?: string;
+  /** Flagged only: the sender's name. */
+  byName?: string;
 }
 
 export function groupQuestions(entries: readonly StoredEntry[]): QuestionGroup[] {
@@ -142,6 +155,7 @@ export function groupQuestions(entries: readonly StoredEntry[]): QuestionGroup[]
       lastDay: e.day,
       ...(e.why ? { why: e.why } : {}),
       ...(e.answer ? { answer: e.answer } : {}),
+      ...(e.by?.name ? { byName: e.by.name } : {}),
     });
   }
   return [...groups.values()];
@@ -161,6 +175,9 @@ function stored(id: string, data: Record<string, unknown>): StoredEntry {
     mark: (data.mark as HeadOfficeMark) ?? "open",
     ...(typeof data.why === "string" ? { why: data.why } : {}),
     ...(typeof data.answer === "string" ? { answer: data.answer } : {}),
+    ...(data.by && typeof (data.by as { name?: unknown }).name === "string"
+      ? { by: { uid: String((data.by as { uid?: unknown }).uid ?? ""), name: (data.by as { name: string }).name } }
+      : {}),
     at: typeof at?.toMillis === "function" ? at.toMillis() : 0,
   };
 }

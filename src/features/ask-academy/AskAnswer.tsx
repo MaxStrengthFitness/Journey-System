@@ -24,7 +24,8 @@ import "./ask.css";
  * Academy can't answer, or whose pages disagree, goes to the list on its own,
  * and the trainer reads "Sent to head office's list." (1a). Under every
  * answer, "This answer is wrong" opens a box asking why, which may stay
- * empty (2a). Never who asked (head-office.ts). Neither write is waited on;
+ * empty (2a). An unanswered question never says who asked; a flagged answer
+ * carries the sender's name, and the box says so (AJ, Oct 19 2026). Neither write is waited on;
  * a refusal changes the line. Demo Mode's practice never reaches the list.
  *
  * Replaces the search results while it is open, as search replaces the page
@@ -62,6 +63,8 @@ export interface AskAnswerProps {
   question: string;
   /** The studio the question is asked at, for head office's list. */
   studioId: string | null;
+  /** Who is signed in (the Auth uid and their name): a flagged answer carries it (AJ, Oct 19 2026). */
+  sender?: { uid: string; name: string } | null;
   onBack: () => void;
   /** Open a quote's page; LearningView scrolls to the quote and highlights it. */
   onOpenQuote: (ref: LearningRef, quote: string) => void;
@@ -71,7 +74,7 @@ type State = { phase: "asking" } | { phase: "done"; result: AskResult } | { phas
 
 type Sent = "sent" | "refused" | null;
 
-export function AskAnswer({ question, studioId, onBack, onOpenQuote }: AskAnswerProps) {
+export function AskAnswer({ question, studioId, sender = null, onBack, onOpenQuote }: AskAnswerProps) {
   const [state, setState] = useState<State>({ phase: "asking" });
   const [attempt, setAttempt] = useState(0);
   const heading = useRef<HTMLHeadingElement | null>(null);
@@ -105,7 +108,7 @@ export function AskAnswer({ question, studioId, onBack, onOpenQuote }: AskAnswer
   const sendFlag = () => {
     if (!result || !toHeadOffice) return;
     setFlagged("sent");
-    void sendToHeadOffice(entryFor(question, "flagged", studioId, { result, why })).then((ok) => !ok && setFlagged("refused"));
+    void sendToHeadOffice(entryFor(question, "flagged", studioId, { result, why, by: sender })).then((ok) => !ok && setFlagged("refused"));
   };
 
   const leave = useLeaveGuard();
@@ -214,6 +217,7 @@ export function AskAnswer({ question, studioId, onBack, onOpenQuote }: AskAnswer
                   What's wrong with it? (optional)
                 </label>
                 <textarea id="aa-why" className="aa__why" value={why} maxLength={500} rows={3} onChange={(e) => setWhy(e.target.value)} />
+                {sender ? <p className="aa__sent">Head office will see your name with this.</p> : null}
                 <div className="aa__flag-actions">
                   <button type="button" className="aa__retry" onClick={sendFlag}>
                     Send to head office

@@ -183,6 +183,25 @@ describe("head office's list (phase 3)", () => {
     expect("why" in sent[0]).toBe(false);
   });
 
+  it("puts the sender's name on a flagged answer, and says so before it's sent; never on an unanswered question", async () => {
+    replies.push({ result: breathing, error: "" });
+    act(() => root.render(<AskAnswer studioId="solon" sender={{ uid: "auth-1", name: "Sam Rivera" }} question="Breath?" onBack={() => {}} onOpenQuote={() => {}} />));
+    await flush();
+    act(() => button("This answer is wrong").click());
+    expect(text()).toContain("Head office will see your name with this.");
+    act(() => button("Send to head office").click());
+    await flush();
+    expect(sent[0]).toMatchObject({ reason: "flagged", by: { uid: "auth-1", name: "Sam Rivera" } });
+    act(() => root.unmount());
+    root = createRoot(host);
+    sent.length = 0;
+    replies.push({ result: { kind: "not_covered" }, error: "" });
+    act(() => root.render(<AskAnswer studioId="solon" sender={{ uid: "auth-1", name: "Sam Rivera" }} question="Squeak?" onBack={() => {}} onOpenQuote={() => {}} />));
+    await flush();
+    expect(sent).toHaveLength(1);
+    expect("by" in sent[0]).toBe(false);
+  });
+
   it("keeps Demo Mode's practice off the list, with no link to flag", async () => {
     replies.push({ result: { kind: "not_covered" }, error: "" });
     act(() => root.render(<AskAnswer studioId="demo-studio" question="Practice question" onBack={() => {}} onOpenQuote={() => {}} />));

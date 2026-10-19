@@ -10997,6 +10997,13 @@ describe("academy_questions: head office's list", () => {
     await assertFails(addDoc(collection(testEnv.unauthenticatedContext().firestore(), "academy_questions"), entry()));
   });
 
+  it("lets a flagged answer carry its sender, only as the signed-in person, and never an unanswered question", async () => {
+    await assertSucceeds(addDoc(collection(as("trainerA"), "academy_questions"), entry({ reason: "flagged", by: { uid: "trainerA", name: "Trainer A" } })));
+    await assertFails(addDoc(collection(as("trainerA"), "academy_questions"), entry({ reason: "flagged", by: { uid: "ownerA", name: "Owner A" } })));
+    await assertFails(addDoc(collection(as("trainerA"), "academy_questions"), entry({ by: { uid: "trainerA", name: "Trainer A" } })));
+    await assertFails(addDoc(collection(as("trainerA"), "academy_questions"), entry({ reason: "flagged", by: { uid: "trainerA", name: "Trainer A", email: "a@x.com" } })));
+  });
+
   it("lets only an administrator read, mark and delete", async () => {
     await seedAdmin();
     const listOpen = (db: ReturnType<typeof as>) => getDocs(query(collection(db, "academy_questions"), where("mark", "==", "open"), orderBy("at", "desc"), limit(300)));

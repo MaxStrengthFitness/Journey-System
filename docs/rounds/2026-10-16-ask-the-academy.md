@@ -111,3 +111,7 @@ Steps for the PC, in PowerShell from the project folder:
   - **Checks:** typecheck 0; suite 14,924 in 917 files, all passing; the build and the first screen (470.6 KB of 480) pass; the rules lint passes (`firestore.rules` 181,343 bytes).
   - **The rules tests are written but not run here.** `tests/firestore.rules.test.ts` has three new tests, "academy_questions: head office's list". The emulator couldn't open a port from Claude's shell, so **AJ's `npm run test:rules` is the run that counts.**
   - **To go live, in this order:** `firebase deploy --only firestore:indexes`, then `npm run test:rules`, then `firebase deploy --only firestore:rules`, then the push and Render. Phase 4 comes before any of that: AJ's walk and a new production key on Render.
+- **Oct 19 2026: a name on a flagged answer.** AJ asked, "i feel like admins should know who asked the submitted questions right?", then said "yes" to names on flagged answers only. Two kinds of entry:
+  - **"This answer is wrong"** carries the sender (the Auth uid and their name), because the trainer chose to send it and head office will want to ask what they meant. The box says "Head office will see your name with this." first. Admins → Standard shows "From {name}". The rules require `by.uid` to be the signed-in person.
+  - **A question the Academy couldn't answer** goes on its own and stays anonymous, so a basic question never becomes a report on the trainer. The rules refuse a `by` on one.
+  - **Checks:** a fourth rules test, written but not run here; 14,925 tests, all passing.

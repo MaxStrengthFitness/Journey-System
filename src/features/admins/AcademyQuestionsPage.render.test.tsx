@@ -57,7 +57,7 @@ describe("Academy questions", () => {
     entries.open = [
       e("1", "The leg press squeaks", "solon", 1),
       e("2", "The leg press squeaks", "westlake", 2),
-      e("3", "How hard after months off?", "solon", 3, { reason: "flagged", why: "Wrong page.", answer: "“A quote” (EIH)" }),
+      e("3", "How hard after months off?", "solon", 3, { reason: "flagged", why: "Wrong page.", answer: "“A quote” (EIH)", by: { uid: "u1", name: "Sam Rivera" } }),
     ];
     act(() => root.render(<AcademyQuestionsPage studios={STUDIOS} />));
     await flush();
@@ -65,6 +65,7 @@ describe("Academy questions", () => {
     expect(text()).toContain("Asked twice · westlake, Solon");
     expect(text()).toContain("Answer flagged wrong");
     expect(text()).toContain("“Wrong page.”");
+    expect(text()).toContain("From Sam Rivera");
     expect(host.querySelector("details")?.textContent).toContain("The answer the trainer saw");
   });
 

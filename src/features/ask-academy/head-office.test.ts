@@ -16,17 +16,20 @@ describe("an entry for head office", () => {
     const e = entryFor("  The leg press   squeaks? ", "not_covered", "solon", undefined, OCT_19_NOON_ET);
     expect(e).toEqual({ question: "The leg press squeaks?", reason: "not_covered", studioId: "solon", day: "2026-10-19", mark: "open" });
     expect(JSON.stringify(e)).not.toMatch(/uid|name|trainer/i);
+    // Even handed a sender, an unanswered question stays anonymous (AJ, Oct 19 2026).
+    expect("by" in entryFor("Squeak?", "not_covered", "solon", { result: answered, why: "", by: { uid: "u", name: "Sam" } })).toBe(false);
   });
 
   it("keeps a flagged answer as the trainer saw it, and the reason only when given", () => {
-    const e = entryFor("Breath?", "flagged", "solon", { result: answered, why: "  It missed the cue  " }, OCT_19_NOON_ET);
+    const e = entryFor("Breath?", "flagged", "solon", { result: answered, why: "  It missed the cue  ", by: { uid: "auth-uid-1", name: "Sam Rivera" } }, OCT_19_NOON_ET);
     expect(e.why).toBe("It missed the cue");
+    expect(e.by).toEqual({ uid: "auth-uid-1", name: "Sam Rivera" });
     expect(e.answer).toBe("Keep them breathing.\n“Breathe freely.” (Mastery Series › Breathing)");
-    expect("why" in entryFor("Breath?", "flagged", "solon", { result: answered, why: "  " })).toBe(false);
+    expect("why" in entryFor("Breath?", "flagged", "solon", { result: answered, why: "  ", by: null })).toBe(false);
   });
 
   it("stays inside the rules' limits", () => {
-    const e = entryFor("x".repeat(400), "flagged", "solon", { result: answered, why: "y".repeat(900) });
+    const e = entryFor("x".repeat(400), "flagged", "solon", { result: answered, why: "y".repeat(900), by: null });
     expect(e.question.length).toBe(LIMITS.question);
     expect(e.why!.length).toBe(LIMITS.why);
     expect(answerAsText({ kind: "not_covered" })).toBe("");
@@ -57,7 +60,8 @@ describe("head office's rows", () => {
   });
 
   it("keeps each flagged answer on its own row", () => {
-    const rows = groupQuestions([e("1", "Breath?", "solon", 1, { reason: "flagged", why: "a" }), e("2", "Breath?", "solon", 2, { reason: "flagged" })]);
+    const rows = groupQuestions([e("1", "Breath?", "solon", 1, { reason: "flagged", why: "a", by: { uid: "u", name: "Sam Rivera" } }), e("2", "Breath?", "solon", 2, { reason: "flagged" })]);
     expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.byName)).toEqual([undefined, "Sam Rivera"]);
   });
 });

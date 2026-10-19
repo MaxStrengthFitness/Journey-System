@@ -36,9 +36,11 @@ export interface LearningSearchProps {
   onClose: () => void;
   /** `quote`: opened from an Ask the Academy answer, to be scrolled to and highlighted. */
   onOpen: (ref: LearningRef, quote?: string) => void;
+  /** Who is signed in, for an answer flagged to head office (the Auth uid and their name). */
+  sender?: { uid: string; name: string } | null;
 }
 
-export function LearningSearch({ machines, onClose, onOpen }: LearningSearchProps) {
+export function LearningSearch({ machines, onClose, onOpen, sender = null }: LearningSearchProps) {
   const { activeStudioId, activeStudio } = useActiveStudio();
   const studioName = activeStudio?.name ?? "This studio";
   const [query, setQuery] = useState("");
@@ -78,7 +80,7 @@ export function LearningSearch({ machines, onClose, onOpen }: LearningSearchProp
   }, [results]);
 
   if (asking) {
-    return <AskAnswer question={asking} onBack={() => setAsking(null)} onOpenQuote={(ref, quote) => onOpen(ref, quote)} studioId={activeStudioId} />;
+    return <AskAnswer question={asking} onBack={() => setAsking(null)} onOpenQuote={(ref, quote) => onOpen(ref, quote)} studioId={activeStudioId} sender={sender} />;
   }
 
   return (

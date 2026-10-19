@@ -204,7 +204,7 @@ describe("the Admins dashboard", () => {
     expect(el.textContent).toContain("Nothing waiting");
     await click(byText(el, ".hq-side .hq-nav__item", "Academy questions"));
     // Ask the Academy's list (Oct 19 2026), over a database with nothing in it.
-    expect(el.textContent).toContain("Never who asked.");
+    expect(el.textContent).toContain("a question never shows who asked");
     expect(el.textContent).toContain("All clear.");
     await click(byText(el, ".hq-side .hq-nav__item", "Limbo"));
     expect(el.textContent).toContain("Limbo");

@@ -2258,6 +2258,11 @@ never who asked. So the shape has no uid and no name, and hasOnly holds it.
 Anyone who works at the studio (isTrainerOfStudio) adds one, in exactly
 the shape src/features/ask-academy/head-office.ts writes: mark "open", the
 server's time, a reason, and a why and the answer only on a flagged answer.
+A flagged answer may also carry `by` (uid, name): AJ, Oct 19 2026, wanted
+admins to know who flagged it, and the trainer sees "Head office will see
+your name" before sending. by.uid must be the signed-in person. An
+unanswered question can never carry one: it is sent on its own, and stays
+anonymous.
 Only administrators read, mark (page, studio, done; nothing else changes)
 or delete. A trainer reads nothing here, not even their own: nothing names
 them, so there is no "own" to read.
