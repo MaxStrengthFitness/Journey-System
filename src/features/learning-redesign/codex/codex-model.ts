@@ -268,6 +268,53 @@ export function versionFitsTrail(input: { labels: readonly string[]; struck: boo
 }
 
 /**
+ * Does the switch's place keep room for "Hide crossed-out lines"? Decided
+ * WITHOUT the lens (review fix, Oct 19 2026): the MSF original shows no
+ * crossed-out line and so no Hide button, and a place read from the lens
+ * moved the switch out from under the finger that had just tapped "MSF
+ * original" (into the trail's row, the page jumping up), and back again.
+ * So: room whenever this studio has crossed a line out on the page, in
+ * either lens, and whenever the reader may cross one out (a leader), so the
+ * first strike does not move it either. No studio open: no studio version.
+ */
+export function hideReserved(input: { studioOpen: boolean; canStrike: boolean; studioStruck: number }): boolean {
+  if (!input.studioOpen) return false;
+  return input.canStrike || input.studioStruck > 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * The floor glance's order
+ * ------------------------------------------------------------------ */
+
+/**
+ * The floor glance, set-up first (the floor judge, Oct 19 2026: "Floor
+ * glance should start with dials and set-up"). Between two sets a trainer
+ * looks for how the unit is set; the Stop well (stop rules, clinical
+ * warnings, who it is not for) comes straight after the set-up, still
+ * before Get set and Begin, so nothing in it is passed before the load
+ * comes on. Every other section keeps its order; nothing is dropped.
+ */
+export const GLANCE_LEAD: readonly string[] = ["leaf-setup"];
+
+export function floorGlanceOrder<T extends { id: string }>(sections: readonly T[]): T[] {
+  const lead = GLANCE_LEAD.flatMap((id) => sections.filter((s) => s.id === id));
+  return [...lead, ...sections.filter((s) => !GLANCE_LEAD.includes(s.id))];
+}
+
+/** A machine's tiers as the bar draws them, the floor glance set-up first. */
+export function machineLayers(
+  tiers: readonly { id: string; n: number; title: string; sections: VaultSection[] }[] | null | undefined,
+): CodexLayer[] {
+  return (tiers ?? []).map((t) => ({
+    id: t.id,
+    n: t.n,
+    title: t.title,
+    sections: t.id === "glance" ? floorGlanceOrder(t.sections) : t.sections,
+    partial: true,
+  }));
+}
+
+/**
  * "Read next": the page's related pages, each once (two catalog entries can
  * share a name), without the Academy's own pieces of a machine when the
  * bento already has them as doors, and without anything `shown` already
@@ -300,10 +347,14 @@ export interface ReasonGroup {
 
 /**
  * Read next's links in groups. Links next to each other that give the same
- * reason ("Together with LEG EXTENSION and HIP ABDUCTION, it can replace
- * this one.") share it, said once over them; every other link keeps its
- * own reason, and links that do are kept together in one group. The order
- * never changes.
+ * reason share it, said once over them; every other link keeps its own
+ * reason, and links that do are kept together in one group. The order
+ * never changes. A shared reason must read true over every card under it:
+ * the substitutes' reason names its whole set ("If LEG PRESS can't be used:
+ * LEG EXTENSION + HIP ABDUCTION + LUMBAR.", pages.ts substituteWhy), so
+ * only the machines of that one set share it; the old singular "Together
+ * with …, it can replace this one." over three cards of three different
+ * sets read as one five-machine set (review fix, Oct 19 2026).
  */
 export function groupReasons(items: VaultPage["related"]): ReasonGroup[] {
   const out: ReasonGroup[] = [];

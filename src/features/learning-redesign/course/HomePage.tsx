@@ -7,6 +7,7 @@ import { pageFor } from "../../learning-vault/pages";
 import { strikeSignals } from "../../learning-vault/submissions";
 import { useAllMarkup, useSubmissions, useVault } from "../../learning-vault/ui/VaultProvider";
 import { useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
+import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import { RepScrubber } from "../../learning-vault/ui/RepScrubber";
 import { deckById } from "../../learning-vault/quiz/decks";
 import type { QuizDeckId, RepShape, Track, VaultPage, VaultRoute } from "../../learning-vault/types";
@@ -228,8 +229,7 @@ function DailyDrillBody({ page }: { page: VaultPage }) {
       size="large"
       onAll={drill.moment !== null ? () => peekAt({ kind: "cueing", moment: drill.moment ?? undefined }) : undefined}
       another={() => setStep((s) => s + 1)}
-      startOpen={step > 0}
-      focusLines={step > 0}
+      focusReveal={step > 0}
     />
   );
 }
@@ -272,7 +272,11 @@ function FloorTeaser() {
                 <span className="crs__tile-n" aria-hidden>
                   {i + 1}
                 </span>
-                <span className="crs__tile-name">{m.name}</span>
+                <span className="crs__tile-words">
+                  <span className="crs__tile-name">{m.name}</span>
+                  {/* Out of service and Flagged, as the Catalog's row says them; why is on the row and the page. */}
+                  <FloorStatus status={data.care?.[m.id]} variant="chip" why={false} />
+                </span>
                 {m.code && <span className="crs__code">{m.code}</span>}
               </button>
             </li>

@@ -60,6 +60,8 @@ vi.mock("./codex-reader", () => ({
       blocks: b.lines.map((l) => ({ key: `k-${l.text}`, kind: l.spoken ? "said" : "do", text: l.text })),
     })),
   workoutWords: (w: string) => (w === "SpineTrunkCore" ? "Spine / Trunk / Core" : w),
+  substitutesTitle: (name?: string | null) => (name ? `If ${name} can't be used` : "If it can't be used"),
+  substituteLine: (set: string[]) => set.join(" + "),
   EMPTY_TIER_LINE: "Nothing written for this machine yet.",
 }));
 
@@ -586,12 +588,26 @@ describe("pageFor — a machine", () => {
     const opts = fx.tierCalls[0][2] as { substitutes: string[][] };
     expect(opts.substitutes).toEqual([["LEG PRESS"]]);
     const lp = page.related.find((r) => r.route.kind === "machine" && r.route.id === "m-leg-press");
-    // Leg Press replaces Hip Abduction alone (a set of one): said as one for one, truthfully.
-    expect(lp?.why).toBe("On its own, it can replace this one.");
+    // Leg Press replaces Hip Abduction alone (a set of one): the floor's question, and the set.
+    expect(lp?.why).toBe("If HIP ABDUCTION can't be used: LEG PRESS.");
     const add = page.related.find((r) => r.route.kind === "machine" && r.route.id === "m-hip-add");
     expect(add?.why).toBe("Also Hips.");
     expect(page.facts.find((f) => f.label === "Failure")).toBeUndefined();
     expect(page.facts.find((f) => f.label === "In the Academy")).toBeUndefined();
+  });
+
+  it("says the substitutes one way only: the sets that replace THIS machine, each set whole (judges' fix)", () => {
+    const names: Record<string, string> = { ...NAMES, "m-ext": "LEG EXTENSION", "m-leg-curl": "LEG CURL" };
+    const data = makeData({ names: (id) => names[id] ?? id });
+    data.defs = { ...data.defs, "m-leg-press": MACHINE_DEFINITIONS["m-leg-press"] };
+    const page = asPage(pageFor({ kind: "machine", id: "m-leg-press" }, data));
+    const why = (id: string) => page.related.find((r) => r.route.kind === "machine" && r.route.id === id)?.why;
+    // The links of one set share one reason, the set said whole.
+    const first = "If LEG PRESS can't be used: LEG EXTENSION + HIP ABDUCTION + LUMBAR.";
+    expect([why("m-ext"), why("m-hip-abd"), why("m-lumbar")]).toEqual([first, first, first]);
+    expect(why("m-leg-curl")).toBe("If LEG PRESS can't be used: LEG EXTENSION + LEG CURL + HIP ABDUCTION.");
+    // Never the other direction (Leg Press can replace Hip Abduction), never "can replace" at all.
+    for (const r of page.related) expect(r.why, r.title).not.toMatch(/can replace|part of a set|together with/i);
   });
 
   it("waits for the Academy's chunks before it draws", () => {

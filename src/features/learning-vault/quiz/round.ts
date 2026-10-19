@@ -22,7 +22,7 @@
  */
 
 import type { QuizAnswer, QuizDeckId, QuizQuestion, QuizRound } from "../types";
-import type { QuizItem } from "./decks";
+import { inQuickTen, type QuizItem } from "./decks";
 
 export const ROUND_SIZE = 10;
 
@@ -116,7 +116,9 @@ export function dealQuestion(q: QuizItem, rand: () => number): DealtQuestion {
  * Deal a round from the bank.
  *
  * A single deck: its questions, shuffled, the first `size`. The mixed deck
- * ("Quick ten"): the decks take turns, in a shuffled order, so ten questions
+ * ("Quick ten"): the method's decks only (MIXED_DECKS, never the playbooks,
+ * which are drafts head office has not read), and they take turns, in a
+ * shuffled order, so ten questions
  * come from as many decks as there are rather than eight cues and two others
  * (the cue deck alone is the biggest). Either way no two questions in a round
  * test the same `fact`, and a bank smaller than `size` deals all it has.
@@ -144,7 +146,7 @@ export function buildRound(
   if (deck === "mixed") {
     const byDeck = new Map<QuizDeckId, QuizItem[]>();
     for (const q of bank as QuizItem[]) {
-      if (q.deck === "mixed") continue;
+      if (!inQuickTen(q.deck)) continue;
       const list = byDeck.get(q.deck) ?? [];
       list.push(q);
       byDeck.set(q.deck, list);

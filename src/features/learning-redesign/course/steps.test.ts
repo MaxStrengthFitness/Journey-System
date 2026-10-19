@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { vaultSection } from "../../learning-vault/blocks";
 import type { VaultBlock, VaultBlockKind, VaultSection } from "../../learning-vault/types";
-import { STEP_MAX_WORDS, STEP_MIN_WORDS, cardNaming, chunkSteps, wordsIn, type StepCard } from "./steps";
+import { STEP_MAX_WORDS, STEP_MIN_WORDS, cardNaming, chunkSteps, lineNaming, wordsIn, type StepCard } from "./steps";
 
 let n = 0;
 /** A line of `words` words, each line's words its own (keys are made from words). */
@@ -118,5 +118,28 @@ describe("cardNaming", () => {
     expect(cardNaming(cards, sections, "Seat Distance")).toBe(-1);
     expect(cardNaming(cards, sections, "ga")).toBe(-1);
     expect(cardNaming(cards, sections, "")).toBe(-1);
+  });
+});
+
+describe("lineNaming", () => {
+  it("finds the first line that names a dial, by section and line, the same match as cardNaming", () => {
+    const sections = [
+      sec("setup", "Set up", [line(10, "line", "Seat Back Position: set to P2."), line(10, "line", "Shoulder Pads: set them snug.")]),
+      sec("getset", "Get set", [line(10, "line", "Check the shoulder pads again.")]),
+    ];
+    expect(lineNaming(sections, "Shoulder Pads")).toEqual({ section: 0, block: 1 });
+    expect(lineNaming(sections, "seat back position")).toEqual({ section: 0, block: 0 });
+    const cards = chunkSteps(sections, { min: 5, max: 12 });
+    const at = lineNaming(sections, "Shoulder Pads")!;
+    const card = cardNaming(cards, sections, "Shoulder Pads");
+    expect(cards[card].parts.some((p) => p.section === at.section && p.blocks.includes(at.block))).toBe(true);
+  });
+
+  it("answers null for a dial no line names, and never matches inside a word", () => {
+    const sections = [sec("s", "", [line(20, "line", "The gap is set wide.")])];
+    expect(lineNaming(sections, "Seat Distance")).toBeNull();
+    expect(lineNaming(sections, "ga")).toBeNull();
+    expect(lineNaming(sections, "")).toBeNull();
+    expect(lineNaming([], "Gap")).toBeNull();
   });
 });

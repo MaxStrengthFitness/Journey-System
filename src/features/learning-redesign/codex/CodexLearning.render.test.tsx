@@ -119,6 +119,7 @@ import { createSandboxStore } from "../../learning-vault/markup-store";
 import { sampleSeed } from "../../learning-vault/sample";
 import { VaultProvider } from "../../learning-vault/ui/VaultProvider";
 import { forgetPersonalMemory } from "../../sign-out/memory";
+import { LINE_HINT_KEY, resetLineHint } from "../../learning-vault/ui/line-hint";
 
 const STUDIO = { id: "studio-solon", name: "Solon" };
 const LEADER: VaultViewer = { uid: "u-1", name: "Sam Lee", canStrike: true, canNote: true, isHeadOffice: false };
@@ -309,18 +310,125 @@ describe("the Tactical Codex", () => {
     expect(host.querySelector(".cdx__head .cdx__eyebrow--machine")?.textContent).toBe("LPLEG PRESS");
   });
 
-  it("says the bento's facts once, and a reason Read next's links share once", async () => {
+  it("says the bento's facts once, and the substitutes one way only: what stands in if this machine can't be used", async () => {
     await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
     // "Lower Body" is the eyebrow: the facts do not say "Workout: Lower Body" again.
     expect(host.querySelector('[data-fact="Workout"]')).toBeNull();
     expect(host.querySelector('[data-fact="Begins with"]')?.textContent).toContain("A gradual load-up");
-    // The three substitutes share one reason, said once over their cards.
-    const why = all(".cdx__next-why");
-    expect(why).toHaveLength(1);
-    expect(why[0].textContent).toContain("it can replace this one");
-    const shared = why[0].closest(".cdx__next-group");
-    expect(shared?.querySelectorAll(".cdx__link").length).toBeGreaterThan(1);
-    expect(shared?.querySelectorAll(".cdx__link-why").length).toBe(0);
+    // Connected answers the floor's question only: never the sets the Leg Press helps replace another.
+    const heads = all(".cdx__tile--links .vtg__head").map((h) => h.textContent);
+    expect(heads).toContain("In sets that replace it");
+    expect(heads.some((h) => /^(Can replace|Part of a set)/.test(h ?? ""))).toBe(false);
+    // No singular "it can replace this one" over another set's cards.
+    expect(text()).not.toContain("it can replace this one");
+    // A reason Read next's links share names their whole set, and the cards under it say none of their own.
+    for (const why of all(".cdx__next-why")) {
+      expect(why.textContent).toMatch(/^If LEG PRESS can't be used: .+ \+ .+\.$/);
+      expect(why.closest(".cdx__next-group")?.querySelectorAll(".cdx__link-why").length).toBe(0);
+    }
+    // Tier 3 says the sets under the same question.
+    await click(all<HTMLButtonElement>('[role="tab"]')[2]);
+    expect(text()).toContain("If LEG PRESS can't be used");
+  });
+
+  it("opens the floor glance on the set-up, with the Stop well straight after it, and Connected after the layers on an iPad", async () => {
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    const heads = all(".cdx__tierpanel h2").map((h) => h.textContent);
+    expect(heads.slice(0, 2)).toEqual(["Set up", "Stop"]);
+    expect(heads.indexOf("Begin")).toBeGreaterThan(1);
+    // The bento is the body, the facts and the dials; what it connects to follows the tiers.
+    expect(host.querySelector(".cdx__bento .cdx__tile--links")).toBeNull();
+    const links = host.querySelector(".cdx__layers .cdx__tile--links");
+    const panel = host.querySelector(".cdx__tierpanel");
+    expect(links && panel && panel.compareDocumentPosition(links) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("says Out of service and Flagged on the floor's rows, the Overview's tiles and the machine's page, and nothing when unknown", async () => {
+    knobs.__codexData = {
+      care: {
+        "m-leg-press": {
+          outOfService: false,
+          flag: { text: "Left pad sticks at the bottom", by: "Jess Moreno", at: "2026-10-18T09:36:00Z" },
+        },
+        "m-chest-press": {
+          outOfService: true,
+          outOfServiceWhy: { text: "A new cable is on order", by: "Sam Lee", at: "2026-10-17T12:52:00Z" },
+        },
+      },
+    };
+    await mount({ section: "machine-anatomy" });
+    const rows = all(".cdx__entries .cdx__entry");
+    expect(rows[0].textContent).toContain("Flagged");
+    expect(rows[0].textContent).not.toContain("Out of service");
+    expect(rows[1].textContent).toContain("Out of service");
+    expect(rows[1].textContent).toContain("A new cable is on order");
+    expect(rows[2].querySelector("[data-floor-status]")).toBeNull();
+
+    // The machine's page says the flag in full under the title, before the bento.
+    await click(rows[0]);
+    expect(title()).toBe("LEG PRESS");
+    const banner = host.querySelector(".cdx__head [data-floor-status='banner']");
+    expect(banner?.textContent).toContain("Flagged by Jess");
+    expect(banner?.textContent).toContain("Left pad sticks at the bottom");
+    await act(async () => root.unmount());
+    root = createRoot(host);
+
+    // The Overview's floor tiles carry the chips, without the reason.
+    await mount({ section: "learning" });
+    const tiles = all(".cdx__mtile");
+    expect(tiles[1].textContent).toContain("Out of service");
+    expect(tiles[1].textContent).not.toContain("A new cable is on order");
+    await act(async () => root.unmount());
+    root = createRoot(host);
+
+    // Unknown (still reading, or a failed read) says nothing, never "in service".
+    knobs.__codexData = { care: null };
+    await mount({ section: "machine-anatomy" });
+    expect(host.querySelector("[data-floor-status]")).toBeNull();
+  });
+
+  it("keeps the version switch in one place when the reader taps MSF original", async () => {
+    const was = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 820 });
+    try {
+      // A trainer (no cross-out of their own) on a medium trail, on a page Solon crossed a line out on.
+      await mount({ section: "learning", viewer: { ...LEADER, canStrike: false } });
+      await click(host.querySelector('[aria-label="Start Life Transformer 101"]'));
+      await click(all(".cdx__step").find((s) => /leg press/i.test(s.textContent ?? "")));
+      expect(title()).toBe("LEG PRESS");
+      const under = () => Boolean(host.querySelector(".cdx__head .cdx__version"));
+      const before = under();
+      // Overview › Life Transformer 101 › LEG PRESS and a crossed-out line: too long for the row at 820.
+      expect(before).toBe(true);
+      await click(button("MSF original"));
+      expect(under()).toBe(before);
+      await click(button("Solon's version"));
+      expect(under()).toBe(before);
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: was });
+    }
+  });
+
+  it("says 'Tap a line…' once, above the lines, never inside the Stop well", async () => {
+    try {
+      localStorage.removeItem(LINE_HINT_KEY);
+    } catch {
+      /* no storage in this run */
+    }
+    resetLineHint();
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    const hints = all(".cdx__tap-hint");
+    expect(hints).toHaveLength(1);
+    expect(hints[0].textContent).toContain("Tap a line to");
+    expect(hints[0].closest("[data-tone]")).toBeNull();
+    // The body's own hint, under its first line, is not drawn here.
+    expect(host.querySelector(".vta__tap-hint")).toBeNull();
+    // Above the first section's title.
+    const first = host.querySelector(".cdx__tierpanel h2");
+    expect(first && hints[0].compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Gone for good once a line is chosen.
+    await click(host.querySelector(".cdx__tierpanel [data-vta-line]"));
+    expect(all(".cdx__tap-hint")).toHaveLength(0);
   });
 
   it("never says who a path is for twice on the Academy's index", async () => {

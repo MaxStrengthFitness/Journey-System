@@ -10,7 +10,21 @@ import type { MarkedBlock, VaultPage, VaultRoute } from "../../learning-vault/ty
 import { CueDrillCard } from "./CueDrill";
 import { CourseBar, ModeSwitch } from "./LessonPage";
 import { courseContextOf, cueDrillsIn } from "./drills";
-import { CourseShell, FailedPage, GonePage, LoadingPage, MarkedLine, PageHead, ReadNext, scrollMotion, useCourse, useVersionPlacement, type LessonMode } from "./shell";
+import {
+  CourseNext,
+  CourseShell,
+  FailedPage,
+  GonePage,
+  LoadingPage,
+  MarkedLine,
+  PageHead,
+  ReadNext,
+  scrollMotion,
+  sourceLine,
+  useCourse,
+  useVersionPlacement,
+  type LessonMode,
+} from "./shell";
 import { byLetter, filterVault, letterOf, lettersOf, vaultEntries, type VaultEntry, type VaultFilter } from "./vault";
 import "./course.css";
 
@@ -228,6 +242,7 @@ function GlossaryBody({ page, focus }: { page: VaultPage; focus: string | null }
         </div>
       )}
 
+      <CourseNext course={course} />
       <ReadNext related={page.related} />
     </CourseShell>
   );
@@ -341,7 +356,7 @@ function CueingBody({ page, focus }: { page: VaultPage; focus: number | null }) 
       {mode === "all" ? (
         <div className="crs__whole">
           <ArticleBlocks target={page.target} sections={page.sections} annotate="inline" renderText={(t) => <LinkedText text={t} />} />
-          {page.source && <p className="crs__source">{page.source}</p>}
+          {sourceLine(page) && <p className="crs__source">{sourceLine(page)}</p>}
         </div>
       ) : (
         <div className="crs__drills crs__drills--page">
@@ -358,6 +373,7 @@ function CueingBody({ page, focus }: { page: VaultPage; focus: number | null }) 
           ))}
         </div>
       )}
+      <CourseNext course={course} />
       <ReadNext related={page.related} />
     </CourseShell>
   );

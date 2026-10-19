@@ -21,6 +21,7 @@ import {
   scriptSections,
   substituteLine,
   substituteSection,
+  substitutesTitle,
   tidyScriptLine,
   workoutWords,
 } from "./codex-reader";
@@ -265,19 +266,22 @@ describe("adapt and clinical", () => {
 
   it("writes each substitute set as one line, reading a machine id as its name", () => {
     const s = substituteSection([["m-ext", "m-hip-abd", "m-lumbar"], ["Leg Extension", "Lumbar"]])!;
-    expect(s.blocks.map((b) => b.text)).toEqual([
-      "Together: LEG EXTENSION + HIP ABDUCTION + LUMBAR",
-      "Together: Leg Extension + Lumbar",
-    ]);
+    expect(s.blocks.map((b) => b.text)).toEqual(["LEG EXTENSION + HIP ABDUCTION + LUMBAR", "Leg Extension + Lumbar"]);
     expect(s.blocks[0].source).toBe("Academy 6 · Exercise Substitutes");
+    // The source is said once, under the title, not under every set.
+    expect(s.note).toBe("Academy 6 · Exercise Substitutes");
     expect(substituteSection([])).toBeNull();
     expect(substituteSection([[]])).toBeNull();
   });
 
-  it("says a set replaces the machine TOGETHER, never one for one; a set of one is the machine alone", () => {
-    const s = substituteSection([["Leg Extension", "Leg Curl", "Hip Abduction"], ["Chest Press"]])!;
-    expect(s.title).toBe("Can be replaced by");
-    expect(s.blocks.map((b) => b.text)).toEqual(["Together: Leg Extension + Leg Curl + Hip Abduction", "Chest Press"]);
+  it("asks the floor's one question, and a set replaces the machine TOGETHER; a set of one is the machine alone", () => {
+    const s = substituteSection([["Leg Extension", "Leg Curl", "Hip Abduction"], ["Chest Press"]], "Leg Press")!;
+    expect(s.title).toBe("If Leg Press can't be used");
+    expect(s.blocks.map((b) => b.text)).toEqual(["Leg Extension + Leg Curl + Hip Abduction", "Chest Press"]);
+    expect(substitutesTitle("  ")).toBe("If it can't be used");
+    expect(substituteSection([["Dip"]])!.title).toBe("If it can't be used");
+    // One direction only: never which machines this one can replace.
+    expect(JSON.stringify(s)).not.toMatch(/can replace|part of a set|together:/i);
     expect(substituteLine(["Dip"])).toBe("Dip");
     expect(substituteLine([])).toBe("");
     // No line or title calls a single machine a substitute "for" the main one.
@@ -288,8 +292,13 @@ describe("adapt and clinical", () => {
     const tiers = codexTiers(LP, {}, {
       clinical: [{ id: "bone-osteoporosis", label: "Osteoporosis / Severe Osteopenia" }],
       substitutes: [["Leg Extension", "Hip Abduction", "Lumbar"]],
+      machineName: "LEG PRESS",
     });
     expect(tier(tiers, "adapt").sections.map((s) => s.id)).toEqual(["leaf-adapt", "clinical", "substitutes"]);
+    // Named for the machine the page is about: the question the floor asks.
+    const subs = tier(tiers, "adapt").sections.find((s) => s.id === "substitutes")!;
+    expect(subs.title).toBe("If LEG PRESS can't be used");
+    expect(subs.blocks.map((b) => b.text)).toEqual(["Leg Extension + Hip Abduction + Lumbar"]);
   });
 });
 

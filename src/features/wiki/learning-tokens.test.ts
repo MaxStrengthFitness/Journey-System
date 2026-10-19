@@ -42,6 +42,7 @@ const VAULT_SHEETS: Record<string, string> = {
   "learning-vault/ui/share.css": src("learning-vault", "ui", "share.css"),
   "learning-vault/ui/queue.css": src("learning-vault", "ui", "queue.css"),
   "learning-vault/ui/article.css": src("learning-vault", "ui", "article.css"),
+  "learning-vault/ui/floor-status.css": src("learning-vault", "ui", "floor-status.css"),
   "learning-redesign/redesign.css": src("learning-redesign", "redesign.css"),
   "learning-redesign/codex/codex.css": src("learning-redesign", "codex", "codex.css"),
   "learning-redesign/vault/vault-map.css": src("learning-redesign", "vault", "vault-map.css"),

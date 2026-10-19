@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowRight, BookOpenText, Layers, RotateCcw } from "lucide-react";
+import { BookOpenText, Layers, RotateCcw } from "lucide-react";
 import { ArticleBlocks, pageAccent, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
@@ -12,7 +12,19 @@ import { CheckYourself } from "./CheckYourself";
 import { OrderDrillCard } from "./CueDrill";
 import { StepDeck } from "./StepDeck";
 import { checkQuestions, lessonContextOf, orderDrillOf, sameLesson, type CourseContext } from "./drills";
-import { CourseShell, FailedPage, GonePage, LoadingPage, PageHead, ReadNext, useCourse, useVersionPlacement, type LessonMode } from "./shell";
+import {
+  CourseShell,
+  FailedPage,
+  GonePage,
+  LoadingPage,
+  NextLessonButton,
+  PageHead,
+  ReadNext,
+  sourceLine,
+  useCourse,
+  useVersionPlacement,
+  type LessonMode,
+} from "./shell";
 import { chunkSteps } from "./steps";
 import "./course.css";
 
@@ -78,6 +90,7 @@ function LessonBody({ page }: { page: VaultPage }) {
 
   const packages = page.route.kind === "playbook" && page.route.id === "packages" ? orderDrillOf(page, "money") : null;
   const minutes = page.facts.find((f) => f.label === "Read")?.value;
+  const source = sourceLine(page);
 
   const next = course && course.at < course.lessons.length - 1 ? course.lessons[course.at + 1] : null;
   // Questions get a card of their own; without them, the last card's Next
@@ -138,7 +151,7 @@ function LessonBody({ page }: { page: VaultPage }) {
                 renderText={(t) => <LinkedText text={t} />}
                 accent={pageAccent(page)}
               />
-              {page.source && <p className="crs__source">{page.source}</p>}
+              {source && <p className="crs__source">{source}</p>}
               {next && (
                 <div className="crs__whole-next">
                   <NextLessonButton title={next.title} onGo={() => nav.replace(next.route)} />
@@ -152,19 +165,6 @@ function LessonBody({ page }: { page: VaultPage }) {
         {course && <CourseRail course={course} minutes={minutes} />}
       </div>
     </CourseShell>
-  );
-}
-
-/** "Next lesson" with the lesson's name: the end card's door, and the foot of "Read it all". */
-function NextLessonButton({ title, onGo }: { title: string; onGo: () => void }) {
-  return (
-    <button type="button" className="crs__btn crs__btn--primary crs__end-next" onClick={onGo}>
-      <span className="crs__end-next-words">
-        <span className="crs__end-next-kicker">Next lesson</span>
-        <span className="crs__end-next-title">{title}</span>
-      </span>
-      <ArrowRight size={20} aria-hidden />
-    </button>
   );
 }
 

@@ -35,6 +35,13 @@
  * the map and the quiz need them, so a design shows "didn't load / Try
  * again" rather than a spinner that never ends.
  *
+ * THE FLOOR'S STATUS (judges' fix, Oct 19 2026)
+ * ----------------------------------------------
+ * `care` is what the Catalog says about a unit from the floor: Out of
+ * service (the roster read above) and Flagged (Relay's care record, through
+ * Relay's own useMachineCare: one listener, no new query or index). Null
+ * while either is unknown or failed (floor-care.ts); ui/FloorStatus draws it.
+ *
  * NAMES
  * -----
  * `names` is the Catalog's name for a machine (one name per machine across
@@ -73,12 +80,15 @@ import {
 import type { FloorState } from "../catalog/floor-index";
 import { movementOf } from "../catalog/names";
 import { useCatalogMachines } from "../catalog/useCatalogMachines";
+// Relay's care record, READ ONLY: the one listener the Catalog opens for flags.
+import { useMachineCare } from "../relay/board/machine-care-store";
 import { EXERCISE_SUBSTITUTES, MACHINE_CATEGORY, abbr as academyAbbr } from "../routine-builder/academy";
 import { CLINICAL_FLAGS_MATRIX } from "../../data/clinical-matrix";
 import { MACHINE_DEFINITIONS } from "../../data/machine-definitions";
 import type { Machine } from "../../types";
 import type { MachineCatalogEntry } from "../../types/machines";
 import { buildEntityIndex, type EntityIndex } from "./entities";
+import { floorCareOf, type VaultCare } from "./floor-care";
 import { buildVaultGraph, type GraphIndexFile } from "./graph";
 import graphIndexJson from "./graph-index.json";
 import { PILLARS, PLAYBOOKS, TRACKS } from "./playbooks";
@@ -129,6 +139,13 @@ export interface VaultData {
   referenceFailed?: boolean;
   /** Ask again for every reference chunk that failed: the reader's tap, never a timer. */
   retryReference?: () => void;
+  /**
+   * The floor's status, as the Catalog says it (floor-care.ts): by machine
+   * id, only the machines out of service or flagged; null while the roster
+   * or Relay's care record is loading, when either failed, or with no studio
+   * (unknown, never "all fine"). Draw it with ui/FloorStatus.
+   */
+  care?: VaultCare | null;
 }
 
 /** The five reference chunks, in the order they are asked for. */
@@ -211,6 +228,17 @@ export function useVaultData(opts: { studioId: string | null; machines: Machine[
       code: movementOf(m)?.code ?? academyAbbr(m.id),
     }));
   }, [floorState, catalog.machines]);
+
+  /* Out of service and Flagged (floor-care.ts): the roster read above, and
+     Relay's care record through Relay's own hook. The ONE care listener on
+     a Learning screen: each design calls this hook once, at its root, and
+     a prototype is drawn in place of the Catalog and the Overview, which
+     open their own. */
+  const careRead = useMachineCare(studioId);
+  const care = useMemo<VaultCare | null>(
+    () => floorCareOf({ studioId, floorState, units: catalog.machines, care: careRead }),
+    [studioId, floorState, catalog.machines, careRead],
+  );
 
   /* Names. */
   const namesKey = namesKeyOf(legacyMachines ?? []);
@@ -343,6 +371,7 @@ export function useVaultData(opts: { studioId: string | null; machines: Machine[
       cachedModule: cachedAcademyModule,
       referenceFailed,
       retryReference,
+      care,
     }),
     [
       academyMachines,
@@ -363,6 +392,7 @@ export function useVaultData(opts: { studioId: string | null; machines: Machine[
       retryModule,
       referenceFailed,
       retryReference,
+      care,
     ],
   );
 }

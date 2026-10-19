@@ -3,21 +3,33 @@ import { RotateCcw } from "lucide-react";
 import { LoadingMark } from "../../../components/LoadingMark";
 import { presetLine, presetOf } from "../../machine-codex/format";
 import { accentStyle } from "../../wiki/categories";
+import { hasFloorStatus } from "../../learning-vault/floor-care";
 import { DOMAIN_NOUN, nodeById } from "../../learning-vault/graph";
 import { pageFor } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
 import { pageAccent } from "../../learning-vault/ui/ArticleBlocks";
+import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { LocalConstellation, categoryNodeStyle } from "../../learning-vault/ui/LocalConstellation";
 import type { VaultRoute, VaultSection } from "../../learning-vault/types";
 import { useCodex } from "./codex-context";
-import { domainWords, isPiece, machineAccent, momentSections, pieceMachineId, termSections, waitState } from "./codex-model";
+import {
+  domainWords,
+  floorGlanceOrder,
+  isPiece,
+  machineAccent,
+  momentSections,
+  pieceMachineId,
+  termSections,
+  waitState,
+} from "./codex-model";
 import { Blocks } from "./CodexBits";
 import "./codex.css";
 
 /**
  * A page in the peek: its first layer, compact. A machine shows its floor
- * glance (what you need at the machine) under its code and preset; a word,
+ * glance (what you need at the machine, set-up first, as on its page) under
+ * the floor's status (Out of service, Flagged) and its preset; a word,
  * its one line; a cue moment, its lines; anything else, every line. The
  * peek's own "Open full page" goes to the rest.
  */
@@ -33,7 +45,8 @@ export function PeekBody({ route }: { route: VaultRoute }) {
   let partial = false;
   let line: string | null = null;
   if (route.kind === "machine") {
-    sections = page.tiers?.[0]?.sections ?? page.sections;
+    const glance = page.tiers?.[0];
+    sections = glance ? (glance.id === "glance" ? floorGlanceOrder(glance.sections) : glance.sections) : page.sections;
     partial = true;
     const def = data.defs[route.id];
     if (def) line = presetLine(presetOf(def));
@@ -57,9 +70,12 @@ export function PeekBody({ route }: { route: VaultRoute }) {
   // category, as on the machine's own page.
   const piece = isPiece(route) && pieceMachineId(route, data.machines) !== null;
   const style = route.kind === "machine" ? accentStyle(machineAccent(route.id)) : undefined;
+  // A substitute peeked from a machine may be the one that is out of service.
+  const care = route.kind === "machine" ? data.care?.[route.id] : undefined;
   return (
     <div className="cdx__peekbody" style={style}>
       {!piece && <p className="cdx__peek-eyebrow">{page.eyebrow}</p>}
+      {hasFloorStatus(care) && <FloorStatus status={care} variant="banner" />}
       {page.draft && <p className="cdx__draft">{PLAYBOOK_DRAFT_LINE}</p>}
       {line && <p className="cdx__peek-preset">{line}</p>}
       {page.lede && route.kind !== "machine" && (

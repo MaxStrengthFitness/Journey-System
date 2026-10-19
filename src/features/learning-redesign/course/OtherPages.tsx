@@ -3,14 +3,15 @@ import { floorUnreadableFor, pageFor } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
 import { ArticleBlocks, pageAccent, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
-import { LocalConstellation } from "../../learning-vault/ui/LocalConstellation";
+import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
+import { categoryNodeStyle, LocalConstellation } from "../../learning-vault/ui/LocalConstellation";
 import { QuizMode } from "../../learning-vault/ui/QuizMode";
 import { SubmissionQueue } from "../../learning-vault/ui/SubmissionQueue";
 import { nodeById, termNodeId } from "../../learning-vault/graph";
 import type { VaultPage, VaultRoute } from "../../learning-vault/types";
 import { CourseBar, failedRetry } from "./LessonPage";
 import { courseContextOf } from "./drills";
-import { CourseShell, FailedPage, GonePage, LoadingPage, PageHead, PeekFailed, ReadNext, useCourse, useVersionPlacement } from "./shell";
+import { CourseShell, FailedPage, GonePage, LoadingPage, PageHead, PeekFailed, ReadNext, sourceLine, useCourse, useVersionPlacement } from "./shell";
 import "./course.css";
 
 /**
@@ -87,7 +88,7 @@ function ReferenceBody({ page }: { page: VaultPage }) {
           renderText={(t) => <LinkedText text={t} />}
           accent={pageAccent(page)}
         />
-        {page.source && <p className="crs__source">{page.source}</p>}
+        {sourceLine(page) && <p className="crs__source">{sourceLine(page)}</p>}
       </div>
       <ReadNext related={page.related} />
     </CourseShell>
@@ -109,7 +110,8 @@ export function ConnectionsPage({ route }: { route: Extract<VaultRoute, { kind: 
   return (
     <CourseShell>
       <PageHead eyebrow="What it connects to" title={node.label} />
-      <LocalConstellation graph={data.graph} nodeId={node.id} onOpen={open} variant="pills" max={12} />
+      {/* Machines in their category's colours, as everywhere else in the Course. */}
+      <LocalConstellation graph={data.graph} nodeId={node.id} onOpen={open} variant="pills" max={12} nodeStyle={categoryNodeStyle} />
     </CourseShell>
   );
 }
@@ -141,7 +143,7 @@ export function PeekBody({ route }: { route: VaultRoute }) {
     if (!node) return <p className="crs__empty">This page has moved.</p>;
     return (
       <div className="crs__peek">
-        <LocalConstellation graph={data.graph} nodeId={node.id} onOpen={peekAt} variant="pills" max={12} />
+        <LocalConstellation graph={data.graph} nodeId={node.id} onOpen={peekAt} variant="pills" max={12} nodeStyle={categoryNodeStyle} />
       </div>
     );
   }
@@ -173,15 +175,24 @@ export function PeekBody({ route }: { route: VaultRoute }) {
  * thing the reader asked about, and "Open full page" is the door to the rest.
  * Drawn alone, a part has no "lines that changed" of its own to list (a mark
  * on another word is not a line that left the page), so those stay off.
+ * The sheet's own header already names the word or the moment, so the part
+ * draws neither its section title nor the word's label again (say it once;
+ * judges' recheck, Oct 19 2026).
+ *
+ * A machine peeked (a substitute, a related machine) says the floor's status
+ * first, as its page does: a stand-in that is out of service is no stand-in.
  */
 function PeekPage({ page, focus, term }: { page: VaultPage; focus: number | null; term: string | null }) {
+  const { data } = useCourse();
   const at = focus !== null ? page.sections.findIndex((s) => s.id === `moment-${focus}`) : -1;
   const word = term ? page.sections.flatMap((s) => s.blocks).find((b) => b.label === term) : undefined;
-  const sections = word ? [{ id: "peek-word", title: "", blocks: [word] }] : at >= 0 ? [page.sections[at]] : page.sections;
+  const sections = word ? [{ id: "peek-word", title: "", blocks: [{ ...word, label: undefined }] }] : at >= 0 ? [page.sections[at]] : page.sections;
   const part = Boolean(word) || at >= 0;
   const glossary = page.route.kind === "glossary";
+  const wordSkip = word && term ? termNodeId(term) : undefined;
   return (
     <div className="crs__peek">
+      {page.route.kind === "machine" && <FloorStatus status={data.care?.[page.route.id]} variant="banner" />}
       {page.lede && !part && <p className="crs__peek-lede">{page.lede}</p>}
       {page.draft && <p className="crs__draft">{PLAYBOOK_DRAFT_LINE}</p>}
       <ArticleBlocks
@@ -192,7 +203,8 @@ function PeekPage({ page, focus, term }: { page: VaultPage; focus: number | null
         headingLevel={3}
         accent={pageAccent(page)}
         showOrphans={!part}
-        renderText={(t, b) => <LinkedText text={t} skip={glossary && b.label ? termNodeId(b.label) : undefined} />}
+        hideSectionTitles={part}
+        renderText={(t, b) => <LinkedText text={t} skip={wordSkip ?? (glossary && b.label ? termNodeId(b.label) : undefined)} />}
       />
     </div>
   );

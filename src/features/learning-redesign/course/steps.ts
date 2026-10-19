@@ -159,23 +159,50 @@ export function chunkSteps(
   return cards.filter((c) => c.parts.length > 0);
 }
 
+/** A dial's name as a pattern for a line: its words, whole and in order, any case. Null for no words. */
+function dialPattern(label: string): RegExp | null {
+  const words = (label ?? "").trim().toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (words.length === 0) return null;
+  return new RegExp(`(^|[^a-z0-9])${words.join("[^a-z0-9]+")}($|[^a-z0-9])`, "i");
+}
+
+function blockNames(b: { text: string; label?: string } | undefined, pattern: RegExp): boolean {
+  if (!b) return false;
+  return pattern.test(b.text) || (b.label ? pattern.test(b.label) : false);
+}
+
 /**
  * The first card holding a line whose words name `label` (a dial's name on
  * the field manual: "Shoulder Pads" finds the line that sets them). Whole
  * words, any case; -1 when no card names it.
  */
 export function cardNaming(cards: StepCard[], sections: VaultSection[], label: string): number {
-  const words = (label ?? "").trim().toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  if (words.length === 0) return -1;
-  const pattern = new RegExp(`(^|[^a-z0-9])${words.join("[^a-z0-9]+")}($|[^a-z0-9])`, "i");
+  const pattern = dialPattern(label);
+  if (!pattern) return -1;
   for (let i = 0; i < cards.length; i += 1) {
     for (const p of cards[i].parts) {
       for (const bi of p.blocks) {
-        const b = sections[p.section]?.blocks[bi];
-        if (!b) continue;
-        if (pattern.test(b.text) || (b.label ? pattern.test(b.label) : false)) return i;
+        if (blockNames(sections[p.section]?.blocks[bi], pattern)) return i;
       }
     }
   }
   return -1;
+}
+
+/**
+ * The first line, in reading order, whose words name `label`: where a dial's
+ * pin goes on the field manual's set-up list (the same match as
+ * cardNaming, so a pin that turns the deck to a card finds that card's line
+ * in the list). Null when no line names it.
+ */
+export function lineNaming(sections: VaultSection[], label: string): { section: number; block: number } | null {
+  const pattern = dialPattern(label);
+  if (!pattern) return null;
+  for (let si = 0; si < sections.length; si += 1) {
+    const blocks = sections[si]?.blocks ?? [];
+    for (let bi = 0; bi < blocks.length; bi += 1) {
+      if (blockNames(blocks[bi], pattern)) return { section: si, block: bi };
+    }
+  }
+  return null;
 }

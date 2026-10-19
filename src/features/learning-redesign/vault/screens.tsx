@@ -7,6 +7,7 @@ import {
   Dumbbell,
   FileText,
   Gamepad2,
+  Hand,
   Inbox,
   Library,
   Lightbulb,
@@ -15,17 +16,22 @@ import {
   MessageSquareQuote,
   Network,
   Route as RouteIcon,
+  TrendingUp,
 } from "lucide-react";
 import { LoadingArea } from "../../../components/LoadingMark";
 import { usePhone } from "../../phone/device";
 import { readingTime } from "../../learning/home";
+import { switchesOf } from "../../machine-codex/format";
+import { WikiBadge } from "../../wiki";
+import { hasFloorStatus } from "../../learning-vault/floor-care";
 import { nodeById, nodeIdForRoute } from "../../learning-vault/graph";
 import { pageFor, titleOf } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE, playbooksForPillar } from "../../learning-vault/playbooks";
 import { DECKS } from "../../learning-vault/quiz/decks";
 import { strikeSignals } from "../../learning-vault/submissions";
-import type { GraphDomain, QuizDeckId, StudioMarkup, VaultGraph, VaultPage, VaultRoute, VaultSection } from "../../learning-vault/types";
+import type { GraphDomain, QuizDeckId, VaultGraph, VaultPage, VaultRoute, VaultSection } from "../../learning-vault/types";
 import { ArticleBlocks, OrphanMarks, pageAccent, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
+import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { DOMAIN_ICON } from "../../learning-vault/ui/LocalConstellation";
 import { machineAccentStyle } from "../../learning-vault/ui/page-accent";
@@ -36,10 +42,11 @@ import { VersionToggle } from "../../learning-vault/ui/VersionToggle";
 import {
   backlinksOf,
   bodySections,
-  connectionCounts,
   letterIndex,
   pathDots,
   shownIds,
+  studioLineKeys,
+  unionKeys,
   whoSaid,
   withoutShown,
   type Backlink,
@@ -219,7 +226,7 @@ function PlayCard() {
             Play
           </h2>
           {/* "Nothing is kept" is said once, by the quiz's own deck picker. */}
-          <p className="vm__play-line">Ten questions from the Academy and the floor.</p>
+          <p className="vm__play-line">Ten questions from the method: the Academy and Hutchins' definition.</p>
         </div>
       </div>
       <ul className="vm__play-decks">
@@ -372,12 +379,21 @@ function floorTitle(name: string): string {
   return /s$/i.test(n) ? `${n}' floor` : `${n}'s floor`;
 }
 
+/**
+ * One machine on the floor list: what a trainer needs before walking over
+ * (judges' fix, Oct 19 2026, in place of how many things it links to, a
+ * number with no reader on the floor). Out of service and Flagged first, in
+ * the Catalog's own words and plum, said only once the floor's status is
+ * known; then how the set begins (a gradual load-up or a handoff) and Never
+ * to failure, the first second of the set. A studio's own machine with no
+ * MSF definition says only what the floor says.
+ */
 function FloorRow({ n, id, name, code, onOpen }: { n?: number; id: string; name: string; code: string | null; onOpen: () => void }) {
   const { data } = useVaultScreen();
-  const counts = useMemo(() => connectionCounts(data.graph, `machine:${id}`), [data.graph, id]);
-  const said = counts.map((c) => `${c.count} ${c.count === 1 ? DOMAIN_NOUN_SINGLE[c.domain] : DOMAIN_NOUN_PLURAL[c.domain]}`).join(", ");
+  const def = data.defs[id];
+  const sw = def ? switchesOf(def) : null;
   return (
-    <button type="button" className="vm__floor-row" onClick={onOpen} aria-label={said ? `${name}. Connects to ${said}.` : name}>
+    <button type="button" className="vm__floor-row" onClick={onOpen}>
       {n !== undefined && <span className="vm__floor-n">{n}</span>}
       {/* The tag in the machine's category colour, as the Catalog draws it. */}
       {code && (
@@ -387,17 +403,19 @@ function FloorRow({ n, id, name, code, onOpen }: { n?: number; id: string; name:
       )}
       <span className="vm__floor-text">
         <span className="vm__floor-name">{name}</span>
-        {counts.length > 0 && (
-          <span className="vm__badges" aria-hidden="true">
-            {counts.map((c) => {
-              const Icon = DOMAIN_ICON[c.domain];
-              return (
-                <span key={c.domain} className="vm__badge" style={domainVars(c.domain)}>
-                  <Icon size={13} strokeWidth={2.3} />
-                  {c.count}
-                </span>
-              );
-            })}
+        <FloorStatus status={data.care?.[id]} variant="chip" />
+        {sw && (
+          <span className="vm__floor-tags">
+            <WikiBadge tone="neutral">
+              {sw.beginsWith === "handoff" ? (
+                <Hand size={13} strokeWidth={2.3} aria-hidden />
+              ) : (
+                <TrendingUp size={13} strokeWidth={2.3} aria-hidden />
+              )}
+              {sw.beginsWith === "handoff" ? "Handoff" : "Load-up"}
+            </WikiBadge>
+            {/* The Academy's safety rule, in the crimson the Catalog and My Studio give it. */}
+            {sw.neverToFailure && <WikiBadge tone="alert">Never to failure</WikiBadge>}
           </span>
         )}
       </span>
@@ -405,28 +423,6 @@ function FloorRow({ n, id, name, code, onOpen }: { n?: number; id: string; name:
     </button>
   );
 }
-
-const DOMAIN_NOUN_SINGLE: Record<GraphDomain, string> = {
-  machine: "machine",
-  method: "word of the method",
-  equipment: "equipment word",
-  cue: "cue moment",
-  module: "Academy module",
-  topic: "Academy topic",
-  clinical: "clinical flag",
-  playbook: "playbook",
-};
-
-const DOMAIN_NOUN_PLURAL: Record<GraphDomain, string> = {
-  machine: "machines",
-  method: "words of the method",
-  equipment: "equipment words",
-  cue: "cue moments",
-  module: "Academy modules",
-  topic: "Academy topics",
-  clinical: "clinical flags",
-  playbook: "playbooks",
-};
 
 /* ------------------------------------------------------------------ *
  * Academy index
@@ -720,12 +716,23 @@ export function orderedSections(route: VaultRoute, sections: VaultSection[]): Va
   return sections;
 }
 
-/** The line keys this studio has marked on a page (crossed out or noted). */
-function markedKeys(markup: StudioMarkup | null): ReadonlySet<string> {
-  const out = new Set<string>();
-  for (const s of markup?.strikes ?? []) out.add(s.blockKey);
-  for (const n of markup?.notes ?? []) out.add(n.blockKey);
-  return out;
+const NO_KEYS: ReadonlySet<string> = new Set();
+
+/**
+ * The lines that tie this page to the studio, kept for the visit: a key
+ * seen once stays until the page changes (unionKeys), so a section the body
+ * drew never drops out under the reader's finger (recheck fix, Oct 19 2026:
+ * putting back the only crossed-out line of a beat dropped its section, and
+ * the selection, kept by position, landed on a line under Adapt). Writing
+ * the ref while drawing is safe: the answer only ever grows, the same way
+ * each time.
+ */
+function useKeptKeys(scope: string, now: ReadonlySet<string>): ReadonlySet<string> {
+  const ref = useRef<{ scope: string; keys: ReadonlySet<string> } | null>(null);
+  const before = ref.current !== null && ref.current.scope === scope ? ref.current.keys : NO_KEYS;
+  const keys = unionKeys(before, now);
+  ref.current = { scope, keys };
+  return keys;
 }
 
 /**
@@ -753,6 +760,7 @@ function jumpToLetter(body: HTMLElement | null, letter: string) {
 
 function ArticleScreen({ route, page }: { route: VaultRoute; page: VaultPage }) {
   const { data, peekAt } = useVaultScreen();
+  const { studio } = useVault();
   const phone = usePhone();
   const sections = useMemo(() => orderedSections(route, page.sections), [route, page.sections]);
   const applied = useAppliedMarkup(page.target, sections);
@@ -760,19 +768,32 @@ function ArticleScreen({ route, page }: { route: VaultRoute; page: VaultPage }) 
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // The body: a machine's spoken script and deep dive are peeks under Read
-  // alongside, not eleven more screens (a line this studio marked in them
-  // keeps its section, so no mark ever goes missing).
+  // alongside, not eleven more screens. A line this studio crossed out,
+  // noted or told head office about keeps its section (so no mark and no
+  // answer goes missing), read whichever version is showing and kept for
+  // the visit (useKeptKeys), so nothing moves when a mark comes off.
   const markup = useStudioMarkup(page.target.key);
-  const marked = useMemo(() => markedKeys(applied.studioLens ? markup : null), [applied.studioLens, markup]);
+  const submissions = useSubmissions();
+  const markedNow = useMemo(
+    () => studioLineKeys(markup, submissions, studio.id, page.target.key),
+    [markup, submissions, studio.id, page.target.key],
+  );
+  const marked = useKeptKeys(page.target.key, markedNow);
   const body = useMemo(() => bodySections(route.kind, sections, marked), [route.kind, sections, marked]);
   const partial = body !== sections;
-  // The gutter is where this design keeps a studio's marks, so it is drawn
-  // only where a mark can show: the studio's version. The MSF original reads
-  // at the page's own edge, and so does a phone, where 58px of a 358px
-  // column is too much to give a gutter (as in the peek): its marks sit
-  // under their lines.
-  const annotate = applied.studioLens && !phone ? "gutter" : "inline";
+  // The gutter is where this design keeps a studio's marks. On an iPad, a
+  // page with a studio's version lines its words up past the gutter in BOTH
+  // versions, so switching to the MSF original never moves the line being
+  // compared (recheck fix, Oct 19 2026): ArticleBlocks draws the gutter only
+  // where a mark can show, and on the original this page keeps the same
+  // room empty (.vm__room). A phone, where 48px of a 358px column is too
+  // much to give (as in the peek), and a viewer with no studio read at the
+  // page's edge.
+  const gutterPage = !phone && studio.id !== null;
+  const annotate = gutterPage ? "gutter" : "inline";
+  const keepRoom = gutterPage && !applied.studioLens;
   const letters = route.kind === "glossary" ? letterIndex(body) : [];
+  const care = route.kind === "machine" ? data.care?.[route.id] : undefined;
 
   // A glossary term and a cue moment are pages of their own here: titled by
   // the term or the moment, with its own constellation.
@@ -818,6 +839,12 @@ function ArticleScreen({ route, page }: { route: VaultRoute; page: VaultPage }) 
               </p>
             )}
             {page.draft && <p className="vm__draft">{PLAYBOOK_DRAFT_LINE}</p>}
+            {/* Out of service and Flagged, where today's machine page says them: under the title. */}
+            {hasFloorStatus(care) && (
+              <div className="vm__status">
+                <FloorStatus status={care} variant="banner" />
+              </div>
+            )}
             {facts.length > 0 && (
               <dl className="vm__facts">
                 {facts.map((f) => (
@@ -839,34 +866,41 @@ function ArticleScreen({ route, page }: { route: VaultRoute; page: VaultPage }) 
           )}
         </div>
 
+        {/* The glossary's letters span the whole article, above its two
+            columns in landscape, so the alphabet is one row there too. */}
+        {letters.length > 0 && (
+          <nav aria-label="Jump to a letter">
+            <ul className="vm__letters">
+              {letters.map((l) => (
+                <li key={l.letter}>
+                  <button
+                    type="button"
+                    className="vm__letter-btn"
+                    aria-label={`Words under ${l.letter}`}
+                    onClick={() => jumpToLetter(bodyRef.current, l.letter)}
+                  >
+                    {l.letter}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+
         <div className="vm__main">
           <div className="vm__body" ref={bodyRef} data-annotate={annotate}>
-            {letters.length > 0 && (
-              <nav aria-label="Jump to a letter">
-                <ul className="vm__letters">
-                  {letters.map((l) => (
-                    <li key={l.letter}>
-                      <button
-                        type="button"
-                        className="vm__letter-btn"
-                        aria-label={`Words under ${l.letter}`}
-                        onClick={() => jumpToLetter(bodyRef.current, l.letter)}
-                      >
-                        {l.letter}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-            )}
-            <ArticleBlocks
-              target={page.target}
-              sections={body}
-              annotate={annotate}
-              accent={pageAccent(page)}
-              showOrphans={!partial}
-              renderText={(t) => <LinkedText text={t} skip={page.nodeId} />}
-            />
+            {/* Always drawn (a wrapper that came and went would start the body
+                over, and any typing in it); only its room changes. */}
+            <div className="vm__room" data-room={keepRoom ? "" : undefined}>
+              <ArticleBlocks
+                target={page.target}
+                sections={body}
+                annotate={annotate}
+                accent={pageAccent(page)}
+                showOrphans={!partial}
+                renderText={(t) => <LinkedText text={t} skip={page.nodeId} />}
+              />
+            </div>
             {/* A body that leaves sections out says the page's own changed lines once, over the whole page. */}
             {partial && <OrphanMarks target={page.target} orphans={applied.orphans} />}
             {/* A source a reader would recognise; a topic's file path is not one (its lines name their topic). */}

@@ -19,8 +19,12 @@
  *                   (Leg Extension + Leg Curl + Hip Abduction for the Leg
  *                   Press), never one for one, unless the set is a single
  *                   machine. So a link from a machine in a set to the main
- *                   one says "is part of a set that replaces"; only a set
- *                   of one says "can replace" (SUBSTITUTE_LABEL).
+ *                   one says "is part of a set that can replace"; only a
+ *                   set of one says "can replace" (SUBSTITUTE_LABEL). A
+ *                   machine's own neighbourhood (constellationOf) shows only
+ *                   the floor's question, what stands in if THIS machine
+ *                   can't be used, never the sets it helps replace another
+ *                   (judges' fix, Oct 19 2026); the map keeps both ends.
  *   same-category   MACHINE_CATEGORY, the Academy's five programming families.
  *   part-of         a topic sits in its module (the Academy index).
  *   explained-in    a topic whose TITLE names the term ("Pace" → Mastery:
@@ -451,15 +455,15 @@ export const CUE_EXAMPLES: { prefix: string; machineIds: string[] }[] = [
  * A substitutes link, read from the machine that stands in to the main one.
  * The Academy's substitutes are SETS that together replace the main
  * exercise: a machine in a set of two or more is only part of the answer
- * ("Leg Extension is part of a set that replaces Leg Press"); a set of one
- * replaces it alone ("Chest Press can replace Overhead Press").
+ * ("Leg Extension is part of a set that can replace Leg Press"); a set of
+ * one replaces it alone ("Chest Press can replace Overhead Press").
  */
 export const SUBSTITUTE_LABEL = {
   alone: "can replace",
-  inSet: "is part of a set that replaces",
+  inSet: "is part of a set that can replace",
 } as const;
 
-/** Read from `from` to `to`: "Leg Extension is part of a set that replaces Leg Press". */
+/** Read from `from` to `to`: "Leg Extension is part of a set that can replace Leg Press". */
 export const EDGE_LABEL: Record<EdgeKind, string> = {
   substitutes: SUBSTITUTE_LABEL.inSet,
   "same-category": "is in the same family as",
@@ -478,7 +482,7 @@ export const EDGE_LABEL: Record<EdgeKind, string> = {
  * (Pace, which comes up in that topic).
  */
 const LINK_HEADING: Record<EdgeKind, { out: string; in: string }> = {
-  substitutes: { out: "Part of a set that replaces", in: "In sets that replace it" },
+  substitutes: { out: "Part of a set that can replace", in: "In sets that replace it" },
   "same-category": { out: "Same family", in: "Same family" },
   "explained-in": { out: "Explained in", in: "Explains" },
   mentions: { out: "Talks about", in: "Comes up in" },
@@ -787,8 +791,21 @@ const priorityOf = (kind: EdgeKind) => KIND_PRIORITY.indexOf(kind);
  * clinical flags AND where it comes up, not twelve topics. Links come back
  * grouped by kind, strongest first, each group in the graph's own order
  * (for "mentions", most mentions first).
+ *
+ * SUBSTITUTES, ONE DIRECTION (judges' fix, Oct 19 2026): a machine's
+ * neighbourhood answers the floor's question only, "if this machine can't
+ * be used, what stands in?" (the links that END at it). The other way round,
+ * the sets this machine helps replace ANOTHER one, sat beside it on the same
+ * page ("Can replace: HIP ABDUCTION" next to "In sets that replace it") and
+ * reads backwards to a trainer mid-session, so it is left out unless
+ * `reverseSubstitutes` asks for it (a map that wants both ends).
  */
-export function constellationOf(graph: VaultGraph, nodeId: string, max = 12): Constellation | null {
+export function constellationOf(
+  graph: VaultGraph,
+  nodeId: string,
+  max = 12,
+  opts: { reverseSubstitutes?: boolean } = {},
+): Constellation | null {
   const center = nodeById(graph, nodeId);
   if (!center) return null;
   const best = new Map<string, ConstellationLink>();
@@ -803,6 +820,8 @@ export function constellationOf(graph: VaultGraph, nodeId: string, max = 12): Co
       other = edge.from;
       direction = "in";
     } else continue;
+    // This machine standing in for another: not this machine's question.
+    if (edge.kind === "substitutes" && direction === "out" && !opts.reverseSubstitutes) continue;
     const node = nodeById(graph, other);
     if (!node) continue;
     const had = best.get(other);

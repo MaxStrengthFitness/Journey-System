@@ -4,11 +4,14 @@ import {
   bentoFacts,
   chapterNumber,
   domainWords,
+  floorGlanceOrder,
   floorTiles,
   groupReasons,
+  hideReserved,
   isEquipmentTerm,
   machineAccent,
   machineCategory,
+  machineLayers,
   momentSections,
   nextLayer,
   offFloor,
@@ -178,17 +181,18 @@ describe("the bento", () => {
   });
 
   it("groups Read next's links that give the same reason, saying it once", () => {
-    const why = "Together with LEG EXTENSION and HIP ABDUCTION, it can replace this one.";
+    // One set's machines share its reason, which names the whole set (pages.ts substituteWhy).
+    const why = "If LEG PRESS can't be used: LEG EXTENSION + HIP ABDUCTION + LUMBAR.";
     const items = [
+      { route: { kind: "machine" as const, id: "m-leg-extension" }, title: "LEG EXTENSION", why },
+      { route: { kind: "machine" as const, id: "m-hip-abduction" }, title: "HIP ABDUCTION", why },
       { route: { kind: "machine" as const, id: "m-lumbar" }, title: "LUMBAR", why },
-      { route: { kind: "machine" as const, id: "m-leg-curl" }, title: "LEG CURL", why },
-      { route: { kind: "machine" as const, id: "m-hip-adduction" }, title: "HIP ADDUCTION", why },
       { route: { kind: "topic" as const, moduleId: "m", topicId: "t" }, title: "A topic", why: "Explains it." },
       { route: { kind: "glossary" as const }, title: "Glossary", why: "The words." },
     ];
     const groups = groupReasons(items);
     expect(groups.map((g) => [g.why, g.items.map((i) => i.title)])).toEqual([
-      [why, ["LUMBAR", "LEG CURL", "HIP ADDUCTION"]],
+      [why, ["LEG EXTENSION", "HIP ABDUCTION", "LUMBAR"]],
       [null, ["A topic", "Glossary"]],
     ]);
     // Nothing shared: one group, each link with its own reason, the order kept.
@@ -414,6 +418,48 @@ describe("the version switch's place", () => {
     expect(versionFitsTrail({ labels: moment, struck: false, width: 1180 })).toBe(true);
     // The hide switch takes room too.
     expect(versionFitsTrail({ labels: ["Overview", "Exercise Performance", "Gradual Load-up"], struck: true, width: 820 })).toBe(false);
+  });
+});
+
+describe("the switch's place does not hang on the lens", () => {
+  it("keeps room for Hide whenever the studio crossed a line out here, or the reader may", () => {
+    // A trainer on a page Solon crossed a line out on: the same answer on both lenses (the lens is not an input).
+    expect(hideReserved({ studioOpen: true, canStrike: false, studioStruck: 1 })).toBe(true);
+    // A leader, before the first strike: the room is already kept, so the first one moves nothing.
+    expect(hideReserved({ studioOpen: true, canStrike: true, studioStruck: 0 })).toBe(true);
+    expect(hideReserved({ studioOpen: true, canStrike: false, studioStruck: 0 })).toBe(false);
+    expect(hideReserved({ studioOpen: false, canStrike: true, studioStruck: 3 })).toBe(false);
+    // The reviewer's trail: Overview › Life Transformer 101 › LEG PRESS at 820 goes under the title, on either lens.
+    const labels = ["Overview", "Life Transformer 101", "LEG PRESS"];
+    const struck = hideReserved({ studioOpen: true, canStrike: false, studioStruck: 1 });
+    expect(versionFitsTrail({ labels, struck, width: 820 })).toBe(false);
+  });
+});
+
+describe("the floor glance", () => {
+  const s = (id: string) => ({ id, title: id, blocks: [] as VaultSection["blocks"] });
+
+  it("leads with the set-up, the Stop well straight after it, the rest in their order", () => {
+    const order = floorGlanceOrder([s("leaf-stop"), s("leaf-setup"), s("leaf-getset"), s("leaf-begin")]).map((x) => x.id);
+    expect(order).toEqual(["leaf-setup", "leaf-stop", "leaf-getset", "leaf-begin"]);
+    // No set-up written: nothing moves, nothing is dropped.
+    expect(floorGlanceOrder([s("leaf-stop"), s("leaf-begin")]).map((x) => x.id)).toEqual(["leaf-stop", "leaf-begin"]);
+    expect(floorGlanceOrder([])).toEqual([]);
+  });
+
+  it("reorders the floor glance alone, and keeps every tier's number and title", () => {
+    const tiers = [
+      { id: "glance", n: 1, title: "Floor glance", sections: [s("leaf-stop"), s("leaf-setup")] },
+      { id: "adapt", n: 3, title: "Adapt & clinical", sections: [s("leaf-wrong"), s("leaf-setup")] },
+    ];
+    const layers = machineLayers(tiers);
+    expect(layers.map((l) => [l.id, l.n, l.title, l.partial])).toEqual([
+      ["glance", 1, "Floor glance", true],
+      ["adapt", 3, "Adapt & clinical", true],
+    ]);
+    expect(layers[0].sections.map((x) => x.id)).toEqual(["leaf-setup", "leaf-stop"]);
+    expect(layers[1].sections.map((x) => x.id)).toEqual(["leaf-wrong", "leaf-setup"]);
+    expect(machineLayers(undefined)).toEqual([]);
   });
 });
 

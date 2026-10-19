@@ -9,7 +9,10 @@
  *   card and a nested one, the peek (from the bento's quick card and from a
  *   concept card), the quick card opened as its own page, a topic's "Say
  *   it" tier, the MSF original, a path, the glossary's word entry, two quiz
- *   questions, and head office's queue.
+ *   questions, and head office's queue. Then the judges' last fixes
+ *   (Oct 19 2026): CX out of service under its title, the Leg Press's
+ *   flag in a substitute's peek, and the switch staying put on "MSF
+ *   original" on a medium trail.
  */
 
 const enc = (ref) => encodeURIComponent(JSON.stringify(ref));
@@ -75,6 +78,16 @@ export const steps = [
   { name: "clinical-peek", query: MACHINE, actions: [{ tap: "Osteoporosis / Severe Osteopenia, clinical flag" }, { wait: 700 }] },
   // The Academy's contents.
   { name: "academy-index", query: "&view=academy", actions: [{ wait: 300 }] },
+  // The judges' last fixes: CX (4 WAY NECK) out of service, said under its title.
+  { name: "machine-out-of-service", query: "&view=machine-anatomy&machine=m-neck", actions: [{ wait: 400 }] },
+  // A machine that stands in for the Leg Press, peeked from its Connected panel (after the tiers).
+  { name: "substitute-peek", query: MACHINE, actions: [{ tap: "LEG EXTENSION" }, { wait: 700 }] },
+  // A medium trail, then the MSF original: the switch stays where it was.
+  {
+    name: "path-machine-original",
+    query: "&view=learning",
+    actions: [{ tap: "Start Life Transformer 101" }, { wait: 500 }, { tap: "Leg Press" }, { wait: 500 }, { tap: "MSF original" }, { wait: 400 }],
+  },
 ];
 
 /** The Codex's own way into the quiz: Quick ten, from the Overview's Play card. */

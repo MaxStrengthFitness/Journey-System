@@ -40,7 +40,7 @@ import { parsePlaybookSource, SOURCE_TITLES } from "./write";
 
 export { TRACKS } from "./tracks";
 export { HUTCHINS_LABEL } from "./pages/why-every-rule";
-export { parsePlaybookSource, playbookSourceLabel, SOURCE_TITLES } from "./write";
+export { FOUR_PS, FOUR_PS_TITLE, parsePlaybookSource, playbookSourceLabel, SOURCE_TITLES } from "./write";
 
 /** The five shelves, in the order a new Life Transformer meets them. */
 export const PILLARS: { id: PillarId; title: string; blurb: string }[] = [

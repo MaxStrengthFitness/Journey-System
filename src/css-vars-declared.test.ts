@@ -131,6 +131,7 @@ const FILES = [
   "features/learning-vault/ui/share.css",
   "features/learning-vault/ui/queue.css",
   "features/learning-vault/ui/article.css",
+  "features/learning-vault/ui/floor-status.css",
   "features/learning-redesign/redesign.css",
   "features/learning-redesign/codex/codex.css",
   "features/learning-redesign/vault/vault-map.css",

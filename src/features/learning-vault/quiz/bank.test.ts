@@ -16,7 +16,7 @@ import type { PlaybookPage, QuizQuestion, VaultRoute } from "../types";
 import { PLAYBOOKS } from "../playbooks";
 import { ACADEMY_QUESTIONS, FLOOR_QUESTIONS } from "./authored";
 import { playbookRouteFor, questionBank, type QuestionBankInput } from "./bank";
-import { DECKS, deckById, isDeckId, playableDecks } from "./decks";
+import { DECKS, MIXED_DECKS, deckById, inQuickTen, isDeckId, playableDecks } from "./decks";
 import { HUTCHINS_PATH } from "./hutchins";
 import { buildRound } from "./round";
 
@@ -121,8 +121,32 @@ describe("the bank", () => {
     }
     const mixed = buildRound(bank, "mixed", 11);
     expect(mixed.questions).toHaveLength(10);
-    expect(new Set(mixed.questions.map((q) => q.deck)).size).toBeGreaterThanOrEqual(7);
+    // Every one of the method's six decks takes a turn.
+    expect(new Set(mixed.questions.map((q) => q.deck))).toEqual(new Set(MIXED_DECKS));
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("Quick ten deals only the method, never the playbooks (drafts head office has not read)", () => {
+    expect([...MIXED_DECKS].sort()).toEqual(["cues", "glossary", "hutchins", "machines", "method", "rep"]);
+    expect(inQuickTen("playbooks")).toBe(false);
+    expect(bank.some((q) => q.deck === "playbooks")).toBe(true);
+    for (let seed = 1; seed <= 40; seed += 1) {
+      for (const q of buildRound(bank, "mixed", seed).questions) {
+        expect(q.deck, `seed ${seed}: ${q.id}`).not.toBe("playbooks");
+        expect(MIXED_DECKS, q.id).toContain(q.deck);
+      }
+    }
+    // The playbooks deck is still its own choice.
+    expect(playableDecks(bank).map((d) => d.id)).toContain("playbooks");
+    expect(buildRound(bank, "playbooks", 3).questions.every((q) => q.deck === "playbooks")).toBe(true);
+    // And the picker says so in plain words.
+    expect(deckById("mixed").blurb).toMatch(/the method/i);
+    expect(deckById("mixed").blurb).not.toMatch(/every deck/i);
+  });
+
+  it("is not offered when only the playbooks and one method deck could deal", () => {
+    const only = bank.filter((q) => q.deck === "playbooks" || q.deck === "rep");
+    expect(playableDecks(only).map((d) => d.id)).toEqual(["rep", "playbooks"]);
   });
 });
 

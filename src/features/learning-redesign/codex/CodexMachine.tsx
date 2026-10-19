@@ -6,16 +6,18 @@ import { presetOf, type Preset } from "../../machine-codex/format";
 import { accentStyle } from "../../wiki/categories";
 import { pageFor } from "../../learning-vault/pages";
 import { repShapeOf } from "../../learning-vault/rep-phases";
+import { hasFloorStatus } from "../../learning-vault/floor-care";
 import { constellationOf } from "../../learning-vault/graph";
 import { pageKey, routeKey } from "../../learning-vault/routes";
 import { useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
 import { LocalConstellation, categoryNodeStyle } from "../../learning-vault/ui/LocalConstellation";
+import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import { OrphanMarks } from "../../learning-vault/ui/OrphanMarks";
 import { RepScrubber } from "../../learning-vault/ui/RepScrubber";
 import type { VaultPage, VaultRoute } from "../../learning-vault/types";
 import type { MachineCatalogEntry } from "../../../types/machines";
 import { useCodex } from "./codex-context";
-import { PIECE_WORDS, bentoFacts, machineAccent, readNextOf, type CodexLayer } from "./codex-model";
+import { PIECE_WORDS, bentoFacts, machineAccent, machineLayers, readNextOf, type CodexLayer } from "./codex-model";
 import { Blocks, DeeperDoor, PageHead, ReadNext, TierBar, useLayer, useVersionSlot } from "./CodexBits";
 import { CodexFrame, CodexGone, CodexWaiting } from "./CodexFrame";
 import "./codex.css";
@@ -23,13 +25,15 @@ import "./codex.css";
 /**
  * A MACHINE — the Codex's showpiece.
  *
- * Title and its category, then the BENTO: the body with the muscles this
- * machine works and its dials under it (left), the facts a trainer checks
- * and what the machine connects to (right); two tiles side by side from
- * about 700px of page, one over the other below. Then the four depths as
- * one sticky bar (1 Floor glance, 2 Script & cues, 3 Adapt & clinical,
- * 4 Deep science), the tier's lines through the vault's body, and the door
- * one layer deeper. The tier is remembered for the visit.
+ * Title and its category, the floor's status when there is one (Out of
+ * service, Flagged: FloorStatus's banner), then the BENTO: the body with the
+ * muscles this machine works (left), the facts a trainer checks and the
+ * dials under them (right); side by side from about 700px of page, one over
+ * the other below. Then the four depths as one sticky bar (1 Floor glance,
+ * set-up first; 2 Script & cues, 3 Adapt & clinical, 4 Deep science), the
+ * tier's lines through the vault's body, the door one layer deeper, and
+ * only then what the machine connects to. The tier is remembered for the
+ * visit.
  *
  * Everything a machine page links to PEEKS (its quick card, its script, a
  * substitute, a cue moment): the machine stays under the reader's thumb,
@@ -45,25 +49,22 @@ export function MachinePage({ route }: { route: Extract<VaultRoute, { kind: "mac
 
 const PIECE_ICON = { card: ClipboardList, script: MessageSquareText, overview: BookOpen } as const;
 /**
- * How many links the bento's constellation shows: the strongest reasons first
- * (what can replace it, cue moments, clinical flags), few enough that the four layers
- * are on the first screen of a portrait iPad.
+ * How many links "Connected" shows, after the layers: the strongest reasons
+ * first (what stands in when it can't be used, cue moments, clinical flags).
  */
 const CONNECTED_MAX = 6;
 
 function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineId: string; wanted: string | null }) {
-  const { data, peek, phone } = useCodex();
+  const { data, peek } = useCodex();
   const def = data.defs[machineId];
   const accent = machineAccent(machineId);
   const style = accentStyle(accent);
 
   const applied = useAppliedMarkup(page.target, page.sections);
-  const { actions, inline } = useVersionSlot(applied.struck);
+  const { actions, inline } = useVersionSlot(applied.struck, page);
 
-  const layers = useMemo<CodexLayer[]>(
-    () => (page.tiers ?? []).map((t) => ({ id: t.id, n: t.n, title: t.title, sections: t.sections, partial: true })),
-    [page.tiers],
-  );
+  // The floor glance set-up first (machineLayers): what a trainer looks for between two sets.
+  const layers = useMemo<CodexLayer[]>(() => machineLayers(page.tiers), [page.tiers]);
   const { active, pick } = useLayer(pageKey(page.route), layers, wanted);
   const layer = layers.find((l) => l.id === active) ?? null;
   const panelId = useId();
@@ -91,11 +92,11 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
       r.route.kind === "card" || r.route.kind === "script" || r.route.kind === "overview",
   );
 
-  // What the machine connects to. On an iPad it is the bento's foot; on a
-  // phone the bento stacks, and six groups of links one under another would
-  // push the floor glance three screens down, so it comes after the layers.
+  // What the machine connects to, after the layers on every screen (the
+  // floor judge, Oct 19 2026): at the bento's foot its six groups took the
+  // first portrait screen from the dials and the set-up lines.
   const connected = page.nodeId ? (
-    <section className="cdx__tile cdx__tile--links" aria-label="Connected" style={phone ? style : undefined}>
+    <section className="cdx__tile cdx__tile--links" aria-label="Connected" style={style}>
       <LocalConstellation
         graph={data.graph}
         nodeId={page.nodeId}
@@ -108,10 +109,19 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
     </section>
   ) : null;
 
+  // Out of service and Flagged, as today's Catalog says them, under the
+  // title: the one thing on the page that changes where a trainer walks.
+  const care = data.care?.[machineId];
+
   return (
     <CodexFrame actions={actions}>
       <article className="cdx__article cdx__article--machine">
         <PageHead eyebrow={page.eyebrow} kicker={kicker} title={page.title} lede={page.lede} style={style}>
+          {hasFloorStatus(care) && (
+            <div className="cdx__status">
+              <FloorStatus status={care} variant="banner" />
+            </div>
+          )}
           {inline}
         </PageHead>
 
@@ -154,8 +164,6 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
           <section className="cdx__tile cdx__tile--dials" aria-label="Dials">
             <DialStrip preset={preset} />
           </section>
-
-          {!phone && connected}
         </div>
 
         <div className="cdx__layers">
@@ -186,7 +194,7 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
             </div>
           )}
 
-          {phone && connected && <div className="cdx__connected-after">{connected}</div>}
+          {connected && <div className="cdx__connected-after">{connected}</div>}
 
           <ReadNext items={readNextOf(page, { skipAcademyPieces: true, shown })} mode="peek" />
         </div>

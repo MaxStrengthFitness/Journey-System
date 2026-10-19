@@ -14,7 +14,7 @@
  */
 
 import type { PlaybookPage } from "../../types";
-import { at, bullet, FLOOR, HISTORY, para } from "../write";
+import { at, bullet, FLOOR, FOUR_PS_TITLE, HISTORY, para } from "../write";
 
 export const THE_TWENTY_MINUTES: PlaybookPage = {
   id: "the-twenty-minutes",
@@ -91,7 +91,7 @@ export const THE_TWENTY_MINUTES: PlaybookPage = {
           "Reps change day to day with sleep, stress, meals and the time of day. The protocol advises reaching failure inside six to ten reps, but a client who fails at three and one who fails at fifteen are both training correctly. The rep count is never the target.",
           at(FLOOR, 110, 113),
         ),
-        para("Quality is whether every rep kept the 4 P's: Pace, Posture, Path and Purpose.", at(FLOOR, 114)),
+        para("Quality is whether every rep kept the 4 P's: Posture, Pace, Path and Purpose.", at(FLOOR, 114)),
         para(
           "For a timed static contraction or a static hold, the reps are seconds. Stop the stopwatch and it fills them in.",
           at(FLOOR, 115, 116),
@@ -145,7 +145,7 @@ export const THE_TWENTY_MINUTES: PlaybookPage = {
     },
     {
       route: { kind: "topic", moduleId: "intro", topicId: "intro-posture-path-pace-purpose" },
-      title: "Posture, Path, Pace, Purpose",
+      title: FOUR_PS_TITLE,
       why: "The 4 P's in the Academy's own words.",
     },
     {

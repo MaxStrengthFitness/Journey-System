@@ -71,7 +71,14 @@ import { CLINICAL_FLAGS_MATRIX } from "../../data/clinical-matrix";
 import type { ClinicalSafetyFlag } from "../../types";
 import type { MachineCatalogEntry } from "../../types/machines";
 import { blockKeyFor, toVaultBlocks, vaultSection } from "./blocks";
-import { codexTiers, EMPTY_TIER_LINE, scriptSections, workoutWords } from "./codex-reader";
+import {
+  codexTiers,
+  EMPTY_TIER_LINE,
+  scriptSections,
+  substituteLine,
+  substitutesTitle,
+  workoutWords,
+} from "./codex-reader";
 import { nodeIdForRoute } from "./graph";
 import { vaultTarget } from "./learning-link";
 import { playbookSourceLabel, playbookSourcesLine } from "./playbooks";
@@ -362,23 +369,29 @@ function substituteNames(machineId: string, data: VaultData): string[][] {
 
 const MAX_RELATED = 10;
 
+/**
+ * Why a machine in one of this machine's substitute sets is worth reading
+ * next: the floor's question and the whole set, in the Adapt tier's own
+ * words ("If LEG PRESS can't be used: LEG EXTENSION + LEG CURL + HIP
+ * ABDUCTION."). One direction only (judges' fix, Oct 19 2026): a machine
+ * page never says which OTHER machines this one helps replace.
+ */
+export function substituteWhy(machineName: string, setNames: readonly string[]): string {
+  return `${substitutesTitle(machineName)}: ${substituteLine(setNames)}.`;
+}
+
 function machineRelated(machineId: string, am: AcademyMachine | undefined, data: VaultData): Related[] {
   const out: Related[] = academyLinks(am);
   const seen = new Set<string>([machineId]);
+  const name = data.names(machineId);
   for (const set of EXERCISE_SUBSTITUTES[machineId] ?? []) {
+    // The Academy's sets replace this machine TOGETHER: each link says the
+    // set it is first named in, so the links of one set share one reason.
+    const why = substituteWhy(name, set.machineIds.map((o) => data.names(o)));
     for (const id of set.machineIds) {
       if (seen.has(id)) continue;
       seen.add(id);
-      // The Academy's sets replace this machine TOGETHER: a machine in a set
-      // of two or more is only part of the answer, and says who with.
-      const others = set.machineIds.filter((o) => o !== id).map((o) => data.names(o));
-      out.push({
-        route: { kind: "machine", id },
-        title: data.names(id),
-        why: others.length
-          ? `Together with ${others.join(" and ")}, it can replace this one.`
-          : "On its own, it can replace this one.",
-      });
+      out.push({ route: { kind: "machine", id }, title: data.names(id), why });
     }
   }
   const category = MACHINE_CATEGORY[machineId];

@@ -25,6 +25,8 @@ import glossaryFile from "../../academy/content/glossary.json";
 import { MACHINE_DEFINITIONS } from "../../../data/machine-definitions";
 import type { PlaybookPage, QuizDeckId, VaultRoute } from "../types";
 import {
+  FOUR_PS,
+  FOUR_PS_TITLE,
   HUTCHINS_LABEL,
   parsePlaybookSource,
   PILLARS,
@@ -277,11 +279,16 @@ describe("every route is a real place", () => {
     }
   });
 
-  it("titled as the place titles itself", () => {
+  it("titled as the place titles itself (the four P's always in Learning's one order)", () => {
+    // The Academy's topic title, made from its file name, says "Posture,
+    // Path, Pace, Purpose"; a step or a link says them as the Academy's own
+    // text and the code do (judges' fix, Oct 19 2026).
+    const fourPs = (t: string) =>
+      /^(posture|pace|path|purpose)(, (posture|pace|path|purpose)){3}$/i.test(t.trim()) ? FOUR_PS_TITLE : t;
     for (const { where, r } of routes) {
       const title = placeTitle(r.route);
       if (r.route.kind === "quiz") continue;
-      expect(r.title.toLowerCase(), `${where}: ${JSON.stringify(r.route)}`).toBe(title!.toLowerCase());
+      expect(r.title.toLowerCase(), `${where}: ${JSON.stringify(r.route)}`).toBe(fourPs(title!).toLowerCase());
     }
   });
 
@@ -411,14 +418,30 @@ describe("the content review's corrections stay corrected", () => {
     }
   });
 
-  it("the 4 P's are named in the order of the line that is cited", () => {
-    const order = (s: string) => (s.match(/\b(Pace|Posture|Path|Purpose)\b/g) ?? []).join(",");
+  it("the 4 P's are always Posture, Pace, Path, Purpose: every line, title and why of the playbooks and tracks (judges' fix, Oct 19 2026)", () => {
+    const ps = (s: string) => s.match(/\b(Pace|Posture|Path|Purpose)\b/g) ?? [];
+    expect(FOUR_PS_TITLE).toBe("Posture, Pace, Path, Purpose");
+    // The order is the Academy's own words and the code's, not a choice made here.
+    const intro = readFileSync(join(ROOT, "src/features/academy/content/intro.json"), "utf8");
+    expect(intro).toContain("The 4 P's - Posture, Pace, Path, Purpose");
+    expect(readFileSync(join(ROOT, "src/features/rating/scales.ts"), "utf8")).toContain("Posture, Pace, Path, Purpose");
+    let named = 0;
+    for (const w of ALL_WORDS) {
+      const found = ps(w);
+      if (new Set(found).size < 4) continue;
+      named += 1;
+      expect(found, w).toEqual([...FOUR_PS]);
+    }
+    // The twenty minutes' line and its link, the progress report's link, Life Transformer 101's step.
+    expect(named).toBeGreaterThanOrEqual(4);
+    expect(ALL_WORDS.join("\n")).not.toMatch(/Posture, Path, Pace|Pace, Posture, Path/);
+    // A line about them still cites a line that names the same four.
     for (const p of PLAYBOOKS) {
       for (const b of p.sections.flatMap((s) => s.blocks)) {
-        if (!/4 P's/.test(b.text)) continue;
+        if (!/4 P's/.test(b.text) || new Set(ps(b.text)).size < 4) continue;
         const parsed = parsePlaybookSource(b.source)!;
         const cited = linesOf(parsed.path).slice(parsed.from - 1, parsed.to).join(" ");
-        expect(order(b.text), `${p.id}: ${b.text}`).toBe(order(cited));
+        expect(new Set(ps(cited)), `${p.id}: ${b.text}`).toEqual(new Set(FOUR_PS));
       }
     }
   });

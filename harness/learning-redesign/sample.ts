@@ -62,6 +62,11 @@ export function PREVIEW_DOCS(path: string): Record<string, unknown>[] {
       source: "catalog",
       basedOn: m.id,
       status: m.id === "m-neck" ? "maintenance" : "active",
+      // Why it is out, who said so and when (catalog/out-of-service.ts): the
+      // banner at the top of its page says all three.
+      ...(m.id === "m-neck"
+        ? { outOfService: { reason: "A new cable is on order", by: { uid: "uid-sam", name: "Sam Lee" }, at: ts(2 * DAY) } }
+        : {}),
       order: i + 1,
     }));
   }

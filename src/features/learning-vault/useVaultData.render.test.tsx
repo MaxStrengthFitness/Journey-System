@@ -24,7 +24,14 @@ const fx = vi.hoisted(() => ({
   overviews: null as unknown[] | null,
   enabled: [] as boolean[],
   floor: "loading" as string,
-  floorMachines: [] as { id: string; name: string }[],
+  floorMachines: [] as { id: string; name: string; rosterStatus?: string; outOfService?: unknown }[],
+  /** Relay's care read, as useMachineCare answers it, and every studio it was asked for. */
+  care: { byMachineId: {}, loading: true, error: null } as {
+    byMachineId: Record<string, { flag: { note: string; by: { id: string; name: string }; at: number } | null }>;
+    loading: boolean;
+    error: string | null;
+  },
+  careAsked: [] as (string | null)[],
   cache: {} as Record<string, unknown>,
   load: null as unknown as (id: string) => Promise<unknown>,
   /** The vault's own ask for a reference chunk (loadAcademyReference): never settles unless a test says. */
@@ -61,6 +68,14 @@ vi.mock("../catalog/useCatalogMachines", () => ({
     loading: fx.floor === "loading",
     floor: fx.floor,
   }),
+}));
+
+// Relay's own hook, the one care listener: answered from `fx.care`, each ask counted.
+vi.mock("../relay/board/machine-care-store", () => ({
+  useMachineCare: (studioId: string | null) => {
+    fx.careAsked.push(studioId);
+    return fx.care;
+  },
 }));
 
 const builds = vi.hoisted(() => ({
@@ -151,6 +166,8 @@ beforeEach(() => {
   fx.enabled = [];
   fx.floor = "loading";
   fx.floorMachines = [];
+  fx.care = { byMachineId: {}, loading: true, error: null };
+  fx.careAsked = [];
   fx.cache = {};
   fx.load = vi.fn(() => Promise.resolve(INTRO));
   fx.loadRef = vi.fn(() => new Promise<unknown>(() => {}));
@@ -304,6 +321,54 @@ describe("useVaultData — the floor", () => {
     expect(data.floor?.[1]).toEqual({ id: "sm-solon-hack", name: "HACK SQUAT", code: null });
     expect(data.names("sm-solon-hack")).toBe("HACK SQUAT");
     expect(data.names("sm-unknown")).toBe("sm-unknown");
+  });
+});
+
+describe("useVaultData — the floor's status (judges' fix, Oct 19 2026)", () => {
+  const JESS = { id: "t-jess", name: "Jess Moreno" };
+  const AT = Date.UTC(2026, 9, 18, 12, 52);
+
+  it("asks Relay's one care hook for this studio, once a render", async () => {
+    await render();
+    expect(fx.careAsked).toEqual(["solon"]);
+  });
+
+  it("is unknown while the floor or the care record is loading, and when either failed", async () => {
+    await render();
+    expect(data.care).toBeNull();
+    fx.floor = "ready";
+    fx.floorMachines = [{ id: "m-neck", name: "NECK", rosterStatus: "maintenance" }];
+    await render();
+    expect(data.care).toBeNull(); // the care record is still loading
+    fx.care = { byMachineId: {}, loading: false, error: "Couldn't load the floor's care record." };
+    await render();
+    expect(data.care).toBeNull(); // a failed read is unknown, never "not flagged"
+    fx.care = { byMachineId: {}, loading: false, error: null };
+    fx.floor = "unreadable";
+    await render();
+    expect(data.care).toBeNull();
+  });
+
+  it("says Out of service from the roster and Flagged from Relay, and nothing for the rest", async () => {
+    fx.floor = "ready";
+    fx.floorMachines = [
+      { id: "m-leg-press", name: "LEG PRESS", rosterStatus: "active" },
+      { id: "m-neck", name: "NECK", rosterStatus: "maintenance" },
+      { id: "m-abs", name: "ABS", rosterStatus: "active" },
+    ];
+    fx.care = {
+      byMachineId: { "m-leg-press": { flag: { note: "Left pad sticks at the bottom", by: JESS, at: AT } }, "m-abs": { flag: null } },
+      loading: false,
+      error: null,
+    };
+    await render();
+    expect(data.care).toEqual({
+      "m-neck": { outOfService: true },
+      "m-leg-press": {
+        outOfService: false,
+        flag: { text: "Left pad sticks at the bottom", by: "Jess Moreno", at: new Date(AT).toISOString() },
+      },
+    });
   });
 });
 

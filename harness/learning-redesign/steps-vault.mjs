@@ -125,6 +125,12 @@ export const steps = [
     query: `&view=academy&ref=${encodeURIComponent(JSON.stringify({ kind: "academy-cueing" }))}`,
     actions: [{ tap: "What would you say?" }, { wait: 800 }],
   },
+
+  // The last round (Oct 19 2026): the floor's status, substitutes one way.
+  // CX is out of service: its page opens with who took it out, and why.
+  { name: "machine-out", query: "&view=machine-anatomy&machine=m-neck", actions: [{ wait: 400 }] },
+  // The Hip Abduction: the Leg Press can replace it, and nothing the other way round.
+  { name: "machine-hip-abd", query: "&view=machine-anatomy&machine=m-hip-abd", actions: [{ wait: 400 }] },
 ];
 
 export const quiz = { query: HOME, actions: [{ tap: "Every deck" }, { wait: 700 }] };

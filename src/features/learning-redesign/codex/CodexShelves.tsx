@@ -5,6 +5,7 @@ import { presetLine, presetOf } from "../../machine-codex/format";
 import { accentStyle } from "../../wiki/categories";
 import { DECKS, DECK_ACCENT, playableDecks } from "../../learning-vault/quiz/decks";
 import { strikeSignals } from "../../learning-vault/submissions";
+import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import { queueLead } from "../../learning-vault/ui/SubmissionQueue";
 import { useAllMarkup, useSubmissions } from "../../learning-vault/ui/VaultProvider";
 import type { Track } from "../../learning-vault/types";
@@ -116,9 +117,13 @@ function FloorState({ children, elsewhere }: { children: (tiles: FloorTile[]) =>
   return children(tiles);
 }
 
-/** The floor as a tight grid of codex entries: walking order, code, name, the category's band. */
+/**
+ * The floor as a tight grid of codex entries: walking order, code, name, the
+ * category's band, and "Out of service" / "Flagged" when the floor says so
+ * (the reason is the Catalog's row and the machine's page's to give).
+ */
 export function FloorGrid() {
-  const { open } = useCodex();
+  const { data, open } = useCodex();
   return (
     <FloorState elsewhere="The Academy still works.">
       {(tiles) => (
@@ -136,6 +141,7 @@ export function FloorGrid() {
                   {t.code && <span className="wk__row-code">{t.code}</span>}
                 </span>
                 <span className="cdx__mtile-name">{t.name}</span>
+                <FloorStatus status={data.care?.[t.id]} variant="chip" why={false} />
               </button>
             </li>
           ))}
@@ -145,7 +151,12 @@ export function FloorGrid() {
   );
 }
 
-/** The floor as the Catalog's list: walking order, code, name and its preset, the category. */
+/**
+ * The floor as the Catalog's list: walking order, code, name and its preset,
+ * the category; under the name, "Out of service" and "Flagged" and why it is
+ * out, as today's Catalog row says them (FloorStatus, read from Relay and the
+ * roster; unknown says nothing, never "in service").
+ */
 export function FloorList() {
   const { data, open } = useCodex();
   return (
@@ -171,6 +182,7 @@ export function FloorList() {
                   <span className="cdx__entry-words">
                     <span className="cdx__entry-name">{t.name}</span>
                     {line && <span className="cdx__entry-sub">{line}</span>}
+                    <FloorStatus status={data.care?.[t.id]} variant="chip" />
                   </span>
                   {t.category && <span className="cdx__entry-cat">{t.category}</span>}
                   <ChevronRight className="cdx__chev" size={16} aria-hidden />
@@ -304,7 +316,7 @@ export function PlayCard() {
           <h2 className="cdx__play-title" id={headId}>
             Play
           </h2>
-          <p className="cdx__play-sub">Ten questions from the Academy.</p>
+          <p className="cdx__play-sub">Ten questions from the method.</p>
         </div>
         <button type="button" className="cdx__btn cdx__btn--primary" onClick={() => open({ kind: "quiz", deck: "mixed" })}>
           Quick ten

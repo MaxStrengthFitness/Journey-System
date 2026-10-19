@@ -253,16 +253,28 @@ describe("home → a machine → a lesson → back", () => {
       "Seat Distance",
     ]);
     expect(host.querySelector(".crs__stop")).not.toBeNull();
-    // The set-up deck, named by its cards' own titles.
-    expect(host.querySelector(`.crs__deck[aria-label="Set up ${host.querySelector("h1")?.textContent}"]`)).not.toBeNull();
+    // The set-up, one list by default (the floor reads it top to bottom),
+    // named by its parts' own titles; no deck until Step through.
+    const h1 = host.querySelector("h1")?.textContent;
+    expect(host.querySelector(`.crs__setlist[aria-label="Set up ${h1}"]`)).not.toBeNull();
+    expect(host.querySelector(".crs__deck")).toBeNull();
     // The studio's crossed-out line shows crossed out, with why.
     expect(text()).toContain("Our Abduction comes after the Leg Press");
-    // A pin a set-up line names turns the deck to that card.
-    expect(current()?.getAttribute("aria-label")).toMatch(/^Card 1 of /);
+    // A pin a set-up line names goes to that line, and marks it.
     const pins = all("button.crs__pin");
     expect(pins.length).toBeGreaterThan(0);
     await tap(pins[pins.length - 1]);
-    expect(current()?.getAttribute("aria-label")).toBeTruthy();
+    const marked = host.querySelector<HTMLElement>(".crs__setlist [data-target]");
+    expect(marked).not.toBeNull();
+    const dial = pins[pins.length - 1].querySelector(".crs__pin-label")?.textContent ?? "";
+    expect((marked?.textContent ?? "").toLowerCase()).toContain(dial.toLowerCase());
+    // Step through: the same lines as step cards; a pin then turns the deck.
+    await tap(button("Step through"));
+    expect(host.querySelector(`.crs__deck[aria-label="Set up ${h1}"]`)).not.toBeNull();
+    expect(host.querySelector(".crs__setlist")).toBeNull();
+    expect(current()?.getAttribute("aria-label")).toMatch(/^Card 1 of /);
+    await tap(all("button.crs__pin")[pins.length - 1]);
+    expect(current()?.textContent?.toLowerCase()).toContain(dial.toLowerCase());
 
     // The full manual one tier at a time, opening on the first tier the page
     // has not drawn above it (Adapt & clinical): only the tier picked is
@@ -308,6 +320,9 @@ describe("home → a machine → a lesson → back", () => {
     expect(line).not.toBeNull();
     await tap(line!);
     expect(text()).toContain("Cross out for Solon");
+    // Its foot says where the words come from as a trainer would, never a file path.
+    expect(host.querySelector(".crs__source")?.textContent).toMatch(/^Academy 4\.\d+ /);
+    expect(text()).not.toContain("docs/msf-academy");
 
     // Read it all ends on the next lesson, which replaces this one under the course.
     await tap(button(/Next lesson\s*Turnaround Technique/));
@@ -447,26 +462,39 @@ describe("the field manual says each thing once", () => {
     expect(heard.filter((l) => l === "Clinical warning: ").length).toBeGreaterThan(0);
   });
 
-  it("puts no heading over the set-up deck: its cards' own titles name it", async () => {
+  it("puts no heading over the set-up: its parts' own titles name it, as one list or as cards", async () => {
     await legPress();
     expect(all(".crs__h2").map((h) => h.textContent)).not.toContain("Set it up");
+    expect(all(".crs__setlist .crs__setlist-title")[0]?.textContent).toBe("Set up");
+    await tap(button("Step through"));
     expect(current()?.querySelector(".crs__part-title")?.textContent).toBe("Set up");
+    await tap(button("One list"));
+    expect(host.querySelector(".crs__setlist")).not.toBeNull();
   });
 
-  it("gives the scrubber no lines to say: the drills below hold them, behind a tap", async () => {
+  it("gives the scrubber no lines to say: the moments below say them, showing without a tap", async () => {
     await legPress();
     expect(host.querySelector(".vtr")).not.toBeNull();
     expect(text()).not.toContain("What to say");
     expect(text()).toContain("At each moment");
+    // On the field manual the lines are a reference: open, no reveal to tap.
+    const drills = all(".crs__drills .crs__drill");
+    expect(drills.length).toBeGreaterThan(0);
+    for (const d of drills) expect(d.querySelectorAll(".crs__drill-lines li").length).toBeGreaterThan(0);
+    expect(all(".crs__drills button").some((b) => /Show the lines/.test(b.textContent ?? ""))).toBe(false);
   });
 
-  it("leaves the substitutes to the manual's 'Can be replaced by', not five cards under Read next", async () => {
+  it("says the substitutes one way, 'If LEG PRESS can't be used', one line a set, not five cards under Read next", async () => {
     await legPress();
     const whys = all(".crs__link-why").map((w) => w.textContent ?? "");
-    expect(whys.some((w) => /can replace this one/.test(w))).toBe(false);
+    expect(whys.some((w) => /can replace this one|can't be used/.test(w))).toBe(false);
     // The manual opens on Adapt & clinical, where the sets are said, once each,
     // every machine a chip that peeks it (Lumbar too, which is no linked word).
-    expect(text()).toContain("Can be replaced by");
+    expect(text()).toMatch(/If leg press can't be used/i);
+    expect(text()).not.toContain("Can be replaced by");
+    expect(text()).not.toContain("Together:");
+    // Never the other direction on this machine's page.
+    expect(text()).not.toMatch(/part of a set that (can )?replace/i);
     const chips = all(".crs__whole .crs__sub");
     expect(chips.length).toBeGreaterThan(3);
     const lumbar = chips.find((c) => /^lumbar$/i.test(c.textContent ?? ""));
@@ -565,11 +593,15 @@ describe("the peek holds what was asked for", () => {
   it("peeks one moment of the phrasebook alone", async () => {
     await draw({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
     const drill = host.querySelector<HTMLElement>(".crs__drills .crs__drill")!;
-    await tap(Array.from(drill.querySelectorAll<HTMLButtonElement>("button")).find((b) => /Show the lines/.test(b.textContent ?? ""))!);
     await tap(Array.from(drill.querySelectorAll<HTMLButtonElement>("button")).find((b) => /All \d+ lines|The whole moment/.test(b.textContent ?? ""))!);
     const body = host.querySelector<HTMLElement>(".vtp__body")!;
     expect(body).not.toBeNull();
-    expect(body.querySelectorAll(".vta__title")).toHaveLength(1);
+    // The sheet's header names the moment; the body does not say it again.
+    const head = host.querySelector(".vtp__title")?.textContent ?? "";
+    expect(head.length).toBeGreaterThan(0);
+    expect(body.querySelectorAll(".vta__title")).toHaveLength(0);
+    expect(body.textContent).not.toContain(head);
+    expect(body.querySelectorAll("[data-vta-line]").length).toBeGreaterThan(0);
     expect(body.querySelector(".vta__orphans")).toBeNull();
   });
 
@@ -605,12 +637,23 @@ describe("the peek holds what was asked for", () => {
           await tap(peekBtn!);
           const body = host.querySelector<HTMLElement>(".vtp__body")!;
           expect(body.textContent).not.toContain("This page has moved.");
+          const head = host.querySelector(".vtp__title")?.textContent ?? "";
           if (isFlag) {
             expect(body.querySelector("button")).not.toBeNull();
+            // Named by the flag, never "Map" (the Course has no map).
+            expect(head).not.toBe("Map");
+            expect(head.toLowerCase()).toBe(title);
+            // Its machines in their categories' colours, not all push orange.
+            const machinePills = Array.from(body.querySelectorAll<HTMLElement>(".vtg__pill")).filter((b) => /, machine$/.test(b.getAttribute("aria-label") ?? ""));
+            expect(machinePills.length).toBeGreaterThan(0);
+            expect(machinePills.some((b) => !(b.getAttribute("style") ?? "").includes("--wk-cat-push"))).toBe(true);
             sawFlag = true;
           } else {
             expect(body.querySelectorAll("[data-vta-line]")).toHaveLength(1);
             expect(body.querySelector(".vta__orphans")).toBeNull();
+            // The header names the word; the line does not label it again.
+            expect(head.toLowerCase()).toBe(title);
+            expect(body.querySelector(".vta__label")).toBeNull();
             sawWord = true;
           }
           await tap(host.querySelector<HTMLButtonElement>('[aria-label="Close the peek"]')!);
@@ -722,5 +765,108 @@ describe("a peeked topic whose module failed", () => {
       if (found) break;
     }
     expect(found).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * The judges' last fixes (Oct 19 2026)
+ * ------------------------------------------------------------------ */
+
+const CARE = {
+  "m-leg-press": { outOfService: false, flag: { text: "Left pad sticks at the bottom", by: "Jess Moreno", at: "2026-10-18T12:52:00.000Z" } },
+  "m-compound-row": { outOfService: true, outOfServiceWhy: { text: "A new cable is on order", by: "Sam Lee", at: "2026-10-17T12:52:00.000Z" } },
+};
+
+describe("the floor's status, where today's Catalog says it", () => {
+  it("chips on the Catalog's rows and the Overview's tiles, a banner at the top of the machine", async () => {
+    patch.fn = () => ({ care: CARE });
+    await draw();
+    const tiles = all(".crs__tile");
+    expect(tiles[0].textContent).toContain("Flagged");
+    expect(tiles[1].textContent).toContain("Out of service");
+
+    await draw({ section: "machine-anatomy" });
+    const rows = all(".crs__station");
+    expect(rows[0].querySelector("[data-floor-status]")?.textContent).toContain("Flagged");
+    expect(rows[1].querySelector("[data-floor-status]")?.textContent).toContain("Out of service");
+    expect(rows[1].textContent).toContain("A new cable is on order");
+
+    await draw({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    const banner = host.querySelector<HTMLElement>(".crs__floor-status [data-floor-status='banner']");
+    expect(banner?.textContent).toContain("Flagged by Jess");
+    expect(banner?.textContent).toContain("Left pad sticks at the bottom");
+    // At the top: before the blueprint, the dials and Stop.
+    const page = host.querySelector(".crs__page")!;
+    const order = Array.from(page.querySelectorAll(".crs__floor-status, .crs__blueprint, .crs__stop")).map((e) => e.className.split(" ")[0]);
+    expect(order[0]).toBe("crs__floor-status");
+  });
+
+  it("says nothing while the floor's status is unknown", async () => {
+    patch.fn = () => ({ care: null });
+    await draw({ section: "machine-anatomy" });
+    expect(host.querySelector("[data-floor-status]")).toBeNull();
+    await draw({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    expect(host.querySelector(".crs__floor-status")).toBeNull();
+    expect(text()).not.toContain("Flagged");
+  });
+});
+
+describe("a course's machine, vault and phrasebook go on to the next lesson", () => {
+  it("walks Life Transformer 101 from lesson 7 (the Leg Press) to lesson 8 (the Glossary)", async () => {
+    await draw();
+    await tap(button("All 9 lessons"));
+    await tap(all(".crs__lessons .crs__lesson")[6]);
+    expect(host.querySelector("h1")?.textContent?.toLowerCase()).toBe("leg press");
+    expect(host.querySelector(".crs__coursebar")?.textContent).toContain("Lesson 7 of 9");
+    await tap(button(/Next lesson\s*Glossary/));
+    expect(crumbs()).toEqual(["Overview", "Life Transformer 101", "Glossary"]);
+    expect(host.querySelector(".crs__coursebar")?.textContent).toContain("Lesson 8 of 9");
+    expect(host.querySelector(".crs__vault")).not.toBeNull();
+    // The vault goes on to the last lesson (the quiz, which ends the course).
+    expect(host.querySelector(".crs__course-next")).not.toBeNull();
+  });
+
+  it("draws no Next lesson on a machine opened outside a course", async () => {
+    await draw({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    expect(host.querySelector(".crs__course-next")).toBeNull();
+  });
+});
+
+describe("the drill of the day stays a drill", () => {
+  it("brings Another moment closed, its reveal holding the focus the pressed button had", async () => {
+    await draw();
+    await tap(button("Show the Academy's lines"));
+    const first = host.querySelector(".crs__duo .crs__drill-title")?.textContent;
+    const another = button("Another moment");
+    another.focus();
+    await tap(another);
+    expect(host.querySelector(".crs__duo .crs__drill-title")?.textContent).not.toBe(first);
+    expect(host.querySelector(".crs__duo .crs__drill-lines")).toBeNull();
+    expect(document.activeElement?.textContent).toContain("Show the Academy's lines");
+  });
+});
+
+describe("a clinical flag's title and a page's source", () => {
+  it("names a flag's connections by the flag, never 'Map'", async () => {
+    const { courseTitleOf } = await import("./CourseLearning");
+    const { useVaultData } = await import("../../learning-vault/useVaultData");
+    const data = useVaultData({ studioId: "solon", machines: [] });
+    const flag = data.graph?.nodes.find((n) => n.domain === "clinical");
+    expect(flag).toBeTruthy();
+    expect(courseTitleOf({ kind: "map", focus: flag!.id }, data)).toBe(flag!.label);
+    expect(courseTitleOf({ kind: "map", focus: "clinical:no-such-flag" }, data)).toBe("What it connects to");
+    expect(courseTitleOf({ kind: "map" }, data)).toBe("What it connects to");
+    expect(courseTitleOf({ kind: "glossary" }, data)).not.toBe("What it connects to");
+  });
+
+  it("never shows a repository path as a page's source", async () => {
+    const { sourceLine } = await import("./shell");
+    const sections = [{ id: "a", title: "", blocks: [{ key: "b-1", kind: "para" as const, text: "Words.", source: "Academy 4.6 Turnaround Technique" }] }];
+    expect(sourceLine({ source: "docs/msf-academy/Academy/x.txt", route: { kind: "topic", moduleId: "performance", topicId: "t" }, sections })).toBe(
+      "Academy 4.6 Turnaround Technique",
+    );
+    expect(sourceLine({ source: "docs/business/the-floor.md", route: { kind: "playbook", id: "p" }, sections })).toBeNull();
+    expect(sourceLine({ source: "Written from: The floor", route: { kind: "playbook", id: "p" }, sections })).toBe("Written from: The floor");
+    expect(sourceLine({ source: undefined, route: { kind: "card", id: "c" }, sections })).toBeNull();
   });
 });

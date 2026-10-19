@@ -165,25 +165,36 @@ export function SectionHead({ title, id, door }: { title: string; id?: string; d
  * once, over the first (runLabels, the same rule ArticleBlocks keeps). `skip`
  * is an entity the words must not link: a glossary word inside its own
  * definition is not a door to the card you are reading.
+ *
+ * `id` lets a page scroll to the line, and `target` marks it as the one a
+ * tap sent the reader to (a dial's pin on the field manual's set-up list).
  */
 export function MarkedLine({
   block,
   studioLens,
   showLabel = true,
   skip,
+  id,
+  target = false,
 }: {
   block: MarkedBlock;
   studioLens: boolean;
   showLabel?: boolean;
   skip?: string;
+  id?: string;
+  target?: boolean;
 }) {
   if (block.kind === "heading" || block.kind === "subheading") {
-    return createElement(block.kind === "heading" ? "h3" : "h4", { className: `crs__line-head crs__line-head--${block.kind}` }, block.text);
+    return createElement(
+      block.kind === "heading" ? "h3" : "h4",
+      { className: `crs__line-head crs__line-head--${block.kind}`, id, "data-target": target ? "" : undefined },
+      block.text,
+    );
   }
   const strike = studioLens ? block.strike : undefined;
   const notes = studioLens ? block.notes : [];
   return (
-    <div className={`crs__line crs__line--${block.kind}`} data-struck={strike ? "" : undefined}>
+    <div id={id} className={`crs__line crs__line--${block.kind}`} data-struck={strike ? "" : undefined} data-target={target ? "" : undefined}>
       {block.label &&
         (showLabel ? (
           <span className="crs__line-label">{block.label}</span>
@@ -236,6 +247,57 @@ export function hiddenWords(n: number): string {
 /* ------------------------------------------------------------------ *
  * Doors at the foot of a page
  * ------------------------------------------------------------------ */
+
+/** "Next lesson" with the lesson's name: a lesson's end card, the foot of "Read it all", and the course's other pages. */
+export function NextLessonButton({ title, onGo }: { title: string; onGo: () => void }) {
+  return (
+    <button type="button" className="crs__btn crs__btn--primary crs__end-next" onClick={onGo}>
+      <span className="crs__end-next-words">
+        <span className="crs__end-next-kicker">Next lesson</span>
+        <span className="crs__end-next-title">{title}</span>
+      </span>
+      <ArrowRight size={20} aria-hidden />
+    </button>
+  );
+}
+
+/**
+ * The way on from a course's page that is not a reading (a machine, the
+ * glossary vault, the phrasebook): the course bar over them has no arrows,
+ * so the foot of the page goes on to the next lesson, replacing this one
+ * under the course (judges' recheck, Oct 19 2026). Nothing on the last
+ * lesson: a course's last step is its own end (the quiz, in every track).
+ */
+export function CourseNext({ course }: { course: { lessons: { title: string; route: VaultRoute }[]; at: number } | null }) {
+  const { nav } = useCourse();
+  if (!course || course.at < 0 || course.at >= course.lessons.length - 1) return null;
+  const next = course.lessons[course.at + 1];
+  return (
+    <div className="crs__course-next">
+      <NextLessonButton title={next.title} onGo={() => nav.replace(next.route)} />
+    </div>
+  );
+}
+
+/**
+ * Where a page's words come from, the way a trainer would say it, or null.
+ * A repository path ("docs/msf-academy/…txt") is never shown: a topic's
+ * lines carry the calm label ("Academy 4.6 Turnaround Technique"), which the
+ * foot then says; any other path says nothing (the Vault's rule).
+ */
+export function sourceLine(page: Pick<VaultPage, "source" | "route" | "sections">): string | null {
+  const source = page.source?.trim();
+  if (!source) return null;
+  if (!source.startsWith("docs/")) return source;
+  if (page.route.kind !== "topic") return null;
+  for (const s of page.sections) {
+    for (const b of s.blocks) {
+      const said = b.source?.trim();
+      if (said && !said.startsWith("docs/")) return said;
+    }
+  }
+  return null;
+}
 
 /** The page's related pages, each a link card that peeks (you keep your place). */
 export function ReadNext({ related, title = "Read next" }: { related: VaultPage["related"]; title?: string }) {

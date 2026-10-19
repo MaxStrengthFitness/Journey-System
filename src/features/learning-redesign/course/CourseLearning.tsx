@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode
 import type { LearningRef } from "../../learning/ref";
 import { usePhone } from "../../phone/device";
 import type { WikiCrumb } from "../../wiki";
+import { nodeById } from "../../learning-vault/graph";
 import { titleOf as vaultTitleOf } from "../../learning-vault/pages";
 import { isPageRoute, routeForRef, routeKey, sameRoute } from "../../learning-vault/routes";
 import { useVaultData, type VaultData } from "../../learning-vault/useVaultData";
@@ -142,7 +143,9 @@ function CourseTrail({
   const phone = usePhone();
   const sectionRoot = useMemo(() => rootFor(section), [section]);
 
-  const titleOf = useCallback((r: VaultRoute) => vaultTitleOf(r, data), [data]);
+  // The Course has no map: a clinical flag's connections (a "map" route) are
+  // named by the flag itself, in the peek's header and the crumbs alike.
+  const titleOf = useCallback((r: VaultRoute) => courseTitleOf(r, data), [data]);
 
   const { push: peekPush } = peek;
   const { push: navPush } = nav;
@@ -204,6 +207,20 @@ function CourseTrail({
       </ConceptLayer>
     </CourseProvider>
   );
+}
+
+/**
+ * A route's title in the Course: the vault's, except a "map" route, which
+ * here is a clinical flag's connections (ConnectionsPage), never a map: it
+ * takes the flag's own name, else "What it connects to" (judges' recheck,
+ * Oct 19 2026: a peek headed "Map" named nothing on the screen).
+ */
+export function courseTitleOf(r: VaultRoute, data: VaultData): string {
+  if (r.kind === "map") {
+    const node = r.focus && data.graph ? nodeById(data.graph, r.focus) : null;
+    return node?.label?.trim() || "What it connects to";
+  }
+  return vaultTitleOf(r, data);
 }
 
 /** The page a route draws. Keyed by the route, so a page's own state never leaks onto the next one. */

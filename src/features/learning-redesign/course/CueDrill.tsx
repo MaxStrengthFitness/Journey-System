@@ -16,11 +16,18 @@ import "./course.css";
  * crossed out with what it says instead, as on the phrasebook page. Nothing
  * is scored, timed or kept.
  *
+ * Where the drill is a drill (the phrasebook, the Overview's drill of the
+ * day) every card arrives closed, "Another moment" included: saying it first
+ * is the point. On a machine's field manual the lines are a reference a
+ * trainer reads at the machine, so that page passes `startOpen` (the floor
+ * judge, Oct 19 2026).
+ *
  * Revealing takes the reveal button away, so the focus goes to the lines it
  * revealed (never left on the page's top for a keyboard or VoiceOver
- * reader); `focusLines` does the same for a card that arrives already open
- * in place of the one the reader was on (the Overview's "Another moment").
- * Only when the focus has nowhere else to be: a reader elsewhere keeps it.
+ * reader); `focusReveal` hands the focus to a card that arrives in place of
+ * the one the reader was on (the Overview's "Another moment"), on its reveal
+ * button. Only when the focus has nowhere else to be: a reader elsewhere
+ * keeps it.
  */
 
 /** How many lines show before "All n lines" (the rest are on the phrasebook page). */
@@ -35,7 +42,7 @@ export function CueDrillCard({
   startOpen = false,
   size = "regular",
   cap = SHOWN,
-  focusLines = false,
+  focusReveal = false,
 }: {
   drill: CueDrillShape;
   /** The page's sections with this studio's marks (useAppliedMarkup). */
@@ -49,14 +56,15 @@ export function CueDrillCard({
   size?: "regular" | "large";
   /** How many lines show before "All n lines"; the phrasebook page shows them all. */
   cap?: number;
-  /** Open on arrival in place of the card the reader was on: the lines take the focus the old card lost. */
-  focusLines?: boolean;
+  /** Arrived in place of the card the reader was on: the reveal button takes the focus the old card lost. */
+  focusReveal?: boolean;
 }) {
   const [open, setOpen] = useState(startOpen);
   const linesRef = useRef<HTMLUListElement>(null);
-  // Set by the reader's own reveal (or an arrival in place of a card): the
-  // next draw with lines hands them the focus the vanished button had.
-  const wantFocus = useRef(focusLines && startOpen);
+  const revealRef = useRef<HTMLButtonElement>(null);
+  // Set by the reader's own reveal: the next draw with lines hands them the
+  // focus the vanished button had.
+  const wantFocus = useRef(false);
   useEffect(() => {
     if (!open || !wantFocus.current) return;
     wantFocus.current = false;
@@ -67,6 +75,19 @@ export function CueDrillCard({
       /* nothing to hand the focus to */
     }
   }, [open]);
+  // A card that arrives in place of another ("Another moment"): the button
+  // that was pressed went with the old card, so its reveal takes the focus.
+  // Once, on arrival, and only when the focus has nowhere else to be.
+  useEffect(() => {
+    if (!focusReveal) return;
+    try {
+      const now = document.activeElement;
+      if (!now || now === document.body) revealRef.current?.focus({ preventScroll: true });
+    } catch {
+      /* nothing to hand the focus to */
+    }
+    // Arrival only: the card is keyed by its moment, so each moment mounts anew.
+  }, [focusReveal]);
   const reveal = () => {
     wantFocus.current = true;
     setOpen(true);
@@ -101,13 +122,13 @@ export function CueDrillCard({
               <MessageCircle size={30} />
             </span>
             <p className="crs__drill-prompt">Say it out loud first.</p>
-            <button type="button" className="crs__btn crs__btn--primary crs__btn--big" onClick={reveal}>
+            <button ref={revealRef} type="button" className="crs__btn crs__btn--primary crs__btn--big" onClick={reveal}>
               Show the Academy's lines
             </button>
           </div>
         ) : (
           <div className="crs__drill-foot">
-            <button type="button" className="crs__btn" onClick={reveal}>
+            <button ref={revealRef} type="button" className="crs__btn" onClick={reveal}>
               <MessageCircle size={16} aria-hidden />
               Show the lines
             </button>

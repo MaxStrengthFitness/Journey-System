@@ -7,6 +7,7 @@ import { readingTime } from "../../learning/home";
 import { pageFor } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
 import { useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
+import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import type { VaultPage, VaultRoute } from "../../learning-vault/types";
 import { OrderDrillCard } from "./CueDrill";
 import { lessonsOf, orderDrillOf } from "./drills";
@@ -27,6 +28,13 @@ function machineAccent(id: string): CSSProperties {
 /* ------------------------------------------------------------------ *
  * The Catalog: the floor first, in walking order
  * ------------------------------------------------------------------ */
+
+/*
+ * Each row says what the floor says about its unit, as today's Catalog row
+ * does: Out of service and Flagged (the plum badges) and why it is out, under
+ * the name, before how it begins (FloorStatus; nothing when there is nothing
+ * to say, or while the floor's status is unknown).
+ */
 
 export function CatalogPage() {
   const { data, open, studioName } = useCourse();
@@ -58,6 +66,7 @@ export function CatalogPage() {
                   <span className="crs__station-card">
                     <span className="crs__station-words">
                     <span className="crs__station-name">{m.name}</span>
+                    <FloorStatus status={data.care?.[m.id]} variant="chip" />
                     <span className="crs__station-tags">
                       {data.defs[m.id] && (
                         <span className="crs__tag">
@@ -91,7 +100,11 @@ export function CatalogPage() {
               <li key={m.machineId}>
                 <button type="button" className="crs__other" style={machineAccent(m.machineId)} onClick={() => open({ kind: "machine", id: m.machineId })}>
                   {m.abbr && <span className="crs__code">{m.abbr}</span>}
-                  <span className="crs__other-name">{m.name}</span>
+                  <span className="crs__other-words">
+                    <span className="crs__other-name">{m.name}</span>
+                    {/* A flag is on a machine id, whatever list draws it (floor-care.ts). */}
+                    <FloorStatus status={data.care?.[m.machineId]} variant="chip" why={false} />
+                  </span>
                 </button>
               </li>
             ))}

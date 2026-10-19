@@ -406,7 +406,8 @@ export function layoutMap(
       }
     };
     if (focus) {
-      for (const link of constellationOf(graph, focus.id, Number.MAX_SAFE_INTEGER)?.links ?? []) push(link.node);
+      // The map keeps both ends of a substitute set (a machine page shows one).
+      for (const link of constellationOf(graph, focus.id, Number.MAX_SAFE_INTEGER, { reverseSubstitutes: true })?.links ?? []) push(link.node);
     }
     const hubs = sectorOrder.map((d) =>
       candidates

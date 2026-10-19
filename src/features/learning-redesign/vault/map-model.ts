@@ -14,21 +14,31 @@
  *     would overlap one already placed is simply not drawn, and its node is
  *     still a 44px target with its name in the list);
  *   - where each domain's name sits around the edge (`sectorPoints`);
- *   - what one node connects to, counted by domain, for the Catalog's
- *     floor rows (`connectionCounts`), and what links INTO a page, for its
- *     "Linked here" (`backlinksOf`, Obsidian's backlinks);
+ *   - what links INTO a page, for its "Linked here" (`backlinksOf`,
+ *     Obsidian's backlinks);
  *   - which few nodes to offer before anything is chosen (`startNodes`);
  *   - a page's "read next" with anything its constellation already shows
  *     taken out (`withoutShown`: say it once).
  *
- * Nothing is scored or stored. Counts here choose what fits, or say how
- * many things a row connects to; none is a measure of anyone.
+ * Nothing is scored or stored. Counts here only choose what fits; none is
+ * a measure of anyone, and none is drawn (the Catalog's rows once showed
+ * how many things a machine links to, a number with no reader on the
+ * floor; judges' fix, Oct 19 2026: they say how the set begins instead).
  */
 
 import { constellationOf, DOMAIN_ORDER, KIND_PRIORITY, linkHeading, nodeById, nodeIdForRoute } from "../../learning-vault/graph";
 import type { PlacedNode } from "../../learning-vault/layout";
 import { labelPlacement, MAP_LABEL_WIDTH } from "../../learning-vault/layout";
-import type { EdgeKind, GraphDomain, GraphEdge, GraphNode, VaultGraph, VaultRoute } from "../../learning-vault/types";
+import type {
+  EdgeKind,
+  GraphDomain,
+  GraphEdge,
+  GraphNode,
+  LearningSubmission,
+  StudioMarkup,
+  VaultGraph,
+  VaultRoute,
+} from "../../learning-vault/types";
 import type { VaultData } from "../../learning-vault/useVaultData";
 
 /* ------------------------------------------------------------------ *
@@ -400,16 +410,6 @@ export function hubsOf(graph: VaultGraph, placed: readonly PlacedNode[], perDoma
   return out;
 }
 
-/** How many distinct things a node connects to, per domain, in the domains' own order. Empty for an unknown node. */
-export function connectionCounts(graph: VaultGraph | null, nodeId: string | null): { domain: GraphDomain; count: number }[] {
-  if (!graph || !nodeId) return [];
-  const c = constellationOf(graph, nodeId, Number.MAX_SAFE_INTEGER);
-  if (!c) return [];
-  const by = new Map<GraphDomain, number>();
-  for (const l of c.links) by.set(l.node.domain, (by.get(l.node.domain) ?? 0) + 1);
-  return DOMAIN_ORDER.filter((d) => by.has(d)).map((d) => ({ domain: d, count: by.get(d)! }));
-}
-
 /** Kinds that read the same both ways: either end "links here". */
 const MUTUAL: ReadonlySet<EdgeKind> = new Set<EdgeKind>(["same-category", "see-also"]);
 
@@ -565,6 +565,49 @@ export function bodySections<S extends { id: string; blocks: readonly { key: str
   if (routeKind !== "machine") return sections;
   const kept = sections.filter((s) => !peekOnlySection(s.id) || s.blocks.some((b) => markedKeys.has(b.key)));
   return kept.length === sections.length ? sections : kept;
+}
+
+/**
+ * The lines on one page that tie it to this studio, for bodySections: every
+ * line it crossed out or noted, and every line it told head office about
+ * (head office's answer is read under its line, so a section holding one is
+ * drawn too; recheck fix, Oct 19 2026). Read from the studio's own markup
+ * WHICHEVER version is on screen, so switching to the MSF original never
+ * adds or removes a section under the reader's finger.
+ */
+export function studioLineKeys(
+  markup: Pick<StudioMarkup, "strikes" | "notes"> | null,
+  submissions: readonly Pick<LearningSubmission, "studioId" | "targetKey" | "blockKey">[],
+  studioId: string | null,
+  targetKey: string,
+): Set<string> {
+  const out = new Set<string>();
+  for (const s of markup?.strikes ?? []) out.add(s.blockKey);
+  for (const n of markup?.notes ?? []) out.add(n.blockKey);
+  if (studioId !== null) {
+    for (const s of submissions) {
+      if (s.studioId === studioId && s.targetKey === targetKey && s.blockKey) out.add(s.blockKey);
+    }
+  }
+  return out;
+}
+
+/**
+ * The keys kept so far for a visit, with any new ones added. A key never
+ * leaves: a section drawn once stays until the reader leaves the page, so
+ * putting a line back, removing its only note or switching to the MSF
+ * original never moves the lines under the reader's finger (the body keeps
+ * its selection by position; recheck fix, Oct 19 2026). The same set comes
+ * back when nothing is new, so what is drawn from it is not redrawn.
+ */
+export function unionKeys(kept: ReadonlySet<string>, now: ReadonlySet<string>): ReadonlySet<string> {
+  let out: Set<string> | null = null;
+  for (const k of now) {
+    if (kept.has(k)) continue;
+    out ??= new Set(kept);
+    out.add(k);
+  }
+  return out ?? kept;
 }
 
 /**

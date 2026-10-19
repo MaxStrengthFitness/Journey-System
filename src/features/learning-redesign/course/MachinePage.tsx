@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useRef, useState, type CSSProperties } from "react";
-import { EyeOff, Hand, MapPin, OctagonAlert, Repeat, ShieldAlert, TrendingUp } from "lucide-react";
+import { EyeOff, Hand, Layers, List, MapPin, OctagonAlert, Repeat, ShieldAlert, TrendingUp } from "lucide-react";
 import { BodyModel } from "../../../components/anatomy";
 import { resolveMachineAnatomy } from "../../catalog/anatomy";
 import { accentForAcademyCategory, accentStyle } from "../../wiki/categories";
@@ -7,18 +7,22 @@ import { EXERCISE_SUBSTITUTES, MACHINE_CATEGORY } from "../../routine-builder/ac
 import { presetOf, switchesOf } from "../../machine-codex/format";
 import { repShapeOf, SHAPE_LABEL } from "../../learning-vault/rep-phases";
 import { substituteLine, TIER_TITLES } from "../../learning-vault/codex-reader";
+import { hasFloorStatus } from "../../learning-vault/floor-care";
 import { floorUnreadableFor, pageFor } from "../../learning-vault/pages";
 import { ArticleBlocks, OrphanMarks, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
+import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { machineAccentStyle } from "../../learning-vault/ui/page-accent";
 import { RepScrubber } from "../../learning-vault/ui/RepScrubber";
 import { useWikiPageGuard } from "../../wiki/page-guard";
-import type { CodexTierId, VaultPage, VaultRoute } from "../../learning-vault/types";
+import type { AppliedMarkup } from "../../learning-vault/markup";
+import type { CodexTierId, VaultPage, VaultRoute, VaultSection } from "../../learning-vault/types";
 import { CueDrillCard } from "./CueDrill";
 import { CourseBar } from "./LessonPage";
 import { StepDeck } from "./StepDeck";
 import { courseContextOf, cueDrillsIn } from "./drills";
 import {
+  CourseNext,
   CourseShell,
   FailedPage,
   FloorUnreadablePage,
@@ -34,7 +38,7 @@ import {
   useCourse,
   useVersionPlacement,
 } from "./shell";
-import { cardNaming, chunkSteps } from "./steps";
+import { cardNaming, chunkSteps, lineNaming } from "./steps";
 import "./course.css";
 
 /**
@@ -42,23 +46,36 @@ import "./course.css";
  * vault redesign, Oct 19 2026).
  *
  * Read standing at the machine, top to bottom:
+ *   the floor       Out of service and Flagged, as the Catalog says them at
+ *                   the top of a machine's page (FloorStatus); nothing when
+ *                   there is nothing to say or the floor's status is unknown
  *   the blueprint   the body it works and the unit's dials as pins
  *                   (LegendKeeper's pins on Inkling's blueprint): each dial's
  *                   number on this unit, or "Not set". A pin whose dial a
  *                   set-up line names is a button (raised, its blue go mark)
- *                   that turns the deck to that card; the rest are wells.
+ *                   that goes to that line; the rest are wells.
  *   Stop            the lines a trainer must not miss, never folded, plum
- *   the set-up deck the floor glance (Set up, Get set, Begin) as step cards;
- *                   the cards' own titles name it, so no heading over it
+ *   the set-up      the floor glance (Set up, Get set, Begin) as ONE list a
+ *                   trainer scans at the machine; "Step through" turns it
+ *                   into step cards for learning it (the floor judge, Oct 19
+ *                   2026: paged cards were slower than one scroll). The
+ *                   parts' own titles name it, so no heading over it
  *   the repetition  the scrubber, in this machine's shape, with no lines to
- *                   say: the drills under it are where the lines are asked
- *   At each moment  this machine's moments, the lines behind a tap
+ *                   say: the moments under it say them
+ *   At each moment  this machine's moments, each with the Academy's lines
+ *                   showing (a reference here; the phrasebook and the drill
+ *                   of the day keep them behind a tap, where saying it first
+ *                   is the point)
  *   The full manual one tier at a time, through ArticleBlocks, opening on
  *                   Adapt & clinical: the first tier the page has not already
  *                   drawn above (Floor glance is the Stop panel and the deck;
  *                   Script & cues holds the drills' answers). Each other tier
  *                   is one tap away, for crossing out or noting its lines.
  *                   The page's lines that changed are listed once, under it.
+ *                   Its substitutes say the one thing the floor asks, "If
+ *                   LEG PRESS can't be used", one line a set, never which
+ *                   other machines this one helps replace.
+ *   Next lesson     when the machine is a course's lesson, the way on
  *
  * Nothing on the page suggests a weight (the house's rule for the machine
  * card): the pins are the unit's own numbers, never a starting load. A
@@ -83,16 +100,16 @@ const TIERS: CodexTierId[] = ["glance", "script", "adapt", "science"];
 /** The tier the full manual opens on: the first the page has not drawn above it. */
 export const FIRST_MANUAL_TIER: CodexTierId = "adapt";
 
-/** The machines that can stand in for this one: said once, in the manual's "Can be replaced by". */
+/** The machines that can stand in for this one: said once, in the manual's "If {machine} can't be used". */
 function substituteIds(machineId: string): Set<string> {
   return new Set((EXERCISE_SUBSTITUTES[machineId] ?? []).flatMap((set) => set.machineIds));
 }
 
 /**
- * Each substitute line of the manual ("Together: LEG EXTENSION + LUMBAR"),
- * by its words, to the machines it names: the line is drawn with each
- * machine a 44px chip that peeks it (some names, LUMBAR alone among them,
- * are no linked word), and the line itself still takes the studio's marks.
+ * Each substitute line of the manual ("LEG EXTENSION + LUMBAR"), by its
+ * words, to the machines it names: the line is drawn with each machine a
+ * 44px chip that peeks it (some names, LUMBAR alone among them, are no
+ * linked word), and the line itself still takes the studio's marks.
  */
 function substituteSetsByLine(machineId: string, names: (id: string) => string): Map<string, string[]> {
   const out = new Map<string, string[]>();
@@ -103,11 +120,13 @@ function substituteSetsByLine(machineId: string, names: (id: string) => string):
   return out;
 }
 
-/** A substitute set as chips: "Together:" then each machine, joined by "+". */
+/**
+ * A substitute set as chips, each machine joined by "+": the plus says they
+ * stand in together, as the section's one line a set says it.
+ */
 function SubstituteChips({ ids, names, onPeek }: { ids: string[]; names: (id: string) => string; onPeek: (r: VaultRoute) => void }) {
   return (
     <span className="crs__subs">
-      {ids.length > 1 && <span className="crs__subs-lead">Together:</span>}
       {ids.map((id, i) => (
         <Fragment key={id}>
           {i > 0 && <span className="crs__subs-plus">+</span>}
@@ -150,9 +169,13 @@ function MachineBody({ page, machineId }: { page: VaultPage; machineId: string }
   const cards = useMemo(() => chunkSteps(deckSections, { min: 40, max: 110 }), [deckSections]);
   const [at, setAt] = useState(0);
   const deckRef = useRef<HTMLDivElement>(null);
+  // One list to scan at the machine, or step cards to learn it by.
+  const [setupMode, setSetupMode] = useState<SetupMode>("list");
+  // The line a pin last sent the reader to, marked on the list.
+  const [targetLine, setTargetLine] = useState<string | null>(null);
 
   const preset = presetOf(def);
-  const pins = preset.dials.map((d) => ({ ...d, card: cardNaming(cards, deckSections, d.label) }));
+  const pins = preset.dials.map((d) => ({ ...d, card: cardNaming(cards, deckSections, d.label), line: lineNaming(deckSections, d.label) }));
 
   const drills = useMemo(() => {
     const scriptSections = idx.script.map((i) => page.sections[i]);
@@ -166,9 +189,9 @@ function MachineBody({ page, machineId }: { page: VaultPage; machineId: string }
   const stopLabels = stop ? runLabels(stop.blocks, stop.title) : [];
   const stopHidden = stop ? stop.blocks.filter((b) => b.hidden).length : 0;
 
-  // Read next without the substitutes: the manual's "Can be replaced by"
-  // says each set once, each machine a chip that peeks it; five cards each
-  // restating a set said it five times.
+  // Read next without the substitutes: the manual's "If {machine} can't be
+  // used" says each set once, each machine a chip that peeks it; five cards
+  // each restating a set said it five times.
   const related = useMemo(() => {
     const subs = substituteIds(machineId);
     return page.related.filter((r) => !(r.route.kind === "machine" && subs.has(r.route.id)));
@@ -191,8 +214,21 @@ function MachineBody({ page, machineId }: { page: VaultPage; machineId: string }
     guard(() => setTier(next));
   };
 
-  const turnTo = (card: number) => {
-    setAt(card);
+  // A pin goes to the line that sets its dial: in the list, that line
+  // (marked, brought to the middle of the screen); in the cards, its card.
+  const steps = setupMode === "steps" && cards.length > 1;
+  const goToDial = (pin: { card: number; line: { section: number; block: number } | null }) => {
+    if (!steps && pin.line) {
+      const id = setupLineId(pin.line.section, pin.line.block);
+      setTargetLine(id);
+      try {
+        document.getElementById(id)?.scrollIntoView({ block: "center", behavior: scrollMotion() });
+      } catch {
+        /* no smooth scroll here: the line is still marked */
+      }
+      return;
+    }
+    setAt(pin.card);
     try {
       deckRef.current?.scrollIntoView({ block: "start", behavior: scrollMotion() });
     } catch {
@@ -214,6 +250,11 @@ function MachineBody({ page, machineId }: { page: VaultPage; machineId: string }
       {course && <CourseBar course={course} />}
       <PageHead eyebrow={page.eyebrow} title={name} lede={page.lede} accent={accent as CSSProperties} />
       {inPage}
+      {hasFloorStatus(data.care?.[machineId]) && (
+        <div className="crs__floor-status">
+          <FloorStatus status={data.care?.[machineId]} variant="banner" />
+        </div>
+      )}
 
       <section className="crs__blueprint" style={accent as CSSProperties} aria-label={`${name}: the body it works and its dials`}>
         <div className="crs__bp-figure">
@@ -258,7 +299,7 @@ function MachineBody({ page, machineId }: { page: VaultPage; machineId: string }
                         type="button"
                         className="crs__pin"
                         aria-label={`${p.letter ? `${p.letter}, ` : ""}${p.label}: ${p.number ?? "not set"}. Show how it is set`}
-                        onClick={() => turnTo(p.card)}
+                        onClick={() => goToDial(p)}
                       >
                         {body}
                       </button>
@@ -314,18 +355,33 @@ function MachineBody({ page, machineId }: { page: VaultPage; machineId: string }
         </section>
       )}
 
-      {/* The set-up deck: its cards' own titles (Set up, Get set, Begin) name it. */}
+      {/* The set-up: its parts' own titles (Set up, Get set, Begin) name it. */}
       <div className="crs__sec crs__setup">
+        {cards.length > 1 && (
+          <div className="crs__setup-bar">
+            <SetupSwitch mode={setupMode} onMode={setSetupMode} />
+          </div>
+        )}
         <div ref={deckRef} className="crs__anchor">
-          <StepDeck
-            sections={deckSections}
-            marked={deckMarked}
-            studioLens={applied.studioLens}
-            cards={cards}
-            at={at}
-            onAt={setAt}
-            label={`Set up ${name}`}
-          />
+          {steps ? (
+            <StepDeck
+              sections={deckSections}
+              marked={deckMarked}
+              studioLens={applied.studioLens}
+              cards={cards}
+              at={at}
+              onAt={setAt}
+              label={`Set up ${name}`}
+            />
+          ) : (
+            <SetupList
+              sections={deckSections}
+              marked={deckMarked}
+              studioLens={applied.studioLens}
+              target={targetLine}
+              label={`Set up ${name}`}
+            />
+          )}
         </div>
       </div>
 
@@ -345,6 +401,7 @@ function MachineBody({ page, machineId }: { page: VaultPage; machineId: string }
                 drill={d}
                 marked={applied.sections}
                 studioLens={applied.studioLens}
+                startOpen
                 onAll={d.moment !== null ? () => peekAt({ kind: "cueing", moment: d.moment ?? undefined }) : undefined}
               />
             ))}
@@ -380,7 +437,95 @@ function MachineBody({ page, machineId }: { page: VaultPage; machineId: string }
         </div>
       </section>
 
+      <CourseNext course={course} />
       <ReadNext related={related} />
     </CourseShell>
+  );
+}
+
+type SetupMode = "list" | "steps";
+
+/** The id a set-up line carries on the list, so a pin can bring it into view. */
+function setupLineId(section: number, block: number): string {
+  return `crs-setup-${section}-${block}`;
+}
+
+/**
+ * One list or step cards: a 44px switch, local to the set-up. Nothing typed
+ * lives in either (both are read-only lines), so it never asks first.
+ */
+function SetupSwitch({ mode, onMode }: { mode: SetupMode; onMode: (m: SetupMode) => void }) {
+  return (
+    <div className="crs__mode" role="group" aria-label="How to read the set-up">
+      <button type="button" className="crs__mode-btn" aria-pressed={mode === "list"} onClick={() => onMode("list")}>
+        <List size={16} aria-hidden />
+        One list
+      </button>
+      <button type="button" className="crs__mode-btn" aria-pressed={mode === "steps"} onClick={() => onMode("steps")}>
+        <Layers size={16} aria-hidden />
+        Step through
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The set-up as one list: each part (Set up, Get set, Begin) under its own
+ * title, its lines with this studio's marks laid on (read-only, as on the
+ * cards; acting on a line is the full manual's job), a hidden crossed-out
+ * line folded into one quiet line, a label said once over its run.
+ */
+function SetupList({
+  sections,
+  marked,
+  studioLens,
+  target,
+  label,
+}: {
+  sections: VaultSection[];
+  marked: AppliedMarkup["sections"];
+  studioLens: boolean;
+  target: string | null;
+  label: string;
+}) {
+  if (sections.length === 0) return <p className="crs__empty">Nothing written here yet.</p>;
+  return (
+    <section className="crs__setlist" aria-label={label}>
+      {sections.map((s, si) => {
+        const ms = marked[si];
+        if (!ms) return null;
+        const title = (s.title ?? "").trim();
+        const labels = runLabels(ms.blocks, title);
+        const hidden = ms.blocks.filter((b) => b.hidden).length;
+        return (
+          <div key={s.id} className="crs__setlist-part">
+            {title && <h3 className="crs__setlist-title">{title}</h3>}
+            {s.note && <p className="crs__part-note">{s.note}</p>}
+            <div className="crs__part-lines">
+              {ms.blocks.map((b, bi) => {
+                if (b.hidden) return null;
+                const id = setupLineId(si, bi);
+                return (
+                  <MarkedLine
+                    key={`${b.key}-${bi}`}
+                    block={b}
+                    studioLens={studioLens}
+                    showLabel={labels[bi]}
+                    id={id}
+                    target={target === id}
+                  />
+                );
+              })}
+            </div>
+            {hidden > 0 && (
+              <p className="crs__hidden">
+                <EyeOff size={14} aria-hidden />
+                {hiddenWords(hidden)}
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </section>
   );
 }

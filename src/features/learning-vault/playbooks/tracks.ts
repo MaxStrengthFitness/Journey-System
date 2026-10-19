@@ -10,7 +10,10 @@
  * index.json, inside the module named), one of the 20 MSF machines, a
  * playbook, the glossary, the phrasebook, a module, or a quiz deck. Each
  * step's title is the page's own title (a topic's as the Academy writes it),
- * so a step never promises a page that reads differently. `playbooks.test.ts`
+ * so a step never promises a page that reads differently, with one
+ * exception: the four P's are always named in the Academy's and the code's
+ * order, "Posture, Pace, Path, Purpose" (FOUR_PS_TITLE), though the topic's
+ * title, made from its file name, swaps two of them. `playbooks.test.ts`
  * holds both. Each step's "why" is one line in plain words, and says nothing
  * a source doesn't.
  */
@@ -25,6 +28,7 @@ import { RENEWALS_PAGE } from "./pages/renewals";
 import { THE_KIT } from "./pages/the-kit";
 import { THE_TWENTY_MINUTES } from "./pages/the-twenty-minutes";
 import { WHY_EVERY_RULE } from "./pages/why-every-rule";
+import { FOUR_PS_TITLE } from "./write";
 
 type Step = Track["steps"][number];
 
@@ -58,7 +62,7 @@ export const TRACKS: Track[] = [
     steps: [
       play(THE_TWENTY_MINUTES, "What a session is, from the first machine to the last."),
       play(WHY_EVERY_RULE, "The one definition every rule on the floor comes from."),
-      topic("intro", "intro-posture-path-pace-purpose", "Posture, Path, Pace, Purpose", "The 4 P's: what a good rep keeps."),
+      topic("intro", "intro-posture-path-pace-purpose", FOUR_PS_TITLE, "The 4 P's: what a good rep keeps."),
       topic(
         "performance",
         "performance-speed-of-movement",

@@ -1,10 +1,12 @@
 import { useMemo } from "react";
 import { ChevronRight } from "lucide-react";
 import { LoadingMark } from "../../../components/LoadingMark";
+import { hasFloorStatus } from "../../learning-vault/floor-care";
 import { pageFor } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
 import type { VaultPage, VaultRoute, VaultSection } from "../../learning-vault/types";
 import { ArticleBlocks, pageAccent } from "../../learning-vault/ui/ArticleBlocks";
+import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { LocalConstellation } from "../../learning-vault/ui/LocalConstellation";
 import { DidNotLoad, stuckReason, useVaultScreen } from "./shell";
@@ -24,7 +26,6 @@ import "./vault-map.css";
 export function PeekPage({ route }: { route: VaultRoute }) {
   const { data, peekAt } = useVaultScreen();
   const state = useMemo(() => pageFor(route, data), [route, data]);
-  const renderText = (t: string) => <LinkedText text={t} />;
 
   if (route.kind === "track") {
     const track = data.tracks.find((t) => t.id === route.id);
@@ -99,6 +100,10 @@ export function PeekPage({ route }: { route: VaultRoute }) {
   }
 
   const page = state;
+  // A page never links a word to itself: a term's own word in its definition
+  // would open the card for the term already on the sheet (recheck fix,
+  // Oct 19 2026; the full page skips it the same way).
+  const renderText = (t: string) => <LinkedText text={t} skip={page.nodeId} />;
   if (route.kind === "module") {
     return (
       <div className="vm__peek">
@@ -126,12 +131,15 @@ export function PeekPage({ route }: { route: VaultRoute }) {
   // is not a "line that changed" (it is right where it was), so the foot of
   // changed lines is the whole page's alone.
   const whole = sections === page.sections;
+  // A machine peeked as a stand-in says first whether the floor can use it.
+  const care = route.kind === "machine" ? data.care?.[route.id] : undefined;
   return (
     <div className="vm__peek">
+      {hasFloorStatus(care) && <FloorStatus status={care} variant="banner" />}
       {page.draft && <p className="vm__draft">{PLAYBOOK_DRAFT_LINE}</p>}
       {page.lede && whole && (
         <p className="vm__peek-lede">
-          <LinkedText text={page.lede} />
+          <LinkedText text={page.lede} skip={page.nodeId} />
         </p>
       )}
       {/* Inline: a gutter never pays for itself in a column this narrow. */}

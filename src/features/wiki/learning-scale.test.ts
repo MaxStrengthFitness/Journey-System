@@ -57,6 +57,7 @@ const SHEETS: Record<string, string> = {
   "learning-vault/ui/share.css": read("learning-vault", "ui", "share.css"),
   "learning-vault/ui/queue.css": read("learning-vault", "ui", "queue.css"),
   "learning-vault/ui/article.css": read("learning-vault", "ui", "article.css"),
+  "learning-vault/ui/floor-status.css": read("learning-vault", "ui", "floor-status.css"),
   "learning-redesign/redesign.css": read("learning-redesign", "redesign.css"),
   "learning-redesign/codex/codex.css": read("learning-redesign", "codex", "codex.css"),
   "learning-redesign/vault/vault-map.css": read("learning-redesign", "vault", "vault-map.css"),

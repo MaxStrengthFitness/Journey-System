@@ -75,6 +75,13 @@
   margin-top: 0.875rem;
 }
 
+/* Out of service and Flagged under a machine's title (FloorStatus's banner,
+   which keeps no margin of its own). */
+.cdx__status {
+  margin-top: 0.875rem;
+  max-width: var(--wk-measure);
+}
+
 .cdx__factline {
   display: flex;
   flex-wrap: wrap;
@@ -1114,8 +1121,8 @@
   height: clamp(278px, calc(30dvh + 58px), 378px);
 }
 /* A phone: the bento stacks, so the body is shorter (about 200px of it), to
-   bring the floor glance up the page; the Connected tile comes after the
-   layers there (CodexMachine). */
+   bring the floor glance up the page. On every screen the Connected tile
+   comes after the layers (CodexMachine; the floor judge, Oct 19 2026). */
 @container cdx-page (max-width: 599px) {
   .cdx__figure-in {
     height: clamp(240px, calc(24dvh + 58px), 290px);
@@ -1136,21 +1143,18 @@
   /* The body on the left; the facts beside it at their own height, and the
      dials under them taking whatever height the body leaves (their numbers
      centred in it), so neither right-hand tile ends in a blank band. What the
-     machine connects to runs across the foot, its groups side by side. */
+     machine connects to is not in the bento: it follows the layers. */
   .cdx__bento {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto 1fr;
     grid-template-areas:
       "body facts"
-      "body dials"
-      "links links";
+      "body dials";
     align-items: stretch;
   }
   .cdx__bento[data-figure="no"] {
     grid-template-rows: none;
-    grid-template-areas:
-      "facts dials"
-      "links links";
+    grid-template-areas: "facts dials";
   }
   .cdx__tile--dials {
     justify-content: center;
@@ -1158,7 +1162,6 @@
   .cdx__tile--body { grid-area: body; }
   .cdx__tile--facts { grid-area: facts; }
   .cdx__tile--dials { grid-area: dials; }
-  .cdx__tile--links { grid-area: links; }
   .cdx__figure {
     flex: 1;
     display: flex;
@@ -1552,6 +1555,24 @@
   min-width: 0;
   margin-inline: -0.625rem;
 }
+/* The one quiet "Tap a line to …", above a body's first section (CodexBits'
+   TapHint): never inside the Stop well, never between two lines of one label. */
+.cdx__tap-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+  margin: 0;
+  max-width: var(--wk-measure);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.cdx__tap-hint svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--wk-live-text);
+}
 .cdx__blocks [data-tone] {
   margin-inline: 0.625rem;
 }
@@ -1906,15 +1927,17 @@
     grid-column: 1;
     grid-row: 1;
   }
+  /* The column beside the layers: the facts and the dials first, so the
+     dials are on the first landscape screen; the body under them. */
   .cdx__article--machine > .cdx__bento {
     grid-column: 2;
     grid-row: 1 / span 2;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: none;
-    grid-template-areas: "body" "facts" "dials" "links";
+    grid-template-areas: "facts" "dials" "body";
   }
   .cdx__article--machine > .cdx__bento[data-figure="no"] {
-    grid-template-areas: "facts" "dials" "links";
+    grid-template-areas: "facts" "dials";
   }
   .cdx__article--machine > .cdx__layers {
     grid-column: 1;

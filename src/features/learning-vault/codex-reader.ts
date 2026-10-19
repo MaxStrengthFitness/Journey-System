@@ -267,34 +267,51 @@ function substituteName(entry: string): string {
   return e;
 }
 
-/** The substitutes section's title: what can stand in for this machine. */
-export const SUBSTITUTES_TITLE = "Can be replaced by";
+/**
+ * The substitutes section's title, without a name: the question the floor
+ * asks. With one, substitutesTitle says it about this machine.
+ */
+export const SUBSTITUTES_TITLE = "If it can't be used";
 
 /**
- * One substitute set as a line: a set of two or more machines says they go
- * TOGETHER ("Together: Leg Extension + Leg Curl + Hip Abduction"), because
- * the Academy's sets replace the main exercise between them, never one for
- * one; a set of one is just the machine ("Chest Press").
+ * The substitutes section's title: the ONE question a machine page answers
+ * about substitutes, "If Leg Press can't be used" (judges' fix, Oct 19
+ * 2026). A machine page never also says which other machines this one
+ * helps replace: both directions on one page read backwards mid-session.
+ */
+export function substitutesTitle(machineName?: string | null): string {
+  const name = (machineName ?? "").trim();
+  return name ? `If ${name} can't be used` : SUBSTITUTES_TITLE;
+}
+
+/**
+ * One substitute set as one line: "Leg Extension + Leg Curl + Hip
+ * Abduction". The plus says they go TOGETHER: the Academy's sets replace
+ * the main exercise between them, never one for one; a set of one is just
+ * the machine ("Chest Press").
  */
 export function substituteLine(set: readonly string[] | null | undefined): string {
   const names = (set ?? []).map(substituteName).filter(Boolean);
   if (names.length === 0) return "";
-  return names.length === 1 ? names[0] : `Together: ${names.join(" + ")}`;
+  return names.join(" + ");
 }
 
 /**
- * The Academy's substitute sets (EXERCISE_SUBSTITUTES: "All of these
- * together replace the main exercise"), under "Can be replaced by", one
- * line a set.
+ * The Academy's substitute sets for this machine (EXERCISE_SUBSTITUTES:
+ * "All of these together replace the main exercise"), under "If {machine}
+ * can't be used", one line a set. The source is said once, under the title.
  */
-export function substituteSection(sets: readonly (readonly string[])[] | null | undefined): VaultSection | null {
+export function substituteSection(
+  sets: readonly (readonly string[])[] | null | undefined,
+  machineName?: string | null,
+): VaultSection | null {
   if (!sets || sets.length === 0) return null;
   const blocks = sets
     .map((set) => substituteLine(set))
     .map((text) => block("bullet", text, { source: SUBSTITUTES_SOURCE }))
     .filter(present);
   if (blocks.length === 0) return null;
-  return vaultSection("substitutes", SUBSTITUTES_TITLE, blocks);
+  return vaultSection("substitutes", substitutesTitle(machineName), blocks, SUBSTITUTES_SOURCE);
 }
 
 /**
@@ -384,7 +401,7 @@ export function codexTiers(
     adapt: [
       ...leafSections(lines, TIER_LEAVES.adapt),
       clinicalSection(opts?.clinical),
-      substituteSection(opts?.substitutes),
+      substituteSection(opts?.substitutes, name),
     ],
     science: [
       ...leafSections(lines, TIER_LEAVES.science),

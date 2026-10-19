@@ -58,7 +58,7 @@ function TopicArticle({ page, topicId }: { page: VaultPage; topicId: string }) {
   const layers = useMemo(() => topicLayers(page.sections, say), [page.sections, say]);
 
   const applied = useAppliedMarkup(page.target, page.sections);
-  const { actions, inline } = useVersionSlot(applied.struck);
+  const { actions, inline } = useVersionSlot(applied.struck, page);
   const { active, pick } = useLayer(pageKey(page.route), layers);
   const layer = layers.find((l) => l.id === active) ?? layers[layers.length - 1];
   const panelId = useId();
@@ -126,7 +126,7 @@ export function ArticlePage({ route }: { route: Extract<VaultRoute, { kind: "car
 function PlainArticle({ page }: { page: VaultPage }) {
   const { data } = useCodex();
   const applied = useAppliedMarkup(page.target, page.sections);
-  const { actions, inline } = useVersionSlot(applied.struck);
+  const { actions, inline } = useVersionSlot(applied.struck, page);
   const machine = pieceMachineId(page.route, data.machines);
   const piece = machine && isPiece(page.route) ? PIECE_WORDS[page.route.kind] : null;
   const style = machine ? accentStyle(machineAccent(machine)) : undefined;
@@ -185,7 +185,7 @@ function TermEntry({ page, sections }: { page: VaultPage; sections: VaultPage["s
   // The term is the page's title, so its line shows the definition alone.
   const shown = useMemo(() => [{ ...sections[0], blocks: [{ ...block, label: undefined }] }], [sections, block]);
   const applied = useAppliedMarkup(page.target, shown);
-  const { actions, inline } = useVersionSlot(applied.struck);
+  const { actions, inline } = useVersionSlot(applied.struck, { target: page.target, sections: shown });
   const equipment = isEquipmentTerm(sections);
 
   return (
@@ -217,7 +217,7 @@ function TermEntry({ page, sections }: { page: VaultPage; sections: VaultPage["s
 function GlossaryList({ page }: { page: VaultPage }) {
   const { open } = useCodex();
   const applied = useAppliedMarkup(page.target, page.sections);
-  const { actions, inline } = useVersionSlot(applied.struck);
+  const { actions, inline } = useVersionSlot(applied.struck, page);
   const index = useMemo(() => wordIndex(page), [page]);
   const allId = useId();
   return (
@@ -280,7 +280,7 @@ function MomentEntry({ page, sections, moment }: { page: VaultPage; sections: Va
   // The moment's name is the page's title; its full words stay as the note.
   const shown = useMemo(() => [{ ...section, title: "" }], [section]);
   const applied = useAppliedMarkup(page.target, shown);
-  const { actions, inline } = useVersionSlot(applied.struck);
+  const { actions, inline } = useVersionSlot(applied.struck, { target: page.target, sections: shown });
   return (
     <CodexFrame actions={actions}>
       <article className="cdx__article">
@@ -310,7 +310,7 @@ function MomentEntry({ page, sections, moment }: { page: VaultPage; sections: Va
 function PhrasebookList({ page }: { page: VaultPage }) {
   const { open } = useCodex();
   const applied = useAppliedMarkup(page.target, page.sections);
-  const { actions, inline } = useVersionSlot(applied.struck);
+  const { actions, inline } = useVersionSlot(applied.struck, page);
   const allId = useId();
   const rows = Math.ceil(page.sections.length / 2);
   return (

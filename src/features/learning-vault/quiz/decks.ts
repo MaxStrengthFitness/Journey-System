@@ -33,7 +33,7 @@ export interface QuizItem extends QuizQuestion {
 
 /** In the order the picker shows them: the quick mixed round first. */
 export const DECKS: QuizDeck[] = [
-  { id: "mixed", title: "Quick ten", blurb: "Ten questions from every deck." },
+  { id: "mixed", title: "Quick ten", blurb: "Ten questions from the method: the Academy and Hutchins' definition." },
   { id: "cues", title: "What would you say?", blurb: "The phrasebook: which cue fits which moment in the set." },
   { id: "rep", title: "The repetition", blurb: "The load up, the pace, the turnarounds and the squeeze." },
   { id: "machines", title: "The machines", blurb: "How each machine begins, what it targets, and what it never does." },
@@ -55,6 +55,21 @@ export const DECK_ACCENT: Record<QuizDeckId, WikiAccent | null> = {
   playbooks: "pull",
 };
 
+/**
+ * The decks "Quick ten" deals from: the METHOD's (judges' fix, Oct 19
+ * 2026). Never the playbooks deck: those questions come from Journey's
+ * own business notes, drafts head office has not read yet ("Corporate owns
+ * the method, so corporate reads it before adopting it"), so a quick round
+ * never passes one off as the method. The playbooks deck stays its own
+ * choice on the picker.
+ */
+export const MIXED_DECKS: readonly QuizDeckId[] = ["glossary", "cues", "rep", "machines", "method", "hutchins"];
+
+/** True for a deck "Quick ten" may deal from. */
+export function inQuickTen(deck: QuizDeckId): boolean {
+  return MIXED_DECKS.includes(deck);
+}
+
 const BY_ID = new Map(DECKS.map((d) => [d.id, d]));
 
 export function deckById(id: QuizDeckId): QuizDeck {
@@ -69,9 +84,11 @@ export function isDeckId(v: unknown): v is QuizDeckId {
 /**
  * The decks a bank can actually deal from, in picker order: a deck with no
  * question in it is left off rather than shown and then found empty. The
- * mixed deck needs questions from at least two decks to be "mixed".
+ * mixed deck needs questions from at least two of the method's decks
+ * (MIXED_DECKS) to be "mixed".
  */
 export function playableDecks(bank: readonly QuizQuestion[]): QuizDeck[] {
   const have = new Set(bank.map((q) => q.deck));
-  return DECKS.filter((d) => (d.id === "mixed" ? have.size >= 2 : have.has(d.id)));
+  const method = MIXED_DECKS.filter((d) => have.has(d)).length;
+  return DECKS.filter((d) => (d.id === "mixed" ? method >= 2 : have.has(d.id)));
 }

@@ -4,6 +4,8 @@
  */
 // Written out here, not imported: steps.mjs imports this file while it loads.
 const MACHINE = "&view=machine-anatomy&machine=m-leg-press";
+// CX, 4 WAY NECK: out of service in the sample (sample.ts).
+const OUT_OF_SERVICE = "&view=machine-anatomy&machine=m-neck";
 const TOPIC = `&view=academy&ref=${encodeURIComponent(JSON.stringify({ kind: "academy-topic", id: "performance-gradual-load-up" }))}`;
 const LINE = "[data-vta-line]";
 const TERM = "[data-vault-term], .vtc__term";
@@ -36,29 +38,40 @@ export const steps = [
   // A course: Start the course from the Overview, then the course's own list.
   { name: "course-start", query: COURSE, actions: [{ tap: "Start the course" }, { wait: 700 }] },
   { name: "course-list", query: COURSE, actions: [{ tap: "All 9 lessons" }, { wait: 600 }] },
-  // The field manual: a pin turns the set-up deck; a line tapped in the full manual.
+  // The field manual: a pin goes to the line that sets its dial on the
+  // set-up list (marked); Step through turns the list into cards; a line
+  // tapped in the full manual.
   { name: "machine-pin", query: MACHINE, actions: [{ wait: 600 }, { tapSelector: "button.crs__pin" }, { wait: 700 }] },
+  { name: "machine-step-through", query: MACHINE, actions: [{ wait: 600 }, { tap: "Step through" }, { wait: 500 }] },
+  // The floor's status: a machine out of service, its banner at the top.
+  { name: "machine-out-of-service", query: OUT_OF_SERVICE, actions: [{ wait: 600 }] },
+  // A course's machine goes on to the next lesson (Life Transformer 101, lesson 7).
+  {
+    name: "course-machine-next",
+    query: COURSE,
+    actions: [{ tap: "All 9 lessons" }, { wait: 600 }, { tap: "Leg Press" }, { wait: 800 }, { tapSelector: ".crs__course-next button" }, { wait: 700 }],
+  },
   { name: "machine-tier", query: MACHINE, actions: [{ wait: 600 }, { tap: "Script & cues" }, { wait: 500 }] },
   { name: "line-tapped", query: MACHINE, actions: [{ wait: 600 }, { tapSelector: LINE }, { wait: 500 }] },
-  // What would you cue? on the Overview, revealed.
+  // What would you cue? on the Overview, revealed; then Another moment, which arrives closed.
   { name: "drill-revealed", query: COURSE, actions: [{ tap: "Show the Academy's lines" }, { wait: 800 }] },
+  {
+    name: "drill-another",
+    query: COURSE,
+    actions: [{ tap: "Show the Academy's lines" }, { wait: 500 }, { tap: "Another moment" }, { wait: 600 }],
+  },
   // The phrasebook's one-word moment revealed: short cues flow side by side.
   {
     name: "cueing-one-word",
     query: CUEING,
     actions: [{ wait: 600 }, { tapSelector: "#crs-moment-4 .crs__drill-foot button" }, { wait: 800 }],
   },
-  // The field manual's first moment revealed, then peeked whole: the peek holds that moment alone.
+  // The field manual's first moment (its lines showing) peeked whole: the
+  // peek holds that moment alone, its name said once, in the sheet's header.
   {
     name: "peek-moment",
     query: MACHINE,
-    actions: [
-      { wait: 600 },
-      { tapSelector: ".crs__drills .crs__drill .crs__drill-foot button" },
-      { wait: 400 },
-      { tapSelector: ".crs__drills .crs__drill .crs__drill-foot .crs__btn--quiet" },
-      { wait: 700 },
-    ],
+    actions: [{ wait: 600 }, { tapSelector: ".crs__drills .crs__drill .crs__drill-foot .crs__btn--quiet" }, { wait: 700 }],
   },
   // A concept card, and one nested inside it.
   { name: "concept-card", query: TOPIC, actions: [{ wait: 600 }, { tapSelector: TERM }, { wait: 500 }] },

@@ -21,18 +21,35 @@ const fx = vi.hoisted(() => ({
   phone: false,
   /** The reference chunks cannot arrive (offline): the hooks never land and the loader fails. */
   refsFail: false,
+  /** The Chest Press is out of service on the roster, with a leader's reason. */
+  chestOut: false,
+  /** Relay's care record (useMachineCare's state): flags by machine id. */
+  care: { byMachineId: {}, loading: false, error: null } as {
+    byMachineId: Record<string, { flag: { note: string; by: { name: string }; at: number } | null }>;
+    loading: boolean;
+    error: string | null;
+  },
 }));
 
 vi.mock("../../../firebase", () => ({ db: {}, auth: { currentUser: null } }));
 vi.mock("../../phone/device", () => ({ usePhone: () => fx.phone, isPhoneNow: () => fx.phone }));
+// Relay's flags, read only: never a listener against the test's stand-in database.
+vi.mock("../../relay/board/machine-care-store", () => ({ useMachineCare: () => fx.care }));
 
 vi.mock("../../catalog/useCatalogMachines", () => ({
   useCatalogMachines: () => ({
     machines:
       fx.floor === "ready"
         ? [
-            { id: "m-leg-press", name: "Leg Press" },
-            { id: "m-chest-press", name: "Chest Press" },
+            { id: "m-leg-press", name: "Leg Press", rosterStatus: "active" },
+            fx.chestOut
+              ? {
+                  id: "m-chest-press",
+                  name: "Chest Press",
+                  rosterStatus: "maintenance",
+                  outOfService: { reason: "A new cable is on order", by: { uid: "u-sam", name: "Sam Lee" }, at: Date.parse("2026-10-17T12:00:00Z") },
+                }
+              : { id: "m-chest-press", name: "Chest Press", rosterStatus: "active" },
           ]
         : [],
     source: "roster",
@@ -84,7 +101,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { UnsavedChangesProvider } from "../../unsaved-changes";
 import { WikiSectionsProvider, type WikiSectionsValue } from "../../wiki";
+import scriptsJson from "../../academy/content/scripts.json";
+import type { MachineScript } from "../../academy/types";
+import { scriptSections } from "../../learning-vault/codex-reader";
+import { vaultTarget } from "../../learning-vault/learning-link";
+import { makeStrike } from "../../learning-vault/markup";
 import { createSandboxStore, type MarkupStore } from "../../learning-vault/markup-store";
+import { makeSubmission } from "../../learning-vault/submissions";
 import { sampleSeed } from "../../learning-vault/sample";
 import { VaultProvider } from "../../learning-vault/ui/VaultProvider";
 import type { VaultViewer } from "../../learning-vault/types";
@@ -106,6 +129,8 @@ beforeEach(() => {
   fx.floor = "ready";
   fx.phone = false;
   fx.refsFail = false;
+  fx.chestOut = false;
+  fx.care = { byMachineId: {}, loading: false, error: null };
   store = createSandboxStore();
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -392,12 +417,16 @@ describe("the Living Vault, after the review", () => {
     expect(title()).toBe("LEG PRESS");
   });
 
-  it("draws the gutter only on the studio's version; the MSF original reads at the page's edge", async () => {
+  it("draws the gutter only on the studio's version, and keeps its room empty on the MSF original so no word moves", async () => {
     await mount("machine-anatomy", { kind: "machine", id: "m-leg-press" });
-    expect(host.querySelector('.vm__body[data-annotate="gutter"] .vta[data-annotate="gutter"]')).toBeTruthy();
+    const room = host.querySelector(".vm__room");
+    expect(host.querySelector('.vm__body[data-annotate="gutter"] .vm__room:not([data-room]) .vta[data-annotate="gutter"]')).toBeTruthy();
     await tap(button("MSF original"));
-    expect(host.querySelector('.vm__body[data-annotate="inline"] .vta[data-annotate="inline"]')).toBeTruthy();
-    expect(host.querySelector('[data-annotate="gutter"]')).toBeNull();
+    // No empty gutter column inside the body: the page keeps the same room around it.
+    expect(host.querySelector('.vm__body[data-annotate="gutter"] .vm__room[data-room] .vta[data-annotate="inline"]')).toBeTruthy();
+    expect(host.querySelector(".vta__gutter")).toBeNull();
+    // The same wrapper, never a new one (a body started over loses its typing).
+    expect(host.querySelector(".vm__room")).toBe(room);
   });
 
   it("gives the glossary a row of letters that jump inside the page's one scroller", async () => {
@@ -408,6 +437,8 @@ describe("the Living Vault, after the review", () => {
       await mount("academy", { kind: "academy-glossary" });
       const letters = [...host.querySelectorAll(".vm__letter-btn")];
       expect(letters.length).toBeGreaterThan(10);
+      // Over the whole article, not inside its body column (one row in landscape too).
+      expect(host.querySelector(".vm__main .vm__letters")).toBeNull();
       expect(letters[0].textContent).toBe("A");
       await tap(button("Words under P"));
       expect(scrolled).toHaveBeenCalled();
@@ -537,6 +568,188 @@ describe("the Vault's stylesheet, after the review", () => {
 
   it("lays the playbooks' pillars in one column on an upright iPad", () => {
     expect(rule(".vm__pillars")).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
+  });
+
+  it("keeps the gutter's exact room on the MSF original, and lays a phone's letters in rows of six", () => {
+    // ArticleBlocks' gutter: a 40px column and its 0.5rem gap (article.css).
+    expect(rule(".vm__room[data-room]")).toMatch(/padding-left:\s*calc\(40px \+ 0\.5rem\)/);
+    expect(css).toMatch(/\.vm__letters\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*repeat\(6, minmax\(40px, 1fr\)\);/);
+  });
+
+  it("draws no count chips on the floor's rows", () => {
+    expect(css).not.toMatch(/\.vm__badge/);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * The judges' and the recheck's fixes (Oct 19 2026, the last round)
+ * ------------------------------------------------------------------ */
+
+const LP_TARGET = vaultTarget({ kind: "machine", id: "m-leg-press" }, "LEG PRESS");
+const LP_SCRIPT = (scriptsJson as unknown as { scripts: MachineScript[] }).scripts.find((s) => s.machineId === "m-leg-press")!;
+/** The first line of the Leg Press's spoken script: a section its page leaves to the peek unless Solon marked it. */
+const BEAT_LINE = scriptSections(LP_SCRIPT)[0].blocks[0];
+const SAM = { uid: "u-sam", name: "Sam Lee" };
+const BASE = { studioId: "solon", studioName: "Solon", targetKey: LP_TARGET.key, title: "LEG PRESS" };
+const AT = "2026-10-18T12:00:00.000Z";
+
+const FLAG_AT = Date.parse("2026-10-18T12:52:00Z");
+const flagged = (ids: string[]) => ({
+  byMachineId: Object.fromEntries(ids.map((id) => [id, { flag: { note: "Left pad sticks at the bottom", by: { name: "Jess" }, at: FLAG_AT } }])),
+  loading: false,
+  error: null,
+});
+
+const floorRow = (name: string) =>
+  [...host.querySelectorAll(".vm__floor-row")].find((r) => r.querySelector(".vm__floor-name")?.textContent === name) ?? null;
+
+describe("the floor's status and facts on the Catalog's rows", () => {
+  it("says Out of service and Flagged as the Catalog does, then how the set begins", async () => {
+    fx.chestOut = true;
+    fx.care = flagged(["m-leg-press"]);
+    await mount("machine-anatomy");
+    const leg = floorRow("Leg Press");
+    expect(leg?.querySelector('[data-floor-status="chip"]')?.textContent).toContain("Flagged");
+    expect(leg?.textContent).toContain("Load-up");
+    expect(leg?.textContent).not.toContain("Out of service");
+    const chest = floorRow("Chest Press");
+    expect(chest?.textContent).toContain("Out of service");
+    expect(chest?.textContent).toContain("A new cable is on order");
+    expect(chest?.textContent).not.toContain("Flagged");
+    // The safety rule and the handoff, from the machine's definition.
+    expect(floorRow("CX (4 WAY NECK)")?.textContent).toMatch(/Handoff.*Never to failure/);
+    expect(floorRow("LUMBAR")?.textContent).toMatch(/Load-up.*Never to failure/);
+    // No link counts: nothing on a row is a bare number but its walking order.
+    expect(host.querySelector(".vm__badge, .vm__badges")).toBeNull();
+    expect(leg?.getAttribute("aria-label")).toBeNull();
+  });
+
+  it("says nothing about the floor while Relay's flags are still unknown", async () => {
+    fx.chestOut = true;
+    fx.care = { byMachineId: {}, loading: true, error: null };
+    await mount("machine-anatomy");
+    expect(host.querySelector("[data-floor-status]")).toBeNull();
+    expect(host.textContent).not.toContain("Out of service");
+    // The method's facts do not wait on the floor.
+    expect(floorRow("Leg Press")?.textContent).toContain("Load-up");
+  });
+});
+
+describe("the floor's status on a machine page", () => {
+  it("opens a flagged machine with the flag under its title", async () => {
+    fx.care = flagged(["m-leg-press"]);
+    await mount("machine-anatomy", { kind: "machine", id: "m-leg-press" });
+    const banner = host.querySelector('.vm__head [data-floor-status="banner"]');
+    expect(banner?.textContent).toContain("Flagged by Jess");
+    expect(banner?.textContent).toContain("Left pad sticks at the bottom");
+  });
+
+  it("opens a machine out of service with who said so and why", async () => {
+    fx.chestOut = true;
+    await mount("machine-anatomy", { kind: "machine", id: "m-chest-press" });
+    const banner = host.querySelector('.vm__head [data-floor-status="banner"]');
+    // The Catalog's own line: the first name, then when.
+    expect(banner?.textContent).toContain("Out of service · Sam · Oct 17");
+    expect(banner?.textContent).toContain("A new cable is on order");
+  });
+
+  it("draws no banner on a machine the floor can use", async () => {
+    await mount("machine-anatomy", { kind: "machine", id: "m-leg-press" });
+    expect(host.querySelector("[data-floor-status]")).toBeNull();
+    expect(host.querySelector(".vm__status")).toBeNull();
+  });
+
+  it("says a stand-in's flag on its peek too", async () => {
+    fx.care = flagged(["m-ext"]);
+    await mount("machine-anatomy", { kind: "machine", id: "m-leg-press" });
+    const ext = [...host.querySelectorAll(".vm__mini-node, .vm__related .vm__row")].find((b) =>
+      /LEG EXTENSION/.test(b.getAttribute("aria-label") ?? b.textContent ?? ""),
+    );
+    await tap(ext);
+    expect(document.querySelector('.vtp [data-floor-status="banner"]')?.textContent).toContain("Flagged by Jess");
+  });
+});
+
+describe("a machine page's substitutes, one way", () => {
+  it("says what stands in for the Leg Press, never what the Leg Press stands in for", async () => {
+    await mount("machine-anatomy", { kind: "machine", id: "m-leg-press" });
+    const whys = [...texts(".vm__mini-why", host), ...texts(".vm__row-why", host)];
+    expect(whys.some((w) => /^In sets that replace it$|LEG PRESS$|^If LEG PRESS can't be used/.test(w))).toBe(true);
+    for (const w of whys) expect(w).not.toMatch(/^(Can replace|Part of a set that can replace)$/);
+    // The Leg Press stands in for the Hip Abduction: not on the Leg Press's page.
+    const orbit = texts(".vm__mini-name", host);
+    const hipAbd = [...host.querySelectorAll(".vm__mini-node")].find((b) => /HIP ABDUCTION/.test(b.getAttribute("aria-label") ?? ""));
+    if (hipAbd) expect(hipAbd.getAttribute("aria-label")).toMatch(/In sets that replace it|Can be replaced by/);
+    expect(orbit.length).toBeGreaterThan(0);
+  });
+
+  it("on the Hip Abduction's page, says the Leg Press can replace it, and nothing the other way", async () => {
+    await mount("machine-anatomy", { kind: "machine", id: "m-hip-abd" });
+    const labels = [...host.querySelectorAll(".vm__mini-node")].map((b) => b.getAttribute("aria-label") ?? "");
+    const lp = labels.find((l) => /^LEG PRESS/.test(l));
+    // A set of one: the Leg Press alone can replace it.
+    expect(lp).toMatch(/Can be replaced by/);
+    for (const l of labels) expect(l).not.toMatch(/Part of a set that can replace|Can replace\./);
+  });
+});
+
+describe("a beat section the body keeps for Solon (recheck fixes)", () => {
+  it("keeps a put-back line where it was, and no other line becomes chosen", async () => {
+    store.strike(BASE, makeStrike(BEAT_LINE, { reason: "We set the back pad before the client sits." }, SAM, AT));
+    await mount("machine-anatomy", { kind: "machine", id: "m-leg-press" });
+    const body = host.querySelector(".vm__body") as HTMLElement;
+    const line = [...body.querySelectorAll("[data-vta-line]")].find((l) => l.querySelector("s")?.textContent === BEAT_LINE.text);
+    expect(line, "the crossed-out beat line is drawn").toBeTruthy();
+    await tap(line);
+    await tap(button("Put it back"));
+    // The beat is still there, its line no longer struck, and nothing else is chosen.
+    const after = [...body.querySelectorAll("[data-vta-line]")].filter((l) => l.textContent?.includes(BEAT_LINE.text));
+    expect(after).toHaveLength(1);
+    expect(after[0].querySelector("s")).toBeNull();
+    for (const chosen of body.querySelectorAll("[data-selected]")) expect(chosen.textContent).toContain(BEAT_LINE.text);
+  });
+
+  it("keeps the section when the reader switches to the MSF original", async () => {
+    store.strike(BASE, makeStrike(BEAT_LINE, { reason: "We set the back pad before the client sits." }, SAM, AT));
+    await mount("machine-anatomy", { kind: "machine", id: "m-leg-press" });
+    const heads = () => texts("h2, h3", host.querySelector(".vm__body") as HTMLElement);
+    const before = heads();
+    await tap(button("MSF original"));
+    expect(heads()).toEqual(before);
+  });
+
+  it("draws head office's answer about a script line, with the section that holds it", async () => {
+    const sub = makeSubmission(
+      { intent: "dispute", body: "We set the back pad before the client sits down." },
+      { target: LP_TARGET, block: BEAT_LINE, studioId: "solon", studioName: "Solon", by: SAM },
+      "sub-beat",
+      AT,
+    );
+    store.submit(sub);
+    store.decide("sub-beat", "taken", { note: "Agreed: the pad first.", byName: "Head office", at: AT });
+    await mount("machine-anatomy", { kind: "machine", id: "m-leg-press" });
+    const body = host.querySelector(".vm__body") as HTMLElement;
+    expect(body.textContent).toContain(BEAT_LINE.text);
+    expect(body.querySelector(".vta__answers")?.textContent).toContain("Agreed: the pad first.");
+  });
+});
+
+describe("a term's peek", () => {
+  it("never links the term to itself inside its own definition", async () => {
+    await mount("academy", { kind: "academy-topic", id: "performance-gradual-load-up" });
+    const terms = [...host.querySelectorAll<HTMLElement>(".vm__body [data-vault-term], .vm__body .vtc__term")];
+    const term = terms.find((t) => /^force$/i.test(t.textContent?.trim() ?? "")) ?? terms[0];
+    expect(term, "a linked word on the page").toBeTruthy();
+    await tap(term);
+    await tap(button("Peek"));
+    const peek = document.querySelector(".vtp");
+    const name = (document.querySelector(".vtp__title")?.textContent ?? "").trim().toLowerCase();
+    expect(peek).toBeTruthy();
+    expect(name).not.toBe("");
+    const self = [...(peek?.querySelectorAll("[data-vault-term], .vtc__term") ?? [])].filter(
+      (t) => (t.textContent ?? "").trim().toLowerCase() === name,
+    );
+    expect(self).toHaveLength(0);
   });
 });
 

@@ -135,9 +135,11 @@ describe("the pills", () => {
     expect(headings()).toHaveLength(5);
   });
 
-  it("are the same from the other end, said the other way", async () => {
+  it("never say, on a machine, the sets it helps replace ANOTHER (judges' fix: one direction on a machine page)", async () => {
+    // Leg Extension is in a set that replaces Leg Press: that is Leg Press's question, not Leg Extension's.
     await mount(<LocalConstellation graph={GRAPH} nodeId="machine:m-ext" onOpen={() => {}} />);
-    expect(headings()).toEqual(["Part of a set that replaces"]);
+    expect(headings()).toEqual([]);
+    expect(host.textContent ?? "").not.toMatch(/replace/i);
   });
 });
 

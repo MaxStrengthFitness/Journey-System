@@ -10,7 +10,6 @@ import {
   MAP_MIN_H,
   backlinksOf,
   bodySections,
-  connectionCounts,
   dotBox,
   hubsOf,
   labelObstacles,
@@ -26,6 +25,8 @@ import {
   sectorPoints,
   shownIds,
   startNodes,
+  studioLineKeys,
+  unionKeys,
   whoSaid,
   withoutShown,
   wrapLabel,
@@ -51,7 +52,7 @@ const NODES: GraphNode[] = [
   node("module:performance", "module", { kind: "module", moduleId: "performance" }, 9),
 ];
 const EDGES: GraphEdge[] = [
-  edge("machine:m-leg-ext", "machine:m-leg-press", "substitutes", "is part of a set that replaces"),
+  edge("machine:m-leg-ext", "machine:m-leg-press", "substitutes", "is part of a set that can replace"),
   edge("machine:m-leg-press", "cue:0", "cued-at", "is cued at"),
   edge("topic:t-load", "machine:m-leg-press", "mentions", "talks about"),
   edge("topic:t-load", "term:pace", "mentions", "talks about"),
@@ -260,17 +261,6 @@ describe("sectorPoints", () => {
 });
 
 describe("what a node connects to", () => {
-  it("counts a machine's links by domain, in the domains' order", () => {
-    expect(connectionCounts(GRAPH, "machine:m-leg-press")).toEqual([
-      { domain: "machine", count: 1 },
-      { domain: "cue", count: 1 },
-      { domain: "topic", count: 1 },
-      { domain: "clinical", count: 1 },
-    ]);
-    expect(connectionCounts(GRAPH, "machine:nowhere")).toEqual([]);
-    expect(connectionCounts(null, "machine:m-leg-press")).toEqual([]);
-  });
-
   it("finds what links INTO a page, strongest reason first, one row per other page", () => {
     const back = backlinksOf(GRAPH, "machine:m-leg-press");
     const ids = back.map((b) => b.node.id);
@@ -378,6 +368,40 @@ describe("a page's body", () => {
     expect(bodySections("topic", machine, new Set())).toBe(machine);
     const plain = [sec("leaf-stop", ["s1"])];
     expect(bodySections("machine", plain, new Set())).toBe(plain);
+  });
+});
+
+describe("the lines that tie a page to this studio (recheck fix, Oct 19 2026)", () => {
+  const strike = (blockKey: string) => ({ blockKey }) as never;
+  const sub = (studioId: string, targetKey: string, blockKey?: string) => ({ studioId, targetKey, blockKey });
+  const sec = (id: string, keys: string[]) => ({ id, title: id, blocks: keys.map((key) => ({ key })) });
+
+  it("takes every line crossed out, noted, or told head office about, this studio's and this page's only", () => {
+    const keys = studioLineKeys(
+      { strikes: [strike("b1")], notes: [strike("b2")] },
+      [sub("solon", "machine:m-leg-press", "b3"), sub("north", "machine:m-leg-press", "b4"), sub("solon", "topic:x", "b5"), sub("solon", "machine:m-leg-press")],
+      "solon",
+      "machine:m-leg-press",
+    );
+    expect([...keys].sort()).toEqual(["b1", "b2", "b3"]);
+    expect(studioLineKeys(null, [sub("solon", "t", "b3")], null, "t").size).toBe(0);
+  });
+
+  it("keeps a beat section for a line told to head office alone", () => {
+    const machine = [sec("leaf-stop", ["s1"]), sec("beat-0", ["b1", "b2"]), sec("moment-3", ["m1"])];
+    const keys = studioLineKeys(null, [sub("solon", "machine:m-leg-press", "b2")], "solon", "machine:m-leg-press");
+    expect(bodySections("machine", machine, keys).map((s) => s.id)).toEqual(["leaf-stop", "beat-0", "moment-3"]);
+  });
+
+  it("never lets a kept key go, and hands back the same set when nothing is new", () => {
+    const kept = new Set(["b1"]);
+    expect(unionKeys(kept, new Set())).toBe(kept);
+    expect(unionKeys(kept, new Set(["b1"]))).toBe(kept);
+    const more = unionKeys(kept, new Set(["b2"]));
+    expect([...more].sort()).toEqual(["b1", "b2"]);
+    expect([...kept]).toEqual(["b1"]);
+    // The line put back: its key is gone from the markup, never from the visit.
+    expect(unionKeys(more, new Set())).toBe(more);
   });
 });
 

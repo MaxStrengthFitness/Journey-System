@@ -65,6 +65,17 @@ export const FIRST_SESSION_SCREENS = "docs/rounds/2026-10-08-first-session-scree
 export const SOURCE_CHECK = "docs/rounds/2026-09-28-codex-source-check.md";
 export const CLICKER = "docs/msf-academy/Academy/Academy - Registering Performance - Use of the Clicker.txt";
 
+/**
+ * The four P's, in the ONE order Learning names them: the Academy's own
+ * ("The 4 P's - Posture, Pace, Path, Purpose", Introduction) and the
+ * code's (rating/scales.ts). The Academy topic's title, made from its file
+ * name, and the floor notes each say them in another order; a playbook or a
+ * track never does (judges' fix, Oct 19 2026).
+ */
+export const FOUR_PS = ["Posture", "Pace", "Path", "Purpose"] as const;
+/** "Posture, Pace, Path, Purpose": a step or link to the Academy's topic on them. */
+export const FOUR_PS_TITLE = FOUR_PS.join(", ");
+
 /** "docs/business/the-floor.md:66", or ":52-53" for a sentence over two lines. */
 export function at(path: string, from: number, to?: number): string {
   return to !== undefined && to !== from ? `${path}:${from}-${to}` : `${path}:${from}`;

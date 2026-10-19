@@ -98,6 +98,43 @@ Overview is courses (the seven reading paths), Play, the drill of the day, the
 scrubber and the field manual. Borrows from Brilliant, Inkling, Trainual and
 LegendKeeper.
 
+## What three judges said
+
+Before morning, three judges each looked at the final screenshots of all four
+(the three designs and today's Learning) through one person's eyes, and scored
+them out of 10:
+
+| | A trainer between sets | A new Life Transformer | A studio leader and head office |
+| --- | --- | --- | --- |
+| Codex | 7 | 7 | 7 |
+| Course | 6 | **8** | 5.5 |
+| Vault | 3 | 5 | 5 |
+| Today's Learning | 5 | 3 | 4 |
+
+- **The trainer**: "no single design is the answer. The best floor tool is a
+  mix with Codex's machine page as the spine", with Course's dial tiles at the
+  top of Floor glance. The Vault's map "costs a trainer between sets time on
+  every screen".
+- **The new Life Transformer**: "the Interactive Course is the one that
+  actually teaches"; the Codex "is the reference this trainer will grow into".
+- **The leader and head office**: "the Tactical Codex is the base to build on.
+  It is the only design whose shape is the same on every machine and every
+  topic."
+- **All three caught one miss**: none of the redesigns showed Relay's "Out of
+  service" and "Flagged" on the Catalog and the machine page, which today's
+  Learning does and a recorded decision requires. Fixed in the last round
+  (below), with the substitutes said one way on a machine page ("If Leg Press
+  can't be used: Leg Extension + Leg Curl + Hip Abduction"), the Codex's
+  Floor glance leading with the dials and set-up, and Quick ten drawing only
+  from the method's decks.
+- Their open worries, for the build of the pick: a single "our changes" list
+  per studio; head office's queue grouped by page with "N of M studios" and a
+  "taken, edit pending" state (taking a dispute changes no words yet);
+  concept cards that can cover the sentence; a private "continue where you
+  left off" for a month-long course (no ranking, but it is stored progress, so
+  it is your call); and the chrome stack (frame, masthead, version row, tier
+  bar) taking about 300px of an upright iPad before any content.
+
 ## What all three share
 
 - **{Studio}'s version | MSF original** on every article, 44px, in the sticky
@@ -194,12 +231,15 @@ questions, each with Read it. A miss is never crimson.
 
 The morning page has these as taps; your answers save to it and I read them.
 
-1. **Which design?** 1 Codex · 2 Vault map · 3 Course · a mix. *My pick: a
-   mix with the Codex as the base.* Its machine page (bento + tiers) is the
-   best thing for the floor, where the iPad is in one hand between sets. Add
-   from the Course its lesson cards for long Academy topics, the scrubber, the
-   cue drills and the glossary vault; from the Vault the map as a lens on the
-   Overview and "Linked here" on each page, not the front door.
+1. **Which design?** 1 Codex · 2 Vault map · 3 Course · a mix. *My pick (and
+   the judges'): a mix with the Codex as the base.* Its machine page (bento +
+   tiers) is the best thing for the floor, where the iPad is in one hand
+   between sets, and its shape is the same on every page. Add from the Course
+   its dial tiles at the top of Floor glance, its lesson cards with Check
+   yourself for the Academy's long topics, the scrubber, the cue drills and
+   the glossary vault (the courses are where a new trainer learns); from the
+   Vault "Linked here" at the foot of a page, and the map as a lens, never the
+   front door.
 2. **Studio strike-throughs on Academy prose: yes?** (the recorded-decision
    change above). *My pick: yes, with the reason required and the original
    one tap away.*

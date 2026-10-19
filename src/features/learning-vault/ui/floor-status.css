@@ -1,0 +1,74 @@
+/* ====================================================================
+ * The floor's status — Out of service and Flagged, as the Catalog says
+ * them. Learning vault redesign, Oct 19 2026 (the judges' last fixes).
+ *
+ * Owns the vtf__ prefix and nothing else. Learning's tokens only (--wk-*,
+ * loaded by wiki.css, which the component imports): no raw colour.
+ *
+ * Both are cautions, the app's plum, exactly as today's Catalog draws them:
+ * the chips ARE the Catalog's badges (WikiBadge tone "warn", wiki.css), so
+ * only their row lives here; the banner copies catalog.css's .mcat-oos and
+ * .mcat-flag (who and when in the plum, the words in the ink, where it is
+ * changed in the second ink). Crimson stays a Critical note's and a set's
+ * that needs work. Nothing here is tappable, so nothing is sized for a
+ * finger; every line wraps, never cut short. The banner keeps no outer
+ * margin: the page around it sets the gap.
+ * ------------------------------------------------------------------ */
+
+.vtf {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.vtf__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+/* Why it is out of service, under the chips on a row: "A new cable is on order · Glorfindel". */
+.vtf__why {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.vtf--banner {
+  gap: 0.5rem;
+}
+
+.vtf__note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--wk-warn-border);
+  border-radius: var(--wk-radius);
+  background: var(--wk-warn-fill);
+}
+
+.vtf__who {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wk-warn);
+  overflow-wrap: anywhere;
+}
+
+.vtf__text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+
+.vtf__where {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}

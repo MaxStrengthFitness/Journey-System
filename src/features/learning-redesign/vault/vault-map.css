@@ -1073,27 +1073,12 @@
   color: var(--wk-ink-faint);
 }
 
-/* What a machine connects to, by domain: glyph and count, never a score. */
-.vm__badges {
+/* How the set begins and Never to failure: the Catalog's own badges
+   (wiki.css .wk__badge), in one wrapping row under the floor's status. */
+.vm__floor-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-}
-.vm__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: var(--vm-fill);
-  color: var(--vm-text);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-.vm__badge svg {
-  flex: none;
-  display: block;
+  gap: 0.25rem;
 }
 
 .vm__module-n {
@@ -1478,17 +1463,36 @@
   padding-left: calc(40px + 0.5rem + 0.625rem);
 }
 
-/* The glossary's letters: one wrapping row of jumps above its words. */
+/* The MSF original on an iPad: the gutter's room, kept empty, so its words
+   sit exactly where the studio's version puts them and switching versions
+   never moves the line being compared (the body draws the gutter only where
+   a mark can show: 40px and its 0.5rem gap). */
+.vm__room {
+  min-width: 0;
+}
+.vm__room[data-room] {
+  padding-left: calc(40px + 0.5rem);
+}
+
+/* Out of service and Flagged under a machine's title (FloorStatus keeps no
+   outer margin: the page sets the gap). */
+.vm__status {
+  margin: 0.875rem 0 0;
+}
+
+/* The glossary's letters: one row of jumps over the whole article, above
+   its words (and above Read alongside in landscape). */
 .vm__letters {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  margin: 0 0 1.25rem;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 /* 40px wide (a finger's least) and 44 tall: the whole alphabet fits one row
-   on an upright iPad instead of leaving its last letter alone on a second. */
+   on an iPad either way up (17 letters need 744px; the article is wider than
+   that in portrait and in landscape). A phone lays them in rows of six. */
 .vm__letter-btn {
   display: grid;
   place-items: center;
@@ -1790,6 +1794,15 @@
   .vm__floor-name,
   .vm__module-title {
     font-size: 14px;
+  }
+  /* Rows of six, 6 / 6 / 5, never one letter stranded on a row of its own;
+     each key fills its column, like a keypad. */
+  .vm__letters {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(40px, 1fr));
+  }
+  .vm__letter-btn {
+    width: 100%;
   }
 }
 

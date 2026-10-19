@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
@@ -18,15 +19,20 @@ import {
   Gamepad2,
   Library,
   MessageSquareQuote,
+  Pointer,
   Type,
 } from "lucide-react";
 import { useWikiPageGuard } from "../../wiki/page-guard";
+import { applyMarkup } from "../../learning-vault/markup";
 import { ArticleBlocks } from "../../learning-vault/ui/ArticleBlocks";
+import { isMarkableKind, lineActions, lineHintWords } from "../../learning-vault/ui/line-actions";
+import { lineHintSeen, subscribeLineHint } from "../../learning-vault/ui/line-hint";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
+import { useStudioMarkup, useVault } from "../../learning-vault/ui/VaultProvider";
 import { VersionToggle } from "../../learning-vault/ui/VersionToggle";
 import type { VaultFact, VaultPage, VaultSection, VaultTarget } from "../../learning-vault/types";
 import { useCodex } from "./codex-context";
-import { groupReasons, nextLayer, pickLayer, stepKind, versionFitsTrail, type StepKind } from "./codex-model";
+import { groupReasons, hideReserved, nextLayer, pickLayer, stepKind, versionFitsTrail, type StepKind } from "./codex-model";
 import "./codex.css";
 
 /* ------------------------------------------------------------------ *
@@ -38,12 +44,28 @@ import "./codex.css";
  * one tap from any line) when the crumbs and the switch fit there side by
  * side; on a phone, or on a deep trail whose first crumb the row would cut
  * mid-word, it sits under the title instead (versionFitsTrail).
+ *
+ * `struck` is what the lens on screen shows crossed out (the switch's own
+ * Hide button); the PLACE is read from the page's sections without the lens
+ * (hideReserved), so tapping "MSF original" never moves the switch out from
+ * under the finger (review fix, Oct 19 2026).
  */
-export function useVersionSlot(struck: number): { actions: ReactNode; inline: ReactNode } {
+export function useVersionSlot(
+  struck: number,
+  page: { target: VaultTarget; sections: VaultSection[] },
+): { actions: ReactNode; inline: ReactNode } {
   const { phone, crumbs } = useCodex();
+  const vault = useVault();
+  const markup = useStudioMarkup(page.target.key);
+  const studioOpen = vault.studio.id !== null;
+  const studioStruck = useMemo(
+    () => (studioOpen && markup ? applyMarkup(page.sections, markup, { lens: "studio", showCrossed: true }).struck : 0),
+    [studioOpen, markup, page.sections],
+  );
+  const reserve = hideReserved({ studioOpen, canStrike: vault.viewer.canStrike, studioStruck });
   const width = useViewportWidth();
   const toggle = <VersionToggle struck={struck} />;
-  const inRow = !phone && versionFitsTrail({ labels: crumbs.map((c) => c.label), struck: struck > 0, width });
+  const inRow = !phone && versionFitsTrail({ labels: crumbs.map((c) => c.label), struck: reserve, width });
   return inRow ? { actions: toggle, inline: null } : { actions: undefined, inline: <div className="cdx__version">{toggle}</div> };
 }
 
@@ -129,11 +151,38 @@ export function BandHead({ id, title, action }: { id: string; title: string; act
 
 
 /**
+ * The one quiet "Tap a line to …", ONCE, above a body's first section
+ * (review fix, Oct 19 2026). ArticleBlocks put it under the page's first
+ * line, which on a machine was inside the plum Stop well and between two
+ * lines sharing one label ("Primary muscle: Quadriceps", the hint, "Gluteus
+ * Maximus"); above the lines it splits nothing and sits in no well. It goes
+ * for good the first time the reader chooses a line (line-hint.ts), as the
+ * vault's own did.
+ */
+function TapHint({ sections }: { sections: readonly VaultSection[] }) {
+  const vault = useVault();
+  const seen = useSyncExternalStore(subscribeLineHint, lineHintSeen, lineHintSeen);
+  if (seen) return null;
+  if (!sections.some((s) => s.blocks.some((b) => isMarkableKind(b.kind)))) return null;
+  const studioLens = vault.lens === "studio" && vault.studio.id !== null;
+  const words = lineHintWords(
+    lineActions({ studioLens, canStrike: vault.viewer.canStrike, canNote: vault.viewer.canNote, struck: false }),
+  );
+  return (
+    <p className="cdx__tap-hint">
+      <Pointer size={14} aria-hidden />
+      <span>{words}</span>
+    </p>
+  );
+}
+
+/**
  * The page's lines, through the vault's one body (ArticleBlocks): studio
  * markup inline under each line, the line actions, the forms in place.
  * A partial body (one tier of a page) leaves "lines that changed" to the
  * page (showOrphans off), which lists them once, counted over every tier
- * (CodexMachine, CodexArticle).
+ * (CodexMachine, CodexArticle). The tap hint is the Codex's own, above the
+ * lines (TapHint), never the body's under its first line.
  */
 export function Blocks({
   target,
@@ -154,18 +203,22 @@ export function Blocks({
 }) {
   const linked = useCallback((text: string) => <LinkedText text={text} skip={skip} />, [skip]);
   return (
-    <div className="cdx__blocks">
-      <ArticleBlocks
-        target={target}
-        sections={sections}
-        annotate="inline"
-        renderText={linked}
-        compact={compact}
-        headingLevel={2}
-        showOrphans={!partial}
-        accent={accent}
-      />
-    </div>
+    <>
+      {!compact && <TapHint sections={sections} />}
+      <div className="cdx__blocks">
+        <ArticleBlocks
+          target={target}
+          sections={sections}
+          annotate="inline"
+          renderText={linked}
+          compact={compact}
+          headingLevel={2}
+          showOrphans={!partial}
+          accent={accent}
+          tapHint={false}
+        />
+      </div>
+    </>
   );
 }
 

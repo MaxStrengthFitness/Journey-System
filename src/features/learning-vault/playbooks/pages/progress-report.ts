@@ -15,7 +15,7 @@
  */
 
 import type { PlaybookPage } from "../../types";
-import { at, bullet, para, REPORT_README, REPORT_STEPS } from "../write";
+import { at, bullet, FOUR_PS_TITLE, para, REPORT_README, REPORT_STEPS } from "../write";
 
 export const PROGRESS_REPORT: PlaybookPage = {
   id: "progress-report",
@@ -101,7 +101,7 @@ export const PROGRESS_REPORT: PlaybookPage = {
   related: [
     {
       route: { kind: "topic", moduleId: "intro", topicId: "intro-posture-path-pace-purpose" },
-      title: "Posture, Path, Pace, Purpose",
+      title: FOUR_PS_TITLE,
       why: "The Academy on the four things you rate.",
     },
     {
