@@ -1057,6 +1057,12 @@ export interface Machine {
   settings?: string; // Repurposed as "Standard Setup Tips"
   trainerTips?: string;
   settingOptions?: string[]; // e.g. ["Seat", "Pads", "Backrest"]
+  /**
+   * On a floor machine only (`toFloorMachines`): the unit's seat belt answer
+   * (`MachineDefinition.hasSeatBelt`). `false` keeps the belt off its card;
+   * anything else shows it (features/equipment/seat-belt.ts).
+   */
+  hasSeatBelt?: boolean;
   targetRepRange?: string;
   standardSettings?: Record<string, string>; // e.g. {"Seat": "5", "Pads": "2"}
   standardWeights?: {

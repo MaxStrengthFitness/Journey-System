@@ -776,6 +776,15 @@ export interface MachineDefinition {
   settingFields: MachineSettingField[];
   /** Keyed by MachineSettingField.key — never by label. */
   defaultSettings: Record<string, string>;
+  /**
+   * Does this unit have a seat belt (the seat belt round, Oct 19 2026)? A
+   * studio's answer, like the dials (AJ: "if the machine has it installed is
+   * another question that the studio needs to answer"). `false` takes the
+   * belt off this unit's card; true or unanswered shows it (AJ's "Ba"). The
+   * client's choice (On · Off · Not needed) is saved with their other
+   * settings: features/equipment/seat-belt.ts.
+   */
+  hasSeatBelt?: boolean;
   baselineLoad?: { male?: number; female?: number };
 
   imageUrl?: string;

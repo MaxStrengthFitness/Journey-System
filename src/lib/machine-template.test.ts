@@ -58,6 +58,8 @@ const ALL_FIELDS: MachineDefinitionField[] = [
   "biomechanicalNotes",
   "settingFields",
   "defaultSettings",
+  // The seat belt round (Oct 19 2026).
+  "hasSeatBelt",
   "baselineLoad",
   "imageUrl",
   "formVideoUrl",
@@ -115,6 +117,8 @@ describe("the template boundary", () => {
     expect(tierOf("watchOuts")).toBe("additive");
     expect(tierOf("removedSafety")).toBe("additive");
     expect(tierOf("modelId")).toBe("studio");
+    // Whether the unit has a seat belt is the studio's answer (AJ, Oct 19 2026).
+    expect(tierOf("hasSeatBelt")).toBe("studio");
     for (const f of ["setUp", "dialRules", "rep", "ifWrong", "switches", "sources"] as MachineDefinitionField[]) {
       expect(tierOf(f)).toBe("method");
     }

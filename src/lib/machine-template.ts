@@ -94,6 +94,9 @@ export const STUDIO_DEFINITION_FIELDS = [
   // The dials this unit actually has, and where they sit by default.
   "settingFields",
   "defaultSettings",
+  // Whether this unit has a seat belt (Oct 19 2026; AJ: "if the machine has
+  // it installed is another question that the studio needs to answer").
+  "hasSeatBelt",
   // Where an average new client starts on THIS stack.
   "baselineLoad",
   // A photo of the machine in their room, not the one in the brochure.
@@ -462,6 +465,7 @@ export const FIELD_LABELS: Partial<Record<MachineDefinitionField, string>> = {
   bodyTypeAdjustments: "body-type adjustments",
   settingFields: "the dials",
   defaultSettings: "dial defaults",
+  hasSeatBelt: "seat belt",
   baselineLoad: "starting weight",
   imageUrl: "photo",
   formVideoUrl: "video",
@@ -532,6 +536,7 @@ export const DEFINITION_KEYS: readonly MachineDefinitionField[] = [
   "biomechanicalNotes",
   "settingFields",
   "defaultSettings",
+  "hasSeatBelt",
   "baselineLoad",
   "imageUrl",
   "formVideoUrl",

@@ -359,6 +359,15 @@ describe("resolveMachine — setting fields and values", () => {
     expect(settingFieldKey("Back Pad")).toBe("back-pad");
     expect(settingFieldKey("  Seat / Position  ")).toBe("seat-position");
   });
+
+  it("takes a studio's seat belt answer over the standard's, false included (Oct 19 2026)", () => {
+    const withBelt = { ...legPress, hasSeatBelt: true };
+    const none = resolveMachine(fromCatalog({ hasSeatBelt: false }), withBelt)!;
+    expect(none.hasSeatBelt).toBe(false);
+    expect(none.overriddenFields).toContain("hasSeatBelt");
+    expect(resolveMachine(fromCatalog(), withBelt)!.hasSeatBelt).toBe(true);
+    expect("hasSeatBelt" in resolveMachine(fromCatalog(), legPress)!).toBe(false);
+  });
 });
 
 describe("resolveMachine — studio-original machines", () => {

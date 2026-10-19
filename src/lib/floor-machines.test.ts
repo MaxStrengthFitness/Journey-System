@@ -153,6 +153,20 @@ describe("toFloorMachines — the studio's truth over the legacy shape", () => {
     expect(out[0].settingOptions).toEqual(legacyLegPress.settingOptions);
     expect(out[0].standardSettings).toEqual(legacyLegPress.standardSettings);
   });
+
+  it("carries the unit's seat belt answer, and leaves an unanswered unit unanswered (Oct 19 2026)", () => {
+    const [none, has, unanswered] = toFloorMachines(
+      [
+        resolved({ machineId: "m-chest-press", name: "CHEST PRESS", hasSeatBelt: false }),
+        resolved({ machineId: "m-pulldown", name: "PULLDOWN", hasSeatBelt: true }),
+        resolved({ machineId: "m-leg-press", name: "LEG PRESS" }),
+      ],
+      { "m-leg-press": legacyLegPress },
+    );
+    expect(none.hasSeatBelt).toBe(false);
+    expect(has.hasSeatBelt).toBe(true);
+    expect("hasSeatBelt" in unanswered).toBe(false);
+  });
 });
 
 describe("dialLabelsOf", () => {

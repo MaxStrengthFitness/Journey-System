@@ -190,6 +190,9 @@ export function toFloorMachines(
       ...(r.comparisonKey ? { comparisonKey: r.comparisonKey } : {}),
       order: r.order,
       ...(settingOptions ? { settingOptions } : {}),
+      // The unit's seat belt answer (Oct 19 2026): the resolved machine's,
+      // the studio's copy over the standard. Unanswered stays unanswered.
+      ...(typeof r.hasSeatBelt === "boolean" ? { hasSeatBelt: r.hasSeatBelt } : {}),
       ...(defaults ? { standardSettings: defaults } : {}),
       ...(r.imageUrl ? { imageUrl: r.imageUrl } : {}),
       ...(r.formVideoUrl ? { formVideoUrl: r.formVideoUrl } : {}),
