@@ -119,6 +119,22 @@ const FILES = [
   // The rooms round (Oct 10 2026): the room bar, which reads the app's own
   // tokens and the --room-* hues.
   "features/rooms/rooms.css",
+  // The Learning vault prototypes (Oct 19 2026): the parts all three designs
+  // share, the switcher between them, and each design's own sheet. Each reads
+  // --wk-* and its own family's custom properties (--vm-*, --vtg-*, ...).
+  "features/learning-vault/ui/version.css",
+  "features/learning-vault/ui/concept.css",
+  "features/learning-vault/ui/graph.css",
+  "features/learning-vault/ui/peek.css",
+  "features/learning-vault/ui/rep.css",
+  "features/learning-vault/ui/quiz.css",
+  "features/learning-vault/ui/share.css",
+  "features/learning-vault/ui/queue.css",
+  "features/learning-vault/ui/article.css",
+  "features/learning-redesign/redesign.css",
+  "features/learning-redesign/codex/codex.css",
+  "features/learning-redesign/vault/vault-map.css",
+  "features/learning-redesign/course/course.css",
 ];
 
 function filesUnder(dir: string, ext: RegExp, out: string[] = []): string[] {

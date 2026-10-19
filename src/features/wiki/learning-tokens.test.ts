@@ -27,6 +27,26 @@ const read = (...p: string[]) => readFileSync(join(here, ...p), "utf8");
 const src = (...p: string[]) => read("..", ...p);
 /** The source with its comments taken out, so a comment can name a colour. */
 const code = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+/**
+ * The Learning vault prototypes' stylesheets (Oct 19 2026): the parts all
+ * three designs share, the switcher between them, and each design's own
+ * sheet. Held to every rule below that Learning's own sheets are.
+ */
+const VAULT_SHEETS: Record<string, string> = {
+  "learning-vault/ui/version.css": src("learning-vault", "ui", "version.css"),
+  "learning-vault/ui/concept.css": src("learning-vault", "ui", "concept.css"),
+  "learning-vault/ui/graph.css": src("learning-vault", "ui", "graph.css"),
+  "learning-vault/ui/peek.css": src("learning-vault", "ui", "peek.css"),
+  "learning-vault/ui/rep.css": src("learning-vault", "ui", "rep.css"),
+  "learning-vault/ui/quiz.css": src("learning-vault", "ui", "quiz.css"),
+  "learning-vault/ui/share.css": src("learning-vault", "ui", "share.css"),
+  "learning-vault/ui/queue.css": src("learning-vault", "ui", "queue.css"),
+  "learning-vault/ui/article.css": src("learning-vault", "ui", "article.css"),
+  "learning-redesign/redesign.css": src("learning-redesign", "redesign.css"),
+  "learning-redesign/codex/codex.css": src("learning-redesign", "codex", "codex.css"),
+  "learning-redesign/vault/vault-map.css": src("learning-redesign", "vault", "vault-map.css"),
+  "learning-redesign/course/course.css": src("learning-redesign", "course", "course.css"),
+};
 const EQUIPMENT = read("..", "equipment", "equipment.tokens.css");
 const WIKI = read("wiki.tokens.css");
 const CATALOG = read("..", "catalog", "catalog.tokens.css");
@@ -179,7 +199,7 @@ describe.each([
 
 describe("where an accent colours words or a glyph", () => {
   it("uses the readable shade, and keeps the bright accent for stripes and rules", () => {
-    const css = code(src("wiki", "wiki.css")) + code(src("learning", "learning.css"));
+    const css = [src("wiki", "wiki.css"), src("learning", "learning.css"), ...Object.values(VAULT_SHEETS)].map(code).join("\n");
     // Any `color:` that reads the accent reads --wk-accent-text.
     expect(css.match(/(?<![-\w])color:\s*var\(--wk-accent[,)]/g) ?? []).toEqual([]);
     expect(src("wiki", "categories.ts")).toMatch(/"--wk-accent-text": accentTextVar\(accent\)/);
@@ -204,6 +224,7 @@ describe("readable words are never in the faint ink", () => {
       "catalog/catalog.css": src("catalog", "catalog.css"),
       "comments/comments.css": src("comments", "comments.css"),
       "machine-trends/machine-trends.css": src("machine-trends", "machine-trends.css"),
+      ...VAULT_SHEETS,
     })) {
       for (const m of code(css).matchAll(/([^{}]+)\{([^}]*)\}/g)) {
         if (!/color:\s*var\(--(wk|cat)-ink-faint\)/.test(m[2])) continue;
@@ -226,6 +247,7 @@ const STYLESHEETS: Record<string, string> = {
   "comments/comments.css": src("comments", "comments.css"),
   "machine-trends/machine-trends.css": src("machine-trends", "machine-trends.css"),
   "machine-db/machine-db.css": src("machine-db", "machine-db.css"),
+  ...VAULT_SHEETS,
 };
 
 /** The Upkeep card's block of studio-tasks.css: its only host is a Catalog machine page. */
@@ -273,6 +295,14 @@ describe("one meaning per colour in Learning", () => {
       rule(STYLESHEETS["wiki/wiki.css"], ".wk__btn--primary"),
       rule(STYLESHEETS["catalog/catalog.css"], ".cat__btn--primary"),
       rule(STYLESHEETS["catalog/catalog.css"], ".ssc__save"),
+      // The Learning vault prototypes (Oct 19 2026): Cross it out, Share…,
+      // Send to head office, Play, and each design's one solid button.
+      rule(VAULT_SHEETS["learning-vault/ui/article.css"], ".vta__btn--primary"),
+      rule(VAULT_SHEETS["learning-vault/ui/share.css"], ".vts__btn--primary"),
+      rule(VAULT_SHEETS["learning-vault/ui/queue.css"], ".vtq__btn--primary"),
+      rule(VAULT_SHEETS["learning-vault/ui/rep.css"], ".vtr__btn--primary"),
+      rule(VAULT_SHEETS["learning-redesign/codex/codex.css"], ".cdx__btn--primary"),
+      rule(VAULT_SHEETS["learning-redesign/course/course.css"], ".crs__btn--primary"),
     ];
     for (const r of saves) {
       expect(r).toMatch(/background:\s*var\(--(wk|cat)-live\)/);

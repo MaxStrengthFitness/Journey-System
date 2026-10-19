@@ -46,6 +46,21 @@ const SHEETS: Record<string, string> = {
   "catalog/catalog.css": read("catalog", "catalog.css"),
   "comments/comments.css": read("comments", "comments.css"),
   "studio-tasks/studio-tasks.css .stu": upkeepBlock(),
+  // The Learning vault prototypes (Oct 19 2026): the parts all three designs
+  // share, the switcher between them, and each design's own sheet.
+  "learning-vault/ui/version.css": read("learning-vault", "ui", "version.css"),
+  "learning-vault/ui/concept.css": read("learning-vault", "ui", "concept.css"),
+  "learning-vault/ui/graph.css": read("learning-vault", "ui", "graph.css"),
+  "learning-vault/ui/peek.css": read("learning-vault", "ui", "peek.css"),
+  "learning-vault/ui/rep.css": read("learning-vault", "ui", "rep.css"),
+  "learning-vault/ui/quiz.css": read("learning-vault", "ui", "quiz.css"),
+  "learning-vault/ui/share.css": read("learning-vault", "ui", "share.css"),
+  "learning-vault/ui/queue.css": read("learning-vault", "ui", "queue.css"),
+  "learning-vault/ui/article.css": read("learning-vault", "ui", "article.css"),
+  "learning-redesign/redesign.css": read("learning-redesign", "redesign.css"),
+  "learning-redesign/codex/codex.css": read("learning-redesign", "codex", "codex.css"),
+  "learning-redesign/vault/vault-map.css": read("learning-redesign", "vault", "vault-map.css"),
+  "learning-redesign/course/course.css": read("learning-redesign", "course", "course.css"),
 };
 
 interface Rule {
@@ -133,6 +148,116 @@ const TAPS: Record<string, "height" | "square"> = {
   ".cm__btn": "height",
   ".stu__tick": "square",
   ".stu__note": "height",
+  // The Learning vault prototypes (Oct 19 2026). A glossary term inside a
+  // line (.vtc__term) is an inline link in a sentence, so it is exempt.
+  // The version toggle and the concept card.
+  ".vtv__opt": "height",
+  ".vtv__toggle": "height",
+  ".vtc__crumb": "height",
+  ".vtc__icon": "square",
+  ".vtc__chip": "height",
+  ".vtc__btn": "height",
+  // The local constellation: a pill, and an orbit node's button and its hit circle.
+  ".vtg__pill": "height",
+  ".vtg__node": "height",
+  ".vtg__node-hit": "square",
+  // The peek sheet.
+  ".vtp__grip": "height",
+  ".vtp__crumb": "height",
+  ".vtp__icon-btn": "square",
+  ".vtp__open": "height",
+  // The rep scrubber: the whole track is the slider, the thumb a finger's width.
+  ".vtr__seg-btn": "height",
+  ".vtr__track": "height",
+  ".vtr__thumb": "square",
+  ".vtr__step": "height",
+  ".vtr__btn": "height",
+  // The quiz.
+  ".qz__deck": "height",
+  ".qz__option": "height",
+  ".qz__placed-row": "height",
+  // Share, head office's queue, and a line's actions and in-place forms.
+  ".vts__btn": "height",
+  ".vtq__open": "height",
+  ".vtq__btn": "height",
+  ".vta__line": "height",
+  ".vta__marker": "square",
+  ".vta__reveal": "height",
+  ".vta__btn": "height",
+  ".vta__choice": "height",
+  // The switcher between the three designs.
+  ".ld__opt": "height",
+  // Design 1, the Tactical Codex.
+  ".cdx__more": "height",
+  ".cdx__btn": "height",
+  ".cdx__row": "height",
+  ".cdx__mtile": "height",
+  ".cdx__entry": "height",
+  ".cdx__chapter": "height",
+  ".cdx__word": "height",
+  ".cdx__ref": "height",
+  ".cdx__shelf-row": "height",
+  ".cdx__deck": "height",
+  ".cdx__ho": "height",
+  ".cdx__dial": "height",
+  ".cdx__piece": "height",
+  ".cdx__tier": "height",
+  ".cdx__deeper": "height",
+  ".cdx__from": "height",
+  ".cdx__link": "height",
+  ".cdx__step": "height",
+  ".cdx__wide-door": "height",
+  // Design 2, the Living Vault: the map's nodes are squares, as are its mini orbit's.
+  ".vm__btn": "height",
+  ".vm__map-btn": "height",
+  ".vm__more": "height",
+  ".vm__icon-btn": "square",
+  ".vm__seg-opt": "height",
+  ".vm__chip": "height",
+  ".vm__node": "square",
+  ".vm__list-row": "height",
+  ".vm__back": "height",
+  ".vm__pill": "height",
+  ".vm__track": "height",
+  ".vm__deck": "height",
+  ".vm__floor-row": "height",
+  ".vm__module": "height",
+  ".vm__door": "height",
+  ".vm__row": "height",
+  ".vm__mini-centre": "height",
+  ".vm__mini-node": "height",
+  ".vm__mini-hit": "square",
+  ".vm__path-card": "height",
+  // Design 3, the Interactive Course. Every .crs__btn is at least a square,
+  // the icon-only ones exactly that; a pin is a button on the set-up page.
+  ".crs__btn": "square",
+  ".crs__more": "height",
+  ".crs__chip": "height",
+  ".crs__lesson": "height",
+  ".crs__course": "height",
+  ".crs__deckrow": "height",
+  ".crs__mode-btn": "height",
+  ".crs__q-opt": "height",
+  ".crs__rail-title": "height",
+  ".crs__rail-row": "height",
+  ".crs__coursebar-name": "height",
+  ".crs__pin": "height",
+  ".crs__tier": "height",
+  ".crs__link": "height",
+  ".crs__tile": "height",
+  ".crs__station": "height",
+  ".crs__other": "height",
+  ".crs__door": "height",
+  ".crs__module": "height",
+  ".crs__row": "height",
+  ".crs__find": "height",
+  ".crs__find-clear": "square",
+  ".crs__filter": "height",
+  ".crs__az-btn": "square",
+  ".crs__vcard-more": "height",
+  ".crs__taught-row": "height",
+  ".crs__term": "height",
+  ".crs__queue": "height",
 };
 
 describe("Learning's controls are 40px or more", () => {
@@ -167,6 +292,7 @@ describe("Learning's controls are 40px or more", () => {
  * ------------------------------------------------------------------ */
 
 const TYPE_SHEETS: Record<string, string> = {
+  // Every sheet in SHEETS, the Learning vault prototypes' included.
   ...SHEETS,
   "machine-trends/machine-trends.css": read("machine-trends", "machine-trends.css"),
   "settings/settings.css": read("settings", "settings.css"),
@@ -196,7 +322,20 @@ describe("Learning's text is on the codex's scale", () => {
     expect(off).toEqual([]);
   });
 
-  it.each([".wk__search-input", ".wk__input", ".wk__textarea", ".cat__textarea", ".ssc__value", ".ssc__draft", ".cm__input"])(
+  it.each([
+    ".wk__search-input",
+    ".wk__input",
+    ".wk__textarea",
+    ".cat__textarea",
+    ".ssc__value",
+    ".ssc__draft",
+    ".cm__input",
+    // The Learning vault prototypes (Oct 19 2026): a line's forms, share, head office's note, the glossary's find.
+    ".vta__input",
+    ".vts__input",
+    ".vtq__input",
+    ".crs__find-input",
+  ])(
     "keeps the field %s at 16px, so iOS does not zoom on focus",
     (selector) => {
       const rule = TYPE_RULES.find((r) => r.selectors.includes(selector) && declared(r.body, "font-size") !== null);
@@ -212,7 +351,18 @@ describe("Learning's text is on the codex's scale", () => {
    * session's alone. The section title (.lh__h2) left the display face for
    * Geist 22/800, the codex's .cx-section-head.
    */
-  it.each([".wk__mast-title", ".wk__index-title", ".wk__h1", ".lh__title", ".mcat-body__title"])(
+  it.each([
+    ".wk__mast-title",
+    ".wk__index-title",
+    ".wk__h1",
+    ".lh__title",
+    ".mcat-body__title",
+    // The Learning vault prototypes' page titles (Oct 19 2026).
+    ".cdx__title",
+    ".vm__index-title",
+    ".crs__title",
+    ".qz__title",
+  ])(
     "gives the title %s the display face at 800, upright, in its own capitalisation",
     (selector) => {
       const body = typeRule(selector).body;
@@ -225,7 +375,7 @@ describe("Learning's text is on the codex's scale", () => {
   );
 
   it("sizes the page titles 30 and the masthead's room title 22", () => {
-    for (const sel of [".wk__index-title", ".wk__h1", ".lh__title", ".mcat-body__title"]) {
+    for (const sel of [".wk__index-title", ".wk__h1", ".lh__title", ".mcat-body__title", ".cdx__title", ".vm__index-title", ".crs__title", ".qz__title"]) {
       expect(declared(typeRule(sel).body, "font-size"), sel).toBe(30);
     }
     expect(declared(typeRule(".wk__mast-title").body, "font-size")).toBe(22);
@@ -263,7 +413,35 @@ describe("Learning's text is on the codex's scale", () => {
     expect(body).not.toMatch(/italic|uppercase/);
   });
 
-  it.each([".wk__searchbtn", ".wk__warnings-more", ".wk__studio-edit", ".wk__btn", ".lh__more", ".cat__btn", ".mcat-filter__clear", ".mcat-door", ".ssc__save", ".cm__btn", ".cm__link"])(
+  it.each([
+    ".wk__searchbtn",
+    ".wk__warnings-more",
+    ".wk__studio-edit",
+    ".wk__btn",
+    ".lh__more",
+    ".cat__btn",
+    ".mcat-filter__clear",
+    ".mcat-door",
+    ".ssc__save",
+    ".cm__btn",
+    ".cm__link",
+    // The Learning vault prototypes' buttons (Oct 19 2026).
+    ".vtv__toggle",
+    ".vtc__btn",
+    ".vtp__open",
+    ".vtr__btn",
+    ".vts__btn",
+    ".vtq__open",
+    ".vtq__btn",
+    ".vta__reveal",
+    ".vta__btn",
+    ".cdx__btn",
+    ".cdx__more",
+    ".vm__btn",
+    ".vm__more",
+    ".crs__btn",
+    ".crs__more",
+  ])(
     "writes the button %s in 14px bold sentence case",
     (selector) => {
       const body = typeRule(selector).body;
