@@ -29,8 +29,25 @@
  * or more) appear in the other, and at least three do. A term's list keeps
  * one of a pair: the twin met first in the teaching order (the module the
  * Academy teaches it in, not the reprint), when that twin mentions the term
- * too; otherwise the one that does. Twins are measured, not listed, so a
- * rebuilt corpus finds its own.
+ * too AT LEAST AS OFTEN; otherwise the one that says it more (Mission is a
+ * reprint inside the Executive Summary's introduction, and its one "career
+ * paths" must not stand in for the introduction's sixteen mentions of Path).
+ * A copy someone re-wrapped shares no whole blocks, so two topics with the
+ * same title are also twins when most of the smaller one's eight-word runs
+ * are in the other (the two Exercise Selection Templates); two pages that
+ * only share a title (the two Gradual Load-up pages, different documents)
+ * share none and stay apart. Twins are measured, not listed, so a rebuilt
+ * corpus finds its own.
+ *
+ * WHAT IS NEVER LISTED
+ * --------------------
+ * EXCLUDED_TOPIC_IDS: the Academy pages the round's source rules keep out
+ * of every quiz fact and playbook line (quiz-sources.md §2.5), so a "Comes
+ * up in" list never sends a trainer to them either: the suggested starting
+ * weights (there is no house starting weight), Research.txt (outside
+ * abstracts), the MSF OVERVIEW marketing page (its "progressive overload"
+ * contradicts the Academy's glossary) and the consultation script (its
+ * prices and its out-of-date package lines).
  *
  * PURE MODULE — no React, no Firestore, no file system (the script reads the
  * files; the test imports them).
@@ -48,6 +65,18 @@ export const TWIN_SHARE = 0.6;
 export const TWIN_MIN_SHARED = 3;
 /** Blocks shorter than this many words ("Load Up", "SETUP") say nothing about twins. */
 const TWIN_MIN_WORDS = 3;
+/** Words in one run when two same-titled topics are compared as running text. */
+export const SHINGLE_WORDS = 8;
+/**
+ * Topics no "Comes up in" list may name (see the header). The playbooks and
+ * the quiz keep out the same four files.
+ */
+export const EXCLUDED_TOPIC_IDS: ReadonlySet<string> = new Set([
+  "programming-msf-suggested-starting-weights",
+  "further-research",
+  "mastery-msf-overview",
+  "consultation-initial-consultation-script-tour-preliminary-co",
+]);
 /**
  * The Academy's glossary as a topic (Introduction: Glossary). It defines every
  * term, so it would sit in every term's list; a term's own page already IS
@@ -111,9 +140,17 @@ const blockKey = (text: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+/** A topic's running text as its set of eight-word runs. */
+function shinglesOf(t: Topic): Set<string> {
+  const w = blockKey(t.blocks.map((b) => b.text).join(" ")).split(" ").filter(Boolean);
+  const out = new Set<string>();
+  for (let i = 0; i + SHINGLE_WORDS <= w.length; i += 1) out.add(w.slice(i, i + SHINGLE_WORDS).join(" "));
+  return out;
+}
+
 /** Each topic's twins (see the header), symmetric. */
 export function findTwins(modules: ModuleContent[]): Map<string, Set<string>> {
-  const blocks: { id: string; keys: Set<string> }[] = [];
+  const blocks: { id: string; keys: Set<string>; topic: Topic }[] = [];
   for (const m of modules) {
     for (const t of m.topics) {
       const keys = new Set<string>();
@@ -121,7 +158,7 @@ export function findTwins(modules: ModuleContent[]): Map<string, Set<string>> {
         const k = blockKey(b.text);
         if (k.split(" ").length >= TWIN_MIN_WORDS) keys.add(k);
       }
-      blocks.push({ id: t.id, keys });
+      blocks.push({ id: t.id, keys, topic: t });
     }
   }
   const twins = new Map<string, Set<string>>();
@@ -144,12 +181,41 @@ export function findTwins(modules: ModuleContent[]): Map<string, Set<string>> {
       }
     }
   }
+  // Same title, re-wrapped copy: compared as running text.
+  const shingles = new Map<string, Set<string>>();
+  const shinglesFor = (x: { id: string; topic: Topic }) => {
+    let s = shingles.get(x.id);
+    if (!s) {
+      s = shinglesOf(x.topic);
+      shingles.set(x.id, s);
+    }
+    return s;
+  };
+  for (let i = 0; i < blocks.length; i += 1) {
+    for (let j = i + 1; j < blocks.length; j += 1) {
+      const a = blocks[i];
+      const b = blocks[j];
+      if (twins.get(a.id)?.has(b.id)) continue;
+      if (blockKey(a.topic.title) !== blockKey(b.topic.title)) continue;
+      const sa = shinglesFor(a);
+      const sb = shinglesFor(b);
+      const [small, large] = sa.size <= sb.size ? [sa, sb] : [sb, sa];
+      if (small.size === 0) continue;
+      let shared = 0;
+      for (const k of small) if (large.has(k)) shared += 1;
+      if (shared / small.size >= TWIN_SHARE) {
+        link(a.id, b.id);
+        link(b.id, a.id);
+      }
+    }
+  }
   return twins;
 }
 
 /**
  * The topics one matcher points at: most mentions first, ties in teaching
- * order, one of each pair of twins (the earlier, when it mentions it too).
+ * order, one of each pair of twins (the earlier, when it mentions it at
+ * least as often).
  */
 export function rankTopics(
   matcher: WordMatcher | null,
@@ -172,10 +238,12 @@ export function rankTopics(
     if (taken.length >= max) break;
     const mine = twins.get(id) ?? new Set<string>();
     if (isTaken(id) || [...mine].some(isTaken)) continue;
-    // Stand in with the twin met first in the teaching order, if it says it too.
+    // Stand in with the twin met first in the teaching order, if it says it
+    // at least as often (a reprint that says it once never stands in for a
+    // page that says it sixteen times).
     let pick = id;
     for (const other of mine) {
-      if (counts.has(other) && place.get(other)! < place.get(pick)!) pick = other;
+      if (counts.has(other) && counts.get(other)! >= counts.get(pick)! && place.get(other)! < place.get(pick)!) pick = other;
     }
     if (isTaken(pick) || [...(twins.get(pick) ?? [])].some(isTaken)) continue;
     taken.push(pick);
@@ -213,7 +281,9 @@ function sortedRecord(entries: [string, string[]][]): Record<string, string[]> {
 
 /** The whole index, from the corpus. */
 export function buildGraphIndex(corpus: GraphCorpus): GraphIndexFile {
-  const topics = topicsInOrder(corpus.index, corpus.modules);
+  // The excluded pages are left out of the counting, never of the hash.
+  const all = topicsInOrder(corpus.index, corpus.modules);
+  const topics = all.filter((t) => !EXCLUDED_TOPIC_IDS.has(t.id));
   const twins = findTwins(corpus.modules);
 
   const termEntries: [string, string[]][] = [];
@@ -231,7 +301,7 @@ export function buildGraphIndex(corpus: GraphCorpus): GraphIndexFile {
   }
 
   const prose = [
-    topics.map((t) => `${t.id}\n${t.text}`).join("\n\n"),
+    all.map((t) => `${t.id}\n${t.text}`).join("\n\n"),
     corpus.glossary.map((g) => g.term).join("\n"),
     [...machineNames(corpus)].map(([id, n]) => `${id}:${n.join("|")}`).join("\n"),
     [...codes].sort().join(","),

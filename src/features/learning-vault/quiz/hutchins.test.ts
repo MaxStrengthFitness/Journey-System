@@ -15,7 +15,15 @@ import { describe, expect, it } from "vitest";
 import type { QuizQuestion } from "../types";
 import { ACADEMY_QUESTIONS, FLOOR_QUESTIONS } from "./authored";
 import { DECKS } from "./decks";
-import { CLAUSES, HUTCHINS_LABEL, HUTCHINS_LINES, HUTCHINS_PATH, HUTCHINS_QUESTIONS } from "./hutchins";
+import {
+  CLAUSES,
+  FLOOR_NOTE,
+  HUTCHINS_LABEL,
+  HUTCHINS_LINES,
+  HUTCHINS_PATH,
+  HUTCHINS_QUESTIONS,
+  pickThreeOthers,
+} from "./hutchins";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const floorText = readFileSync(join(ROOT, HUTCHINS_PATH), "utf8").replace(/\r\n/g, "\n");
@@ -100,18 +108,61 @@ describe("never a quotation", () => {
   });
 });
 
+/** The two questions that rest on AJ's note about the definition, not on the definition. */
+const ON_THE_NOTE = new Set(["h-who", "h-reject"]);
+
 describe("the deck", () => {
-  it("has at least eight questions, each labelled as a paraphrase of the book", () => {
+  it("has at least eight questions; each built on the definition is labelled as a paraphrase of the book", () => {
     expect(HUTCHINS_QUESTIONS.length).toBeGreaterThanOrEqual(8);
     for (const q of HUTCHINS_QUESTIONS) {
       expect(q.deck).toBe("hutchins");
-      expect(q.source.label).toBe(HUTCHINS_LABEL);
-      expect(q.source.paraphrased).toBe(true);
       expect(q.source.path).toBe(HUTCHINS_PATH);
+      if (ON_THE_NOTE.has(q.id)) continue;
+      expect(q.source.label, q.id).toBe(HUTCHINS_LABEL);
+      expect(q.source.paraphrased, q.id).toBe(true);
     }
     expect(HUTCHINS_LABEL).toBe(
       "Paraphrased from Ken Hutchins' definition of exercise (The Renaissance of Exercise)",
     );
+  });
+
+  it("labels AJ's note as the floor's notes, never as the book (the-floor.md:9-12)", () => {
+    for (const id of ON_THE_NOTE) {
+      const q = HUTCHINS_QUESTIONS.find((x) => x.id === id);
+      expect(q?.source, id).toEqual(FLOOR_NOTE);
+      expect(q?.source.paraphrased, id).toBeUndefined();
+    }
+    expect(FLOOR_NOTE.label).toBe("Journey's notes · The floor");
+    expect(FLOOR_NOTE.path).toBe(HUTCHINS_PATH);
+    // The note says "almost every rule", and it is about a change to the app,
+    // not adding a machine to a session (which any trainer may do).
+    expect(floorText).toContain("almost every rule in the app");
+    expect(HUTCHINS_QUESTIONS.find((q) => q.id === "h-who")?.prompt).toMatch(/^Almost every rule/);
+    const reject = HUTCHINS_QUESTIONS.find((q) => q.id === "h-reject")?.prompt ?? "";
+    expect(reject).toMatch(/change to Journey/);
+    expect(reject).not.toMatch(/session/i);
+  });
+
+  it("puts no word in the floor's mouth that the floor never says", () => {
+    // "said out loud" (the load is STATED on the Now Bar, the-floor.md:28) and
+    // "calm" (the table says "No hype, no celebration", :26) were both added once.
+    for (const w of ["out loud", "aloud", "calm"]) {
+      expect(floorText.toLowerCase(), w).not.toContain(w);
+      for (const q of HUTCHINS_QUESTIONS) expect(stringsOf(q).join(" ").toLowerCase(), `${q.id}: ${w}`).not.toContain(w);
+      for (const c of CLAUSES) expect(`${c.clause} ${c.built} ${c.why}`.toLowerCase(), `${c.id}: ${w}`).not.toContain(w);
+    }
+    expect(CLAUSES.find((c) => c.id === "loading")?.why).toMatch(/stated on the Now Bar, never assumed/);
+  });
+
+  it("never offers a set to failure and inroading as each other's wrong answer", () => {
+    const clause = (id: string) => CLAUSES.find((c) => c.id === id)?.clause as string;
+    expect(HUTCHINS_QUESTIONS.find((q) => q.id === "h-demanding")?.options).not.toContain(clause("inroad"));
+    expect(HUTCHINS_QUESTIONS.find((q) => q.id === "h-inroad")?.options).not.toContain(clause("demanding"));
+    // Every other clause question keeps the clauses one, three and five steps on.
+    CLAUSES.forEach((c, i) => {
+      if (c.id === "demanding" || c.id === "inroad") return;
+      expect(pickThreeOthers(i), c.id).toEqual([1, 3, 5].map((s) => (i + s) % CLAUSES.length));
+    });
   });
 
   it("offers four different clauses on every clause question, the right one included", () => {

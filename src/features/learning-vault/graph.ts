@@ -58,6 +58,7 @@ import type { AcademyIndex, CueMoment } from "../academy/types";
 import { DB_KEY_TO_CANONICAL } from "../catalog/machine-identity";
 import type { ClinicalSafetyFlag } from "../../types";
 import { cueMomentLabel } from "./cue-label";
+import { isPlainSense } from "./plain-sense";
 import type {
   Constellation,
   EdgeKind,
@@ -211,11 +212,15 @@ export interface WordForms {
 
 const RE_SPECIAL = /[.*+?^${}()|[\]\\]/g;
 
-/** Longest first, so "lower turnaround" wins over "turnaround"; spaces bend. */
+/**
+ * Longest first, so "lower turnaround" wins over "turnaround"; a space bends
+ * to a hyphen too, so "high intensity" finds "High-Intensity" (a title the
+ * Academy hyphenates).
+ */
 function alternation(forms: readonly string[]): string {
   return [...forms]
     .sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0))
-    .map((f) => f.replace(RE_SPECIAL, "\\$&").replace(/\s+/g, "\\s+"))
+    .map((f) => f.replace(RE_SPECIAL, "\\$&").replace(/\s+/g, "[\\s-]+"))
     .join("|");
 }
 
@@ -226,7 +231,11 @@ export interface WordMatcher {
   first(text: string): number;
 }
 
-/** A matcher for one term's or one machine's forms; null when it has none. */
+/**
+ * A matcher for one term's or one machine's forms; null when it has none. A
+ * word meant in its everyday sense (plain-sense.ts: "positive feedback",
+ * "for our purposes", "career paths") is neither counted nor found.
+ */
 export function wordMatcher(forms: WordForms): WordMatcher | null {
   const res: RegExp[] = [];
   if (forms.words.length > 0) res.push(new RegExp(`\\b(?:${alternation(forms.words)})(?:es|s)?\\b`, "gi"));
@@ -237,7 +246,8 @@ export function wordMatcher(forms: WordForms): WordMatcher | null {
       let n = 0;
       for (const re of res) {
         re.lastIndex = 0;
-        while (re.exec(text) !== null) n += 1;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(text)) !== null) if (!isPlainSense(m[0], text, m.index)) n += 1;
       }
       return n;
     },
@@ -245,8 +255,12 @@ export function wordMatcher(forms: WordForms): WordMatcher | null {
       let at = -1;
       for (const re of res) {
         re.lastIndex = 0;
-        const m = re.exec(text);
-        if (m && (at < 0 || m.index < at)) at = m.index;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(text)) !== null) {
+          if (isPlainSense(m[0], text, m.index)) continue;
+          if (at < 0 || m.index < at) at = m.index;
+          break;
+        }
       }
       return at;
     },
@@ -312,6 +326,9 @@ export function glossaryForms(glossary: readonly { term: string }[]): Map<string
   return out;
 }
 
+/** One-word names that are a muscle or an everyday word before they are a machine. */
+export const NOT_A_MACHINE_NAME: ReadonlySet<string> = new Set(["bicep", "biceps", "tricep", "triceps", "overhead"]);
+
 /**
  * How a machine is written in prose: the Catalog's name and the Academy's
  * own titles for it ("CHEST/PEC FLY" → chest fly · pec fly; "Chest Flye";
@@ -319,7 +336,11 @@ export function glossaryForms(glossary: readonly { term: string }[]): Map<string
  * "LP", "Cx", "Abs", "Biceps" (MACHINE_ABBR spells the biceps machine
  * "Biceps") name a muscle or a dozen things in a sentence, so any name that
  * IS a code is dropped. A bracket holding a list ("Lumbar Extension (Lumbar,
- * Lower Back)") is a gloss, not a name, and is left out.
+ * Lower Back)") is a gloss, not a name, and is left out. A one-word name that
+ * is a muscle or an everyday word ("BICEP" counts every "biceps" muscle;
+ * "Overhead" counts "overhead storage") is dropped too, as entities.ts's
+ * MACHINE_WORD_DENY does for links. "Lumbar", "Abdominals", "Abduction" and
+ * "Adduction" stay: the Academy uses them as the machines' names.
  */
 export function machineForms(names: readonly (string | null | undefined)[], codes: Iterable<string>): WordForms {
   const banned = new Set<string>();
@@ -328,6 +349,7 @@ export function machineForms(names: readonly (string | null | undefined)[], code
   const take = (form: string) => {
     const f = form.replace(/\s+/g, " ").trim().toLowerCase();
     if (f.length < 3 || banned.has(f) || words.includes(f)) return;
+    if (!f.includes(" ") && NOT_A_MACHINE_NAME.has(f)) return;
     words.push(f);
   };
   for (const raw of names) {
@@ -366,6 +388,18 @@ export function machineForms(names: readonly (string | null | undefined)[], code
  */
 export function cueLabel(moment: string): string {
   return cueMomentLabel(moment);
+}
+
+/**
+ * A heading that names a thing by its absence does not talk about it: moment
+ * 9 is "Upper Turnaround (movements without an end stop and include a
+ * squeeze ...)", the opposite of End Stop. Blanked with spaces of the same
+ * length before a cue's words are matched, so every other position holds.
+ */
+const ABSENT = /\bwithout an? end[\s-]+stops?\b/gi;
+
+export function blankAbsent(text: string): string {
+  return text.replace(ABSENT, (m) => " ".repeat(m.length));
 }
 
 /** The topic every cue moment is explained in: the phrasebook's prose twin. */
@@ -628,6 +662,19 @@ export function buildVaultGraph(input: VaultGraphInput): VaultGraph {
       term: g.term,
     });
   });
+  // A title a LONGER glossary term names is that term's, not a shorter
+  // one's inside it: "Timed Static Contraction (TSC)" explains TSC, not
+  // Contract(ion); "High-Intensity Resistance Training" is High Intensity's,
+  // not Intensity's.
+  const coveredByLonger = (term: string, title: string): boolean => {
+    const mine = forms.get(term)?.words ?? [];
+    return glossary.some(
+      (o) =>
+        o.term !== term &&
+        (forms.get(o.term)?.words ?? []).some((w) => mine.some((m) => w !== m && w.includes(m))) &&
+        (matchers.get(o.term)?.first(title) ?? -1) >= 0,
+    );
+  };
   for (const g of glossary) {
     const id = termNodeId(g.term);
     const matcher = matchers.get(g.term);
@@ -635,7 +682,7 @@ export function buildVaultGraph(input: VaultGraphInput): VaultGraph {
     if (matcher) {
       for (const t of topicTitles) {
         if (explained.size >= EXPLAINED_MAX) break;
-        if (matcher.first(t.title) >= 0) {
+        if (matcher.first(t.title) >= 0 && !coveredByLonger(g.term, t.title)) {
           explained.add(t.id);
           b.edge(id, topicNodeId(t.id), "explained-in");
         }
@@ -673,7 +720,7 @@ export function buildVaultGraph(input: VaultGraphInput): VaultGraph {
     b.edge(id, topicNodeId(CUES_TOPIC_ID), "explained-in");
     const example = CUE_EXAMPLES.find((e) => c.moment.startsWith(e.prefix));
     for (const m of example?.machineIds ?? []) b.edge(machineNodeId(m), id, "cued-at");
-    const text = [c.moment, ...c.phrases, ...c.notes].join("\n");
+    const text = blankAbsent([c.moment, ...c.phrases, ...c.notes].join("\n"));
     const hits: { at: number; term: string }[] = [];
     for (const g of glossary) {
       const at = matchers.get(g.term)?.first(text) ?? -1;

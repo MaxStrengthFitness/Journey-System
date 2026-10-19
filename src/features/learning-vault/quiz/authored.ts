@@ -357,7 +357,9 @@ export const ACADEMY_QUESTIONS: AuthoredQuestion[] = [
   academy({
     id: "pause-length",
     deck: "rep",
-    prompt: "On reps one and two, how long is the pause in the contracted position?",
+    // Scoped: the end-stop presses (Leg Press, Chest Press, Overhead Press,
+    // Seated Dip) have no pause at all, so "No pause at all" is wrong only here.
+    prompt: "On a machine with a pause or squeeze at the top, how long is the pause in the contracted position on reps one and two?",
     options: ["One or two seconds", "No pause at all", "Five seconds", "Ten seconds"],
     explain: "A definite, brief pause of one or two seconds, then ease out and begin the lowering slowly.",
     topicId: "performance-turnaround-technique",
@@ -376,7 +378,9 @@ export const ACADEMY_QUESTIONS: AuthoredQuestion[] = [
   academy({
     id: "common-attribute",
     deck: "rep",
-    prompt: "Every turnaround the Academy describes has one thing in common. What is it?",
+    // "In all cases described above": the kinds of exercise the topic covers,
+    // not every turnaround (an upper turnaround has no lower turnaround).
+    prompt: "The Academy's Turnaround Technique topic covers several kinds of exercise. What do all of them have in common?",
     options: [
       "A smooth and continuous lower turnaround",
       "A pause at the bottom",
@@ -439,9 +443,12 @@ export const ACADEMY_QUESTIONS: AuthoredQuestion[] = [
     id: "five-phases",
     deck: "rep",
     kind: "order",
-    prompt: "Put the five phases of a repetition in order.",
+    // One branch of the Summary's "either a gradual load up or a handoff":
+    // after a handoff the first movement is a lowering, not a lift (the
+    // scripts' first-rep order, and generate.ts SHAPE_WHY).
+    prompt: "On a machine that starts with a gradual load up, put the five phases of a repetition in order.",
     options: [
-      "Initiation: a gradual load up or a handoff",
+      "Initiation: a gradual load up",
       "The concentric (lifting) phase",
       "The upper turnaround",
       "The eccentric (lowering) phase",
@@ -820,7 +827,10 @@ export const ACADEMY_QUESTIONS: AuthoredQuestion[] = [
   academy({
     id: "purpose-lifetime",
     deck: "method",
-    prompt: "Which of the Four P's could take a lifetime of work?",
+    // Named as the Mastery Series' claim: elsewhere the Academy says Path keeps
+    // us engaged for a lifetime and pace can be refined for one.
+    prompt:
+      "The Mastery Series says three of the Four P's could be mastered in a handful of workouts. Which one could take a lifetime of work?",
     options: ["Purpose", "Posture", "Pace", "Path"],
     explain: "The first three can be learned in a handful of workouts. Purpose, the mental approach during the set, is the work of a lifetime.",
     topicId: "mastery-purpose",
@@ -996,6 +1006,13 @@ export interface FileSupport {
   path: string;
   /** A short, exact quote (markdown emphasis aside) from that file. */
   quote: string;
+  /**
+   * The line (1-based) the quote is on, or starts on. Read it opens the
+   * playbook page that cites this line; authored.test.ts holds the quote to it.
+   */
+  line: number;
+  /** The line the quote ends on, when it runs onto the next one. */
+  toLine?: number;
 }
 
 export interface FloorQuestion extends QuizItem {
@@ -1025,6 +1042,9 @@ interface FloorDraft {
   explain: string;
   path: string;
   quote: string;
+  /** The line the quote is on (or starts on), and where it ends when it runs on. */
+  line: number;
+  toLine?: number;
 }
 
 function floor(d: FloorDraft): FloorQuestion {
@@ -1038,7 +1058,7 @@ function floor(d: FloorDraft): FloorQuestion {
     answer: kind === "order" ? -1 : kind === "truefalse" ? (d.truth ? 0 : 1) : 0,
     explain: d.explain,
     source: { label: FILE_LABEL[d.path] ?? d.path, route: null, path: d.path },
-    support: { path: d.path, quote: d.quote },
+    support: { path: d.path, quote: d.quote, line: d.line, ...(d.toLine !== undefined ? { toLine: d.toLine } : {}) },
     fact: `f:${d.id}`,
   };
 }
@@ -1056,6 +1076,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Twice a week, one-on-one, slow and controlled, and the trainer runs the app so the client keeps their focus.",
     path: FLOOR_PATH,
     quote: "one set to failure on five to eight machines",
+    line: 53,
   }),
   floor({
     id: "clicker",
@@ -1064,6 +1085,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "The clicker counts the reps and is the client's audio cue, done by hand, never by the app.",
     path: FLOOR_PATH,
     quote: "done by hand, never by the app",
+    line: 59,
   }),
   floor({
     id: "two-looks",
@@ -1077,6 +1099,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Walking up: which machine, which settings, what weight; walking away: reps, quality, anything to note. Everything else is the client.",
     path: FLOOR_PATH,
     quote: "The trainer looks at the iPad twice per machine",
+    line: 68,
   }),
   floor({
     id: "guide-and-log",
@@ -1090,6 +1113,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "It says which machine, which settings and weight, and what happened last time, then takes what happened. Not a script, not a coach.",
     path: FLOOR_PATH,
     quote: "A guide for set-up and a log for outcomes. Not a script, not a coach.",
+    line: 78,
   }),
   floor({
     id: "no-suggestion",
@@ -1098,6 +1122,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "The app never decides a progression. It shows what a change did, never a suggestion to move the weight.",
     path: FLOOR_PATH,
     quote: "Never a suggestion to move the weight.",
+    line: 101,
   }),
   floor({
     id: "three-and-fifteen",
@@ -1106,6 +1131,8 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Every set aims at failure, advised inside 6 to 10 reps, but the rep count is never the target.",
     path: FLOOR_PATH,
     quote: "a client who fails at 3 and a client who fails at 15 are both training correctly",
+    line: 111,
+    toLine: 112,
   }),
   floor({
     id: "weight-first",
@@ -1114,6 +1141,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Reps change with sleep, stress and meals; the weight is what progresses, and the 4 P's keep the quality.",
     path: FLOOR_PATH,
     quote: "the most important recorded value",
+    line: 109,
   }),
   floor({
     id: "between-machines",
@@ -1122,6 +1150,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Get the client out, walk, pull the selector pin, set the seat, gap, back pad and handle, belt them in, brief them, start.",
     path: FLOOR_PATH,
     quote: "Between machines is one to two minutes",
+    line: 66,
   }),
   floor({
     id: "nobody-remembered",
@@ -1135,6 +1164,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "The app never contacts anyone. It shows the moment to a person, and a person acts on it.",
     path: FLOOR_PATH,
     quote: "because it proves nobody remembered",
+    line: 48,
   }),
   floor({
     id: "red-ring",
@@ -1143,6 +1173,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "One tap when any of the 4 P's broke. It warns the next trainer, and it never moves the weight.",
     path: FLOOR_PATH,
     quote: "A judgement about that set, not about the client that day.",
+    line: 131,
   }),
   floor({
     id: "ten-before",
@@ -1151,6 +1182,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Each studio can set its own timing; about ten sessions before the end is how trainers do it today.",
     path: RENEWALS_PATH,
     quote: "about 10 sessions before the end",
+    line: 11,
   }),
   floor({
     id: "lead-with-health",
@@ -1164,6 +1196,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Price is the biggest worry, so lead with health, and with the math that a longer package lowers every payment.",
     path: RENEWALS_PATH,
     quote: "the renewal conversation should lead with health (InBody, sleep, energy, pain, consistency)",
+    line: 26,
   }),
   floor({
     id: "who-steps-in",
@@ -1172,6 +1205,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Trainers ask and log what the client said; head trainers and studio leaders get involved over price or progress.",
     path: RENEWALS_PATH,
     quote: "Head trainers and studio leaders get involved when the client has concerns about price or progress",
+    line: 12,
   }),
   floor({
     id: "never-expire",
@@ -1180,6 +1214,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Confirmed for every studio. The Academy's consultation script still says 30, 60 or 90 days, and that line is out of date.",
     path: PACKAGES_PATH,
     quote: "unused sessions are never lost",
+    line: 39,
   }),
   floor({
     id: "uses-a-session",
@@ -1193,6 +1228,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Time away does not use a session.",
     path: PACKAGES_PATH,
     quote: "coming in, or cancelling with less than 24 hours' notice",
+    line: 23,
   }),
   floor({
     id: "lowers-every-payment",
@@ -1206,6 +1242,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "Price is the number-one reason clients give for leaving, and this is the line that answers it. Each studio's prices are its own.",
     path: PACKAGES_PATH,
     quote: "a longer commitment lowers every payment",
+    line: 59,
   }),
   floor({
     id: "ford",
@@ -1219,6 +1256,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "The frame for what to catch about a client as a person, so it can turn into something someone actually does.",
     path: FORD_PATH,
     quote: "Family, Occupation, Recreation, Dreams",
+    line: 1,
   }),
   floor({
     id: "community",
@@ -1232,6 +1270,8 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "No class, no lounge, nobody hanging around afterwards, so the relationship is built in the minutes either side of the set.",
     path: FORD_PATH,
     quote: "a studio like this has almost no natural opportunity to build community",
+    line: 15,
+    toLine: 16,
   }),
   floor({
     id: "remember-this",
@@ -1245,6 +1285,7 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "The category can wait for teardown. Requiring it would put a decision between hearing the thing and recording it.",
     path: FORD_PATH,
     quote: "One box, one button, no category required",
+    line: 33,
   }),
   floor({
     id: "report-order",
@@ -1254,14 +1295,20 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "The order is the pitch: a client who has just been congratulated hears the hard thing very differently.",
     path: REPORT_PATH,
     quote: "celebrate, show the wins, show the numbers, say the hard thing, leave them with a goal and a date",
+    line: 14,
+    toLine: 15,
   }),
   floor({
     id: "three-accolades",
-    prompt: "How many accolades does a progress report hold?",
-    options: ["Exactly three, each backed by data", "As many as the trainer likes", "One for every machine", "Ten"],
+    // At most three: an empty slot never prints (README "Nothing empty
+    // prints"), and a trainer's own highlight prints with no data behind it.
+    prompt: "At most, how many accolades does a progress report hold?",
+    options: ["Three, and an empty one never prints", "As many as the trainer likes", "One for every machine", "Ten"],
     explain: "A slot the data can't back says not enough data yet, and never prints.",
     path: REPORT_PATH,
-    quote: "Exactly three data-backed wins",
+    quote: "Never more than three, never the same accolade twice",
+    line: 75,
+    toLine: 76,
   }),
   floor({
     id: "ninety-days",
@@ -1270,5 +1317,6 @@ export const FLOOR_QUESTIONS: FloorQuestion[] = [
     explain: "The follow-up date is the one the trainer chases in 90 days, and the next report starts from how that goal went.",
     path: REPORT_PATH,
     quote: "the date the trainer chases in 90 days",
+    line: 45,
   }),
 ];

@@ -29,6 +29,7 @@ import {
   EQUIPMENT_FROM,
   KIND_PRIORITY,
   SUBSTITUTE_LABEL,
+  blankAbsent,
   buildVaultGraph,
   constellationOf,
   cueLabel,
@@ -42,6 +43,7 @@ import {
   type GraphIndexFile,
   type VaultGraphInput,
 } from "./graph";
+import { EXCLUDED_TOPIC_IDS } from "./graph-index-build";
 import type { GraphDomain, PlaybookPage, VaultGraph } from "./types";
 
 const INDEX = index as unknown as AcademyIndex;
@@ -123,7 +125,10 @@ describe("words", () => {
     const codes = ["LP", "Cx", "Abs", "Biceps", "Flye"];
     expect(machineForms(["CHEST/PEC FLY", "Chest Flye"], codes).words).toEqual(["chest fly", "pec fly", "chest flye"]);
     expect(machineForms(["CX (4 WAY NECK)", "Cervical Extension"], codes).words).toEqual(["4 way neck", "cervical extension"]);
-    expect(machineForms(["BICEP", "Biceps Curl", "Biceps"], codes).words).toEqual(["bicep", "biceps curl"]);
+    // A one-word name that is a muscle or an everyday word counts nothing: "BICEP"
+    // would count every "biceps", "Overhead" every "overhead storage".
+    expect(machineForms(["BICEP", "Biceps Curl", "Biceps"], codes).words).toEqual(["biceps curl"]);
+    expect(machineForms(["OVERHEAD PRESS", "Overhead"], codes).words).toEqual(["overhead press"]);
     expect(machineForms(["SEATED ABDOMINALS", "Abs"], codes).words).toEqual(["seated abdominals"]);
     expect(machineForms(["LUMBAR", "Lumbar Extension (Lumbar, Lower Back)"], codes).words).toEqual(["lumbar", "lumbar extension"]);
     expect(machineForms(["LP"], codes).words).toEqual([]);
@@ -132,8 +137,8 @@ describe("words", () => {
 
 describe("cue moments", () => {
   it("label the turnaround moments by what tells them apart, in the cueing page's own words", () => {
-    expect(cueLabel(CUES[6].moment)).toBe("Lower turnaround, where the stack touches");
-    expect(cueLabel(CUES[7].moment)).toBe("Lower turnaround, where the stack does not touch");
+    expect(cueLabel(CUES[6].moment)).toBe("Before a lower turn where the stack touches");
+    expect(cueLabel(CUES[7].moment)).toBe("Before a lower turn where the stack does not touch");
     expect(cueLabel("Speed of Motion")).toBe("Speed of motion");
     expect(cueLabel("To begin the exercise - pulling movement")).toBe("To begin: a pulling movement");
     for (const c of CUES) expect(cueLabel(c.moment)).toBe(cueMomentLabel(c.moment));
@@ -390,5 +395,51 @@ describe("domains", () => {
       }
     }
     expect(DOMAIN_COLOUR.clinical.accent).toBe("var(--wk-warn)");
+  });
+});
+
+/** The content review (Oct 19 2026): every link says something true. */
+describe("the content review's corrections", () => {
+  const kindsBetween = (a: string, b: string) => edgesBetween(graph, a, b).map((e) => e.kind);
+
+  it("explains a term only in a title that is about it, not about a longer term inside which it sits", () => {
+    // "Timed Static Contraction (TSC)" is TSC's, not Contract(ion)'s.
+    expect(kindsBetween("term:contract(ion)", "topic:variations-timed-static-contraction-tsc")).not.toContain("explained-in");
+    expect(kindsBetween("term:timed static contraction (tsc)", "topic:variations-timed-static-contraction-tsc")).toContain("explained-in");
+    // "High-Intensity" titles are High Intensity's (the hyphen bends), not Intensity's.
+    for (const t of ["topic:mastery-the-benefits-of-high-intensity-resistance-training", "topic:further-msf-fundamentals-of-high-intensity-exercise"]) {
+      expect(kindsBetween("term:intensity", t), t).not.toContain("explained-in");
+    }
+    expect(kindsBetween("term:high intensity", "topic:mastery-the-benefits-of-high-intensity-resistance-training")).toContain("explained-in");
+    expect(wordMatcher({ words: ["high intensity"], codes: [] })!.first("The Benefits of High-Intensity Resistance Training")).toBe(16);
+  });
+
+  it("never says the squeeze moment talks about End Stop: its heading names it by its absence", () => {
+    const squeezeMoment = CUES.findIndex((c) => c.moment.startsWith("Upper Turnaround (movements without an end stop"));
+    expect(squeezeMoment).toBeGreaterThanOrEqual(0);
+    expect(kindsBetween(`cue:${squeezeMoment}`, "term:end stop")).toEqual([]);
+    // The moment that IS about an end stop still says so.
+    const endStopMoment = CUES.findIndex((c) => c.moment.startsWith("Upper Turnaround (movements with an end stop"));
+    expect(kindsBetween(`cue:${endStopMoment}`, "term:end stop")).toContain("mentions");
+    expect(blankAbsent("movements without an end stop and")).toBe("movements                     and");
+  });
+
+  it("draws no see-also from a word used in its everyday sense", () => {
+    // "For our purposes" (Force, Volume, Stretch); "The purpose of an end stop".
+    for (const t of ["term:force", "term:volume", "term:stretch", "term:end stop"]) {
+      expect(kindsBetween(t, "term:purpose"), t).not.toContain("see-also");
+    }
+    // "the continuous renewal of bone tissue".
+    expect(kindsBetween("term:bone density (remodeling)", "term:continuous")).not.toContain("see-also");
+  });
+
+  it("never links a term or a machine to a page the round keeps out", () => {
+    for (const e of graph.edges) {
+      if (!e.from.startsWith("term:") && !e.from.startsWith("machine:") && !e.to.startsWith("term:") && !e.to.startsWith("machine:")) continue;
+      for (const end of [e.from, e.to]) {
+        if (!end.startsWith("topic:")) continue;
+        expect(EXCLUDED_TOPIC_IDS.has(end.slice("topic:".length)), `${e.from} ${e.kind} ${e.to}`).toBe(false);
+      }
+    }
   });
 });

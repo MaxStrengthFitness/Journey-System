@@ -30,7 +30,7 @@ export const WHY_EVERY_RULE: PlaybookPage = {
   id: "why-every-rule",
   title: "Why every rule exists",
   lede:
-    "Every rule on the floor is one part of a single definition of exercise, made concrete. When something feels off, name the part it breaks.",
+    "Every rule on the floor is one part of a single definition of exercise, made concrete.",
   pillar: "floor",
   status: "draft",
   sections: [
@@ -40,7 +40,7 @@ export const WHY_EVERY_RULE: PlaybookPage = {
       blocks: [
         para(HUTCHINS_LABEL, at(FLOOR, 14, 20)),
         para(
-          "Exercise is hard, demanding effort done the way muscles and joints are built to move, in a calm and clinical setting, kept safe, with a load heavy enough to tire the muscles deeply so they are prompted to grow, in as little time as that takes.",
+          "Exercise is hard, demanding effort done the way muscles and joints are built to move, in a controlled, clinical setting, kept safe, with a load heavy enough to tire the muscles deeply so they are prompted to grow, in as little time as that takes.",
           at(FLOOR, 14, 18),
         ),
         para("If something isn't inside that definition, it isn't exercise as we mean it.", at(FLOOR, 9, 10)),
@@ -59,7 +59,7 @@ export const WHY_EVERY_RULE: PlaybookPage = {
           at(FLOOR, 25),
         ),
         bullet(
-          "A calm, clinical setting: sentences, not scores. No hype, no celebration, and never a confident wrong number.",
+          "A controlled, clinical setting: sentences, not scores. No hype, no celebration, and never a confident wrong number.",
           at(FLOOR, 26),
         ),
         bullet(
@@ -79,7 +79,7 @@ export const WHY_EVERY_RULE: PlaybookPage = {
           at(FLOOR, 30),
         ),
         bullet(
-          "As little time as it takes: twenty minutes, five to eight machines. The time limit isn't a target to fill; it is the rule.",
+          "As little time as it takes: twenty minutes, five to eight machines. That limit is the rule itself.",
           at(FLOOR, 31),
         ),
       ],
@@ -88,10 +88,6 @@ export const WHY_EVERY_RULE: PlaybookPage = {
       id: "using",
       title: "Using it on the floor",
       blocks: [
-        para(
-          "When you correct something, name the part it breaks. \"That wasn't a real load\" says more than describing what you saw.",
-          at(FLOOR, 10, 12),
-        ),
         para(
           "The red kaizen ring is for anything outside the definition: shrugging into it, a held breath, momentum, a set cut short.",
           at(FLOOR, 131, 135),
@@ -108,10 +104,14 @@ export const WHY_EVERY_RULE: PlaybookPage = {
       title: "Where this comes from",
       blocks: [
         para(
-          "Journey's floor rules were written from this definition (Sep 21 2026). Almost every one of them is one part of it made concrete.",
+          "On Sep 21 2026 AJ named this definition as the source: almost every rule in the app is one part of it made concrete.",
           at(FLOOR, 9, 12),
         ),
-        para("The book isn't held in Journey, so it's paraphrased with a reference and never quoted.", at(SOURCE_CHECK, 15)),
+        para(
+          "Journey holds its own changes to this definition: a change is often best turned down by naming the part it breaks, rather than describing the symptom.",
+          at(FLOOR, 10, 12),
+        ),
+        para("The rule is to paraphrase the book with a reference and never quote it.", at(SOURCE_CHECK, 15)),
       ],
     },
   ],

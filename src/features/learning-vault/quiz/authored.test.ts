@@ -82,6 +82,33 @@ describe("the Academy questions", () => {
     for (const q of ACADEMY_QUESTIONS) expect(q.support.topicId, q.id).not.toMatch(banned);
   });
 
+  it("never teach a lift straight after a handoff (after one, the first movement is a lowering)", () => {
+    for (const q of ACADEMY_QUESTIONS.filter((x) => x.kind === "order")) {
+      q.options.forEach((o, i) => {
+        if (/handoff/i.test(o)) expect(q.options[i + 1] ?? "", `${q.id}: ${o}`).not.toMatch(/concentric|lift/i);
+      });
+    }
+    const phases = ACADEMY_QUESTIONS.find((q) => q.id === "a-five-phases");
+    expect(phases?.prompt).toMatch(/starts with a gradual load up/);
+    expect(phases?.options[0]).toBe("Initiation: a gradual load up");
+    // One branch of the Summary's own "either a gradual load up or a handoff".
+    expect(topicText("summary-exercise-performance")).toContain("Exercise initiation through either a gradual load up or a handoff");
+  });
+
+  it("name the case when a wrong answer is right somewhere else in the Academy", () => {
+    // "No pause at all" is right on the end-stop presses (Exercise Categories).
+    expect(ACADEMY_QUESTIONS.find((q) => q.id === "a-pause-length")?.prompt).toMatch(/^On a machine with a pause or squeeze at the top/);
+    expect(topicText("mastery-exercise-categories-postureexecutiongaps")).toContain("Continuous movement with no pause or squeeze");
+    // "In all cases described above": the kinds of exercise the topic covers.
+    expect(ACADEMY_QUESTIONS.find((q) => q.id === "a-common-attribute")?.prompt).toMatch(/Turnaround Technique topic covers several kinds of exercise/);
+    expect(topicText("performance-turnaround-technique")).toContain("In all cases described above, there is one common attribute");
+    // Path and pace are also called lifelong elsewhere; Purpose is the Mastery Series' answer.
+    const purpose = ACADEMY_QUESTIONS.find((q) => q.id === "a-purpose-lifetime");
+    expect(purpose?.prompt).toMatch(/^The Mastery Series says three of the Four P's could be mastered in a handful of workouts/);
+    expect(purpose?.prompt).not.toMatch(/Series 4/);
+    expect(topicText("mastery-purpose")).toContain("in a matter of a handful of workouts");
+  });
+
   it("never ask the order of the four P's (the sources disagree)", () => {
     for (const q of ALL) {
       if (q.kind !== "order") continue;
@@ -103,6 +130,29 @@ describe("the floor questions (the playbooks deck)", () => {
       expect(flat(read(q.support.path)), `${q.id}: "${q.support.quote}"`).toContain(flat(q.support.quote));
       expect(q.source.path).toBe(q.support.path);
     }
+  });
+
+  it("each quote is on the line it names (Read it opens the page that cites that line)", () => {
+    for (const q of FLOOR_QUESTIONS) {
+      const { line, toLine, quote, path } = q.support;
+      const lines = read(path).split("\n");
+      const to = toLine ?? line;
+      expect(line, q.id).toBeGreaterThanOrEqual(1);
+      expect(to, q.id).toBeGreaterThanOrEqual(line);
+      expect(to - line, q.id).toBeLessThanOrEqual(1);
+      expect(flat(lines.slice(line - 1, to).join(" ")), `${q.id}: ${path}:${line}-${to}`).toContain(flat(quote));
+      // And no shorter: a quote on one line names only that line.
+      if (toLine !== undefined) expect(flat(lines[line - 1]), q.id).not.toContain(flat(quote));
+    }
+  });
+
+  it("asks the accolades as the README writes them: at most three, and an empty one never prints", () => {
+    const q = FLOOR_QUESTIONS.find((x) => x.id === "f-three-accolades");
+    expect(q?.prompt).toMatch(/^At most/);
+    expect(q?.options[q.answer]).toBe("Three, and an empty one never prints");
+    const readme = flat(read("src/features/progress-report/README.md"));
+    expect(readme).toContain("Nothing empty prints.");
+    expect(readme).toContain("Never more than three, never the same accolade twice");
   });
 
   it("only draw on the business notes, FORD and the progress report", () => {

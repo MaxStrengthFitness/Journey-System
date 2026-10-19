@@ -15,8 +15,7 @@
       "programming-faq",
       "summary-benefits-of-resistance-training",
       "mastery-the-benefits-of-high-intensity-resistance-training",
-      "benefits-sarcopenia",
-      "consultation-initial-consultation-script-tour-preliminary-co"
+      "benefits-sarcopenia"
     ],
     "Bushing (oil impregnated bronze bushing)": [
       "summary-introduction"
@@ -37,7 +36,7 @@
     "Continuous": [
       "summary-exercise-performance",
       "summary-introduction",
-      "benefits-why-resistance-training",
+      "summary-benefits-of-resistance-training",
       "summary-basic-principles-of-exercise",
       "continuous-tension-what-makes-the-continuous-tension-method-",
       "programming-exercise-instruction-general-cues-and-timing",
@@ -70,7 +69,6 @@
       "instruction-msf-lower-body-setup-and-instruction",
       "summary-introduction",
       "performance-turnaround-technique",
-      "consultation-initial-consultation-script-tour-preliminary-co",
       "summary-exercise-performance"
     ],
     "Exercise Induced Headache (EIH)": [
@@ -95,7 +93,7 @@
       "principles-frequency",
       "performance-rest-interval-between-exercises",
       "programming-exercise-selection-template",
-      "mastery-exercise-selection-template"
+      "mastery-how-intensely-to-push-a-client"
     ],
     "Force": [
       "summary-exercise-performance",
@@ -105,7 +103,7 @@
       "variations-static-hold-sh",
       "mastery-putting-it-all-together-the-physiology-of-strength-p",
       "further-msf-fundamentals-of-high-intensity-exercise",
-      "benefits-why-resistance-training"
+      "summary-benefits-of-resistance-training"
     ],
     "Force-Velocity Relationship": [
       "continuous-tension-about-our-continuous-tension-method",
@@ -117,7 +115,6 @@
       "summary-basic-principles-of-exercise",
       "programming-ab-routines-how-to-optimize-programming",
       "programming-exercise-selection-and-long-term-programming",
-      "further-research",
       "further-the-physiology-of-resistance-training-developing-a-n"
     ],
     "Gap": [
@@ -126,8 +123,7 @@
       "instruction-msf-spinetrunkcore-setup-and-instruction",
       "mastery-exercise-categories-postureexecutiongaps",
       "summary-introduction",
-      "variations-static-hold-sh",
-      "consultation-initial-consultation-script-tour-preliminary-co"
+      "variations-static-hold-sh"
     ],
     "Gradual": [
       "summary-exercise-performance",
@@ -141,37 +137,36 @@
     ],
     "High Intensity": [
       "further-msf-fundamentals-of-high-intensity-exercise",
+      "summary-benefits-of-resistance-training",
+      "summary-introduction",
+      "summary-exercise-performance",
+      "mastery-the-benefits-of-high-intensity-resistance-training",
       "summary-basic-principles-of-exercise",
-      "intro-random-notes-and-faqs",
-      "programming-exercise-selection-template",
-      "mastery-exercise-selection-template",
-      "further-research",
-      "benefits-structural-integrity-bone-density",
-      "principles-volume"
+      "intro-philosophy",
+      "intro-random-notes-and-faqs"
     ],
     "Inroad": [
-      "consultation-initial-consultation-and-articles-internalizati",
-      "consultation-initial-consultation-script-tour-preliminary-co"
+      "consultation-initial-consultation-and-articles-internalizati"
     ],
     "Intensity": [
       "further-msf-fundamentals-of-high-intensity-exercise",
-      "principles-individual-variability",
+      "summary-basic-principles-of-exercise",
       "summary-exercise-performance",
       "mastery-how-intensely-to-push-a-client",
-      "benefits-why-resistance-training",
+      "summary-benefits-of-resistance-training",
       "programming-exercise-selection-and-long-term-programming",
       "principles-volume",
-      "intro-mission"
+      "summary-introduction"
     ],
     "Intent (Purpose)": [
-      "intro-mission",
+      "summary-introduction",
       "continuous-tension-athletic-performance",
-      "mastery-purpose",
       "summary-exercise-performance",
-      "intro-strength-training-at-msf",
       "intro-posture-path-pace-purpose",
-      "performance-rest-interval-between-exercises",
-      "programming-exercise-instruction-general-cues-and-timing"
+      "programming-exercise-instruction-general-cues-and-timing",
+      "mastery-purpose",
+      "further-msf-fundamentals-of-high-intensity-exercise",
+      "summary-basic-principles-of-exercise"
     ],
     "Length-Tension Relationship": [
       "further-msf-fundamentals-of-high-intensity-exercise"
@@ -191,7 +186,6 @@
     ],
     "Momentary Muscular Failure": [
       "consultation-initial-consultation-and-articles-internalizati",
-      "further-research",
       "summary-exercise-performance"
     ],
     "Motor Unit Recruitment (MUR)": [
@@ -202,7 +196,7 @@
       "intro-posture-path-pace-purpose",
       "programming-exercise-selection-template",
       "mastery-purpose",
-      "mastery-exercise-selection-template"
+      "mastery-how-intensely-to-push-a-client"
     ],
     "Movement Arm (or Work Arm)": [
       "instruction-msf-upper-body-setup-and-instruction",
@@ -220,23 +214,22 @@
       "programming-workout-progressions",
       "programming-exercise-selection-template",
       "mastery-path",
-      "mastery-exercise-selection-template",
       "further-the-physiology-of-resistance-training-developing-a-n",
-      "intro-posture-path-pace-purpose"
+      "intro-posture-path-pace-purpose",
+      "principles-introduction"
     ],
     "Negative": [
-      "further-msf-fundamentals-of-high-intensity-exercise",
       "performance-turnaround-technique",
       "summary-exercise-performance",
+      "further-msf-fundamentals-of-high-intensity-exercise",
       "performance-speed-of-movement",
       "continuous-tension-performing-the-continuous-tension-method",
       "further-registering-performance-use-of-the-clicker",
       "performance-components-of-a-repetition",
-      "continuous-tension-other-factors-to-consider"
+      "variations-static-hold-sh"
     ],
     "Neural Adaptations": [
-      "summary-introduction",
-      "further-research"
+      "summary-introduction"
     ],
     "Pace": [
       "instruction-msf-upper-body-setup-and-instruction",
@@ -249,7 +242,7 @@
       "principles-productive-exercise-the-stimulating-reps-model"
     ],
     "Path": [
-      "intro-mission",
+      "summary-introduction",
       "mastery-path",
       "intro-posture-path-pace-purpose",
       "intro-random-notes-and-faqs",
@@ -268,11 +261,11 @@
       "further-msf-fundamentals-of-high-intensity-exercise",
       "summary-exercise-performance",
       "performance-turnaround-technique",
-      "benefits-why-resistance-training",
       "performance-speed-of-movement",
       "continuous-tension-performing-the-continuous-tension-method",
-      "benefits-cardiovascular-efficiency",
-      "principles-progression-the-mastery-of-effort"
+      "performance-components-of-a-repetition",
+      "performance-set-duration",
+      "variations-forced-reps"
     ],
     "Posture": [
       "summary-introduction",
@@ -288,7 +281,6 @@
       "summary-basic-principles-of-exercise",
       "principles-progressive-overload-and-intensity",
       "principles-introduction",
-      "mastery-msf-overview",
       "performance-gradual-load-up",
       "performance-set-duration",
       "further-msf-fundamentals-of-high-intensity-exercise",
@@ -298,11 +290,11 @@
       "summary-introduction",
       "intro-posture-path-pace-purpose",
       "mastery-purpose",
-      "mastery-how-intensely-to-push-a-client",
       "intro-random-notes-and-faqs",
-      "programming-faq",
-      "mastery-putting-it-all-together-the-physiology-of-strength-p",
-      "further-msf-fundamentals-of-high-intensity-exercise"
+      "mastery-gradual-load-up",
+      "mastery-how-intensely-to-push-a-client",
+      "summary-basic-principles-of-exercise",
+      "summary-exercise-performance"
     ],
     "Range of Motion (ROM)": [
       "summary-exercise-performance",
@@ -341,8 +333,7 @@
       "variations-timed-static-contraction-tsc",
       "summary-introduction",
       "instruction-msf-spinetrunkcore-setup-and-instruction",
-      "mastery-exercise-categories-postureexecutiongaps",
-      "consultation-initial-consultation-script-tour-preliminary-co"
+      "mastery-exercise-categories-postureexecutiongaps"
     ],
     "Stretch": [
       "benefits-flexibility",
@@ -351,16 +342,16 @@
       "performance-turnaround-technique",
       "programming-exercise-selection-template",
       "instruction-msf-spinetrunkcore-setup-and-instruction",
-      "mastery-exercise-selection-template",
-      "further-firming-toning-and-flexibility"
+      "further-firming-toning-and-flexibility",
+      "further-msf-fundamentals-of-high-intensity-exercise"
     ],
     "Tension (also Mechanical Tension or Muscular Tension)": [
       "summary-exercise-performance",
-      "principles-individual-variability",
-      "intro-mission",
+      "summary-basic-principles-of-exercise",
+      "summary-introduction",
       "further-msf-fundamentals-of-high-intensity-exercise",
       "mastery-putting-it-all-together-the-physiology-of-strength-p",
-      "benefits-why-resistance-training",
+      "summary-benefits-of-resistance-training",
       "continuous-tension-what-makes-the-continuous-tension-method-",
       "mastery-how-intensely-to-push-a-client"
     ],
@@ -389,50 +380,47 @@
       "further-msf-fundamentals-of-high-intensity-exercise",
       "principles-volume",
       "mastery-putting-it-all-together-the-physiology-of-strength-p",
-      "further-research",
       "further-the-physiology-of-resistance-training-developing-a-n",
       "programming-exercise-selection-and-long-term-programming",
-      "intro-mission"
+      "summary-introduction",
+      "principles-frequency"
     ]
   },
   "machineTopics": {
     "m-abs": [
       "programming-exercise-selection-template",
-      "mastery-exercise-selection-template",
       "mastery-exercise-categories-postureexecutiongaps",
       "instruction-msf-spinetrunkcore-setup-and-instruction",
       "programming-exercise-substitutes",
       "further-resistance-transfer-techniques"
     ],
     "m-bicep": [
-      "programming-exercise-selection-template",
-      "mastery-exercise-selection-template",
-      "programming-ab-routines-how-to-optimize-programming",
-      "programming-exercise-substitutes",
-      "instruction-msf-upper-body-setup-and-instruction",
-      "programming-exercise-selection-and-long-term-programming",
       "performance-rest-interval-between-exercises",
-      "programming-workout-programming-considerations"
+      "programming-workout-programming-considerations",
+      "programming-ab-routines-how-to-optimize-programming",
+      "programming-exercise-instruction-general-cues-and-timing",
+      "programming-exercise-selection-and-long-term-programming",
+      "equipment-basic-equipment-and-exercise-information",
+      "summary-exercise-performance"
     ],
     "m-chest-fly": [
       "programming-exercise-selection-template",
-      "mastery-exercise-selection-template",
       "performance-rest-interval-between-exercises",
       "programming-workout-programming-considerations",
       "programming-considerations-for-training-with-pain",
       "programming-exercise-instruction-general-cues-and-timing",
-      "programming-msf-suggested-starting-weights",
-      "instruction-msf-upper-body-setup-and-instruction"
+      "instruction-msf-upper-body-setup-and-instruction",
+      "summary-exercise-performance"
     ],
     "m-chest-press": [
       "programming-ab-routines-how-to-optimize-programming",
       "programming-exercise-selection-template",
       "programming-exercise-substitutes",
-      "mastery-exercise-selection-template",
       "intro-glossary",
       "programming-workout-programming-considerations",
       "programming-exercise-instruction-general-cues-and-timing",
-      "mastery-exercise-categories-postureexecutiongaps"
+      "mastery-exercise-categories-postureexecutiongaps",
+      "summary-exercise-performance"
     ],
     "m-compound-row": [
       "programming-workout-programming-considerations",
@@ -442,7 +430,7 @@
       "intro-glossary",
       "intro-posture-path-pace-purpose",
       "performance-turnaround-technique",
-      "programming-exercise-selection-template"
+      "programming-exercise-substitutes"
     ],
     "m-dip": [
       "programming-exercise-substitutes",
@@ -450,38 +438,34 @@
       "programming-workout-programming-considerations",
       "programming-exercise-selection-template",
       "programming-exercise-instruction-general-cues-and-timing",
-      "programming-msf-suggested-starting-weights",
       "instruction-msf-upper-body-setup-and-instruction",
-      "mastery-exercise-selection-template"
+      "mastery-how-intensely-to-push-a-client"
     ],
     "m-ext": [
       "summary-exercise-performance",
       "programming-exercise-selection-template",
-      "mastery-exercise-selection-template",
       "performance-gradual-load-up",
       "performance-turnaround-technique",
       "programming-workout-programming-considerations",
       "programming-ab-routines-how-to-optimize-programming",
-      "intro-glossary"
+      "intro-glossary",
+      "intro-random-notes-and-faqs"
     ],
     "m-hip-abd": [
       "principles-frequency",
       "programming-workout-programming-considerations",
       "programming-ab-routines-how-to-optimize-programming",
       "programming-exercise-selection-template",
-      "programming-msf-suggested-starting-weights",
       "equipment-basic-equipment-and-exercise-information",
       "instruction-msf-lower-body-setup-and-instruction",
-      "mastery-exercise-selection-template"
+      "summary-basic-principles-of-exercise"
     ],
     "m-hip-add": [
       "performance-rest-interval-between-exercises",
       "programming-workout-programming-considerations",
       "programming-exercise-selection-template",
-      "programming-msf-suggested-starting-weights",
       "equipment-basic-equipment-and-exercise-information",
       "instruction-msf-lower-body-setup-and-instruction",
-      "mastery-exercise-selection-template",
       "summary-exercise-performance"
     ],
     "m-lateral-raise": [
@@ -492,37 +476,37 @@
       "programming-exercise-selection-template",
       "programming-considerations-for-training-with-pain",
       "programming-exercise-instruction-general-cues-and-timing",
-      "programming-msf-suggested-starting-weights"
+      "instruction-msf-upper-body-setup-and-instruction"
     ],
     "m-leg-curl": [
       "programming-exercise-selection-template",
-      "mastery-exercise-selection-template",
       "summary-exercise-performance",
       "programming-workout-programming-considerations",
       "intro-glossary",
       "performance-range-of-motion",
       "performance-turnaround-technique",
-      "performance-warm-up-considerations"
+      "performance-warm-up-considerations",
+      "programming-workout-progressions"
     ],
     "m-leg-press": [
       "programming-ab-routines-how-to-optimize-programming",
       "programming-exercise-selection-template",
-      "mastery-exercise-selection-template",
       "summary-exercise-performance",
       "intro-glossary",
       "programming-workout-programming-considerations",
       "programming-novice-level-trainees",
-      "intro-random-notes-and-faqs"
+      "intro-random-notes-and-faqs",
+      "performance-eih"
     ],
     "m-lumbar": [
       "programming-exercise-selection-template",
-      "mastery-exercise-selection-template",
       "programming-ab-routines-how-to-optimize-programming",
       "programming-workout-programming-considerations",
       "programming-workout-progressions",
       "mastery-how-intensely-to-push-a-client",
       "intro-glossary",
-      "equipment-basic-equipment-and-exercise-information"
+      "equipment-basic-equipment-and-exercise-information",
+      "instruction-msf-spinetrunkcore-setup-and-instruction"
     ],
     "m-neck": [
       "further-resistance-transfer-techniques",
@@ -537,21 +521,21 @@
       "mastery-exercise-categories-postureexecutiongaps",
       "programming-workout-programming-considerations",
       "programming-novice-level-trainees",
+      "intro-glossary",
+      "performance-turnaround-technique",
       "programming-exercise-instruction-general-cues-and-timing",
       "programming-exercise-substitutes",
-      "intro-glossary",
-      "intro-random-notes-and-faqs",
-      "performance-turnaround-technique"
+      "mastery-exercise-selection-template"
     ],
     "m-pulldown": [
       "programming-exercise-selection-template",
       "programming-exercise-instruction-general-cues-and-timing",
-      "mastery-exercise-selection-template",
       "intro-glossary",
       "programming-workout-programming-considerations",
       "programming-exercise-substitutes",
       "mastery-exercise-categories-postureexecutiongaps",
-      "performance-turnaround-technique"
+      "performance-turnaround-technique",
+      "programming-ab-routines-how-to-optimize-programming"
     ],
     "m-pullover": [
       "mastery-exercise-categories-postureexecutiongaps",
@@ -561,7 +545,7 @@
       "programming-exercise-selection-template",
       "programming-considerations-for-training-with-pain",
       "programming-exercise-selection-and-long-term-programming",
-      "programming-msf-suggested-starting-weights"
+      "further-resistance-transfer-techniques"
     ],
     "m-simple-row": [
       "programming-workout-programming-considerations",
@@ -569,19 +553,16 @@
       "programming-exercise-selection-template",
       "programming-considerations-for-training-with-pain",
       "programming-exercise-substitutes",
-      "programming-msf-suggested-starting-weights",
-      "instruction-msf-upper-body-setup-and-instruction",
-      "mastery-exercise-selection-template"
+      "instruction-msf-upper-body-setup-and-instruction"
     ],
     "m-torso-rotation": [
       "programming-workout-programming-considerations",
       "programming-exercise-selection-template",
-      "mastery-exercise-selection-template",
       "intro-glossary",
       "programming-exercise-instruction-general-cues-and-timing",
       "programming-exercise-substitutes",
-      "programming-msf-suggested-starting-weights",
-      "instruction-msf-spinetrunkcore-setup-and-instruction"
+      "instruction-msf-spinetrunkcore-setup-and-instruction",
+      "mastery-exercise-categories-postureexecutiongaps"
     ],
     "m-tricep-ext": [
       "programming-workout-programming-considerations",

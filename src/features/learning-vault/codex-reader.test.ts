@@ -17,6 +17,7 @@ import {
   codexTiers,
   cueKeysFor,
   deepDiveSection,
+  phraseMisfits,
   scriptSections,
   substituteLine,
   substituteSection,
@@ -152,9 +153,13 @@ describe("a handoff machine", () => {
   const PD = MACHINE_DEFINITIONS["m-pulldown"];
   const tiers = codexTiers(PD, academyFor("m-pulldown", "pulldown-torso-arm"));
 
-  it("begins with the handoff moment, then the lower turn where the stack does not touch, then the squeeze", () => {
+  it("begins with the handoff moment, then both lower turns (the Academy: the stack may not touch on a pulldown), then the squeeze", () => {
     const ids = tier(tiers, "script").sections.map((s) => s.id).filter((id) => id.startsWith("moment-"));
-    expect(ids).toEqual(["moment-2", "moment-7", "moment-9"]);
+    expect(ids).toEqual(["moment-2", "moment-7", "moment-6", "moment-9"]);
+  });
+
+  it("titles the handoff's lines as the phrasebook scopes them: a pulling movement", () => {
+    expect(section(tiers, "moment-2")!.title).toBe("To begin a pulling movement: the handoff");
   });
 
   it("leaves out the phrasebook's lead-in that is not a cue", () => {
@@ -169,9 +174,49 @@ describe("a handoff machine", () => {
 });
 
 describe("which moments fit", () => {
-  it("shows both lower turns when nothing says which", () => {
+  it("gives a machine the Academy names no exception for the lower turn where the stack touches", () => {
     const keys = cueKeysFor(MACHINE_DEFINITIONS["m-lumbar"], cues, "LUMBAR");
-    expect(keys).toEqual(["loadUp", "upperSqueeze", "lowerTouch", "lowerNoTouch"]);
+    expect(keys).toEqual(["loadUp", "upperSqueeze", "lowerTouch"]);
+  });
+
+  // Mastery 6: the stack "may not touch, such as in a compound row or a pulldown ...
+  // For most other movements, the weight stack should touch". Every script but those
+  // two says the weights touch, the Simple Row's included.
+  it("shows the no-touch lines only on the Compound Row and the Pulldown, run on all twenty machines", () => {
+    const lowerOf = (id: string) =>
+      cueKeysFor(MACHINE_DEFINITIONS[id], cues).filter((k) => k === "lowerTouch" || k === "lowerNoTouch");
+    for (const id of Object.keys(MACHINE_DEFINITIONS)) {
+      const expected = id === "m-compound-row" || id === "m-pulldown" ? ["lowerNoTouch", "lowerTouch"] : ["lowerTouch"];
+      expect(lowerOf(id), id).toEqual(expected);
+    }
+    const sr = codexTiers(MACHINE_DEFINITIONS["m-simple-row"], academyFor("m-simple-row", null));
+    const ids = codexSections(sr).map((x) => x.id);
+    expect(ids).toContain("moment-6");
+    expect(ids).not.toContain("moment-7");
+  });
+
+  it("gives a flexibility-limited turn no phrasebook moment: its lines would say the elbows straighten", () => {
+    const def = { ...MACHINE_DEFINITIONS["m-compound-row"], switches: { lowerTurn: "flexLimited" as const } };
+    const keys = cueKeysFor(def, cues, "COMPOUND ROW");
+    expect(keys.some((k) => k === "lowerTouch" || k === "lowerNoTouch")).toBe(false);
+  });
+
+  it("keeps the handoff's arm lines off a machine whose arms only brace", () => {
+    const handoffLines = (id: string) => {
+      const t = codexTiers(MACHINE_DEFINITIONS[id], academyFor(id, null));
+      return section(t, "moment-2")!.blocks.map((b) => b.text);
+    };
+    for (const id of ["m-abs", "m-neck"]) {
+      const lines = handoffLines(id);
+      expect(lines.some((l) => /your arms/i.test(l)), id).toBe(false);
+      expect(lines, id).toContain("Slowly let the movement arm forward (or up or down).");
+    }
+    for (const id of ["m-compound-row", "m-pulldown", "m-pullover"]) {
+      expect(handoffLines(id), id).toContain("Slowly begin to straighten your arms.");
+    }
+    expect(phraseMisfits("handoff", "Slowly begin to straighten your arms.", "SEATED ABDOMINALS")).toBe(true);
+    expect(phraseMisfits("handoff", "Slowly begin to straighten your arms.", undefined)).toBe(false);
+    expect(phraseMisfits("loadUp", "Slowly begin to straighten your arms.", "SEATED ABDOMINALS")).toBe(false);
   });
 
   it("follows a recorded lower-turn switch over the name", () => {

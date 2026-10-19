@@ -20,9 +20,12 @@
  *             no squeeze (Leg Press, Chest Press, Overhead Press, Seated Dip)
  *   squeeze   a gradual load-up, then a pause and a squeeze at the top
  *             (every other machine that does not begin with a handoff)
- *   handoff   the trainer hands the load over near the top and the set
- *             begins with the lowering (Compound Row, Pulldown, Pullover,
- *             Abdominals, Cervical Extension)
+ *   handoff   the trainer brings the movement arm into position and hands
+ *             the load over; the set begins with the lowering (Compound Row,
+ *             Pulldown, Pullover, Abdominals, Cervical Extension). Where the
+ *             arm is brought differs by machine (Resistance Transfer
+ *             Techniques: "usually the midpoint"; the Cervical at neutral), so
+ *             no place is named here
  *
  * HOW THE TIMELINE IS DRAWN
  * -------------------------
@@ -108,7 +111,7 @@ export const SHAPE_LABEL: Record<RepShape, string> = {
 export const SHAPE_WORDS: Record<RepShape, string> = {
   endStop: "A gradual load-up, then touch and go at the end stop: no pause, no squeeze.",
   squeeze: "A gradual load-up, then a brief pause and a squeeze at the top.",
-  handoff: "The trainer hands the load over near the top, and the set begins with the lowering.",
+  handoff: "The trainer brings the movement arm into position and hands the load over, and the set begins with the lowering.",
 };
 
 /** Which machines run each way, as the Academy lists them. */
@@ -152,7 +155,13 @@ export const REP_SOURCES: Record<RepSourceId, RepSource> = {
     label: "Academy · Resistance Transfer Techniques",
     moduleId: "further",
     topicId: "further-resistance-transfer-techniques",
-    quotes: ["a clear, concise signal of “yours”", "moving into the stretch or negative phase"],
+    quotes: [
+      "a clear, concise signal of “yours”",
+      "moving into the stretch or negative phase",
+      "begin applying gradual force",
+      "held absolutely still during the transfer",
+      "that is…mine",
+    ],
   },
   continuous: {
     label: "Academy 5.3 · Performing the Continuous Tension Method",
@@ -172,6 +181,8 @@ export const REP_SOURCES: Record<RepSourceId, RepSource> = {
       "An approximate 12 to 20-second repetition cycle",
       "the speed of movement should be the same on both the concentric and eccentric phases",
       "a faster pace should never be forced",
+      "A slower repetition cycle is beneficial when instructing novice trainees",
+      "move closer to the 6-second pace",
     ],
   },
   window: {
@@ -189,6 +200,8 @@ export const REP_SOURCES: Record<RepSourceId, RepSource> = {
       "Pause definitely and briefly (one or two seconds)",
       "should generally last for 2 to 3 seconds before easing out",
       "Gradually ease out of the contracted position.",
+      "Immediately but slowly begin the negative phase of the movement.",
+      "barely touch or “pass through”",
     ],
   },
   lower: {
@@ -200,6 +213,8 @@ export const REP_SOURCES: Record<RepSourceId, RepSource> = {
       "Do not unload at the bottom",
       "Do not fire out of the bottom",
       "the bottom is defined by the elbows straightening",
+      "such as in a compound row or a pulldown",
+      "For most other movements, the weight stack should touch",
     ],
   },
   categories: {
@@ -210,6 +225,8 @@ export const REP_SOURCES: Record<RepSourceId, RepSource> = {
       "A count of 5 to 10 seconds",
       "hold the last rep in the contracted position",
       "A normal 2 to 3 second count",
+      "usually best intensified",
+      "Cervical Ext is also the only exercise that the instructor will take from the client in the neutral position when finished",
     ],
   },
 };
@@ -284,13 +301,21 @@ export const CUE_MOMENT_INDEX: Record<CueKey, number> = {
   failure: 13,
 };
 
-/** A short title for each moment (cues.json's headings run to 299 characters). */
+/**
+ * A short title for each moment (cues.json's headings run to 299 characters).
+ * The two lower turns say WHEN: the phrasebook's headings end "most
+ * effectively used during the eccentric", and the Lumbar script says "(Say
+ * this DURING the eccentric)", so the lines are said before the turn is
+ * reached. cue-label.ts names the same two moments the same way. The
+ * handoff's lines are the phrasebook's "pulling movement" ones, so its title
+ * says so.
+ */
 export const CUE_TITLES: Record<CueKey, string> = {
   loadUp: "To begin: the gradual load-up",
-  handoff: "To begin: the handoff",
+  handoff: "To begin a pulling movement: the handoff",
   speed: "Speed of motion",
-  lowerTouch: "Lower turnaround, where the stack touches",
-  lowerNoTouch: "Lower turnaround, where the stack does not touch",
+  lowerTouch: "Before a lower turn where the stack touches",
+  lowerNoTouch: "Before a lower turn where the stack does not touch",
   upperEndStop: "Upper turnaround at the end stop",
   upperSqueeze: "Upper turnaround with a squeeze",
   finalDescent: "Final descent",
@@ -340,29 +365,44 @@ export function namesExample(name: string, example: string): boolean {
   return new RegExp(`(^|[^a-z0-9])${escapeRe(example.toLowerCase())}($|[^a-z0-9])`, "i").test(name);
 }
 
+/** The two machines Mastery 6 names whose stack "may not touch": the compound row and the pulldown. */
+export const NO_TOUCH_MACHINES = /\bcompound row\b|\bpull ?down\b/i;
+
 /**
- * Which lower-turnaround moment fits a machine. The codex switch decides
- * when it is recorded; else the moment whose examples name the machine
- * (the Leg Press is in "where the stack touches", the Pulldown in "does
- * not touch"); else both, because the page cannot tell which, and the two
- * headings say when each applies.
+ * Which lower-turnaround moment fits a machine.
+ *
+ * The codex switch decides when it is recorded: the stack touches, or a
+ * joint stops it first (the elbows straighten). A FLEXIBILITY-limited turn
+ * gets no phrasebook moment: the Academy's is "an abbreviated, moderate
+ * stretch" (Turnaround Technique), and the does-not-touch lines say the
+ * elbows "will completely straighten FIRST", the opposite, so the rule
+ * speaks alone.
+ *
+ * With no switch, the Academy's own line (Mastery 6, Lower Turnarounds):
+ * the stack "may not touch, such as in a compound row or a pulldown", and
+ * "For most other movements, the weight stack should touch". The Compound
+ * Row's and the Pulldown's scripts say "until your arms completely
+ * straighten or the weights touch. Whichever happens first", so they show
+ * both moments, the no-touch one first. Every other machine is "where the
+ * stack touches", the Simple Row included (its script: "as soon those
+ * weights touch"), and the Pullover, Abdominals and Cervical (their scripts
+ * and card: the weights touch). The phrasebook's example "row" means the
+ * compound row, so a name is never matched on the bare word.
+ *
+ * `cues` stays in the signature so the callers stay as they are; the
+ * answer no longer depends on the phrasebook's examples.
  */
 export function lowerCueKeys(
   lowerTurn: "stackTouch" | "jointLimited" | "flexLimited" | undefined,
   cues: readonly CueMoment[] | null | undefined,
   machineName?: string,
 ): CueKey[] {
+  void cues;
   if (lowerTurn === "stackTouch") return ["lowerTouch"];
-  if (lowerTurn === "jointLimited" || lowerTurn === "flexLimited") return ["lowerNoTouch"];
-  const name = (machineName ?? "").trim();
-  if (name && cues) {
-    const fits = (["lowerTouch", "lowerNoTouch"] as const).filter((k) => {
-      const i = findCueMoment(cues, k);
-      return i >= 0 && cueExamples(cues[i].moment).some((ex) => namesExample(name, ex));
-    });
-    if (fits.length === 1) return [fits[0]];
-  }
-  return ["lowerTouch", "lowerNoTouch"];
+  if (lowerTurn === "flexLimited") return [];
+  if (lowerTurn === "jointLimited") return ["lowerNoTouch"];
+  if (NO_TOUCH_MACHINES.test(machineName ?? "")) return ["lowerNoTouch", "lowerTouch"];
+  return ["lowerTouch"];
 }
 
 /** The moment whose phrases belong to a phase of a shape. */
@@ -378,7 +418,8 @@ export function cueKeyFor(phase: RepPhaseId, shape: RepShape): CueKey {
     case "upper":
       return shape === "endStop" ? "upperEndStop" : "upperSqueeze";
     case "lower":
-      return shape === "handoff" ? "lowerNoTouch" : "lowerTouch";
+      // "For most other movements, the weight stack should touch" (Mastery 6).
+      return "lowerTouch";
     case "final":
       return "finalDescent";
   }
@@ -395,11 +436,11 @@ export interface PhaseCues {
 
 /**
  * The phrasebook's lines for the moment the thumb is on. For the lower turn
- * a machine's name picks between "the stack touches" and "does not touch"
- * when the Academy names it; otherwise the shape's usual one (the handoff
- * machines' examples are the row and the pulldown, whose stack does not
- * touch). Falls back to the phase's recorded index when the headings
- * do not match (a fixture, an older phrasebook).
+ * a machine's name picks the moment lowerCueKeys gives first: "does not
+ * touch" for the Compound Row and the Pulldown, "the stack touches" for
+ * every other machine; with no machine, "the stack touches", which the
+ * Academy says of most movements. Falls back to the phase's recorded index
+ * when the headings do not match (a fixture, an older phrasebook).
  */
 export function cuesForPhase(
   cues: readonly CueMoment[] | null | undefined,
@@ -411,7 +452,7 @@ export function cuesForPhase(
   let key = cueKeyFor(phase.id, shape);
   if (phase.id === "lower" && machineName) {
     const keys = lowerCueKeys(undefined, cues, machineName);
-    if (keys.length === 1) key = keys[0];
+    if (keys.length > 0) key = keys[0];
   }
   let index = findCueMoment(cues, key);
   if (index < 0 && typeof phase.cueMoment === "number" && phase.cueMoment >= 0 && phase.cueMoment < cues.length) {
@@ -444,7 +485,7 @@ export const PHASE_WORDS: Record<RepPhaseId, string> = {
   upper: "The top",
   eccentric: "The lowering",
   lower: "The bottom",
-  final: "The last rep",
+  final: "After the last lift: the last lowering",
 };
 
 /** Which rule a phase reads, per shape (the upper turn and the finish differ by shape). */
@@ -476,7 +517,7 @@ export const PHASE_RULES: Record<RuleId, PhaseRule> = {
     source: "loadUp",
   },
   handoff: {
-    rule: "No load-up. The trainer brings the movement arm into position and hands the load over gradually, and says “yours” when the transfer is complete. The set then begins with the lowering.",
+    rule: "No gradual load-up from a dead stop. The trainer brings the movement arm into position and holds it still while the client builds force and the trainer eases off; the trainer says “yours” only when the transfer is complete. The set then begins with the lowering.",
     source: "transfer",
   },
   concentric: {
@@ -484,7 +525,12 @@ export const PHASE_RULES: Record<RuleId, PhaseRule> = {
     source: "continuous",
   },
   upperEndStop: {
-    rule: "Touch and go: slow as the end stop arrives, barely touch it, and begin lowering at once. No pause, no squeeze.",
+    // The Overhead Press's and Seated Dip's scripts ask for "a brief but
+    // definite stillness" at the top, against Exercise Categories ("no pause
+    // or squeeze"), the phrasebook ("Do not pause") and both machines'
+    // definitions. The scrubber keeps the majority; the disagreement is
+    // head office's to settle.
+    rule: "Touch and go: slow as the end stop arrives, barely touch or pass through it, then begin lowering immediately but slowly. Keep it continuous: no pause, no squeeze.",
     source: "turnaround",
   },
   upperSqueeze: {
@@ -496,7 +542,7 @@ export const PHASE_RULES: Record<RuleId, PhaseRule> = {
     source: "speed",
   },
   lower: {
-    rule: "Always continuous. Always bottom out, do not unload at the bottom, and do not fire out of it. Where the stack does not touch, as on a row or a pulldown, the bottom is where the elbows straighten.",
+    rule: "Always continuous. Always bottom out, do not unload at the bottom, and do not fire out of it. Where the stack may not touch, as on the Compound Row or the Pulldown, the bottom is where the elbows straighten.",
     source: "lower",
   },
   finalEndStop: {
@@ -504,7 +550,7 @@ export const PHASE_RULES: Record<RuleId, PhaseRule> = {
     source: "categories",
   },
   finalHold: {
-    rule: "Keep breathing and do not speed up on the final descent. If the set ends short of failure, hold the last rep in the contracted position while the trainer counts down; on the Cervical and Lumbar, a normal 2 to 3 second count.",
+    rule: "Keep breathing and do not speed up on the final descent. When a set ends short of failure, the trainer usually has the client hold the last rep in the contracted position while counting down. The Cervical and Lumbar are never taken to failure and get only a normal 2 to 3 second count; on the Cervical the trainer takes the load back at the neutral position (“that is…mine”).",
     source: "categories",
   },
 };
@@ -678,20 +724,21 @@ export function phaseTiming(model: RepModel, ph: RepPhase, t: number): string {
 /**
  * The span the scrubber brackets as a rep's cycle, and how it reads: the
  * strokes in the order they happen, each with its own seconds ("up 6 s,
- * squeeze, down 6 s"), never a sum.
+ * pause or squeeze, down 6 s"), never a sum. The hold at the top is a pause
+ * on the first two reps and a squeeze from the third, so it says both.
  */
 export function cycleOf(model: RepModel): { from: number; to: number; words: string } {
   const get = (id: RepPhaseId) => model.phases.find((x) => x.id === id)!;
   const p = model.pace;
   if (model.shape === "handoff") {
-    return { from: get("eccentric").from, to: get("upper").to, words: `A rep's cycle: down ${p} s, up ${p} s, squeeze` };
+    return { from: get("eccentric").from, to: get("upper").to, words: `A rep's cycle: down ${p} s, up ${p} s, pause or squeeze` };
   }
   if (model.shape === "squeeze") {
-    return { from: get("concentric").from, to: get("lower").from + TURN_HALF, words: `A rep's cycle: up ${p} s, squeeze, down ${p} s` };
+    return { from: get("concentric").from, to: get("lower").from + TURN_HALF, words: `A rep's cycle: up ${p} s, pause or squeeze, down ${p} s` };
   }
   return { from: get("concentric").from, to: get("lower").from + TURN_HALF, words: `A rep's cycle: up ${p} s, down ${p} s` };
 }
 
 /** The Academy's window in one line, said once under the scrubber. */
 export const WINDOW_LINE =
-  "The Academy's window: 6 to 10 seconds up and 6 to 10 down, about 12 to 20 seconds a rep. Six is the house default, and a faster pace is never forced.";
+  "The Academy's window: 6 to 10 seconds up and 6 to 10 down, about 12 to 20 seconds a rep. Journey's default is 6, the pace the Academy moves clients toward as they advance; a slower pace helps beginners, and a faster pace is never forced.";

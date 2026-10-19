@@ -383,6 +383,116 @@ describe("the words", () => {
   });
 });
 
+/**
+ * The content review (Oct 19 2026) checked every line against the lines it
+ * cites, and a skeptic verified each finding. These hold the corrections.
+ */
+describe("the content review's corrections stay corrected", () => {
+  const blocksOf = (id: string) => playbookById(id)!.sections.flatMap((s) => s.blocks);
+  const textOf = (id: string) => pageWords(playbookById(id)!).join("\n");
+  const flat = (s: string) => s.replace(/[“”]/g, '"').replace(/\s+/g, " ").toLowerCase();
+
+  it("a quotation of four words or more is in the lines the block cites (no invented quotes)", () => {
+    for (const p of PLAYBOOKS) {
+      for (const b of p.sections.flatMap((s) => s.blocks)) {
+        const parsed = parsePlaybookSource(b.source)!;
+        const cited = flat(
+          linesOf(parsed.path)
+            .slice(parsed.from - 1, parsed.to)
+            .map((l) => l.replace(/^\s*>\s?/, ""))
+            .join(" "),
+        );
+        for (const m of b.text.matchAll(/"([^"]+)"/g)) {
+          const quote = m[1].replace(/[.?!,]+$/, "");
+          if (words(quote).length < 4) continue;
+          expect(cited, `${p.id}: "${quote}" is not in ${b.source}`).toContain(flat(quote));
+        }
+      }
+    }
+  });
+
+  it("the 4 P's are named in the order of the line that is cited", () => {
+    const order = (s: string) => (s.match(/\b(Pace|Posture|Path|Purpose)\b/g) ?? []).join(",");
+    for (const p of PLAYBOOKS) {
+      for (const b of p.sections.flatMap((s) => s.blocks)) {
+        if (!/4 P's/.test(b.text)) continue;
+        const parsed = parsePlaybookSource(b.source)!;
+        const cited = linesOf(parsed.path).slice(parsed.from - 1, parsed.to).join(" ");
+        expect(order(b.text), `${p.id}: ${b.text}`).toBe(order(cited));
+      }
+    }
+  });
+
+  it("Pulse: twelve areas in three groups, and only the eight scored ones have three statements", () => {
+    const areas = playbookById("pulse")!.sections.find((s) => s.id === "areas")!;
+    expect(areas.title).not.toMatch(/\beight\b/i);
+    expect(areas.blocks.filter((b) => b.kind === "bullet")).toHaveLength(3);
+    const statements = areas.blocks.find((b) => b.kind === "para")!;
+    expect(statements.text).toContain("Each of the eight scored areas has three short statements");
+    expect(statements.source).toBe(at("src/features/subjective-report/README.md", 28, 57));
+    expect(textOf("pulse")).toContain("Red in protein compliance (the days they hit their protein goal)");
+  });
+
+  it("Why every rule: the definition turns down a change to the app; it is not a way to correct someone", () => {
+    const text = textOf("why-every-rule");
+    expect(text).not.toMatch(/when you correct|That wasn't a real load|feels off/i);
+    expect(text).toContain("a change is often best turned down by naming the part it breaks");
+    expect(text).not.toMatch(/\bcalm\b/i);
+    expect(text).toContain("in a controlled, clinical setting");
+    expect(text).not.toContain("isn't a target to fill");
+    expect(text).not.toMatch(/written from this definition/);
+    expect(text).toContain("On Sep 21 2026 AJ named this definition as the source");
+    expect(text).not.toMatch(/isn't held in Journey, so/);
+    const headTrainer = trackById("head-trainer")!.steps.find(
+      (s) => s.route.kind === "playbook" && s.route.id === "why-every-rule",
+    )!;
+    expect(headTrainer.why).not.toMatch(/correct/i);
+  });
+
+  it("Talking about packages: says only what its sources say", () => {
+    const text = textOf("packages");
+    expect(text).toContain("Every package is advertised with two free workouts.");
+    expect(text).not.toMatch(/comes with two free workouts/);
+    expect(text).toContain("not yet confirmed in Mindbody");
+    expect(text).toContain("Your recommendation does show there, under your name.");
+    expect(text).not.toMatch(/These are your notes/);
+    expect(text).toContain("Journey never does, because nothing it holds can back the claim");
+    expect(text).not.toMatch(/Never call a package/);
+    expect(text).toContain("Paid in full never renews by itself.");
+    expect(text).not.toMatch(/Check before you say it/);
+  });
+
+  it("The twenty minutes: a weight set at the Wrap-up loads instead, and a trainer, not only you, decides", () => {
+    const ipad = blocksOf("the-twenty-minutes").map((b) => b.text);
+    expect(ipad).toContain("The weight starts at last time's, unless a trainer decided otherwise. That's what they lift unless you change it.");
+    expect(ipad).toContain("A weight a trainer set at the last Wrap-up loads instead, and the Now Bar says who set it.");
+  });
+
+  it("The kit: a busy machine swaps with its neighbour; nothing new goes first", () => {
+    expect(textOf("the-kit")).not.toMatch(/something else goes first/);
+    expect(textOf("the-kit")).toContain("it moves later and the next machine goes ahead of it");
+  });
+
+  it("A new client's first sessions: Journey may suggest nothing, and B can start whole", () => {
+    const text = textOf("first-sessions");
+    expect(text).toContain("with none, you pick one");
+    expect(text).toContain("B usually starts as A with one machine different");
+    expect(text).toContain("You can also start B whole");
+    const curve = blocksOf("first-sessions").find((b) => /learning curve/.test(b.text))!;
+    expect(curve.source).toBe(at("docs/rounds/2026-10-07-first-session-and-routines.md", 351, 352));
+  });
+
+  it("tracks warn where an Academy page says what Journey doesn't", () => {
+    const step = (track: string, topicId: string) =>
+      trackById(track)!.steps.find((s) => s.route.kind === "topic" && s.route.topicId === topicId)!;
+    const consult = step("consultations-and-packages", "consultation-initial-consultation-script-tour-preliminary-co");
+    expect(consult.why).toMatch(/prices may not be your studio's/);
+    expect(consult.why).toMatch(/out of date/);
+    const template = step("programming-and-adapting", "programming-exercise-selection-template");
+    expect(template.why).toMatch(/don't use its female and male rows/);
+  });
+});
+
 describe("Hutchins' definition", () => {
   const definition = hutchinsDefinition();
   const page = playbookById("why-every-rule")!;

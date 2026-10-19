@@ -181,8 +181,10 @@ export function scriptSections(script: MachineScript | null | undefined): VaultS
  * The phrasebook's moments that fit how this machine runs: how it begins
  * (a load-up or a handoff), its upper turn (at an end stop, or with a
  * squeeze) and its lower turn (where the stack touches, or not), in the
- * order the set meets them. The lower turn is the codex switch when one is
- * recorded, else the moment whose examples name the machine, else both.
+ * order the set meets them. The lower turn is lowerCueKeys: the codex switch
+ * when one is recorded (none for a flexibility-limited turn), else both for
+ * the Compound Row and the Pulldown (the Academy: the stack "may not touch"
+ * there), else "where the stack touches".
  */
 export function cueKeysFor(
   def: Partial<MachineDefinition> | null | undefined,
@@ -204,12 +206,37 @@ export function cueKeysFor(
   return shape === "handoff" ? [begin, ...lower, upper] : [begin, upper, ...lower];
 }
 
+/**
+ * The machines the phrasebook's handoff lines about the arms fit. Its moment
+ * is "To begin the exercise - pulling movement", and two of its lines are
+ * the arms' ("Slowly begin to straighten your arms."), which a client on the
+ * Abdominals or the Cervical, whose arms only brace, would be told wrongly.
+ */
+const ARM_PULLS = /\b(row|pull ?down|pullover)\b/i;
+
+/**
+ * True for a phrasebook line this machine's page should not show: a handoff
+ * line about the arms on a machine whose arms don't move it. With no name
+ * nothing is dropped (the page can't tell).
+ */
+export function phraseMisfits(key: CueKey, phrase: string, machineName?: string): boolean {
+  if (key !== "handoff" || !machineName) return false;
+  return /\byour arms\b/i.test(phrase) && !ARM_PULLS.test(machineName);
+}
+
 /** One phrasebook moment as a section: its explanations as paragraphs, then the lines to say. */
-export function cueSection(cues: readonly CueMoment[], index: number, key: CueKey): VaultSection | null {
+export function cueSection(
+  cues: readonly CueMoment[],
+  index: number,
+  key: CueKey,
+  machineName?: string,
+): VaultSection | null {
   const m = cues[index];
   if (!m) return null;
   const notes = (m.notes ?? []).map((n) => block("para", n, { source: CUE_SOURCE_LABEL }));
-  const phrases = (m.phrases ?? []).filter(isCuePhrase).map((p) => block("cue", p, { source: CUE_SOURCE_LABEL }));
+  const phrases = (m.phrases ?? [])
+    .filter((p) => isCuePhrase(p) && !phraseMisfits(key, p, machineName))
+    .map((p) => block("cue", p, { source: CUE_SOURCE_LABEL }));
   return vaultSection(`moment-${index}`, CUE_TITLES[key], [...notes, ...phrases].filter(present));
 }
 
@@ -225,7 +252,7 @@ function cueSections(
     const i = findCueMoment(cues, key);
     if (i < 0 || used.has(i)) continue;
     used.add(i);
-    const s = cueSection(cues, i, key);
+    const s = cueSection(cues, i, key, machineName ?? def?.name);
     if (!s || s.blocks.length === 0) continue;
     // The phrasebook names itself once, under its first moment.
     out.push(out.length === 0 ? vaultSection(s.id, s.title, s.blocks, CUE_SOURCE_LABEL) : s);

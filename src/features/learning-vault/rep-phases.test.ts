@@ -15,6 +15,7 @@ import {
   CUE_TITLES,
   DEFAULT_PACE,
   PHASE_RULES,
+  PHASE_WORDS,
   REP_SOURCES,
   REP_WINDOW,
   SHAPE_WORDS,
@@ -263,8 +264,9 @@ describe("the words under the phase", () => {
   it("bracket the cycle as its strokes, in the order they happen", () => {
     expect(cycleOf(repModel("endStop", 6))).toEqual({ from: 3, to: 15, words: "A rep's cycle: up 6 s, down 6 s" });
     expect(cycleOf(repModel("endStop", 10))).toEqual({ from: 3, to: 23, words: "A rep's cycle: up 10 s, down 10 s" });
-    expect(cycleOf(repModel("squeeze", 6)).words).toBe("A rep's cycle: up 6 s, squeeze, down 6 s");
-    expect(cycleOf(repModel("handoff", 6)).words).toBe("A rep's cycle: down 6 s, up 6 s, squeeze");
+    // The hold at the top is a pause on the first two reps and a squeeze from the third.
+    expect(cycleOf(repModel("squeeze", 6)).words).toBe("A rep's cycle: up 6 s, pause or squeeze, down 6 s");
+    expect(cycleOf(repModel("handoff", 6)).words).toBe("A rep's cycle: down 6 s, up 6 s, pause or squeeze");
   });
 
   it("the end-stop cycle is the Academy's 12 to 20 seconds, exactly, across the window", () => {
@@ -343,14 +345,23 @@ describe("the phrasebook", () => {
     expect(namesExample("", "row")).toBe(false);
   });
 
-  it("picks the lower turn from the switch, else the machine's name, else both", () => {
+  it("picks the lower turn from the switch, else the Academy's two no-touch machines, else where the stack touches", () => {
     expect(lowerCueKeys("stackTouch", cues)).toEqual(["lowerTouch"]);
     expect(lowerCueKeys("jointLimited", cues)).toEqual(["lowerNoTouch"]);
-    expect(lowerCueKeys("flexLimited", cues)).toEqual(["lowerNoTouch"]);
+    // "an abbreviated, moderate stretch": the elbows-straighten lines would say the opposite.
+    expect(lowerCueKeys("flexLimited", cues)).toEqual([]);
     expect(lowerCueKeys(undefined, cues, "LEG PRESS")).toEqual(["lowerTouch"]);
-    expect(lowerCueKeys(undefined, cues, "PULLDOWN")).toEqual(["lowerNoTouch"]);
-    expect(lowerCueKeys(undefined, cues, "LUMBAR")).toEqual(["lowerTouch", "lowerNoTouch"]);
-    expect(lowerCueKeys(undefined, null, "LEG PRESS")).toEqual(["lowerTouch", "lowerNoTouch"]);
+    // "until your arms completely straighten or the weights touch. Whichever happens first"
+    expect(lowerCueKeys(undefined, cues, "PULLDOWN")).toEqual(["lowerNoTouch", "lowerTouch"]);
+    expect(lowerCueKeys(undefined, cues, "COMPOUND ROW")).toEqual(["lowerNoTouch", "lowerTouch"]);
+    // The phrasebook's example "row" is the compound row; the Simple Row's weights touch.
+    expect(lowerCueKeys(undefined, cues, "SIMPLE ROW")).toEqual(["lowerTouch"]);
+    expect(lowerCueKeys(undefined, cues, "SEATED PULLOVER")).toEqual(["lowerTouch"]);
+    expect(lowerCueKeys(undefined, cues, "SEATED ABDOMINALS")).toEqual(["lowerTouch"]);
+    expect(lowerCueKeys(undefined, cues, "CX (4 WAY NECK)")).toEqual(["lowerTouch"]);
+    expect(lowerCueKeys(undefined, cues, "LUMBAR")).toEqual(["lowerTouch"]);
+    expect(lowerCueKeys(undefined, null, "LEG PRESS")).toEqual(["lowerTouch"]);
+    expect(lowerCueKeys(undefined, null)).toEqual(["lowerTouch"]);
   });
 
   it("gives the thumb's phase the lines of its moment", () => {
@@ -369,7 +380,25 @@ describe("the phrasebook", () => {
     const m = repModel("squeeze");
     const lower = m.phases.find((p) => p.id === "lower")!;
     expect(cuesForPhase(cues, lower, "squeeze")?.index).toBe(6);
-    expect(cuesForPhase(cues, lower, "squeeze", "SIMPLE ROW")?.index).toBe(7);
+    expect(cuesForPhase(cues, lower, "squeeze", "SIMPLE ROW")?.index).toBe(6);
+    const h = repModel("handoff");
+    const lowerOfHandoff = h.phases.find((p) => p.id === "lower")!;
+    expect(cuesForPhase(cues, lowerOfHandoff, "handoff", "COMPOUND ROW")?.index).toBe(7);
+    expect(cuesForPhase(cues, lowerOfHandoff, "handoff", "PULLDOWN")?.index).toBe(7);
+    // No machine: "For most other movements, the weight stack should touch".
+    expect(cuesForPhase(cues, lowerOfHandoff, "handoff")?.index).toBe(6);
+    for (const name of ["SEATED PULLOVER", "SEATED ABDOMINALS", "CX (4 WAY NECK)"]) {
+      expect(cuesForPhase(cues, lowerOfHandoff, "handoff", name)?.index, name).toBe(6);
+    }
+  });
+
+  it("titles each lower turn by when it is said: during the lowering, before the turn", () => {
+    expect(cues[6].moment).toMatch(/most effectively used during the eccentric/);
+    expect(cues[7].moment).toMatch(/most effectively used during the eccentric/);
+    expect(CUE_TITLES.lowerTouch).toBe("Before a lower turn where the stack touches");
+    expect(CUE_TITLES.lowerNoTouch).toBe("Before a lower turn where the stack does not touch");
+    expect(CUE_TITLES.handoff).toBe("To begin a pulling movement: the handoff");
+    expect(cues[2].moment).toMatch(/pulling movement/);
   });
 
   it("falls back to the recorded index when the headings do not match, and to nothing when there is nothing", () => {
@@ -380,5 +409,59 @@ describe("the phrasebook", () => {
     expect(cuesForPhase(fixture, { id: "concentric", cueMoment: 1 }, "endStop")?.phrases).toEqual(["two"]);
     expect(cuesForPhase(fixture, { id: "concentric", cueMoment: 7 }, "endStop")).toBeNull();
     expect(cuesForPhase(null, { id: "concentric", cueMoment: 3 }, "endStop")).toBeNull();
+  });
+});
+
+/** The content review (Oct 19 2026): each rule says what its source says, and no more. */
+describe("the rules say what the Academy says", () => {
+  it("names no place for the handoff: the Academy's sources differ (usually the midpoint; the Cervical at neutral)", () => {
+    expect(SHAPE_WORDS.handoff).not.toMatch(/near the top/);
+    expect(SHAPE_WORDS.handoff).toBe("The trainer brings the movement arm into position and hands the load over, and the set begins with the lowering.");
+  });
+
+  it("the handoff: the arm held still while the client builds force, and “yours” only once the transfer is complete", () => {
+    const r = PHASE_RULES.handoff.rule;
+    expect(r).toMatch(/^No gradual load-up from a dead stop\./);
+    expect(r).toContain("holds it still while the client builds force and the trainer eases off");
+    expect(r).toContain("only when the transfer is complete");
+    expect(REP_SOURCES.transfer.quotes).toEqual(
+      expect.arrayContaining(["begin applying gradual force", "held absolutely still during the transfer"]),
+    );
+  });
+
+  it("the end stop: lowering begins immediately but slowly", () => {
+    const r = PHASE_RULES.upperEndStop.rule;
+    expect(r).toContain("immediately but slowly");
+    expect(r).not.toContain("at once");
+    expect(REP_SOURCES.turnaround.quotes).toContain("Immediately but slowly begin the negative phase of the movement.");
+  });
+
+  it("the bottom: the compound row and the pulldown, never any row", () => {
+    const r = PHASE_RULES.lower.rule;
+    expect(r).toContain("as on the Compound Row or the Pulldown");
+    expect(r).not.toMatch(/\ba row\b/);
+    expect(r).toMatch(/^Always continuous\./);
+  });
+
+  it("the last rep on the Lumbar and Cervical: never to failure, and the Cervical's load is taken back at neutral", () => {
+    const r = PHASE_RULES.finalHold.rule;
+    expect(r).toContain("The Cervical and Lumbar are never taken to failure");
+    expect(r).toContain("takes the load back at the neutral position");
+    expect(r).toContain("that is…mine");
+    expect(REP_SOURCES.transfer.quotes).toContain("that is…mine");
+    expect(REP_SOURCES.categories.quotes.some((q) => q.startsWith("Cervical Ext is also the only exercise"))).toBe(true);
+  });
+
+  it("the final band follows the last lift, not the bottom", () => {
+    expect(PHASE_WORDS.final).toBe("After the last lift: the last lowering");
+  });
+
+  it("the window line does not make 6 everyone's pace", () => {
+    expect(WINDOW_LINE).not.toMatch(/Six is the house default/);
+    expect(WINDOW_LINE).toContain("the pace the Academy moves clients toward as they advance");
+    expect(WINDOW_LINE).toContain("a slower pace helps beginners");
+    expect(REP_SOURCES.speed.quotes).toEqual(
+      expect.arrayContaining(["A slower repetition cycle is beneficial when instructing novice trainees", "move closer to the 6-second pace"]),
+    );
   });
 });

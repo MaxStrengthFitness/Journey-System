@@ -38,8 +38,8 @@ export const FIRST_SESSIONS: PlaybookPage = {
           at(FIRST_SESSION_ROUND, 75),
         ),
         bullet(
-          "New to the studio is a real start. Journey suggests one, and you change anything.",
-          at(FIRST_SESSION_ROUND, 76, 77),
+          "New to the studio is a real start. Journey suggests a starting routine that fits the intake, or a default your studio or head office set; with none, you pick one. Either way, you can change anything.",
+          at(PLAN_README, 18),
         ),
         para(
           "Never call someone new because Journey shows few sessions for them. Their history may be older than Journey.",
@@ -64,7 +64,7 @@ export const FIRST_SESSIONS: PlaybookPage = {
           "The consult's machines aren't always Routine A. At the Wrap-up you tick which of today's machines start it.",
           at(FIRST_SESSION_SCREENS, 119, 124),
         ),
-        para("The Academy puts the learning curve at about five to seven sessions.", at(FIRST_SESSION_ROUND, 352, 353)),
+        para("The Academy puts the learning curve at about five to seven sessions.", at(FIRST_SESSION_ROUND, 351, 352)),
       ],
     },
     {
@@ -122,8 +122,8 @@ export const FIRST_SESSIONS: PlaybookPage = {
           at(FIRST_SESSION_ROUND, 179, 180),
         ),
         para(
-          "B starts as A with one machine different, and more of B is swapped in over the sessions that follow.",
-          at(FIRST_SESSION_ROUND, 232, 235),
+          "B usually starts as A with one machine different, and more of B is swapped in over the sessions that follow. You can also start B whole, with every swap made at once.",
+          at(PLAN_README, 68, 78),
         ),
         para(
           "The Academy has A run five to seven times before B begins. That's guidance with its source, never enforced.",

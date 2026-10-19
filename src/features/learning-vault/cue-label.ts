@@ -15,7 +15,8 @@
  *
  * The words match the machine page's own cue sections (rep-phases CUE_TITLES)
  * wherever the phrasebook means the same moment; the two beginnings keep the
- * phrasebook's "pushing" and "pulling".
+ * phrasebook's "pushing" and "pulling", and the two lower turns say they are
+ * cued before the turn ("Before a lower turn where the stack touches").
  *
  * PURE MODULE: no React, no imports, so graph.ts and pages.ts can both read it
  * without importing each other.
@@ -35,8 +36,10 @@ function sentenceCase(head: string): string {
 export function cueMomentLabel(moment: string): string {
   const m = moment.trim();
   if (/^lower turnaround/i.test(m)) {
-    if (/does not touch|doesn.t touch/i.test(m)) return "Lower turnaround, where the stack does not touch";
-    if (/touches/i.test(m)) return "Lower turnaround, where the stack touches";
+    // The phrasebook says these lines are "most effectively used during the
+    // eccentric", before the turn, so the name says when (rep-phases CUE_TITLES).
+    if (/does not touch|doesn.t touch/i.test(m)) return "Before a lower turn where the stack does not touch";
+    if (/touches/i.test(m)) return "Before a lower turn where the stack touches";
     return "Lower turnaround";
   }
   if (/^upper turnaround/i.test(m)) {

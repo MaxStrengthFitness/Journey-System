@@ -60,7 +60,13 @@
  * - a clinical flag: its group and how many machines it names, NEVER the
  *   matrix's instruction text, which has lines the Sep 28 source check calls
  *   unsourced and still waits on AJ's ruling;
- * - a topic: its module and the module's one-line description;
+ * - a topic: its module and the module's place in the Academy (the
+ *   module's blurb stays on the module's page: Programming's called rep
+ *   ranges a rulebook, and a rep range is never a rule);
+ * - a term whose opening never says what it means (TERM_SUMMARY_PICK): the
+ *   definition's sentences that do, verbatim;
+ * - a word in its everyday sense ("positive feedback", "for our purposes")
+ *   opens nothing (plain-sense.ts), and nor does a research citation;
  * - a playbook: its lede (a draft, waiting on head office).
  *
  * PURE MODULE: no React, no Firestore. Built once per glossary and memoised by
@@ -73,6 +79,7 @@ import type { ClinicalSafetyFlag } from "../../types";
 import type { AcademyMachine } from "../academy/academy-machines";
 import type { IndexModule } from "../academy/types";
 import { DB_KEY_TO_CANONICAL } from "../catalog/machine-identity";
+import { isPlainSense } from "./plain-sense";
 import type { LinkedSegment, PlaybookPage, VaultEntity, VaultRoute } from "./types";
 
 /* ------------------------------------------------------------------ *
@@ -238,16 +245,19 @@ export const RULE_ENTITIES: VaultEntity[] = [
     kind: "rule",
     label: "The squeeze",
     aliases: ["squeeze technique", "squeeze", "squeezes"],
+    // The trainer's own words for it (Turnaround Technique), not the Mastery
+    // newsletter's, which speaks to the client ("When we instruct you to
+    // squeeze"): on a trainer's card "you" would read as the trainer.
     summary:
-      "When we instruct you to squeeze, we are looking for you to continue the contraction of the targeted muscle (not the hands).",
-    route: topicRoute("mastery", "mastery-squeeze-technique"),
+      "After a continuous lower turnaround and starting with the third repetition, the trainee focuses on intensely contracting the target muscles by keeping the movement arm and body completely still. This is known as the \"squeeze technique\" and is employed from the third rep on and should generally last for 2 to 3 seconds before easing out.",
+    route: topicRoute("performance", "performance-turnaround-technique"),
     related: [
       "rule:turnarounds",
       "term:upper turnaround (upper turn)",
-      "topic:performance-turnaround-technique",
+      "topic:mastery-squeeze-technique",
       "term:contract(ion)",
     ],
-    source: "Academy · Mastery Series · Squeeze Technique",
+    source: "Academy · Exercise Performance · Turnaround Technique",
   },
   {
     id: "rule:tsc",
@@ -574,11 +584,41 @@ function capitalFirst(text: string): string {
 }
 
 /**
+ * The terms whose first sentence (or two) never says what the word means,
+ * and the sentences (by sentencesOf's numbering) that do, verbatim. Read
+ * against the glossary on Oct 19 2026; entities.test proves every pick is
+ * still a sentence of its definition.
+ *
+ *   Failure (Fatigue)   the first two give only the "traditional" view the
+ *                       third sets aside, so all three
+ *   Stretch             the first says only "a slightly different use here"
+ *   Purpose             the 4th P, then the question it answers
+ *   Assumed vs. Real    the assumed objective, then the real one
+ *   Progressive Overload  what it is NOT, then what it IS
+ *   Continuous          the protocol's name, then what it means
+ */
+export const TERM_SUMMARY_PICK: Readonly<Record<string, readonly number[]>> = {
+  "Failure (Fatigue)": [0, 1, 2],
+  Stretch: [1],
+  Purpose: [0, 2],
+  "Assumed vs. Real Objective (of exercise)": [1, 2],
+  "Progressive Overload": [0, 1],
+  Continuous: [0, 1],
+};
+
+/**
  * A glossary term's card words: its definition's first sentence (or two),
  * with the capital back, stopping before any "See also" (those are the
- * card's connections).
+ * card's connections). A term in TERM_SUMMARY_PICK takes the sentences
+ * picked for it instead.
  */
-export function termSummary(definition: string): string {
+export function termSummary(definition: string, term?: string): string {
+  const pick = term ? TERM_SUMMARY_PICK[term.trim()] : undefined;
+  if (pick) {
+    const all = sentencesOf(definition);
+    const picked = pick.map((i) => all[i]).filter((s): s is string => !!s);
+    if (picked.length === pick.length) return capitalFirst(picked.join(" "));
+  }
   return capitalFirst(firstSentences(definition, { stopAt: /^See also\b/i }));
 }
 
@@ -765,7 +805,7 @@ export function buildEntityIndex(input: {
       kind: "term",
       label: term,
       aliases: claim(id, words.first),
-      summary: termSummary(row.definition ?? ""),
+      summary: termSummary(row.definition ?? "", term),
       route: { kind: "glossary", term },
       related: [],
       source: "Academy glossary",
@@ -850,13 +890,16 @@ export function buildEntityIndex(input: {
       if (!topic?.id) continue;
       const id = `topic:${topic.id}`;
       if (byId.has(id)) continue;
-      const blurb = (mod.blurb ?? "").trim();
       const entity: VaultEntity = {
         id,
         kind: "topic",
         label: topicLabel(topic.title ?? topic.id),
         aliases: claim(id, TOPIC_LINK_WORDS[topic.id] ?? []),
-        summary: `${mod.title}, module ${mod.n} of the Academy.${blurb ? ` ${blurb}` : ""}`,
+        // The module's blurb stays on the module's own page. On a topic's card
+        // it said "The rulebook the routine builder is built on — categories,
+        // rep ranges" under every Programming topic, and a rep range is never
+        // a rule (the floor doc; the round's decision 8).
+        summary: `${mod.title}, module ${mod.n} of the Academy.`,
         route: { kind: "topic", moduleId: mod.id, topicId: topic.id },
         related: [],
         source: topic.readingMinutes
@@ -952,10 +995,23 @@ function collect(pattern: RegExp | null, text: string, owner: (raw: string) => s
       pattern.lastIndex += 1;
       continue;
     }
+    // A method word in its everyday sense links nothing (plain-sense.ts).
+    if (isPlainSense(m[0], text, m.index)) continue;
     const id = owner(m[0]);
     if (id) out.push({ start: m.index, end: m.index + m[0].length, id });
   }
   pattern.lastIndex = 0;
+}
+
+/**
+ * A research citation line, as the Academy's Benefits pages print them: a
+ * footnote mark ("[2]", or a superscript "[\u00b9]") and then a list of
+ * authors ("Alizadeh S, Daneshjoo A", "Illner, K.", "Ben Singh, Timothy").
+ * A footnote that is the Academy's own sentence ("[\u00b9] This is
+ * equivalent to 1,500 calories per month") is prose and keeps its links.
+ */
+export function isCitation(text: string): boolean {
+  return /^\s*\[[0-9\u00b9\u00b2\u00b3\u2070-\u2079]+\]\s*(?:[A-Z][\w.'-]*\s+){0,3}[A-Z][\w'-]*,\s+[A-Z]/.test(text);
 }
 
 /**
@@ -975,6 +1031,9 @@ export function linkText(
 ): LinkedSegment[] {
   if (!text) return [];
   if (!index || (!index.aliasPattern && !index.codePattern)) return [{ text }];
+  // A citation is not the Academy's prose: its authors' initials ("Anvar
+  // SH") and its paper titles ("Range of Motion") open nothing.
+  if (isCitation(text)) return [{ text }];
   const max = opts.maxLinks ?? MAX_LINKS;
   if (max <= 0) return [{ text }];
   const seen = opts.seen ?? new Set<string>();

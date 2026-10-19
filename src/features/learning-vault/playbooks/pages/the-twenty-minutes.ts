@@ -68,8 +68,12 @@ export const THE_TWENTY_MINUTES: PlaybookPage = {
           at(FLOOR, 78, 81),
         ),
         bullet(
-          "The weight starts at last time's. That's what they lift again unless you decide otherwise.",
+          "The weight starts at last time's, unless a trainer decided otherwise. That's what they lift unless you change it.",
           at(FLOOR, 270, 271),
+        ),
+        bullet(
+          "A weight a trainer set at the last Wrap-up loads instead, and the Now Bar says who set it.",
+          at(FLOOR, 199, 201),
         ),
         bullet(
           "Reps are never filled in for you. Last time's show faintly, and moving on without typing logs nothing.",
@@ -87,7 +91,7 @@ export const THE_TWENTY_MINUTES: PlaybookPage = {
           "Reps change day to day with sleep, stress, meals and the time of day. The protocol advises reaching failure inside six to ten reps, but a client who fails at three and one who fails at fifteen are both training correctly. The rep count is never the target.",
           at(FLOOR, 110, 113),
         ),
-        para("Quality is whether every rep kept the 4 P's: Posture, Pace, Path and Purpose.", at(FLOOR, 114)),
+        para("Quality is whether every rep kept the 4 P's: Pace, Posture, Path and Purpose.", at(FLOOR, 114)),
         para(
           "For a timed static contraction or a static hold, the reps are seconds. Stop the stopwatch and it fills them in.",
           at(FLOOR, 115, 116),

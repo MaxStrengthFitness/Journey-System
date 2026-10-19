@@ -120,7 +120,7 @@ export const TRACKS: Track[] = [
         "programming",
         "programming-exercise-selection-template",
         "Exercise Selection Template",
-        "The Academy's template for choosing machines.",
+        "The Academy's template for choosing machines. Journey's starting routines don't use its female and male rows.",
       ),
       machine("m-lumbar", "Lumbar", "One of the two machines never taken to failure."),
       topic(
@@ -166,7 +166,7 @@ export const TRACKS: Track[] = [
         "consultation",
         "consultation-initial-consultation-script-tour-preliminary-co",
         "Initial Consultation Script - Tour, Preliminary Considerations, Demo Workout, Conclusion",
-        "The Academy's consult script. Its package and billing lines are out of date: use Talking about packages for those.",
+        "The Academy's consult script. Its prices may not be your studio's, and its leftover-session and billing lines are out of date: use Talking about packages for those.",
       ),
       play(FIRST_SESSIONS, "What the first visits look like."),
       play(PACKAGES_PAGE, "The packages, the guarantee, and what to do when money is the worry."),
@@ -197,7 +197,7 @@ export const TRACKS: Track[] = [
     title: "For a head trainer",
     who: "A head trainer",
     steps: [
-      play(WHY_EVERY_RULE, "The words to use when you correct something."),
+      play(WHY_EVERY_RULE, "The definition every floor rule comes from, part by part."),
       topic(
         "mastery",
         "mastery-how-intensely-to-push-a-client",

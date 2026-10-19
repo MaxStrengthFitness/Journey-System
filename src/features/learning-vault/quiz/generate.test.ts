@@ -33,6 +33,7 @@ import {
   glossaryQuestions,
   machineQuestions,
   maskTerm,
+  neverLinesOf,
   pickDistinct,
   scriptQuestions,
   secondSentence,
@@ -75,10 +76,15 @@ describe("small helpers", () => {
   });
 
   it("masks the term, its acronym and its other names, whole words only", () => {
+    // A blank and its own blanked acronym read as one blank.
     expect(maskTerm("A Timed Static Contraction (TSC) is static.", "Timed Static Contraction (TSC)")).toBe(
-      "A ____ (____) is static.",
+      "A ____ is static.",
     );
     expect(maskTerm("Pace and pacemaker.", "Pace")).toBe("____ and pacemaker.");
+    // An acronym left after a blank would give the initials away.
+    expect(maskTerm("Not as conservative, is the Static Hold (SH).", "Static Hold")).toBe("Not as conservative, is the ____.");
+    // The term's first word with its one-word other name is a name too.
+    expect(maskTerm("Bone remodeling is a dynamic process.", "Bone Density (Remodeling)")).toBe("____ is a dynamic process.");
   });
 
   it("picks the same wrong answers for the same question, every time", () => {
@@ -88,11 +94,15 @@ describe("small helpers", () => {
     expect(pickDistinct(["a", "b"], 3, "x")).toEqual(["a", "b"]);
   });
 
-  it("tidies a cue's stage directions away", () => {
-    expect(cleanCue("Bend your elbows faster (row or pulldown)")).toBe("Bend your elbows faster");
+  it("tidies a cue's stage directions away, but keeps the machines a cue is for", () => {
+    // Without its machines, "Bend your elbows faster" reads as a cue for every
+    // machine, against "Don't speed up" (Cues and Timing).
+    expect(cleanCue("Bend your elbows faster (row or pulldown)")).toBe("Bend your elbows faster (row or pulldown)");
     expect(cleanCue("Stay on it…(quietly observe), keep breathing (again, observe, let them work)…, use whatever is left…")).toBe(
       "Stay on it… keep breathing… use whatever is left…",
     );
+    expect(cleanCue("Slowly let the movement arm forward (or up or down).")).toBe("Slowly let the movement arm forward.");
+    expect(cleanCue("We’re looking for a slow, smooth drag (pulling movement)")).toBe("We’re looking for a slow, smooth drag");
   });
 });
 
@@ -109,7 +119,15 @@ describe("the glossary deck", () => {
       const answer = q.options[q.answer].replace(/\s*\([^)]*\)\s*$/, "");
       const stem = ` ${q.prompt.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
       expect(stem).not.toContain(` ${answer.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `);
+      // Nor half of it beside the blank ("Bone ____"), nor its initials ("____ (SH)").
+      const first = answer.split(/\s+/)[0].toLowerCase();
+      if (answer.includes(" ")) expect(q.prompt.toLowerCase(), q.id).not.toContain(`${first} ____`);
+      expect(q.prompt, q.id).not.toMatch(/____\s*\(/);
     }
+    const bone = qs.find((q) => q.id === "g-bone-density-remodeling");
+    expect(bone?.prompt).toContain("“____ is a dynamic process");
+    expect(qs.find((q) => q.id === "g-static-hold")?.prompt).not.toContain("(SH)");
+    expect(qs.find((q) => q.id === "g-timed-static-contraction-tsc")?.prompt).toContain("a ____ is an approach");
   });
 
   it("never offers a term's twin as a wrong answer", () => {
@@ -188,6 +206,74 @@ describe("the cue deck", () => {
       expect(q.source.path).toBe(CUES_PATH);
     }
   });
+
+  it("opens the very moment that holds the phrase, the second lower or upper turnaround included", () => {
+    const momentOf = (q: (typeof qs)[number]) => (q.source.route?.kind === "cueing" ? (q.source.route.moment ?? -1) : -1);
+    const holds = (moment: number, phrase: string) => (cues[moment]?.phrases ?? []).some((p) => cleanCue(p) === phrase);
+    for (const q of qs.filter((x) => x.id.startsWith("c-"))) {
+      const phrase = /“(.*)”$/.exec(q.prompt)?.[1] ?? "";
+      expect(holds(momentOf(q), phrase), `${q.id} -> moment ${momentOf(q)}`).toBe(true);
+    }
+    for (const q of qs.filter((x) => x.id.startsWith("cr-"))) {
+      expect(holds(momentOf(q), q.options[q.answer]), `${q.id} -> moment ${momentOf(q)}`).toBe(true);
+    }
+    // The no-touch lower turnaround and the squeeze's upper turnaround are moments 7 and 9.
+    expect(momentOf(qs.find((q) => q.id === "c-lower-seamless") as (typeof qs)[number])).toBe(7);
+    expect(momentOf(qs.find((q) => q.id === "c-upper-squeeze-click-unsqueeze-ease-out") as (typeof qs)[number])).toBe(9);
+  });
+
+  it("keeps apart the moments whose cues a trainer could fairly file under either", () => {
+    const label = (id: string) => CUE_GROUPS.find((g) => g.id === id)?.label as string;
+    const APART: [string, string][] = [
+      ["upper", "failure"], // the last rep held at the top while the trainer counts down
+      ["speed", "final"], // "do not speed up"
+      ["upper", "final"], // "Ease out, DO NOT speed up"
+      ["handoff", "lower"], // slow lowerings, on the row and the pulldown
+      ["handoff", "final"],
+      ["load", "upper"], // "Build your force, increase your respirations"
+    ];
+    const groupOfOption = new Map(CUE_GROUPS.map((g) => [g.label, g.id]));
+    for (const q of qs.filter((x) => x.id.startsWith("c-"))) {
+      const mine = groupOfOption.get(q.options[q.answer]);
+      for (const [a, b] of APART) {
+        if (mine === a) expect(q.options, q.id).not.toContain(label(b));
+        if (mine === b) expect(q.options, q.id).not.toContain(label(a));
+      }
+    }
+    // The other way round too: no wrong cue from a moment kept apart.
+    const groupOfPhrase = (phrase: string) =>
+      cues.filter((c) => c.phrases.some((p) => cleanCue(p) === phrase)).map((c) => cueGroupOf(c.moment)?.id);
+    for (const q of qs.filter((x) => x.id.startsWith("cr-"))) {
+      const mine = q.id.replace("cr-", "");
+      q.options.forEach((o, i) => {
+        if (i === q.answer) return;
+        for (const g of groupOfPhrase(o)) {
+          for (const [a, b] of APART) expect(mine === a && g === b, `${q.id}: ${o}`).toBe(false);
+          for (const [a, b] of APART) expect(mine === b && g === a, `${q.id}: ${o}`).toBe(false);
+        }
+      });
+    }
+  });
+
+  it("leaves out a cue that fits almost any moment, and keeps a cue's machines", () => {
+    const text = qs.map((q) => `${q.prompt} ${q.options.join(" ")}`).join(" ");
+    expect(text).not.toContain("“Keep it moving”");
+    expect(qs.some((q) => q.options.includes("Keep it moving"))).toBe(false);
+    const elbows = qs.find((q) => q.prompt.includes("Bend your elbows faster"));
+    expect(elbows?.prompt).toContain("“Bend your elbows faster (row or pulldown)”");
+  });
+
+  it("names each moment for what its list holds, and explains without contradicting its own cues", () => {
+    const g = (id: string) => CUE_GROUPS.find((x) => x.id === id);
+    // The face list holds "Stay calm" and "Stoic" too.
+    expect(g("face")?.label).toBe("A calm, relaxed face");
+    expect(g("face")?.ask).toBe("Which of these would you say for a calm, relaxed face?");
+    // The speed list holds "Slightly faster"; the end stop is clicked too.
+    expect(cues[3].phrases).toContain("Slightly faster");
+    expect(g("speed")?.explain).not.toMatch(/no speeding up/);
+    expect(cues[8].phrases).toContain("Pass through my click at the top.");
+    expect(g("upper")?.explain).toMatch(/through the click at an end stop/);
+  });
 });
 
 describe("the first rep, from the scripts", () => {
@@ -231,6 +317,15 @@ describe("the machine deck", () => {
       expect(q.options.filter((o) => o === names("m-lumbar") || o === names("m-neck"))).toHaveLength(1);
       expect(q.explain).toMatch(/never/i);
     }
+    // The reason travels with the rule (the-floor.md:27: an unexplained
+    // prohibition gets ignored): the Cervical card's next two lines say why.
+    expect(qs.find((q) => q.id === "m-never-m-neck")?.explain).toBe(
+      "Its Quick Reference card says: “NEVER train to failure. Stop the set before technical failure. Prioritize control and safety over intensity.”",
+    );
+    expect(qs.find((q) => q.id === "m-never-m-lumbar")?.explain).toMatch(/extra precaution with new subjects/);
+    const cx = cards.find((c) => c.id === "cx");
+    for (const line of neverLinesOf(cx)) expect(cx?.sections.flatMap((s) => s.items)).toContain(line);
+    expect(neverLinesOf(null)).toEqual([]);
   });
 
   it("asks the six cards with one target muscle, and never offers a machine that also names it", () => {

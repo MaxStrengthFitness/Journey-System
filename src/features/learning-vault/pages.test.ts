@@ -381,8 +381,8 @@ describe("cue moment labels", () => {
 
   it("says the turnarounds and beginnings the way the machine page does", () => {
     const by = (prefix: RegExp) => cueMomentLabel(cues.find((c) => prefix.test(c.moment))!.moment);
-    expect(by(/^Lower Turnaround.*stack touches/)).toBe("Lower turnaround, where the stack touches");
-    expect(by(/^Lower Turnaround.*does not touch/)).toBe("Lower turnaround, where the stack does not touch");
+    expect(by(/^Lower Turnaround.*stack touches/)).toBe("Before a lower turn where the stack touches");
+    expect(by(/^Lower Turnaround.*does not touch/)).toBe("Before a lower turn where the stack does not touch");
     expect(by(/^Upper Turnaround.*with an end stop/)).toBe("Upper turnaround at the end stop");
     expect(by(/^Upper Turnaround.*include a squeeze/)).toBe("Upper turnaround with a squeeze");
     expect(by(/^To begin.*pushing/)).toBe("To begin: a pushing movement");

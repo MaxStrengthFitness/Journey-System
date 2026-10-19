@@ -31,6 +31,7 @@ import type { LinkedSegment, PlaybookPage } from "./types";
 import {
   ACADEMY_MACHINE_WORDS,
   RULE_ENTITIES,
+  TERM_SUMMARY_PICK,
   TOPIC_LINK_WORDS,
   buildEntityIndex,
   clinicalAliases,
@@ -38,11 +39,13 @@ import {
   clinicalSummary,
   conceptCard,
   firstSentences,
+  isCitation,
   isLinkableCode,
   linkText,
   machineNameWords,
   pushConcept,
   seeAlsoNames,
+  sentencesOf,
   termEntityId,
   termSummary,
   topicLabel,
@@ -245,8 +248,16 @@ describe("the glossary", () => {
       expect(e, g.term).toBeTruthy();
       expect(e!.route).toEqual({ kind: "glossary", term: g.term });
       expect(e!.summary[0]).toBe(e!.summary[0].toUpperCase());
-      // Verbatim: the summary is the definition's opening, capital aside.
-      expect(squash(g.definition).toLowerCase().startsWith(e!.summary.toLowerCase())).toBe(true);
+      // Verbatim: the summary is the definition's opening, capital aside, or
+      // for a term whose opening never says what it means, the sentences
+      // picked for it, each one whole and in order.
+      const pick = TERM_SUMMARY_PICK[g.term];
+      if (pick) {
+        const all = sentencesOf(g.definition);
+        expect(e!.summary.toLowerCase(), g.term).toBe(pick.map((i) => all[i]).join(" ").toLowerCase());
+      } else {
+        expect(squash(g.definition).toLowerCase().startsWith(e!.summary.toLowerCase()), g.term).toBe(true);
+      }
     }
     const concentric = realIndex.byId.get("term:concentric")!;
     expect(concentric.summary.startsWith("The positive or lifting phase of a repetition (i.e. the actual lifting of the weight).")).toBe(true);
@@ -512,5 +523,74 @@ describe("a clinical card", () => {
       "machine:m-lumbar",
       "machine:m-leg-press",
     ]);
+  });
+});
+
+/** The content review (Oct 19 2026): what a card says, and what a word opens. */
+describe("the content review's corrections", () => {
+  it("never opens a method term for its everyday sense, and still opens it for the method's", () => {
+    // Dropped: the Leg Press card's "Positive feedback optional if done correctly."
+    expect(linked("Positive feedback optional if done correctly.")).not.toContain("term:positive");
+    // Kept: the lifting phase.
+    expect(linked("Begin the positive phase gradually.")).toContain("term:positive");
+    expect(linked("the potential negative consequences of it")).not.toContain("term:negative");
+    expect(linked("Target 6-second positive, 6-second negative reps")).toEqual(
+      expect.arrayContaining(["term:positive", "term:negative"]),
+    );
+    expect(linked("the continuous renewal of bone tissue")).not.toContain("term:continuous");
+    expect(linked("Be continuous at the bottom.")).toContain("term:continuous");
+  });
+
+  it("gives a term no connection it only has through an everyday word", () => {
+    // "The purpose of an end stop is ..."; "the continuous renewal of bone tissue".
+    expect(realIndex.byId.get("term:end stop")!.related).not.toContain("term:purpose");
+    expect(realIndex.byId.get("term:bone density (remodeling)")!.related).not.toContain("term:continuous");
+  });
+
+  it("draws a research citation as plain words: an author's initials (Anvar SH) are not Static Hold", () => {
+    const cite =
+      "[¹] Alizadeh S, Daneshjoo A, Zahiri A, Anvar SH, Goudini R, Hicks JP, Konrad A, Behm DG. Resistance Training Induces Improvements in Range of Motion: A Systematic Review and Meta-Analysis.";
+    expect(isCitation(cite)).toBe(true);
+    expect(linkText(cite, realIndex)).toEqual([{ text: cite }]);
+    expect(isCitation("[2] Bryner, R.W., I.H. Ullrich, J. Sauers")).toBe(true);
+    // A footnote in the Academy's own words keeps its links.
+    expect(isCitation("[¹]  This is equivalent to 1,500 calories per month.")).toBe(false);
+    expect(linked("Hold it: SH.")).toContain("rule:static-hold");
+  });
+
+  it("quotes the squeeze in the trainer's words, from Turnaround Technique, not the client newsletter", () => {
+    const squeeze = realIndex.byId.get("rule:squeeze")!;
+    expect(squeeze.summary).not.toMatch(/\byou\b/i);
+    expect(squeeze.summary).toContain("starting with the third repetition");
+    expect(squeeze.summary).toContain("2 to 3 seconds before easing out");
+    expect(squeeze.route).toEqual({ kind: "topic", moduleId: "performance", topicId: "performance-turnaround-technique" });
+    expect(squeeze.related).toContain("topic:mastery-squeeze-technique");
+  });
+
+  it("says what a term means where its first sentence does not", () => {
+    const summary = (term: string) => realIndex.byId.get(termEntityId(term))!.summary;
+    expect(summary("Failure (Fatigue)")).toContain("Maximum Tolerable Perception of Effort");
+    expect(summary("Stretch")).toMatch(/^For our purposes, we refer to the stretched portion/);
+    expect(summary("Purpose")).toContain("what is the primary or immediate goal of our set of an exercise?");
+    expect(summary("Assumed vs. Real Objective (of exercise)")).toContain("the objective should be to attempt to increase the stimulus");
+    expect(summary("Progressive Overload")).toContain("Progressive Overload is evidence that one has gotten stronger");
+    expect(summary("Continuous")).toContain("there are no points during the set where the muscles are unloaded");
+    // Every pick is a whole sentence of its definition, so the card stays verbatim.
+    for (const [term, pick] of Object.entries(TERM_SUMMARY_PICK)) {
+      const row = glossary.find((g) => g.term === term);
+      expect(row, term).toBeTruthy();
+      const all = sentencesOf(row!.definition);
+      for (const i of pick) expect(all[i], `${term} [${i}]`).toBeTruthy();
+    }
+    // A term with no pick reads the opening as before.
+    expect(termSummary("a less formal way to say lowering. See also Eccentric.", "Negative")).toBe("A less formal way to say lowering.");
+  });
+
+  it("never calls a module's rep ranges a rulebook on a topic's card", () => {
+    for (const e of realIndex.byId.values()) {
+      if (e.kind !== "topic") continue;
+      expect(e.summary, e.id).toMatch(/^.+, module \d+ of the Academy\.$/);
+      expect(e.summary, e.id).not.toMatch(/rulebook|rep ranges/i);
+    }
   });
 });

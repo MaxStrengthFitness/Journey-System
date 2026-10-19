@@ -4,9 +4,10 @@
  *
  * The glossary file lists its method terms first and its equipment terms
  * from the fortieth on (pages.ts reads it the same way). A card shows a
- * term, its first sentence, and on "More" the whole definition and the
- * Academy topics that teach it (graph-index.json's termTopics, generated
- * from the corpus). The definition's words are the glossary page's own line
+ * term, its first sentence (or, where the opening never says what the
+ * term means, the sentences that do: TERM_SUMMARY_PICK in entities.ts),
+ * and on "More" the whole definition and the Academy topics that teach it
+ * (graph-index.json's termTopics, generated from the corpus). The definition's words are the glossary page's own line
  * (capitalised the same way), so a studio's mark on a definition shows on
  * its card too.
  *
@@ -27,7 +28,10 @@ export interface VaultEntry {
   /** The letter it files under ("#" for a term that starts with neither). */
   letter: string;
   kind: VaultKind;
-  /** The definition's first sentence (or two when the first is short). */
+  /**
+   * The definition's first sentence (or two when the first is short), or,
+   * for a term in TERM_SUMMARY_PICK, the sentences picked for it, verbatim.
+   */
   summary: string;
   /** The whole definition, as the glossary page's line reads it. */
   definition: string;
@@ -52,7 +56,7 @@ export function vaultEntries(
         term: g.term,
         letter: letterOf(g.term),
         kind: i >= EQUIPMENT_FROM ? "equipment" : "method",
-        summary: termSummary(definition) || definition,
+        summary: termSummary(definition, g.term) || definition,
         definition,
         topics: termTopics?.[g.term] ?? [],
       };

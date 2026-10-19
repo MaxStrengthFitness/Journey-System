@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import glossaryFile from "../../academy/content/glossary.json";
+import { TERM_SUMMARY_PICK, sentencesOf } from "../../learning-vault/entities";
 import graphIndex from "../../learning-vault/graph-index.json";
 import { EQUIPMENT_FROM, byLetter, filterVault, letterOf, lettersOf, vaultEntries } from "./vault";
 
@@ -24,11 +25,27 @@ describe("vaultEntries", () => {
   });
 
   it("opens on the definition's own first words, never rewritten", () => {
+    const flat = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
     for (const e of entries) {
       expect(e.summary.length).toBeGreaterThan(0);
-      const flat = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
-      expect(flat(e.definition).startsWith(flat(e.summary).slice(0, 20))).toBe(true);
+      if (TERM_SUMMARY_PICK[e.term]) continue;
+      expect(flat(e.definition).startsWith(flat(e.summary).slice(0, 20)), e.term).toBe(true);
     }
+  });
+
+  it("says what a term means where its opening does not, in the definition's own sentences", () => {
+    const flat = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+    const picked = entries.filter((e) => TERM_SUMMARY_PICK[e.term]);
+    expect(picked.map((e) => e.term).sort()).toEqual(Object.keys(TERM_SUMMARY_PICK).sort());
+    for (const e of picked) {
+      const all = sentencesOf(e.definition);
+      const want = TERM_SUMMARY_PICK[e.term].map((i) => all[i]).join(" ");
+      expect(flat(e.summary), e.term).toBe(flat(want));
+      for (const i of TERM_SUMMARY_PICK[e.term]) expect(flat(e.definition)).toContain(flat(all[i]));
+    }
+    // The same card words as the vault's own term cards (entities.ts).
+    const stretch = entries.find((e) => e.term === "Stretch")!;
+    expect(stretch.summary).toMatch(/^For our purposes, we refer to the stretched portion/);
   });
 
   it("names where each term is taught, from the generated index", () => {

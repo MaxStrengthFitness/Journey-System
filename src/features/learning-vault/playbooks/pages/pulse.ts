@@ -44,7 +44,7 @@ export const PULSE: PlaybookPage = {
     },
     {
       id: "areas",
-      title: "Eight areas in three groups",
+      title: "The areas, in three groups",
       blocks: [
         bullet(
           "Recovery & Fuel: sleep and recovery, nutrition and protein, the days they hit their protein goal, and water.",
@@ -59,8 +59,8 @@ export const PULSE: PlaybookPage = {
           at(PULSE_README, 246),
         ),
         para(
-          "Each area has three short statements, like \"I wake up feeling rested\" or \"I am consistent with my workouts.\"",
-          at(PULSE_README, 28, 43),
+          "Each of the eight scored areas has three short statements, like \"I wake up feeling rested\" or \"I am consistent with my workouts.\" Protein, water, the pain map and stress are asked their own way.",
+          at(PULSE_README, 28, 57),
         ),
       ],
     },
@@ -109,7 +109,7 @@ export const PULSE: PlaybookPage = {
       title: "Flags, and what the client sees",
       blocks: [
         para(
-          "Red in Protein, Sleep & Recovery or Consistency & Habits flags the client for the team.",
+          "Red in protein compliance (the days they hit their protein goal), Sleep & Recovery or Consistency & Habits flags the client for the team.",
           at(PULSE_README, 73, 74),
         ),
         para("The client's copy is sentences only: no overall score and no coloured scores.", at(PULSE_README, 220)),

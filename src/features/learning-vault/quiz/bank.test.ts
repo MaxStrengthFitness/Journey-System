@@ -13,6 +13,7 @@ import type { CueMoment, MachineScript, QuickCard } from "../../academy/types";
 import { MACHINE_DEFINITIONS } from "../../../data/machine-definitions";
 import type { MachineDefinition } from "../../../types/machines";
 import type { PlaybookPage, QuizQuestion, VaultRoute } from "../types";
+import { PLAYBOOKS } from "../playbooks";
 import { ACADEMY_QUESTIONS, FLOOR_QUESTIONS } from "./authored";
 import { playbookRouteFor, questionBank, type QuestionBankInput } from "./bank";
 import { DECKS, deckById, isDeckId, playableDecks } from "./decks";
@@ -145,8 +146,9 @@ describe("Read it, for a question from docs/business", () => {
     related: [],
   });
   const playbooks = [
-    page("twenty-minutes", ["docs/business/the-floor.md:50", "docs/business/the-floor.md:66", "docs/business/the-floor.md:109"]),
+    page("twenty-minutes", ["docs/business/the-floor.md:52-56", "docs/business/the-floor.md:66", "docs/business/the-floor.md:109"]),
     page("why-every-rule", ["docs/business/the-floor.md:22-31", "docs/business/the-floor.md:9"]),
+    page("the-kit", ["docs/business/the-floor.md:58-60"]),
     page("renewals", ["docs/business/renewals.md:11"]),
   ];
 
@@ -157,18 +159,77 @@ describe("Read it, for a question from docs/business", () => {
     expect(playbookRouteFor(HUTCHINS_PATH, null)).toBeNull();
   });
 
-  it("is given to the floor and Hutchins questions when the playbooks are passed in", () => {
+  it("opens the page that cites the question's own line, never just the file's busiest page", () => {
     const bank = questionBank({ ...input, playbooks });
     const hutchins = bank.filter((q) => q.deck === "hutchins");
     expect(hutchins.every((q) => q.source.route?.kind === "playbook" && q.source.route.id === "why-every-rule")).toBe(true);
     const floor = bank.find((q) => q.id === "f-twenty-minutes");
     expect(floor?.source.route).toEqual({ kind: "playbook", id: "twenty-minutes" });
+    // The clicker (the-floor.md:59) is on the kit's page, though the twenty minutes cites the file more.
+    expect(bank.find((q) => q.id === "f-clicker")?.source.route).toEqual({ kind: "playbook", id: "the-kit" });
+    // "Nobody remembered" (:48) is cited by no page here: no door, never the wrong one.
+    expect(bank.find((q) => q.id === "f-nobody-remembered")?.source.route).toBeNull();
     const renew = bank.find((q) => q.id === "f-ten-before");
     expect(renew?.source.route).toEqual({ kind: "playbook", id: "renewals" });
     const pkg = bank.find((q) => q.id === "f-never-expire");
     expect(pkg?.source.route).toBeNull();
     // Without them, no door: the source is named and nothing more.
     expect(questionBank(input).find((q) => q.id === "f-twenty-minutes")?.source.route).toBeNull();
+  });
+
+  it("with the real playbooks, every floor question opens a page that cites its line, or none", () => {
+    const bank = questionBank({ ...input, playbooks: PLAYBOOKS });
+    const cites = (pageId: string, path: string, from: number, to: number) =>
+      (PLAYBOOKS.find((p) => p.id === pageId)?.sections ?? []).some((s) =>
+        s.blocks.some((b) => {
+          const m = /^(.+?):(\d+)(?:-(\d+))?$/.exec(b.source.trim());
+          if (!m || m[1] !== path) return false;
+          const a = Number(m[2]);
+          const z = m[3] ? Number(m[3]) : a;
+          return !(z < from || a > to);
+        }),
+      );
+    for (const f of FLOOR_QUESTIONS) {
+      const q = bank.find((x) => x.id === f.id);
+      const route = q?.source.route ?? null;
+      const { path, line, toLine } = f.support;
+      const anyPage = PLAYBOOKS.some((p) => cites(p.id, path, line, toLine ?? line));
+      if (!anyPage) {
+        expect(route, f.id).toBeNull();
+        continue;
+      }
+      expect(route?.kind, f.id).toBe("playbook");
+      if (route?.kind === "playbook") expect(cites(route.id, path, line, toLine ?? line), `${f.id} -> ${route.id}`).toBe(true);
+    }
+    // The two the review found opening the twenty minutes.
+    expect(bank.find((q) => q.id === "f-clicker")?.source.route).not.toEqual({ kind: "playbook", id: "the-twenty-minutes" });
+    expect(bank.find((q) => q.id === "f-nobody-remembered")?.source.route).not.toEqual({ kind: "playbook", id: "the-twenty-minutes" });
+  });
+});
+
+describe("machine names in the quiz", () => {
+  const bank = questionBank(input);
+  const machineish = bank.filter((q) => q.id.startsWith("m-") || q.id.startsWith("s-"));
+
+  it("are the Academy's names, never the seed's capitals", () => {
+    expect(machineish.length).toBeGreaterThan(5);
+    for (const q of machineish) {
+      for (const s of [q.prompt, q.explain, q.source.label, ...q.options]) {
+        // A run of two capitalised words in capitals ("SEATED ABDOMINALS", "CX (4 WAY")
+        // is the seed's name; the cards' own "NEVER" is a word, not a name.
+        expect(/\b[A-Z]{2,}\s+\(?[A-Z0-9]{2,}/.test(s), `${q.id}: ${s}`).toBe(false);
+      }
+      for (const o of q.options) expect(/[A-Z]{3}/.test(o) && o === o.toUpperCase(), `${q.id}: ${o}`).toBe(false);
+    }
+    expect(bank.find((q) => q.id === "m-handoff-m-neck")?.options[0]).toBe("Cervical Extension");
+    const handoff = bank.find((q) => q.id.startsWith("s-handoff"));
+    expect(handoff?.prompt).toBe("Put the first rep in order on the Abdominals, Cervical Extension, Compound Row and Pulldown.");
+  });
+
+  it("match the written questions' names for the same machine", () => {
+    const written = ACADEMY_QUESTIONS.flatMap((q) => q.options).filter((o) => o === "Cervical Extension");
+    expect(written.length).toBeGreaterThan(0);
+    expect(bank.find((q) => q.id === "m-never-m-neck")?.options[0]).toBe("Cervical Extension");
   });
 });
 

@@ -21,9 +21,9 @@
  * ---------
  * A question from an Academy page opens that page. A question from
  * docs/business has no Learning page of its own; when the Life Transformer
- * playbooks are passed in, it opens the playbook page that cites that file
- * most (for Hutchins, the one that cites the definition's lines), and
- * otherwise it names its source and offers no door.
+ * playbooks are passed in, it opens the playbook page that cites the lines
+ * its quote is on (for Hutchins, the one that cites the definition's lines),
+ * and when no page cites them it names its source and offers no door.
  *
  * PURE MODULE — no React, no Firestore.
  */
@@ -31,10 +31,11 @@
 import type { CueMoment, MachineScript, QuickCard } from "../../academy/types";
 import type { MachineDefinition } from "../../../types/machines";
 import type { PlaybookPage, QuizQuestion, VaultRoute } from "../types";
-import { ACADEMY_QUESTIONS, FLOOR_QUESTIONS } from "./authored";
+import { ACADEMY_QUESTIONS, FLOOR_QUESTIONS, type FileSupport } from "./authored";
 import type { QuizItem } from "./decks";
 import { cueQuestions, glossaryQuestions, machineQuestions, scriptQuestions } from "./generate";
 import { HUTCHINS_LINES, HUTCHINS_PATH, HUTCHINS_QUESTIONS } from "./hutchins";
+import { quizMachineName } from "./machine-names";
 
 export interface QuestionBankInput {
   glossary: { term: string; definition: string }[] | null;
@@ -42,6 +43,7 @@ export interface QuestionBankInput {
   scripts: MachineScript[] | null;
   cards: QuickCard[] | null;
   defs: Record<string, Partial<MachineDefinition>>;
+  /** A machine's name; the quiz asks with the Academy's name over it, and calms one in capitals (machine-names.ts). */
   names: (machineId: string) => string;
   /** The Life Transformer playbooks, so a question from docs/business can open the page written from it. */
   playbooks?: PlaybookPage[] | null;
@@ -89,21 +91,22 @@ function withRoute<T extends QuizItem>(q: T, route: VaultRoute | null): T {
 
 export function questionBank(input: QuestionBankInput): QuizQuestion[] {
   const hutchinsRoute = playbookRouteFor(HUTCHINS_PATH, input.playbooks, HUTCHINS_LINES);
-  const routeByPath = new Map<string, VaultRoute | null>();
-  const floorRoute = (path: string | undefined): VaultRoute | null => {
-    if (!path) return null;
-    if (!routeByPath.has(path)) routeByPath.set(path, playbookRouteFor(path, input.playbooks));
-    return routeByPath.get(path) ?? null;
-  };
+  // A floor question opens the page that cites the very lines its quote is
+  // on; the page that cites the file most may hold none of it (the clicker is
+  // on "Your kit", not "The twenty minutes"). No page cites them: no door.
+  const floorRoute = (support: FileSupport): VaultRoute | null =>
+    playbookRouteFor(support.path, input.playbooks, { from: support.line, to: support.toLine ?? support.line });
+  // The Academy's name for a machine, never the seed's capitals.
+  const names = (machineId: string) => quizMachineName(machineId, input.names);
 
   const all: QuizItem[] = [
     ...glossaryQuestions(input.glossary),
     ...cueQuestions(input.cues),
-    ...scriptQuestions(input.scripts, input.names),
-    ...machineQuestions(input.defs, input.cards, input.names),
+    ...scriptQuestions(input.scripts, names),
+    ...machineQuestions(input.defs, input.cards, names),
     ...ACADEMY_QUESTIONS,
     ...HUTCHINS_QUESTIONS.map((q) => withRoute(q, hutchinsRoute)),
-    ...FLOOR_QUESTIONS.map((q) => withRoute(q, floorRoute(q.source.path))),
+    ...FLOOR_QUESTIONS.map((q) => withRoute(q, floorRoute(q.support))),
   ];
 
   // One question per id: the first one wins, so a built question never

@@ -102,7 +102,7 @@ export const THE_KIT: PlaybookPage = {
       title: "When the floor changes the order",
       blocks: [
         para(
-          "The floor is shared. If another trainer is on the compound row, it moves later and something else goes first.",
+          "The floor is shared. If another trainer is on the compound row, it moves later and the next machine goes ahead of it.",
           at(FLOOR, 147, 149),
         ),
         para("Changing today's order is normal. It's today's order only; the routine keeps its own.", at(FLOOR, 150, 153)),

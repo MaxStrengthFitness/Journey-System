@@ -43,6 +43,7 @@ import { MACHINE_ABBR } from "../routine-builder/academy";
 import type { GraphIndexFile } from "./graph";
 import { wordMatcher } from "./graph";
 import {
+  EXCLUDED_TOPIC_IDS,
   GLOSSARY_TOPIC_ID,
   TOPICS_PER_ENTRY,
   buildGraphIndex,
@@ -121,6 +122,20 @@ describe("graph-index.json", () => {
     }
   });
 
+  it("never sends a trainer to an excluded page: starting weights, Research, MSF OVERVIEW, the consultation script", () => {
+    expect([...EXCLUDED_TOPIC_IDS].sort()).toEqual([
+      "consultation-initial-consultation-script-tour-preliminary-co",
+      "further-research",
+      "mastery-msf-overview",
+      "programming-msf-suggested-starting-weights",
+    ]);
+    // Each is a real topic, so the list can never quietly stop excluding one.
+    for (const id of EXCLUDED_TOPIC_IDS) expect(allTopicIds.has(id), id).toBe(true);
+    for (const [key, list] of [...Object.entries(parsed.termTopics), ...Object.entries(parsed.machineTopics)]) {
+      for (const id of list) expect(EXCLUDED_TOPIC_IDS.has(id), `${key}: ${id}`).toBe(false);
+    }
+  });
+
   it("never lists both of a pair of twins for one entry", () => {
     const twins = findTwins(MODULES);
     for (const [key, list] of [...Object.entries(parsed.termTopics), ...Object.entries(parsed.machineTopics)]) {
@@ -162,9 +177,19 @@ describe("twins", () => {
     expect(twins.get("principles-introduction")?.has("summary-introduction") ?? false).toBe(false);
   });
 
-  it("does not take two versions with different words for twins", () => {
-    // The two Exercise Selection Templates share an opening and little else.
-    expect(twins.get("programming-exercise-selection-template")?.has("mastery-exercise-selection-template") ?? false).toBe(false);
+  it("takes a re-wrapped copy with one title for a twin, by its running text", () => {
+    // The two Exercise Selection Templates are one document, one copy
+    // hard-wrapped: no whole block matches, but 76% of the smaller one's
+    // eight-word runs are in the other. Both sat in thirteen machine lists.
+    expect(twins.get("programming-exercise-selection-template")?.has("mastery-exercise-selection-template")).toBe(true);
+    expect(twins.get("mastery-exercise-selection-template")?.has("programming-exercise-selection-template")).toBe(true);
+  });
+
+  it("does not take two documents that only share a title for twins", () => {
+    // Academy 4's Gradual Load-up ("3 or more seconds") and Mastery 5's
+    // ("2 to 6") are different pages; both belong in Gradual's list.
+    expect(twins.get("performance-gradual-load-up")?.has("mastery-gradual-load-up") ?? false).toBe(false);
+    expect(parsed.termTopics.Gradual).toEqual(expect.arrayContaining(["performance-gradual-load-up", "mastery-gradual-load-up"]));
   });
 });
 
@@ -177,14 +202,29 @@ describe("ranking", () => {
     expect(rankTopics(m, topics, new Map())).toEqual(["b", "a", "c"]);
   });
 
-  it("stands a reprint in for its original when both say it, and keeps one of the pair", () => {
+  it("stands the original in for its reprint when it says it at least as often, and keeps one of the pair", () => {
+    const m = wordMatcher({ words: ["pace"], codes: [] });
+    const topics = [topic("orig", 6, 0, "pace pace pace"), topic("other", 7, 0, "pace pace"), topic("reprint", 10, 0, "pace pace pace")];
+    const twins = new Map([
+      ["orig", new Set(["reprint"])],
+      ["reprint", new Set(["orig"])],
+    ]);
+    expect(rankTopics(m, topics, twins)).toEqual(["orig", "other"]);
+  });
+
+  it("never lets a twin that says it less stand in for one that says it more", () => {
+    // Mission ("career paths", once) sits inside the Executive Summary's
+    // introduction (Path sixteen times): the introduction keeps the place.
     const m = wordMatcher({ words: ["pace"], codes: [] });
     const topics = [topic("orig", 6, 0, "pace"), topic("other", 7, 0, "pace pace"), topic("reprint", 10, 0, "pace pace pace")];
     const twins = new Map([
       ["orig", new Set(["reprint"])],
       ["reprint", new Set(["orig"])],
     ]);
-    expect(rankTopics(m, topics, twins)).toEqual(["orig", "other"]);
+    expect(rankTopics(m, topics, twins)).toEqual(["reprint", "other"]);
+    expect(parsed.termTopics.Path[0]).toBe("summary-introduction");
+    expect(parsed.termTopics["Intent (Purpose)"][0]).toBe("summary-introduction");
+    expect(parsed.termTopics.Path).not.toContain("intro-mission");
   });
 
   it("keeps the reprint when the original never says it", () => {

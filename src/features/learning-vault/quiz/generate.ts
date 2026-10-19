@@ -20,9 +20,11 @@
  *   failures) are never offered as each other's wrong answers.
  * - Cues: the three strings in the phrase lists that are not cues are left
  *   out, the two lower and the two upper turnarounds are one moment each
- *   (they differ by machine, so either would be "right"), and moments that
- *   share phrases (motivation and apparent failure, speed and the turns) are
- *   never offered as each other's wrong answers.
+ *   (they differ by machine, so either would be "right"; Read it still opens
+ *   the one that holds the phrase), and moments that share phrases
+ *   (motivation and apparent failure, speed and the turns) are never offered
+ *   as each other's wrong answers. A bracket naming the machines stays on its
+ *   cue ("Bend your elbows faster (row or pulldown)").
  * - Scripts: the first rep comes in three shapes; Pullover's script stops
  *   after the squeeze, so it is asked about with no other machine.
  * - Every wrong answer is picked by a hash of the question, never at random,
@@ -209,6 +211,11 @@ function namesOfTerm(term: string): string[] {
         const p = part.replace(/^\s*also\s+/i, "").trim();
         if (p.length >= 2) names.add(p);
       }
+      // A one-word other name goes with the term's first word too: "Bone
+      // Density (Remodeling)" is defined as "Bone remodeling is…", and a stem
+      // reading "Bone ____ is…" would point at the one option starting "Bone".
+      const inner = m[2].trim();
+      if (/^[A-Z][a-z]+$/.test(inner)) names.add(`${m[1].trim().split(/\s+/)[0]} ${inner}`);
     } else {
       names.add(t);
     }
@@ -252,6 +259,9 @@ export function maskTerm(sentence: string, term: string): string {
     const words = name.split(/\s+/).map(escapeRe).join("\\s+");
     out = out.replace(new RegExp(`(^|[^A-Za-z0-9])${words}(?![A-Za-z0-9])`, "gi"), "$1____");
   }
+  // A blank followed by its own acronym, or by a second blank, is one blank:
+  // "is the ____ (SH)" gives the initials away, and "a ____ (____)" reads oddly.
+  out = out.replace(/____\s*\((?:____|[A-Z]{2,5})\)/g, "____");
   return out;
 }
 
@@ -393,7 +403,9 @@ export const CUE_GROUPS: CueGroup[] = [
     prefix: "speed of motion",
     label: "Keeping the pace",
     ask: "Which of these is about keeping the pace?",
-    explain: "It is a speed-of-motion cue: one steady pace, no speeding up.",
+    // The list itself has "Slightly faster" and "Slow – SLOWER", and "Be
+    // continuous but do not rush".
+    explain: "It is a speed-of-motion cue: one steady pace, slowed or quickened until it is right, never rushed.",
   },
   {
     id: "confirm",
@@ -405,9 +417,11 @@ export const CUE_GROUPS: CueGroup[] = [
   {
     id: "face",
     prefix: "facial expressions",
-    label: "The face and the jaw",
-    ask: "Which of these is about the face?",
-    explain: "It is about facial expressions: a relaxed face and a loose jaw.",
+    // Named for the whole list: it holds "Stay calm", "Don't panic" and
+    // "Stoic" as well as the face and the jaw.
+    label: "A calm, relaxed face",
+    ask: "Which of these would you say for a calm, relaxed face?",
+    explain: "It is a facial-expression cue: a calm, relaxed face and a loose jaw.",
   },
   {
     id: "lower",
@@ -421,7 +435,9 @@ export const CUE_GROUPS: CueGroup[] = [
     prefix: "upper turnaround",
     label: "The upper turnaround",
     ask: "Which of these would you say at the upper turnaround?",
-    explain: "It is an upper turnaround cue: touch and go at an end stop, or the squeeze and the click on the others.",
+    // The end stop is clicked too ("Pass through my click at the top").
+    explain:
+      "It is an upper turnaround cue: touch and go through the click at an end stop, or the squeeze, then the click to ease out, on the others.",
   },
   {
     id: "final",
@@ -453,7 +469,22 @@ export const CUE_GROUPS: CueGroup[] = [
   },
 ];
 
-/** Moments that share words: never each other's wrong answer. */
+/**
+ * Moments that share words: never each other's wrong answer. Every moment
+ * keeps at least five others to draw wrong answers from (generate.test.ts).
+ *
+ * - upper / failure: on every machine but the four end-stop presses, a set
+ *   ends holding the last rep at the top while the trainer counts down
+ *   (Exercise Categories), and "Head still, keep breathing as you increase
+ *   effort" sits beside "Head stays still...push harder".
+ * - speed / final, upper / final: the final descent's own cue is "do not
+ *   speed up", like "Don't speed up" and "Ease out, DO NOT speed up".
+ * - handoff / lower, handoff / final: the handoff's cues are slow lowerings
+ *   ("Slowly allow your arms to lengthen"), on the very machines whose lower
+ *   turnaround cues are "most effectively used during the eccentric".
+ * - load / upper: "Build your force, increase your respirations" is the load
+ *   up's "With breath, gradually apply force" in other words.
+ */
 const CUE_CONFUSABLE: [CueGroupId, CueGroupId][] = [
   ["load", "handoff"],
   ["speed", "motivation"],
@@ -465,6 +496,12 @@ const CUE_CONFUSABLE: [CueGroupId, CueGroupId][] = [
   ["final", "unload"],
   ["final", "failure"],
   ["face", "failure"],
+  ["upper", "failure"],
+  ["speed", "final"],
+  ["upper", "final"],
+  ["handoff", "lower"],
+  ["handoff", "final"],
+  ["load", "upper"],
 ];
 
 function confusable(a: CueGroupId, b: CueGroupId): boolean {
@@ -478,13 +515,30 @@ const NOT_CUES: ReadonlySet<string> = new Set([
   "(Change vocal tone, excited but not loud, almost whisper, accentuate key words)",
 ]);
 
-/** Cues that would fit almost any moment, so no single answer is fair. */
-const TOO_GENERAL: ReadonlySet<string> = new Set(["Breathe Freely", "Be meticulous", "Be sneaky about it", "Calm"]);
+/**
+ * Cues that would fit almost any moment, so no single answer is fair. "Keep
+ * it moving" (an upper turnaround cue) fits keeping the pace and motivation
+ * just as well ("Keep your speed, don't let it bog down").
+ */
+const TOO_GENERAL: ReadonlySet<string> = new Set([
+  "Breathe Freely",
+  "Be meticulous",
+  "Be sneaky about it",
+  "Calm",
+  "Keep it moving",
+]);
 
-/** A phrase as a quiz shows it: stage directions in brackets dropped, spacing tidied. */
+/**
+ * A phrase as a quiz shows it: stage directions in brackets dropped, spacing
+ * tidied. A bracket that names the machines stays, because without it the cue
+ * says something else: "Bend your elbows faster (row or pulldown)" is not a
+ * cue for every machine.
+ */
 export function cleanCue(phrase: string): string {
   return phrase
-    .replace(/\s*\([^)]*\)/g, "")
+    .replace(/\s*\(([^)]*)\)/g, (_whole: string, inner: string) =>
+      /\b(row|pulldown)\b/i.test(inner) ? ` (${inner})` : "",
+    )
     .replace(/\s+([,.!?…])/g, "$1")
     .replace(/…\s*,\s*/g, "… ")
     .replace(/,\s*,/g, ",")
@@ -506,30 +560,36 @@ function isCue(phrase: string): boolean {
   return cleanCue(phrase).length >= 2;
 }
 
+/** A phrase as the quiz shows it, and the phrasebook moment (its index) that holds it. */
+interface CuePhrase {
+  text: string;
+  moment: number;
+}
+
 export function cueQuestions(cues: CueMoment[] | null): QuizItem[] {
   if (!cues || cues.length === 0) return [];
-  const groups = new Map<CueGroupId, { group: CueGroup; moment: number; phrases: string[] }>();
+  // Two moments share a group (the two lower turnarounds, the two upper
+  // ones), so each phrase keeps the moment it came from: Read it opens the
+  // moment that holds the words, not the group's first one.
+  const groups = new Map<CueGroupId, { group: CueGroup; phrases: CuePhrase[] }>();
   cues.forEach((c, i) => {
     const group = cueGroupOf(c.moment);
     if (!group) return;
-    const slot = groups.get(group.id) ?? { group, moment: i, phrases: [] };
+    const slot = groups.get(group.id) ?? { group, phrases: [] };
     for (const p of c.phrases) {
       if (!isCue(p)) continue;
       const clean = cleanCue(p);
-      if (!slot.phrases.includes(clean)) slot.phrases.push(clean);
+      if (!slot.phrases.some((x) => x.text === clean)) slot.phrases.push({ text: clean, moment: i });
     }
     groups.set(group.id, slot);
   });
 
   const present = CUE_GROUPS.filter((g) => (groups.get(g.id)?.phrases.length ?? 0) > 0);
-  const source = (id: CueGroupId): QuizSource => {
-    const slot = groups.get(id);
-    return {
-      label: `Cueing phrasebook · ${slot?.group.label ?? ""}`,
-      route: { kind: "cueing", moment: slot?.moment ?? 0 },
-      path: CUES_PATH,
-    };
-  };
+  const source = (id: CueGroupId, moment: number): QuizSource => ({
+    label: `Cueing phrasebook · ${groups.get(id)?.group.label ?? ""}`,
+    route: { kind: "cueing", moment },
+    path: CUES_PATH,
+  });
   const out: QuizItem[] = [];
   const seen = new Set<string>();
 
@@ -541,22 +601,22 @@ export function cueQuestions(cues: CueMoment[] | null): QuizItem[] {
       const wrong = pickDistinct(
         far.map((o) => o.label),
         3,
-        `c:${phrase}`,
+        `c:${phrase.text}`,
       );
       if (wrong.length < 3) return;
-      let id = `c-${g.id}-${slugOf(phrase, 36)}`;
+      let id = `c-${g.id}-${slugOf(phrase.text, 36)}`;
       if (seen.has(id)) id = `${id}-${n}`;
       seen.add(id);
       out.push({
         id,
         deck: "cues",
         kind: "choice",
-        prompt: `When would you say this? “${phrase}”`,
+        prompt: `When would you say this? “${phrase.text}”`,
         options: [g.label, ...wrong],
         answer: 0,
         explain: g.explain,
-        source: source(g.id),
-        fact: `cue:${phrase.toLowerCase()}`,
+        source: source(g.id, phrase.moment),
+        fact: `cue:${phrase.text.toLowerCase()}`,
       });
     });
 
@@ -566,7 +626,7 @@ export function cueQuestions(cues: CueMoment[] | null): QuizItem[] {
     const wrong = groupsForWrong
       .map((o) => {
         const ps = groups.get(o.id)?.phrases ?? [];
-        return ps.length > 0 ? ps[hashOf(`cr:${g.id}:${o.id}`) % ps.length] : null;
+        return ps.length > 0 ? ps[hashOf(`cr:${g.id}:${o.id}`) % ps.length].text : null;
       })
       .filter((p): p is string => p !== null);
     if (wrong.length === 3) {
@@ -575,11 +635,11 @@ export function cueQuestions(cues: CueMoment[] | null): QuizItem[] {
         deck: "cues",
         kind: "choice",
         prompt: g.ask,
-        options: [answer, ...wrong],
+        options: [answer.text, ...wrong],
         answer: 0,
         explain: g.explain,
-        source: source(g.id),
-        fact: `cue:${answer.toLowerCase()}`,
+        source: source(g.id, answer.moment),
+        fact: `cue:${answer.text.toLowerCase()}`,
       });
     }
   }
@@ -672,6 +732,21 @@ export function scriptQuestions(scripts: MachineScript[] | null, names: (machine
 
 type DefMap = Record<string, Partial<MachineDefinition>>;
 
+/**
+ * A card's never-to-failure line, and the (up to two) lines straight after
+ * it that speak to failure or intensity: the card's own reason. On the
+ * Cervical Extension card that is "NEVER train to failure", "Stop the set
+ * before technical failure", "Prioritize control and safety over intensity";
+ * the Lumbar card's one line already carries its precaution. Empty when the
+ * card has no such line.
+ */
+export function neverLinesOf(card: QuickCard | null | undefined): string[] {
+  const items = card?.sections.flatMap((s) => s.items) ?? [];
+  const k = items.findIndex((t) => /\bnever\b/i.test(t) && /\bfailure\b/i.test(t));
+  if (k < 0) return [];
+  return [items[k], ...items.slice(k + 1, k + 3).filter((t) => /\b(failure|intensity)\b/i.test(t))];
+}
+
 function sorted(ids: string[], names: (id: string) => string): string[] {
   return ids.slice().sort((a, b) => names(a).localeCompare(names(b)) || a.localeCompare(b));
 }
@@ -728,10 +803,11 @@ export function machineQuestions(
     const name = names(id);
     const card = cardFor.get(id);
     // The Academy card's own line when it has one ("NEVER train to
-    // failure"); else the first sentence of the definition's notice.
-    const cardLine = card?.sections
-      .flatMap((s) => s.items)
-      .find((item) => /\bnever\b/i.test(item) && /\bfailure\b/i.test(item));
+    // failure"), with the card's next lines when they say why (the floor's
+    // rule: a never-to-failure machine carries its reason, because an
+    // unexplained prohibition gets ignored; the-floor.md:27). Else the first
+    // sentence of the definition's notice.
+    const cardLines = neverLinesOf(card);
     const notice = sentencesOf((defs[id]?.execution?.safetyNotice ?? "").replace(/^\s*safety notice:\s*/i, ""))[0];
     out.push({
       id: `m-never-${slugOf(id)}`,
@@ -740,9 +816,10 @@ export function machineQuestions(
       prompt: "Which of these machines is never taken to failure?",
       options: [name, ...wrong.map(names)],
       answer: 0,
-      explain: cardLine
-        ? `Its Quick Reference card says: “${cardLine.trim().replace(/[.;:,]+$/, "")}.”`
-        : notice || `The ${name} is never taken to failure.`,
+      explain:
+        cardLines.length > 0
+          ? `Its Quick Reference card says: “${cardLines.map((l) => l.trim().replace(/[.;:,]+$/, "")).join(". ")}.”`
+          : notice || `The ${name} is never taken to failure.`,
       source: {
         label: `${name} · safety`,
         route: machineRoute(id),

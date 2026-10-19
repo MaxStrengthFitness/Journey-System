@@ -42,8 +42,8 @@ export const PACKAGES_PAGE: PlaybookPage = {
           at(PACKAGES, 17),
         ),
         para(
-          "Each payment is 8 sessions, so a 12-month package bills for 48 weeks: about 11 calendar months at twice a week.",
-          at(PACKAGES, 29, 35),
+          "Each payment is 8 sessions. Worked out from the standard table and not yet confirmed in Mindbody: a 12-month package bills for 48 weeks, about 11 calendar months at twice a week.",
+          at(PACKAGES, 27, 35),
         ),
         para("Life Transformed is the 18-month package. Life Transformer is you.", at(GLOSSARY, 9, 21)),
       ],
@@ -61,7 +61,10 @@ export const PACKAGES_PAGE: PlaybookPage = {
           "The line that answers \"can I afford this\": a longer commitment lowers every payment.",
           at(PACKAGES, 59),
         ),
-        para("Never call a package \"most popular\". Nothing can back the claim.", at(PACKAGES, 15)),
+        para(
+          "The website marks Committed as \"most popular\". Journey never does, because nothing it holds can back the claim; the packages screen shows your recommendation instead.",
+          at(PACKAGES, 15),
+        ),
       ],
     },
     {
@@ -76,7 +79,10 @@ export const PACKAGES_PAGE: PlaybookPage = {
           "The Academy's words: \"This is based on coming twice a week which is what I would prescribe.\" Then ask which they think is best, and let them speak first.",
           at(PACKAGE_COPY, 225, 231),
         ),
-        para("These are your notes. They never go on the screen you turn toward the client.", at(PACKAGES_README, 25)),
+        para(
+          "The Academy's lines and the money fallbacks are in your trainer notes, never on the screen you turn toward the client. Your recommendation does show there, under your name.",
+          at(PACKAGES_README, 25, 32),
+        ),
       ],
     },
     {
@@ -96,7 +102,7 @@ export const PACKAGES_PAGE: PlaybookPage = {
           at(PACKAGES, 22),
         ),
         para("Say \"upgrade\", never \"move\": a step down raises a refund question nobody has answered.", at(PACKAGES_README, 33)),
-        para("Every package comes with two free workouts.", at(PACKAGES, 18)),
+        para("Every package is advertised with two free workouts.", at(PACKAGES, 18)),
       ],
     },
     {
@@ -123,8 +129,8 @@ export const PACKAGES_PAGE: PlaybookPage = {
         ),
         para("Sessions never expire.", at(PACKAGES, 39)),
         para(
-          "Whether a package renews by itself depends on the studio and the package. Check before you say it.",
-          at(PACKAGES, 17),
+          "Whether a package renews by itself is the package's answer, else your studio's; the packages screen says which. Paid in full never renews by itself.",
+          at(PACKAGES, 83),
         ),
         para(
           "The Academy's consultation script still mentions 30, 60 or 90 days for leftover sessions, and no longer billing or renewing. Both are out of date; don't use them.",

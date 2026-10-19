@@ -15,7 +15,9 @@
  * eight clauses to a rule Journey built. So this deck is exactly that: each
  * clause PARAPHRASED (never the sentence itself), and the floor's own table
  * of what came of it. Nothing else about the book is claimed, because the
- * repo has nothing else to stand on.
+ * repo has nothing else to stand on. The two questions built on AJ's own
+ * note about the definition (whose it is, and naming the clause a change
+ * breaks) say so: they carry the floor's label (FLOOR_NOTE), not the book's.
  *
  * hutchins.test.ts reads the-floor.md and fails if any string in this deck
  * shares a run of six or more consecutive words with the quoted definition.
@@ -43,6 +45,19 @@ export const HUTCHINS_SOURCE: QuizSource = {
 };
 
 /**
+ * AJ's own note on the definition (the-floor.md:9-12, Sep 21 2026: "almost
+ * every rule in the app is one clause of it made concrete … naming the clause
+ * it breaks"). It is Journey's guidance, not the book's, so a question built
+ * on it is labelled as the floor's notes (authored.ts names that file the
+ * same way) and is not marked as a paraphrase of the book.
+ */
+export const FLOOR_NOTE: QuizSource = {
+  label: "Journey's notes · The floor",
+  route: null,
+  path: HUTCHINS_PATH,
+};
+
+/**
  * The eight clauses, in the definition's order, each in Journey's own
  * words, with what the floor built from it (the-floor.md:22-31, restated).
  */
@@ -61,9 +76,9 @@ export const CLAUSES: { id: string; clause: string; built: string; why: string }
   },
   {
     id: "clinical",
-    clause: "A calm, clinically controlled setting",
+    clause: "A clinically controlled setting",
     built: "Sentences, not scores: no hype, no celebration, never a confident wrong number",
-    why: "A controlled setting is calm and exact, so the app speaks in plain sentences and never claims more than it knows.",
+    why: "So the app speaks in plain sentences, with no hype, and never claims more than it knows.",
   },
   {
     id: "safety",
@@ -75,7 +90,7 @@ export const CLAUSES: { id: string; clause: string; built: string; why: string }
     id: "loading",
     clause: "Loading the muscles meaningfully",
     built: "The weight and the settings are stated on the Now Bar, never assumed",
-    why: "The machine is almost never already right when a trainer walks up, so the load is said out loud, every time.",
+    why: "The machine is almost never already right when a trainer walks up, so the weight and the settings are stated on the Now Bar, never assumed.",
   },
   {
     id: "inroad",
@@ -97,10 +112,22 @@ export const CLAUSES: { id: string; clause: string; built: string; why: string }
   },
 ];
 
-function pickThreeOthers(index: number): number[] {
-  // The three clauses after this one, wrapping: every clause is a wrong
-  // answer three times across the deck, and never twice in one question.
-  return [1, 3, 5].map((step) => (index + step) % CLAUSES.length);
+/**
+ * Clauses never offered as each other's wrong answer. A set to failure IS how
+ * the muscle is inroaded (the Academy glossary: an inroad is "the depth of
+ * momentary fatigue … attained due to exercise"), so a trainer reasoning from
+ * the Academy could fairly pick either for the other.
+ */
+const APART: ReadonlySet<string> = new Set(["demanding|inroad", "inroad|demanding"]);
+
+export function pickThreeOthers(index: number): number[] {
+  // Clauses one, three and five steps on, wrapping, so no clause is offered
+  // twice in one question; a pair kept APART is skipped for the next step on.
+  const me = CLAUSES[index].id;
+  return [1, 3, 5, 2, 4, 6, 7]
+    .map((step) => (index + step) % CLAUSES.length)
+    .filter((j) => !APART.has(`${me}|${CLAUSES[j].id}`))
+    .slice(0, 3);
 }
 
 export const HUTCHINS_QUESTIONS: QuizItem[] = [
@@ -119,18 +146,20 @@ export const HUTCHINS_QUESTIONS: QuizItem[] = [
     id: "h-who",
     deck: "hutchins",
     kind: "choice",
-    prompt: "Every rule on the floor traces back to one definition of exercise. Whose?",
+    prompt: "Almost every rule on the floor traces back to one definition of exercise. Whose?",
     options: ["Ken Hutchins", "Arthur Jones", "Chris Beardsley", "Peter Attia"],
     answer: 0,
     explain: "AJ recorded it as the source: if something is not within this definition, it is not true exercise.",
-    source: HUTCHINS_SOURCE,
+    source: FLOOR_NOTE,
     fact: "hutchins:who",
   },
   {
     id: "h-reject",
     deck: "hutchins",
     kind: "choice",
-    prompt: "Someone wants to add something to the session. What is the fastest way to say why it doesn't belong?",
+    // About a change to Journey, as the note is: a trainer may add a machine
+    // to a session, mid-session included.
+    prompt: "Someone proposes a change to Journey. What is the fastest way to say why it doesn't belong?",
     options: [
       "Name the part of the definition it breaks",
       "Describe how it looks on the iPad",
@@ -139,7 +168,7 @@ export const HUTCHINS_QUESTIONS: QuizItem[] = [
     ],
     answer: 0,
     explain: "Almost every rule is one clause made concrete, so naming the clause a change breaks says why in a sentence.",
-    source: HUTCHINS_SOURCE,
+    source: FLOOR_NOTE,
     fact: "hutchins:reject",
   },
   {
