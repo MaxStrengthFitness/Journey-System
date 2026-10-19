@@ -219,3 +219,50 @@ describe("the focus column (hub cherry round)", () => {
     expect(el.textContent).not.toContain("Nobody else");
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * BEFORE THE STUDIO LOGS IN JOURNEY (the cards round, Oct 17 2026; AJ's
+ * 1A): the grid says on its scroller whether the day is one the studio logs
+ * in Journey (`loggingFrom`, hub-day.ts), and hub-card.css lays Not logged
+ * down before the cutover. The grid only sets what it is told.
+ * ------------------------------------------------------------------ */
+
+describe("the day's logging gate", () => {
+  const scroller = (el: HTMLElement) => el.querySelector<HTMLElement>(".hs-scroll")!;
+  const again = (over: Partial<HubGridProps>) =>
+    act(() => {
+      root!.render(
+        <StrictMode>
+          <HubGrid
+            dayKey="2026-09-28"
+            columns={COLUMNS}
+            blocks={BLOCKS}
+            nowMin={t("09:24")}
+            renderCard={(b) => <span className="card" data-key={b.key} />}
+            {...over}
+          />
+        </StrictMode>,
+      );
+    });
+
+  it("sets data-logging on the scroller as it is told: not yet before the cutover, live from it", () => {
+    expect(scroller(mount({ logging: "not-yet" })).dataset.logging).toBe("not-yet");
+    act(() => root?.unmount());
+    host?.remove();
+    expect(scroller(mount({ logging: "live" })).dataset.logging).toBe("live");
+  });
+
+  it("sets no attribute when it isn't told", () => {
+    expect(scroller(mount()).hasAttribute("data-logging")).toBe(false);
+  });
+
+  it("follows a new answer, the memoised grid included (a day picked across the cutover)", () => {
+    const el = mount({ logging: "not-yet" });
+    again({ dayKey: "2026-10-01", nowMin: null, logging: "live" });
+    expect(scroller(el).dataset.logging).toBe("live");
+    again({ dayKey: "2026-09-28", logging: "not-yet" });
+    expect(scroller(el).dataset.logging).toBe("not-yet");
+    // The cards are still drawn inside it: the gate changes how they look, never what is there.
+    expect(el.querySelectorAll(".hs-scroll .card")).toHaveLength(BLOCKS.length);
+  });
+});

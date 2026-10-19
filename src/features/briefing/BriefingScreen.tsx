@@ -154,6 +154,7 @@ import {
 } from "../routine-plan/briefing-plan";
 import { useBriefingPlan } from "../routine-plan/ui/useBriefingPlan";
 import { BriefingDoors, BriefingJourneyLine, BriefingPlanCard } from "../routine-plan/ui/BriefingPlanCard";
+import { PhaseDueLine } from "../ab-builder/ui/PhaseDueLine";
 import { StartFromRoutineSheet } from "../routine-plan/ui/StartFromRoutineSheet";
 import { floorMachinesOf, machineNamer } from "../routine-plan/ui/host";
 import { TodayList } from "./TodayList";
@@ -1442,6 +1443,8 @@ export function BriefingScreen({
                   <span className="br__routine-name">Other routine</span>
                 </button>
               </div>
+              {/* Routine B's phase-in step when it is due, with its owner (the routine builder round, Oct 19 2026). */}
+              <PhaseDueLine routineB={routineB} active={!!client?.isRoutineBActive} todayYmd={todayKey} nameOf={planNameOf} />
               {rebuilding ? (
                 <div className="br-today__rebuild" data-testid="briefing-rebuild">
                   <div className="br-today__rebuild-bar">

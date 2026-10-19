@@ -110,7 +110,7 @@ const LIGHT = readRamp(":root");
 const DARK = readRamp(".dark");
 
 /** The light page ground, which most light-mode type sits on or near. */
-const GROUND = "#DEE6EE";
+const GROUND = "#EEEEEE";
 
 describe("the neutral ramp is defined at all", () => {
   it("declares every rung in both themes", () => {

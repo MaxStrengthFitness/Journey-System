@@ -17,7 +17,7 @@ import { useHubCriticalNotes } from "../hooks/useHubCriticalNotes";
 // ClientsView is in the initial bundle; pulling the barrel in here would drag
 // the whole Studio Hub UI in with it and defeat AppContent's lazy import.
 import { useStudioTasks } from "../features/studio-tasks/useStudioTasks";
-import { dayTitle, pickDay, shownDay, stripFrom } from "../features/hub-schedule/hub-day";
+import { dayTitle, loggingFrom, pickDay, shownDay, stripFrom } from "../features/hub-schedule/hub-day";
 import { UNASSIGNED_ID, orderColumnsBySessions, planColumns, staffLabel } from "../features/hub-schedule/columns";
 import { staffIdsAt } from "../features/standing-week/check";
 import type { DayReadState } from "../lib/schedule-window";
@@ -43,6 +43,9 @@ import { mayTakeBackLateCancel } from "../lib/late-cancels";
 import { HubCard, cardTime } from "../features/hub-schedule/HubCard";
 import { usePhone } from "../features/phone/device";
 import { PhoneDayList } from "../features/phone/PhoneDayList";
+import { PhoneWeekList } from "../features/phone/PhoneWeekList";
+import { PhoneViewSwitch, phoneViewOf } from "../features/phone/PhoneViewSwitch";
+import { blocksOf, bookingsOnDay, planWeekList, type WeekBlock } from "../features/phone/week-list";
 import { HubGrid, HubNotice, NOBODY_BOOKED, type GridBlock, type GridColumn } from "../features/hub-schedule/HubGrid";
 import { trainerDayFrame, weeksByTrainer } from "../features/hub-schedule/off-hours";
 import type { Span } from "../features/hub-schedule/grid-model";
@@ -58,7 +61,7 @@ import { bookingSessionNumber, cardMarks, cardRestWords, isNewToJourney, usualSe
 import { yourDay } from "../features/hub-schedule/your-day";
 import { nextHalfHour, stripOpen } from "../features/hub-schedule/next-half-hour";
 import { NextStrip, type NextStripItem } from "../features/hub-schedule/NextStrip";
-import { focusColumnId, readFocus, writeFocus, type HubFocus } from "../features/hub-schedule/focus";
+import { focusColumnId, readFocus, readRange, writeFocus, writeRange, type HubFocus, type HubRange } from "../features/hub-schedule/focus";
 import { hubCardState } from "../lib/hub-card-state";
 import { peekState } from "../features/hub-schedule/peek-model";
 import { QUIET_WORDS, quietKindOf, quietLine } from "../lib/session-quiet";
@@ -206,6 +209,8 @@ export function ClientsView({
   const [peek, setPeek] = useState<{ clientId: string; blockKey: string; day: string; anchor: HTMLElement | null } | null>(null);
   /** On a phone only: Me (your own bookings) or Everyone; remembered on this device. The iPad has no switch since Oct 3 2026. */
   const [focus, setFocus] = useState<HubFocus>(() => readFocus());
+  /** On a phone only: the day on screen, or My week (the phone minimalist round, Oct 19 2026); remembered on this phone. */
+  const [range, setRange] = useState<HubRange>(() => readRange());
   /* A phone draws the day as a list (Journey Lite, features/phone). */
   const isPhone = usePhone();
   /** A trainer's column head was tapped: Opportunities shows their bookings, for the day it was tapped on. */
@@ -667,6 +672,17 @@ export function ClientsView({
   }, [todaysSchedules, columnPlan]);
   const gridNowMin = gridDayKey === studioDateKey(currentTime) ? studioMinutes(currentTime) : null;
   /*
+   * DOES THIS STUDIO LOG THE DAY IN JOURNEY? (the cards round, Oct 17 2026;
+   * AJ's 1A): from the studio's Journey cutover date on, a session nobody
+   * recorded stays a whole card with the plum mark; before it (or with no
+   * date set) Not logged steps back and keeps its words. The grid and the
+   * phone's list set it on the day (`data-logging`, hub-card.css).
+   */
+  const gridLogging = loggingFrom(
+    gridDayKey,
+    (cutoverStudios ?? []).find((s) => s.id === activeStudioId)?.journeyCutoverDate ?? null,
+  );
+  /*
    * YOUR OWN COLUMN, IN WORDS (hub cherry round, Sep 28 2026; Hub direction
    * B's focus column): your column takes more of the spare room, its head
    * says your day in words, and its cards say every mark they may say out
@@ -719,6 +735,33 @@ export function ClientsView({
   }, [visibleTrainersList, gridBlocks, columnPlan.unassigned, focusId, authId, focusId !== null ? gridNowMin : null]);
 
   /*
+   * MY WEEK on a phone (the phone minimalist round, Oct 19 2026; AJ: make
+   * the phone "useful for trainers to use at home to plan their week"). The
+   * strip's seven days, each laid out as the day on screen is: the same
+   * bookings (the Hub's own window, hub-window.ts, already read for the
+   * strip's counts — no new read), the same column plan (a booking finds its
+   * trainer by id), the same blocks (features/phone/week-list.ts). Built
+   * only while My week is on screen, and kept until the week or the
+   * bookings change.
+   */
+  const phoneWeek = isPhone && range === "week";
+  const weekDays = React.useMemo(() => {
+    if (!phoneWeek) return [];
+    return stripKeys.map((key) => {
+      const dayBookings = bookingsOnDay(hubSchedules, key);
+      const plan = planColumns({ trainers: sortedTrainers, bookings: dayBookings, studioId: activeStudioId || null, staffIds, selfId: authTrainer?.id ?? null });
+      const blocks = blocksOf(dayBookings, plan.columnOf, (b) => isStaffBlock(b as any));
+      const columnOrder = [...plan.trainers.map((t) => String(t.id)), UNASSIGNED_ID];
+      return { key, blocks, columnOrder };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phoneWeek, stripKeys.join("|"), hubSchedules, sortedTrainers, activeStudioId, staffIds, authTrainer?.id]);
+  const weekPlan = React.useMemo(
+    () => planWeekList({ days: weekDays, mineOnly: focusId, todayKey: studioToday, nowMin: studioDateKey(currentTime) === studioToday ? studioMinutes(currentTime) : null }),
+    [weekDays, focusId, studioToday, currentTime],
+  );
+
+  /*
    * Who's on (AJ's Mindbody screenshots, Keep: "who's working, at a
    * glance"): the AGREED standing weeks, one read of the studio's, hatch the
    * hours a trainer isn't on and a day away. No agreed week, or no answer,
@@ -758,12 +801,44 @@ export function ClientsView({
     [gridDayKey],
   );
 
+  /** "with Sam" / "with you" for a column, on a phone's Everyone (Journey Lite). */
+  const withTrainer = React.useCallback(
+    (columnId: string): string | null => {
+      const column = gridColumns.find((c) => c.id === columnId);
+      if (column) return column.isMe ? "with you" : `with ${column.name}`;
+      // My week: a column the day on screen doesn't have (the trainer has no bookings that day).
+      const t = sortedTrainers.find((x) => String(x.id) === columnId);
+      if (!t) return null;
+      if (authTrainer?.id && String(t.id) === String(authTrainer.id)) return "with you";
+      const short = ((t as any).nickname || "").trim() || (t.fullName || "").trim().split(" ")[0];
+      return short ? `with ${short}` : null;
+    },
+    [gridColumns, sortedTrainers, authTrainer?.id],
+  );
+
+  /*
+   * A card on the phone's week (the phone minimalist round, Oct 19 2026):
+   * drawn dense, and a tap picks its day and opens its peek there, so the
+   * peek reads that day's moments (the engine runs for the day on screen
+   * only, R6). The marks and the number are the day on screen's: another
+   * day's card shows who and when, and says nothing it hasn't worked out.
+   */
+  const openWeekCard = React.useCallback(
+    (day: string, clientId: string, blockKey?: string) => {
+      if (!blockKey) return;
+      setPickedDay(pickDay(day, studioToday));
+      setPeek({ clientId, blockKey, day, anchor: null });
+    },
+    [studioToday],
+  );
+
   const renderCard = React.useCallback(
-    (block: GridBlock) => {
+    (block: GridBlock, phone: { dense: boolean; day?: string } = { dense: false }) => {
       const session: any = block.booking;
       const clientObj = isStaffBlock(session) ? null : findClientForSession(session);
       const workoutSession = workoutSessionFor(session, clientObj);
-      const entry = clientObj?.id ? dayMoments.byClientId.get(clientObj.id) ?? null : null;
+      const onScreen = phone.day === undefined || phone.day === selectedKey;
+      const entry = onScreen && clientObj?.id ? dayMoments.byClientId.get(clientObj.id) ?? null : null;
       /* Why a session left open went quiet (the sessions round, Oct 12 2026):
          the card says it in place of "Left open". A string, so the card's
          memo compares it by value. */
@@ -777,11 +852,12 @@ export function ClientsView({
           blockKey={block.key}
           client={clientObj}
           entry={entry}
-          sessionNumber={bookingSessionNumber(entry, clientObj, session, dayMoments.input)}
+          sessionNumber={onScreen ? bookingSessionNumber(entry, clientObj, session, dayMoments.input) : null}
           newToJourney={isNewToJourney(entry, clientObj)}
           usualService={usualService}
           dimmed={activeSpot !== null && !(entry && hasFamily(entry, activeSpot))}
-          wordy={focusId !== null && block.columnId === focusId}
+          wordy={focusId !== null && block.columnId === focusId && !phone.dense}
+          dense={phone.dense}
           rosterLoading={rosterLoading}
           rosterFailed={rosterFailed}
           staffName={block.columnId === UNASSIGNED_ID ? staffLabel(session.trainerName) : null}
@@ -791,11 +867,11 @@ export function ClientsView({
           noShows={bookingMarks.marks}
           now={currentTime}
           open={openKey === block.key}
-          onOpen={openCard}
+          onOpen={phone.day !== undefined ? (clientId, _anchor, blockKey) => openWeekCard(phone.day!, clientId, blockKey) : openCard}
         />
       );
     },
-    [findClientForSession, workoutSessionFor, dayMoments, usualService, activeSpot, focusId, rosterLoading, rosterFailed, logged, bookingMarks.marks, currentTime, openKey, openCard],
+    [findClientForSession, workoutSessionFor, dayMoments, usualService, activeSpot, focusId, rosterLoading, rosterFailed, logged, bookingMarks.marks, currentTime, openKey, openCard, openWeekCard, selectedKey],
   );
 
   /* ------------------------------------------------------------------ *
@@ -963,7 +1039,8 @@ export function ClientsView({
                 setView("studio-tasks");
               }}
               onOpenKey={() => setKeyOpen(true)}
-              chips={layer === "schedule" && !activeSpot ? chips : undefined}
+              phone={isPhone}
+              chips={layer === "schedule" && !activeSpot && !isPhone ? chips : undefined}
               onSpot={(family) => setSpot({ day: gridDayKey, family, next: 0 })}
             />
             {layer === "schedule" && (
@@ -981,17 +1058,27 @@ export function ClientsView({
                   setTrainerList(null);
                   setLayer("opportunities");
                 }}
-                focus={
-                  isPhone && myColumnId
-                    ? {
-                        value: focus,
-                        onChange: (next) => {
-                          setFocus(next);
-                          writeFocus(next);
-                        },
-                      }
-                    : null
-                }
+                focus={null}
+              />
+            )}
+            {/* The phone's one switch (the phone minimalist round, Oct 19
+                2026): My day · Everyone · My week, in the Focus switch's
+                place. Everyone and My day are the focus (focus.ts); My week
+                is the range, your own bookings across the strip's days. */}
+            {isPhone && layer === "schedule" && (
+              <PhoneViewSwitch
+                value={phoneViewOf(focus, range)}
+                hasColumn={myColumnId !== null}
+                onChange={(next) => {
+                  const nextRange: HubRange = next === "week" ? "week" : "day";
+                  setRange(nextRange);
+                  writeRange(nextRange);
+                  if (next !== "week") {
+                    setFocus(next);
+                    writeFocus(next);
+                  }
+                  setPeek(null);
+                }}
               />
             )}
             </div>
@@ -1155,7 +1242,7 @@ export function ClientsView({
 
             {/* Who is due in the next half hour, across the floor (hub cherry
                 round): a row of the schedule's own, under the top. */}
-            {nextOpen && (
+            {nextOpen && !isPhone && (
               <NextStrip
                 items={nextItems}
                 openKey={activePeek?.blockKey ?? null}
@@ -1169,20 +1256,29 @@ export function ClientsView({
                 The grid stays mounted under Opportunities, only hidden. */}
             {/* On a phone (Journey Lite, Oct 1 2026): the same blocks and the
                 same cards, one booking under the next (features/phone). */}
-            {isPhone ? (
+            {phoneWeek ? (
+              <PhoneWeekList
+                days={weekPlan}
+                todayKey={studioToday}
+                nowMin={studioDateKey(currentTime) === studioToday ? studioMinutes(currentTime) : null}
+                mineOnly={focusId !== null}
+                readState={(day) => (scheduleDayState ? scheduleDayState(day) : "ready")}
+                renderCard={(b, day) => renderCard(b, { dense: true, day })}
+                withWords={(b) => (focusId !== null || b.columnId === UNASSIGNED_ID ? null : withTrainer(b.columnId))}
+                scrollTo={pickedDay}
+                hidden={layer !== "schedule"}
+              />
+            ) : isPhone ? (
               <PhoneDayList
                 blocks={gridBlocks.map((b) => ({ ...b, staff: isStaffBlock(b.booking as any) }))}
                 columnOrder={gridColumns.map((c) => c.id)}
                 mineOnly={focusId}
                 nowMin={gridNowMin}
-                renderCard={(b) => renderCard(b)}
-                withWords={(b) => {
-                  if (focusId !== null || b.columnId === UNASSIGNED_ID) return null;
-                  const column = gridColumns.find((c) => c.id === b.columnId);
-                  return column ? (column.isMe ? "with you" : `with ${column.name}`) : null;
-                }}
+                renderCard={(b) => renderCard(b, { dense: true })}
+                withWords={(b) => (focusId !== null || b.columnId === UNASSIGNED_ID ? null : withTrainer(b.columnId))}
                 emptyWords={bookingsRead === "ready" ? NOBODY_BOOKED : bookingsRead === "loading" ? "Reading the day’s bookings…" : null}
                 hidden={layer !== "schedule"}
+                logging={gridLogging}
               />
             ) : (
             <HubGrid
@@ -1196,6 +1292,7 @@ export function ClientsView({
               focusId={focusId}
               emptyWords={bookingsRead === "ready" ? NOBODY_BOOKED : bookingsRead === "loading" ? "Reading the day\u2019s bookings\u2026" : null}
               onOpenColumn={openColumn}
+              logging={gridLogging}
             />
             )}
 

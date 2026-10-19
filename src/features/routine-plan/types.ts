@@ -16,6 +16,7 @@
  * through `canonicalMachineId`.
  */
 import type { StartingColumn } from "./starting-weights";
+import type { PhasePlan } from "../ab-builder/phase";
 
 /** Why the routine exists, as the builder holds it (the words are the trainer's). */
 export type PlanPurposeKind =
@@ -124,6 +125,12 @@ export interface RoutinePlan {
    * and never from the client's gender.
    */
   startingColumn?: StartingColumn | "none";
+  /**
+   * Routine B only: B being phased in, step by step, when a trainer chose to
+   * (the routine builder round, Oct 19 2026; ab-builder/phase.ts). Read it
+   * through `phaseOf`. Absent: B is built whole.
+   */
+  phase?: PhasePlan;
 }
 
 /**

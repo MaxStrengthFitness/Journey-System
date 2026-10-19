@@ -11,19 +11,22 @@ import { describe, expect, it } from "vitest";
  * have a sharp cutoff look ... borders and headers just needs a little bit
  * of weight and depth". On the Hub, the screen trainers see most:
  *
- *   1. A booking is told from the grid by an edge seen from OUTSIDE it (the
- *      soft --eq-edge, the fill clipped to the padding box) and a small
- *      two-layer lift, ONLY while it is a client's and not over: a card that
- *      is over, unlinked, pending, unknown or a staff block lies flat, as it
- *      did. Its 4px state rail is untouched. An open one keeps its blue ring
- *      and lifts higher. Nothing animates a shadow.
+ *   1. A booking is told from the grid by an edge seen from OUTSIDE it and a
+ *      small lift, ONLY while it is a client's and not over: a card that is
+ *      over, unlinked, pending, unknown or a staff block lies flat, as it
+ *      did. Since the cards round (Oct 17 2026, with the light round's A1
+ *      and the dark round's D5) the edge is a 1px outline in the card edge
+ *      and the state a straight 3px band inside the card, painted as a
+ *      background (it was a 1px border and a 4px rail). An open one keeps
+ *      its blue ring and lifts higher. Nothing animates a shadow.
  *   2. The command bar keeps its 3:1 edge (a group of controls, like a
  *      field) and sinks inside it; the layer you're on is raised out of it,
  *      and the bar never clips that lift.
  *   3. The week's numerals and the grid's hours and lane heads are the
- *      display face, upright (AJ's 1A); the picked day lifts as a solid blue
- *      does, and today-and-picked keeps exactly its orange underline
- *      (hub-colour-rules.test.ts holds that one).
+ *      display face, upright (AJ's 1A), at 700 since the light round's A4
+ *      (nothing on the Hub at 800); the picked day is the solid blue with
+ *      its top light and, since A3, no glow, and today-and-picked keeps its
+ *      orange underline (hub-colour-rules.test.ts holds that one).
  *   4. The peek is a popover: the deepest lift on the page, a step lighter
  *      than the card in dark, with a white rim and top light; its name is
  *      the display face at 22 and its labels are words, not capitals.
@@ -157,12 +160,18 @@ const LIFTED = '.hs-card[data-kind="client"][data-recede="false"]';
 const OPEN_LIFTED = '.hs-card[data-kind="client"][data-recede="false"][data-open="true"]';
 
 describe("a booking on the Hub", () => {
-  it("is told from the grid by an edge seen from outside it, its 4px state rail untouched, at radius 12", () => {
+  it("is drawn one way: no border, a 1px outline outside it in the card edge, its state a straight 3px band inside, at radius 12", () => {
     const card = merged(CARD, ".hs-card");
-    expect(card.border).toBe("1px solid var(--eq-edge)");
-    expect(card["border-left"]).toBe("4px solid var(--eq-ink-faint)");
+    expect(card.border).toBe("0");
+    expect(card["border-left"]).toBeUndefined();
+    expect(card.outline).toBe("1px solid var(--eq-card-edge)");
     expect(card["border-radius"]).toBe("12px");
     expect(card["background-clip"]).toBe("padding-box");
+    const mark = merged(CARD, ".hs-card::before");
+    expect(mark.width).toBe("3px");
+    expect(mark.background, "a band painted as a background").toBe("var(--hs-mark)");
+    expect(mark["border-left"] ?? mark.border, "never a border").toBeUndefined();
+    expect(mark["border-radius"], "square-ended").toBeUndefined();
   });
 
   it("lifts only while it is a client's and not over, with two small blurs", () => {
@@ -220,11 +229,12 @@ describe("a booking on the Hub", () => {
     }
   });
 
-  it("keeps an unlinked booking's dashes on today's hairline, never the faded soft edge or the 3:1 one", () => {
+  it("keeps an unlinked booking's dashes on today's hairline all round, never the soft edge or the 3:1 one, with no mark and no outline", () => {
+    // All round since the cards round: there is no rail on the left to keep.
     const unlinked = merged(CARD, '.hs-card[data-kind="unlinked"]');
-    expect(unlinked["border-style"]).toBe("dashed");
-    for (const side of ["top", "right", "bottom"]) expect(unlinked[`border-${side}-color`], side).toBe("var(--eq-border)");
-    expect(unlinked["border-left-color"], "its left keeps the edge its state gives it").toBeUndefined();
+    expect(unlinked.border).toBe("1px dashed var(--eq-border)");
+    expect(merged(CARD, '.hs-card[data-kind="unlinked"]::before').content).toBe("none");
+    expect(merged(CARD, '.hs-card[data-kind="unlinked"]:not(:focus-visible)').outline).toBe("0");
   });
 
   it("never animates a shadow: the card transitions its opacity alone", () => {
@@ -287,7 +297,7 @@ describe("the Hub's command bar", () => {
 /* 3. The week, the lane heads and the hours                            */
 /* ------------------------------------------------------------------ */
 
-/** The display face, upright, at `size` and 800. */
+/** The display face, upright, at `size` (its weight is each test's own). */
 function display(rule: Record<string, string>, size: string) {
   expect(rule["font-family"]).toBe("var(--font-display)");
   expect(rule["font-size"]).toBe(size);
@@ -296,28 +306,28 @@ function display(rule: Record<string, string>, size: string) {
 }
 
 describe("the week, the lane heads and the hours", () => {
-  it("sets the day's numeral as a headline figure: Saira 17 at 800, upright, tabular", () => {
+  it("sets the day's numeral as a headline figure: Saira 17 at 700 (A4), upright, tabular", () => {
     const numeral = merged(TOP, ".hd-day-name strong");
     display(numeral, "17px");
-    expect(numeral["font-weight"]).toBe("800");
+    expect(numeral["font-weight"]).toBe("700");
     expect(numeral["font-variant-numeric"]).toBe("tabular-nums");
     expect(merged(TOP, ".hd-day")["min-height"]).toBe("44px");
   });
 
-  it("lifts the picked day as a solid blue, and today-and-picked outranks it with its underline", () => {
-    expect(merged(TOP, '.hd-day[aria-selected="true"]')["box-shadow"]).toBe("var(--eq-glow-live), var(--eq-solid-light)");
+  it("draws the picked day as a solid blue with its top light and no glow (A3), and today-and-picked outranks it with its underline", () => {
+    expect(merged(TOP, '.hd-day[aria-selected="true"]')["box-shadow"]).toBe("var(--eq-solid-light)");
     expect(attributes('.hd-day[data-today="true"][aria-selected="true"]')).toBeGreaterThan(attributes('.hd-day[aria-selected="true"]'));
   });
 
-  it("names a lane in the display face, as a client's name is; the You tag stays the text face at 12/700 in its own capitalisation", () => {
+  it("names a lane in the display face at 700, as a client's name is; the You tag stays the text face at 12/600 in its own capitalisation", () => {
     const name = merged(GRID, ".hs-colname strong");
     display(name, "17px");
-    expect(name["font-weight"]).toBe("800");
+    expect(name["font-weight"]).toBe("700");
     expect(name["overflow-wrap"]).toBe("anywhere");
     const you = merged(GRID, ".hs-you");
     expect(you["font-family"]).toBe("var(--font-sans)");
     expect(you["font-size"]).toBe("12px");
-    expect(you["font-weight"]).toBe("700");
+    expect(you["font-weight"]).toBe("600");
     expect(you["text-transform"]).toBeUndefined();
     expect(read("features/hub-schedule/HubGrid.tsx")).toContain('<span className="hs-you">You</span>');
   });

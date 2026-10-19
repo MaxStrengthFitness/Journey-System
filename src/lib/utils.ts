@@ -1,7 +1,8 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { getMachineStyle } from './machine-colors';
-import { isSeatBelt } from '../features/equipment/seat-belt';
+// The name test alone: ./seat-belt.ts would bring its word lists onto the first screen.
+import { isSeatBelt } from '../features/equipment/seat-belt-key';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

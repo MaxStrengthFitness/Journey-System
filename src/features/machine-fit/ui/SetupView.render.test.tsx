@@ -128,8 +128,9 @@ afterEach(() => {
 });
 
 describe("the Setup screen", () => {
-  it("opens a client with nothing saved in Set up, in the floor's own order, with the offer as a placeholder", () => {
+  it("shows a client with nothing saved in Set up, in the floor's own order, with the offer as a placeholder", () => {
     const el = mount();
+    click(button(el, /^Set up/));
     expect(el.querySelector(".fit")?.getAttribute("data-mode")).toBe("setup");
     expect([...el.querySelectorAll(".fit-row__name")].map((n) => n.textContent)).toEqual(["Leg Press", "Compound Row"]);
     // Never a value until it is tapped.
@@ -142,6 +143,7 @@ describe("the Setup screen", () => {
 
   it("accepts strong suggestions into DRAFTS, undoes them in one tap, and saves them as 'suggested'", async () => {
     const el = mount();
+    click(button(el, /^Set up/));
     click(button(el, /^Accept strong suggestions \(1\)$/));
     expect(cell(el, "Compound Row Gap").value).toBe("0");
     expect(cell(el, "Compound Row Seat").value).toBe("4");
@@ -173,6 +175,7 @@ describe("the Setup screen", () => {
 
   it("re-suggests the rest from a value the trainer sets by hand", () => {
     const el = mount();
+    click(button(el, /^Set up/));
     expect(cell(el, "Compound Row Chest").placeholder).toBe("3");
     type(cell(el, "Compound Row Seat"), "3");
     // Clients at Seat 3 use Chest 4 — read across every height, because only one 5'6"–5'8" client sits there.
@@ -180,8 +183,9 @@ describe("the Setup screen", () => {
     expect(el.textContent).toContain("Read across every height, from clients who share what you set.");
   });
 
-  it("opens a set-up client in Check, states what is worth a look as a sentence, and reports it quietly", async () => {
+  it("shows a set-up client in Check, states what is worth a look as a sentence, and reports it quietly", async () => {
     const el = mount(saved({ Gap: "0", Seat: "9", Chest: "3" }));
+    click(button(el, /^Check/));
     expect(el.querySelector(".fit")?.getAttribute("data-mode")).toBe("check");
     expect(el.querySelectorAll("input.fit-cell__input")).toHaveLength(0); // read-only
     expect(el.textContent).toContain("1 of 2 machines set up. 1 setting is worth a look.");
@@ -197,6 +201,7 @@ describe("the Setup screen", () => {
     const settings = saved({ Gap: "0", Seat: "9", Chest: "3" });
     settings["m-compound-row"].fitAcks = { seat: { value: "9", by: "uid-1", byName: "Alex Smith", at: "2026-09-17T14:00:00.000Z" } };
     const el = mount(settings);
+    click(button(el, /^Check/));
     expect(el.textContent).toContain("Nothing looks unusual for this build.");
     expect(el.querySelector(".fit-flag")).toBeNull();
     expect(reviews[reviews.length - 1]).toBe(0);
@@ -232,9 +237,9 @@ describe("the Setup screen", () => {
     expect(spy.commits[0].reason).toBe("Longer femurs than the seat suggests");
   });
 
-  it("reads a line of FileMaker shorthand in Quick entry, keeps what it cannot place, and needs no reason", async () => {
+  it("reads a line of FileMaker shorthand in Copy a chart, keeps what it cannot place, and needs no reason", async () => {
     const el = mount(saved({ Seat: "5" }));
-    click(button(el, /^Quick entry/));
+    click(button(el, /^Copy a chart/));
     expect(el.textContent).not.toContain("Suggested"); // quick entry copies a chart; it does not suggest
     click(el.querySelector('button[aria-label="Type Compound Row as a line of chart shorthand"]')!);
     const line = el.querySelector('input[aria-label="Compound Row shorthand"]') as HTMLInputElement;
@@ -257,11 +262,30 @@ describe("the Setup screen", () => {
     });
   });
 
+  it("opens in Edit all: the routine's machines first, every box typed, no suggestion in a box, one Save", async () => {
+    const el = mount(saved({ Seat: "5" }));
+    expect(el.querySelector(".fit")?.getAttribute("data-mode")).toBe("edit");
+    expect([...el.querySelectorAll(".fit-row__name")].map((n) => n.textContent)).toEqual(["Compound Row", "Leg Press"]);
+    expect(cell(el, "Compound Row Gap").placeholder).toBe(""); // what others use is Set up's, not a box here
+    type(cell(el, "Compound Row Gap"), "1");
+    type(cell(el, "Leg Press Seat"), "7");
+    type(cell(el, "Leg Press load in pounds"), "90");
+    expect(el.textContent).toContain("3 unsaved changes on 2 machines");
+    await clickAsync(button(el, "Save set-up"));
+    expect(spy.commits).toHaveLength(1);
+    expect(spy.commits[0].legacy).toBe(false);
+    const byId = Object.fromEntries(spy.commits[0].plan.entries.map((e: any) => [e.machineId, e]));
+    expect(byId["m-compound-row"]).toMatchObject({ settings: { Gap: "1", Seat: "5" } });
+    expect(Object.values(byId["m-compound-row"].sources ?? {})).not.toContain("legacy"); // typed, never a chart copy
+    expect(byId["m-leg-press"]).toMatchObject({ settings: { Seat: "7" }, weight: expect.objectContaining({ current: 90 }) });
+  });
+
   it("draws the seat belt beside the cells, tapped not typed, and saves it with the dials (Oct 19 2026)", async () => {
     const el = mount(saved({ Gap: "0", Seat: "4", Chest: "3" }));
-    // Check: the belt's value, read only, and never a box of its own.
+    // Edit all (where Setup opens since the routine builder): the belt's two buttons, never a box of its own.
+    expect(el.querySelector(".fit")?.getAttribute("data-mode")).toBe("edit");
     expect(el.querySelector('input[aria-label="Compound Row Seat belt"]')).toBeNull();
-    expect(el.textContent).toContain("Seat belt");
+    expect(el.querySelector('button[aria-label="Compound Row Seat belt On"]')).not.toBeNull();
     click(button(el, /^Set up/));
     const on = el.querySelector('button[aria-label="Compound Row Seat belt On"]')!;
     expect(on.getAttribute("aria-pressed")).toBe("false");
@@ -280,15 +304,16 @@ describe("the Setup screen", () => {
       ...saved({ Gap: "0", Seat: "4", Chest: "3" }),
       "m-leg-press": { clientId: "judy", machineId: "m-leg-press", settings: { "Seat belt": "Off" }, updatedBy: "t1", updatedAt: null },
     });
+    click(button(el, /^Check/));
     expect(el.querySelector(".fit")?.getAttribute("data-mode")).toBe("check");
     const legPress = el.querySelector("#fit-row-m-leg-press")!;
     expect(legPress.classList.contains("fit-row--compact")).toBe(false);
     expect(legPress.textContent).toContain("Off");
   });
 
-  it("puts a chart's bare Belt on the seat belt in Quick entry, as copied from the chart", async () => {
+  it("puts a chart's bare Belt on the seat belt in Copy a chart, as copied from the chart", async () => {
     const el = mount(saved({ Seat: "5" }));
-    click(button(el, /^Quick entry/));
+    click(button(el, /^Copy a chart/));
     click(el.querySelector('button[aria-label="Type Compound Row as a line of chart shorthand"]')!);
     const line = el.querySelector('input[aria-label="Compound Row shorthand"]') as HTMLInputElement;
     type(line, "G- 4 S- 3 Belt");
@@ -357,8 +382,10 @@ describe("Correct the starting weight (AJ, Oct 4 2026, Q3 (a))", () => {
   const step = (el: HTMLElement, dir: "lighter" | "heavier") =>
     el.querySelector(`button[aria-label="Compound Row: starting weight 2 lb ${dir}"]`) as HTMLButtonElement;
 
-  it("is offered in Set up and Quick entry for a machine with a starting weight on file, never in Check", () => {
+  it("is offered in Edit all, Set up and Copy a chart for a machine with a starting weight on file, never in Check", () => {
     const el = mount(withStart());
+    expect(openButton(el)).not.toBeNull(); // Edit all, where Setup opens
+    click(button(el, /^Check/));
     expect(el.querySelector(".fit")?.getAttribute("data-mode")).toBe("check");
     expect(openButton(el)).toBeNull();
     click(button(el, /^Set up/));
@@ -366,7 +393,7 @@ describe("Correct the starting weight (AJ, Oct 4 2026, Q3 (a))", () => {
     expect(el.textContent).toContain("Starting weight 84 lb");
     // Leg Press has no start on file: its load stamps one, there is nothing to correct.
     expect(el.querySelector('button[aria-label="Correct the starting weight on Leg Press"]')).toBeNull();
-    click(button(el, /^Quick entry/));
+    click(button(el, /^Copy a chart/));
     expect(openButton(el)).not.toBeNull();
   });
 

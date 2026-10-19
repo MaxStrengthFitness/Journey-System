@@ -486,7 +486,8 @@ const UPRIGHT_DISPLAY: [file: string, selector: string, weight: number, what: st
   ["features/trainer-profile/trainer-profile.css", ".tp-identity__name", 800, "the trainer's name on My Profile"],
   ["features/machine-menu/machine-menu.css", ".mm-head__machine", 800, "a machine's name, the machine menu's title"],
   ["features/hub-schedule/peek.css", ".hp-name", 800, "the client's name on the peek"],
-  ["features/hub-schedule/hub-grid.css", ".hs-colname strong", 800, "a trainer's name heading a lane"],
+  // 700 since the light round's A4 (lighter Hub type: nothing on the Hub at 800).
+  ["features/hub-schedule/hub-grid.css", ".hs-colname strong", 700, "a trainer's name heading a lane"],
   ["features/briefing/briefing.css", ".br__routine-name", 800, "a routine's name on the briefing"],
   ["features/routine-builder/routine-builder.css", ".rb-row__name", 700, "a machine in the builder's list"],
   ["features/routine-builder/routine-builder.css", ".rb-pick__name", 700, "a machine in the builder's picker"],

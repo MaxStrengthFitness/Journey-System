@@ -6,11 +6,16 @@
  * click into up to 30 different machine profiles … to set the starting
  * weight, repetitions, and highly specific machine settings."
  *
- * ONE LIST, THREE MODES
+ * ONE LIST, FOUR MODES
+ *   Edit all     every machine's settings and load as one grid, typed: the
+ *                machines in her routines first, Next moves to the next box,
+ *                one Save. It is where Setup opens (the routine builder round,
+ *                Oct 19 2026; AJ: "an area in programming where i can see all
+ *                machines and have a quick way to edit all the values quickly").
  *   Check        what she is set to, and — passively — anything worth a look.
  *   Set up       cells to fill, with what similar clients use offered under
  *                each machine. Use per row, or "Accept strong" for the lot.
- *   Quick entry  the FileMaker grid's mental model: the floor's own order top
+ *   Copy a chart the FileMaker grid's mental model: the floor's own order top
  *                to bottom, settings then load, a docked keypad, and an "abc"
  *                box that reads a line of chart shorthand.
  *
@@ -99,9 +104,10 @@ function coarsePointer(): boolean {
 }
 
 const MODES: { id: SetupMode; label: string; blurb: string }[] = [
+  { id: "edit", label: "Edit all", blurb: "Every machine's settings and load" },
   { id: "check", label: "Check", blurb: "What is set, and anything worth a look" },
   { id: "setup", label: "Set up", blurb: "Fill in, with what similar clients use" },
-  { id: "quick", label: "Quick entry", blurb: "Copy a FileMaker chart, fast" },
+  { id: "quick", label: "Copy a chart", blurb: "From a FileMaker chart, fast" },
 ];
 
 export function SetupView({
@@ -127,20 +133,11 @@ export function SetupView({
     if (active) setSeen(true);
   }, [active]);
 
-  // Which mode a client opens in. Check, once everything she is PRESCRIBED is
-  // set up; Set up, while any of it is not (or nothing is) — a trainer opening
-  // this before a first session is here to fill in, not to read.
-  const opensIn = useMemo<SetupMode>(() => {
-    const has = (id: string) => {
-      const saved = clientSettings[id]?.settings;
-      return !!saved && Object.values(saved).some((v) => String(v ?? "").trim() !== "");
-    };
-    if (!Object.keys(clientSettings).some(has)) return "setup";
-    const prescribed = routines
-      .filter((r) => r.name === "Routine A" || (r.name === "Routine B" && isBActive))
-      .flatMap((r) => r.machineIds ?? []);
-    return prescribed.some((id) => !has(id)) ? "setup" : "check";
-  }, [clientSettings, routines, isBActive]);
+  // Which mode a client opens in: Edit all, every time (the routine builder
+  // round, Oct 19 2026). It opened in Check once everything prescribed was set
+  // up and in Set up otherwise until then; the Machine fit report's door still
+  // opens on Check (ui/open-hint.ts).
+  const opensIn: SetupMode = "edit";
   const [mode, setMode] = useState<SetupMode>(opensIn);
   const [filter, setFilter] = useState<RowFilter>("all");
   const [spec, setSpec] = useState<MatchSpec>(readStoredSpec);
@@ -214,15 +211,21 @@ export function SetupView({
   /* ---------------- cells, in reading order ---------------- */
 
   const editing = mode !== "check";
+  // Edit all puts the machines in her routines first, A's and B's, then the
+  // rest of the floor in its own order; the other modes keep the floor's order.
+  const rows = useMemo(
+    () => (mode === "edit" ? [...model.rows.filter((r) => r.routines.length > 0), ...model.rows.filter((r) => r.routines.length === 0)] : model.rows),
+    [mode, model.rows],
+  );
   const cells = useMemo(() => {
     const out: { id: string; row: SetupRowModel; key: string }[] = [];
-    for (const row of model.rows) {
+    for (const row of rows) {
       if (row.fields.length === 0) continue;
       for (const f of row.fields) out.push({ id: cellId(row.machine.id, f.key), row, key: f.key });
       out.push({ id: cellId(row.machine.id, WEIGHT_KEY), row, key: WEIGHT_KEY });
     }
     return out;
-  }, [model.rows]);
+  }, [rows]);
 
   const activeAt = activeCell ? cells.findIndex((c) => c.id === activeCell) : -1;
   const current = activeAt >= 0 ? cells[activeAt] : null;
@@ -617,6 +620,8 @@ export function SetupView({
                 ) : null}
                 <span className="fit-bar__hint">Fills the boxes only. Nothing is saved until you press Save.</span>
               </>
+            ) : mode === "edit" ? (
+              <span className="fit-bar__hint">Tap a box and type. Enter or Next moves to the next box. Nothing is saved until you press Save.</span>
             ) : (
               <>
                 <button
@@ -667,13 +672,13 @@ export function SetupView({
         ) : null}
       </header>
 
-      {seen && model.fit.status !== "ready" && mode !== "quick" ? (
+      {seen && model.fit.status !== "ready" && mode !== "quick" && mode !== "edit" ? (
         <div className="fit-loading">
           <LoadingMark size="sm" label="Loading what similar clients use…" />
         </div>
       ) : null}
 
-      {model.rows.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="fit-empty">
           {filter === "routine"
             ? "No machines are in this client’s routines yet."
@@ -683,7 +688,7 @@ export function SetupView({
         </p>
       ) : (
         <ol className="fit-list">
-          {model.rows.map((row) => {
+          {rows.map((row) => {
             const d = drafts.drafts[row.machine.id];
             return (
               <SetupRow

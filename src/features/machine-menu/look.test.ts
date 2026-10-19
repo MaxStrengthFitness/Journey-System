@@ -101,6 +101,13 @@ describe("the machine menu's colours", () => {
   it("write no hex colour in a component either", () => {
     for (const file of COMPONENTS) expect(read(file), file).not.toMatch(/["'`]#[0-9a-f]{3,8}["'`]/i);
   });
+
+  it("draw the gain green with the Now Bar's own token, so the card and the bar say one green in both modes", () => {
+    // The card's "+25%" is the Now Bar's figure (AJ, Oct 3 2026). The dark round calmed the bar's
+    // green (Oct 17 2026, #4ade80 to #75d78d); the card follows it only by reading the same token.
+    const colours = rulesFor(RULES, "mm-gain").flatMap((r) => declared(r.body, "color"));
+    expect(colours).toEqual(["var(--jg-pf-gain)"]);
+  });
 });
 
 /** A rule's own declarations, merged in source order (the later wins). */

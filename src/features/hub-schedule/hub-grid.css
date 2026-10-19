@@ -35,7 +35,14 @@
    the names row became the soft edge plus the shelf's short navy cast, so the
    grid scrolls UNDER the row instead of being cut by a rule. z 8: under the
    Hub's top (10), over every card, the now line and the sticky axis (7 and
-   below). The shadow is never animated. */
+   below). The shadow is never animated.
+   The names row, its corner, the column heads and the time column are the
+   card colour in both modes (the colour build, Oct 17 2026: the light
+   round's phase 2 and the dark round's D2). As the well they stood 1.04:1
+   off the grid in light and 1.07 in dark, a band of fog over the day; as the
+   card they stand 1.13 and 1.16 off it, and the shelf and the soft edge stay.
+   Your own head keeps its blue (.hs-colhead[data-me="true"], below).
+   hub-head-row.test.ts holds it. */
 .hs-head {
   position: sticky;
   top: 0;
@@ -43,7 +50,7 @@
   display: flex;
   min-height: var(--hs-head);
   border-bottom: 1px solid var(--eq-edge);
-  background: var(--eq-surface-2);
+  background: var(--eq-surface);
   box-shadow: var(--eq-shelf);
 }
 
@@ -53,7 +60,7 @@
   z-index: 2;
   flex: none;
   width: var(--hs-axis);
-  background: var(--eq-surface-2);
+  background: var(--eq-surface);
   border-right: 1px solid var(--eq-border);
 }
 
@@ -67,7 +74,7 @@
   min-width: 0;
   padding: 6px 10px;
   border-right: 1px solid var(--eq-border);
-  background: var(--eq-surface-2);
+  background: var(--eq-surface);
 }
 
 /* A head that opens that trainer's bookings as a list (hub fixes, Oct 1
@@ -111,7 +118,7 @@ button.hs-colhead:focus-visible {
   background: var(--eq-surface-3);
   color: var(--eq-ink);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.04em;
 }
 
@@ -128,25 +135,27 @@ button.hs-colhead:focus-visible {
 }
 
 /* A lane head names a person, so it speaks as a name does (type and depth,
-   phase 11; AJ's 1A): the display face, upright, 17 at 800, in its own
+   phase 11; AJ's 1A): the display face, upright, 17, in its own
    capitalisation. Saira 17 is narrower than Geist 14 at 800 ("Christopher"
    72px against 86), and it wraps, never clips; the head grows from its
-   56px minimum when it must. */
+   56px minimum when it must. At 700 since the light round's A4 (Oct 16 2026:
+   lighter Hub type, nothing on the Hub at 800), a weight Saira has. */
 .hs-colname strong {
   display: flex;
   align-items: center;
   gap: 6px;
   font-family: var(--font-display);
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.005em;
   line-height: 1.1;
   color: var(--eq-ink);
   overflow-wrap: anywhere;
 }
 
-/* The You tag stays in the text face, 12 at 700, in its own capitalisation
-   ("You"): no label under 11px, and capitals are the eyebrow's alone. */
+/* The You tag stays in the text face, 12, in its own capitalisation
+   ("You"): no label under 11px, and capitals are the eyebrow's alone. A
+   label, so 600 (A4). */
 .hs-you {
   flex: none;
   padding: 1px 5px;
@@ -155,7 +164,7 @@ button.hs-colhead:focus-visible {
   color: var(--eq-live-text);
   font-family: var(--font-sans);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -210,7 +219,7 @@ button.hs-colhead:focus-visible {
   z-index: 5;
   flex: none;
   width: var(--hs-axis);
-  background: var(--eq-surface-2);
+  background: var(--eq-surface);
   border-right: 1px solid var(--eq-border);
 }
 
@@ -219,7 +228,7 @@ button.hs-colhead:focus-visible {
   right: 26px;
   transform: translateY(-50%);
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--eq-ink);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -232,9 +241,10 @@ button.hs-colhead:focus-visible {
   transform: translateY(2px);
 }
 
-/* The hours are headline figures: the display face, upright, 17 at 800,
-   4px further off the rail (type and depth, phase 11). "10 AM" is 37px of
-   the label's 46. The half hours stay the text face, at 12 (they were 11). */
+/* The hours are headline figures: the display face, upright, 17 at 700
+   (A4), 4px further off the rail (type and depth, phase 11). "10 AM" is
+   37px of the label's 46 at 800, a little less at 700. The half hours stay
+   the text face, at 12 (they were 11), and quieter at 500. */
 .hs-tick[data-hour="true"] {
   font-family: var(--font-display);
   font-size: 17px;
@@ -242,7 +252,7 @@ button.hs-colhead:focus-visible {
 }
 
 .hs-tick[data-hour="false"] {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 12px;
   color: var(--eq-ink-muted);
 }
@@ -277,7 +287,10 @@ button.hs-colhead:focus-visible {
   height: 10px;
   border-radius: 999px;
   border: 2px solid var(--eq-border-strong);
-  background: var(--eq-surface-2);
+  /* The time column's own colour, so a half hour's ring stays hollow over
+     the rail it covers (the colour build, Oct 17 2026: the column is the
+     card now). */
+  background: var(--eq-surface);
   transform: translateY(-50%);
 }
 
@@ -442,6 +455,20 @@ button.hs-colhead:focus-visible {
   z-index: 1;
 }
 
+/* Two, three or four to a slot in a lane under 155px (the narrow cards
+   round, phase 3: hub-card.css's short form): the slot gives its card
+   1.75px more each side, so neighbours stand 2.5px apart, not 6. Asked of
+   the column, as the card's own rules are. */
+@container hs-col (max-width: 309.98px) {
+  .hs-slot[data-lanes="2"] { padding: 0 1.25px; }
+}
+@container hs-col (max-width: 464.98px) {
+  .hs-slot[data-lanes="3"] { padding: 0 1.25px; }
+}
+@container hs-col (max-width: 619.98px) {
+  .hs-slot[data-lanes="4"] { padding: 0 1.25px; }
+}
+
 /* ---- the folds ---- */
 
 .hs-band {
@@ -509,7 +536,7 @@ button.hs-colhead:focus-visible {
   background: var(--eq-hero);
   color: var(--eq-go-on);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 

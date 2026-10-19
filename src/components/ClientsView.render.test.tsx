@@ -868,3 +868,39 @@ describe("the Hub: All stars", () => {
     expect(document.querySelector(".hp-star")).toBeNull();
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * BEFORE THE STUDIO LOGS IN JOURNEY (the cards round, Oct 17 2026; AJ's
+ * 1A): the grid says whether the active studio logs the day shown in
+ * Journey, from that studio's own cutover date (`loggingFrom`), never
+ * another studio's, and it moves with the day picked.
+ * ------------------------------------------------------------------ */
+
+describe("the Hub: before the studio logs in Journey", () => {
+  const logging = (el: HTMLElement) => el.querySelector<HTMLElement>(".hs-scroll")!.getAttribute("data-logging");
+  const again = (extra: Record<string, unknown>) => {
+    act(() => root?.unmount());
+    host?.remove();
+    return mount(IO, extra).el;
+  };
+
+  it("is live on and after the active studio's cutover date", () => {
+    // The default studio list: westlake from Sep 1, and today is Mon Sep 28.
+    expect(logging(mount().el)).toBe("live");
+    expect(logging(again({ cutoverStudios: [{ id: "westlake", journeyCutoverDate: "2026-09-28" }] }))).toBe("live");
+  });
+
+  it("is not yet before it, and follows the day picked across it", () => {
+    const el = mount(IO, { cutoverStudios: [{ id: "westlake", journeyCutoverDate: "2026-09-30" }] }).el;
+    expect(logging(el)).toBe("not-yet");
+    act(() => el.querySelectorAll<HTMLButtonElement>(".hd-day")[2].click()); // Wednesday the 30th
+    expect(logging(el)).toBe("live");
+    act(() => el.querySelectorAll<HTMLButtonElement>(".hd-day")[1].click()); // Tuesday
+    expect(logging(el)).toBe("not-yet");
+  });
+
+  it("is not yet while the active studio has no date, whatever another studio's says", () => {
+    expect(logging(mount(IO, { cutoverStudios: [{ id: "solon", journeyCutoverDate: "2026-09-01" }, { id: "westlake", journeyCutoverDate: null }] }).el)).toBe("not-yet");
+    expect(logging(again({ cutoverStudios: undefined }))).toBe("not-yet");
+  });
+});

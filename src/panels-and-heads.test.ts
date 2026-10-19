@@ -221,8 +221,8 @@ const PANELS: Panel[] = [
   { file: "features/catalog/catalog.css", sel: ".mcat-floor", p: "wk" },
   { file: "features/catalog/catalog.css", sel: ".mcat-models", p: "wk" },
   { file: "features/catalog/catalog.css", sel: ".mcat-changes", p: "wk" },
-  // The Hub's Next 30 minutes, and the phone's machine card.
-  { file: "features/hub-schedule/next-strip.css", sel: ".hn-item", p: "eq", lift: "var(--eq-elev-list), var(--eq-panel-highlight)" },
+  // The phone's machine card. (The Hub's Next 30 minutes item is drawn as
+  // the Hub's cards are since the cards round, Oct 17 2026: below.)
   { file: "features/phone/phone.css", sel: ".ph-card", p: "eq", lift: LIST("eq") },
 ];
 
@@ -286,9 +286,28 @@ describe("a panel: the edge seen from outside, the fill clipped to the padding b
     expect(merged("features/hub-schedule/next-strip.css", '.hn-item[data-open="true"]')["box-shadow"]).toBe("0 0 0 2px var(--eq-live), var(--eq-elev-list)");
   });
 
-  it("the state rails the plan keeps stay: the Next 30 minutes booking and the phone's machine card", () => {
-    expect(merged("features/hub-schedule/next-strip.css", ".hn-item")["border-left"]).toBe("4px solid var(--eq-ink-faint)");
+  it("the state rail the plan keeps stays on the phone's machine card; the Next 30 minutes booking draws its state as a band", () => {
     expect(merged("features/phone/phone.css", ".ph-card")["border-left"]).toBe("4px solid var(--eq-border-strong)");
+    // The cards round (Oct 17 2026): no border, so no rail to taper; the
+    // mark is a straight 3px band painted as a background, as on the grid.
+    const item = merged("features/hub-schedule/next-strip.css", ".hn-item");
+    expect(item["border-left"]).toBeUndefined();
+    expect(item.border).toBe("0");
+    const mark = merged("features/hub-schedule/next-strip.css", ".hn-item::before");
+    expect(mark.width).toBe("3px");
+    expect(mark.background).toBe("var(--hn-mark)");
+    expect(mark["border-left"]).toBeUndefined();
+  });
+
+  it("a Next 30 minutes booking: the Hub card's edge (a 1px outline outside it), the fill clipped, the small list lift", () => {
+    // Drawn as the Hub's cards are (the cards round, Oct 17 2026, with the
+    // light round's A1 and the dark round's D5): the edge is the card edge,
+    // drawn as an outline, which takes no room and never meets the band.
+    const item = merged("features/hub-schedule/next-strip.css", ".hn-item");
+    expect(item.outline).toBe("1px solid var(--eq-card-edge)");
+    expect(item["background-clip"]).toBe("padding-box");
+    expect(item["box-shadow"]).toBe("var(--eq-elev-list), var(--eq-panel-highlight)");
+    for (const t of ["--eq-card-edge", "--eq-elev-list", "--eq-panel-highlight"]) expect(DECLARED.has(t), t).toBe(true);
   });
 
   it("the Next 30 minutes row holds its bookings' lift inside its own padding (a scroller clips what it does not hold), and the strip stays 60px", () => {
@@ -593,6 +612,8 @@ const FILES = [...new Set([...PANELS, ...BANDS.map(([file]) => ({ file }))].map(
   "features/my-studio/my-studio.css",
   "features/comments/comments.css",
   "features/clinical-review/clinical-review.css",
+  // Held here by name since its item left PANELS (the cards round, Oct 17 2026).
+  "features/hub-schedule/next-strip.css",
 ]);
 
 describe("nothing here animates a shadow, and no shadow here is raw black", () => {

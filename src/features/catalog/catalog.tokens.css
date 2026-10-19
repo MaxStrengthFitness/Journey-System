@@ -28,11 +28,11 @@
 
   /* ── surfaces (the Navy Frame, Oct 4 2026: off-white, never pure white;
         the ratios below are against this card) ─────────────────────────── */
-  --cat-surface:       #f3f6f9;
-  --cat-surface-2:     #e4ebf3;
-  --cat-surface-3:     #d4dee8;
-  --cat-border:        #d1dae4;   /* 1.3:1 hairline                       */
-  --cat-border-strong: #7a8694;   /* 3.4:1 control boundary               */
+  --cat-surface:       #fcfcfc;
+  --cat-surface-2:     #f2f2f2;
+  --cat-surface-3:     #e6e6e6;
+  --cat-border:        #e2e2e2;   /* 1.3:1 hairline                       */
+  --cat-border-strong: #808386;   /* 3.4:1 control boundary               */
 
   /* ── ink ──────────────────────────────────────────────────────────── */
   --cat-ink:       #192d41;   /* 13.0:1 */
@@ -58,7 +58,7 @@
   /* ── depth (type and depth, phase 8, Oct 4 2026): what a raised button
         and a solid Save are drawn with, the app's own by name. Each key
         lands with the rule that first reads it (.cat__btn). ─────────────── */
-  --cat-raised:      #f8fafc;
+  --cat-raised:      #fdfdfd;
   --cat-highlight:   rgba(255, 255, 255, 0.70);
   --cat-elev-1:      var(--elev-1);
   --cat-press:       var(--press);
@@ -72,7 +72,7 @@
   --cat-surface-2:     #0d2235;
   --cat-surface-3:     #203549;
   --cat-border:        #2b3e50;   /* 1.4:1 on surface */
-  --cat-border-strong: #6e8397;   /* 3.8:1 */
+  --cat-border-strong: #8393a3;   /* 4.7:1 */
 
   --cat-ink:       #dfe7ef;   /* 11.9:1 on surface */
   --cat-ink-2:     #b8c6d3;   /*  8.5:1 */

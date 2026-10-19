@@ -50,13 +50,13 @@
 
   /* The editor's cards — follow the app theme. */
   --pr-surface:         #ffffff;
-  --pr-surface-2:       #f8fafc;
-  --pr-surface-3:       #f1f5f9;
+  --pr-surface-2:       #f6f6f6;
+  --pr-surface-3:       #f3f3f3;
   --pr-ink:             var(--pr-navy);
   --pr-ink-2:           #334155;
   --pr-ink-muted:       var(--pr-slate);
-  --pr-border:          #f1f5f9;
-  --pr-border-strong:   #cbd5e1;
+  --pr-border:          #f3f3f3;
+  --pr-border-strong:   #d4d4d4;
   --pr-shadow:          rgba(10, 46, 70, 0.25);
 
   /* Urgency — the equipment tokens, by name. */

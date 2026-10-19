@@ -60,3 +60,30 @@ export function writeFocus(focus: HubFocus, storage: StorageLike | null = localS
 export function focusColumnId(focus: HubFocus, myColumnId: string | null): string | null {
   return focus === "me" ? myColumnId : null;
 }
+
+/* ------------------------------------------------------------------ */
+/* DAY / WEEK on a phone (the phone minimalist round, Oct 19 2026).    */
+/* ------------------------------------------------------------------ */
+
+/** What the phone's list spans: the day on screen, or the strip's seven days (My week). */
+export type HubRange = "day" | "week";
+
+export const RANGE_KEY = "journey.hub.range";
+export const DEFAULT_RANGE: HubRange = "day";
+
+/** Remembered on this phone like the focus; a sign-out clears it with the rest. */
+export function readRange(storage: StorageLike | null = localStore()): HubRange {
+  try {
+    return storage?.getItem(RANGE_KEY) === "week" ? "week" : DEFAULT_RANGE;
+  } catch {
+    return DEFAULT_RANGE;
+  }
+}
+
+export function writeRange(range: HubRange, storage: StorageLike | null = localStore()): void {
+  try {
+    storage?.setItem(RANGE_KEY, range);
+  } catch {
+    // Storage refused: the choice still holds for this visit.
+  }
+}

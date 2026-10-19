@@ -283,6 +283,12 @@ describe("equipment.tokens.css, as a file", () => {
     for (const [name, block] of Object.entries({ light: LIGHT, dark: DARK_OWN, fallback: FALLBACK })) {
       for (const [token, value] of Object.entries(block)) {
         if (/^--eq-(radius|rail-w)$/.test(token)) continue;
+        // How much of the card a recorded Hub card keeps (the cards round,
+        // Oct 17 2026): a share for color-mix, not a colour.
+        if (token === "--eq-done-mix") {
+          expect(value, `${name} ${token}`).toMatch(/^\d{1,2}%$/);
+          continue;
+        }
         const shadow = SHADOW_ALIAS.exec(token);
         if (shadow) {
           // A shadow is the app's token of the same name, never a literal and
@@ -362,8 +368,10 @@ const WORDS: [string, string, string[]][] = [
   ["a card's name", "--eq-ink", CARD],
   ["a card's time", "--eq-ink-2", CARD],
   ["a card's #number and labels", "--eq-ink-muted", CARD],
-  ["names on a column head or the axis", "--eq-ink", ["--eq-surface-2"]],
-  ["quiet words on a column head or the axis", "--eq-ink-muted", ["--eq-surface-2"]],
+  // The head row, the corner and the time column are the card colour in both
+  // modes (the colour build, Oct 17 2026: they were the well, --eq-surface-2).
+  ["names on a column head or the axis", "--eq-ink", CARD],
+  ["quiet words on a column head or the axis", "--eq-ink-muted", CARD],
   ["quiet words on the grid", "--eq-ink-muted", ["--eq-bg"]],
   ["a name on hover, pressed, or on a colleague's avatar", "--eq-ink", ["--eq-surface-3"]],
   ["an in-session card's name", "--eq-ink", IN_SESSION],
@@ -414,7 +422,7 @@ const MARKS: [string, string, string[]][] = [
   ["the now line on the grid", "--eq-hero", ["--eq-bg"]],
   ["the now line over your lane", "--eq-hero", ["--eq-mine"]],
   ["the now line across a card", "--eq-hero", CARD],
-  ["the now dot on the axis", "--eq-hero", ["--eq-surface-2"]],
+  ["the now dot on the axis", "--eq-hero", CARD],
   ["the now line across an in-session card", "--eq-hero", IN_SESSION],
   ["today's ring, and today-and-picked's underline outside the chip, on the day header", "--eq-hero", CARD],
   ["a coming-up client card's edge (AJ's answer 2A)", "--eq-rail-booked", CARD],
@@ -564,6 +572,41 @@ describe("easier on the eyes", () => {
 
   it("dark mode's ink is soft, never pure white", () => {
     expect(valueOf("dark", "--eq-ink")).not.toBe("#ffffff");
+  });
+});
+
+/* ---------------------------------------------------------------------------
+   The Hub card's states (the cards round, Oct 17 2026; AJ's 1A 2A 3A)
+   --------------------------------------------------------------------------- */
+
+describe("the Hub card's states", () => {
+  it("are the app's own colours by name: plum for a card nobody recorded, the orange of marks and its deep words for Now", () => {
+    for (const [name, block] of Object.entries({ light: LIGHT, dark: DARK_OWN, fallback: FALLBACK })) {
+      expect(block["--eq-unlogged-mark"], name).toBe("var(--eq-warn)");
+      expect(block["--eq-now-mark"], name).toBe("var(--eq-hero)");
+      expect(block["--eq-now-text"], name).toBe("var(--eq-hero-text)");
+      expect(block["--eq-done-mix"], name).toBe("30%");
+    }
+  });
+
+  it("draw light's outline as the logo navy's hairline and keep dark's rim, the quiet one fainter in both", () => {
+    expect(LIGHT["--eq-card-edge"]).toBe("rgba(25, 45, 65, 0.12)");
+    expect(LIGHT["--eq-card-edge-quiet"]).toBe("rgba(25, 45, 65, 0.07)");
+    for (const block of [DARK_OWN, FALLBACK]) {
+      expect(block["--eq-card-edge"]).toBe("var(--eq-edge)");
+      expect(block["--eq-card-edge-quiet"]).toBe("rgba(150, 180, 210, 0.077)");
+    }
+    for (const theme of BOTH) {
+      expect(parse(valueOf(theme, "--eq-card-edge-quiet"))[3], theme).toBeLessThan(parse(valueOf(theme, "--eq-card-edge"))[3]);
+    }
+  });
+
+  it("read on the card: the word Now and the plum word at 4.5:1, the orange and plum marks at 3:1, in both modes", () => {
+    for (const theme of BOTH) {
+      const on = (token: string) => ratioOn(theme, token, ["--eq-surface"]);
+      expect({ theme, now: on("--eq-now-text") >= 4.5, plum: on("--eq-unlogged-mark") >= 4.5 }).toEqual({ theme, now: true, plum: true });
+      expect({ theme, mark: on("--eq-now-mark") >= 3 }).toEqual({ theme, mark: true });
+    }
   });
 });
 

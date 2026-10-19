@@ -9,12 +9,12 @@
    ========================================================================== */
 
 :root {
-  --sr-bg:            #dee6ee;
-  --sr-surface:       #f3f6f9;
-  --sr-surface-2:     #e4ebf3;
-  --sr-surface-3:     #d4dee8;
-  --sr-border:        #d1dae4;
-  --sr-border-strong: #7a8694;
+  --sr-bg:            #eeeeee;
+  --sr-surface:       #fcfcfc;
+  --sr-surface-2:     #f2f2f2;
+  --sr-surface-3:     #e6e6e6;
+  --sr-border:        #e2e2e2;
+  --sr-border-strong: #808386;
 
   --sr-ink:           #192d41;
   --sr-ink-2:         #3f4f60;
@@ -48,8 +48,8 @@
   /* Depth (type and depth, phase 3, Oct 4 2026), value for value as
      equipment.tokens.css, less the orange's two: the Pulse keeps no orange
      button, so it has no Go glow to draw. */
-  --sr-raised:          #f8fafc;
-  --sr-tray:            #d1dae4;
+  --sr-raised:          #fdfdfd;
+  --sr-tray:            #dadada;
   --sr-edge:            rgba(25, 45, 65, 0.13);
   --sr-edge-control:    rgba(25, 45, 65, 0.26);
   --sr-divider:         rgba(25, 45, 65, 0.10);
@@ -75,7 +75,7 @@
   --sr-surface-2:     #0d2235;
   --sr-surface-3:     #203549;
   --sr-border:        #2b3e50;
-  --sr-border-strong: #6e8397;
+  --sr-border-strong: #8393a3;
 
   --sr-ink:           #dfe7ef;
   --sr-ink-2:         #b8c6d3;

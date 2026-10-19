@@ -221,7 +221,7 @@ export function ClientProfileView({
   studios?: Studio[];
   activeStudioId: string | null;
 }) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError, info: toastInfo } = useToast();
   const [reportToDelete, setReportToDelete] = useState<ProgressReport | null>(
     null,
   );
@@ -1020,6 +1020,12 @@ export function ClientProfileView({
     },
     onCantTell: toastError,
     beforePlanB: () => setEditRoutineTarget(null),
+    // B is built whole on Programming → Routines since the routine builder
+    // round (Oct 19 2026): Save there turns it on, so an empty B goes there.
+    onEmptyB: () => {
+      nav.setProgrammingView("routine-a");
+      toastInfo("Build Routine B on Programming → Routines. Saving it turns B on.");
+    },
   });
   const handlePromptToggleB = bSwitch.request;
   // The reason typed in the B dialog and not yet saved (a screen holding typing registers).
@@ -2223,6 +2229,7 @@ export function ClientProfileView({
             onViewChange={nav.setProgrammingView}
             onEdit={(name) => setEditRoutineTarget(name)}
             onToggleB={handlePromptToggleB}
+            onError={toastError}
             onSelectMachine={openMachineWindow}
             machineMenuHost={machineMenuHost}
             disabled={!!hasQuotaError}

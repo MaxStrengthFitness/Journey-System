@@ -37,6 +37,7 @@
  * PURE — no React, no Firestore. Only a type import, so the floor can ask it
  * without loading anything heavy.
  */
+import { foldBeltWord, isSeatBelt } from "./seat-belt-key.ts";
 import type { SettingFieldSpec } from "./types";
 
 /**
@@ -56,23 +57,9 @@ export const SEAT_BELT_OFF = "Off";
 export const SEAT_BELT_CHOICES = [SEAT_BELT_ON, SEAT_BELT_OFF] as const;
 export type SeatBeltChoice = (typeof SEAT_BELT_CHOICES)[number];
 
-/** "Seat belt", "seat-belt", "Belt" → one spelling. */
-const fold = (s: string): string =>
-  String(s ?? "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "");
-
-const BELT_NAMES: ReadonlySet<string> = new Set(["seatbelt", "belt"]);
-
-/**
- * This key (or label) is the seat belt: the built-in one, or a dial a studio
- * named that way before it was built in (none was on Oct 19 2026). Either is
- * drawn and counted the same way.
- */
-export function isSeatBelt(keyOrLabel: string | null | undefined): boolean {
-  return BELT_NAMES.has(fold(keyOrLabel ?? ""));
-}
+/** The name test lives in ./seat-belt-key.ts, so the first screen can ask it alone. */
+export { isSeatBelt };
+const fold = foldBeltWord;
 
 /**
  * This dial is the seat belt, by its key or its label: the one test every

@@ -481,7 +481,11 @@
   font-weight: 700;
   cursor: pointer;
 }
-.fm__view[aria-pressed="true"] { background: var(--st-live); color: var(--st-live-on); }
+/* The picked segment is the quiet blue (the dark round's Q2, AJ "2a", Oct 17
+   2026): blue words on the blue tint (7.1:1 light, 6.2 dark) inside a blue
+   ring (5.7 / 7.4 off the tray). Still the selection's blue, only quieter,
+   the same as the map's Look up | Cleaning. */
+.fm__view[aria-pressed="true"] { background: var(--st-live-fill); color: var(--st-live-text); box-shadow: inset 0 0 0 1px var(--st-live); }
 .fm__view:focus-visible { outline: 2px solid var(--st-live); outline-offset: 2px; }
 .fm__tile--wiped { border-color: var(--st-done); background: var(--st-done-fill); }
 .fm__tick { color: var(--st-done); }

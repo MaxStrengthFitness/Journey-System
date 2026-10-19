@@ -18,6 +18,7 @@
  * the row keeps its place through the day ("Nobody due in the next 30
  * minutes." in a quiet gap) so nothing moves under the trainer's finger.
  */
+import type { ReactNode } from "react";
 import { AlertTriangle, CloudOff } from "lucide-react";
 import type { CardGlyph } from "./card-marks";
 import { GLYPH } from "./HubCard";
@@ -54,9 +55,24 @@ export interface NextStripProps {
   openKey?: string | null;
 }
 
-function whenWords(item: NextStripItem): string {
+/**
+ * "In session", "Now · 9:30" or "9:30". In "Now · 9:30" the word is its own
+ * part (`.hn-now`), so it alone can take the Now colour (the cards round,
+ * C3) while the time stays in the ink; it reads the same aloud. The three
+ * sit in one plain span: `.hn-when` is a flex row with a 5px gap, and as
+ * separate items the word would stand 5px from its dot instead of a space.
+ */
+function whenWords(item: NextStripItem): ReactNode {
   if (item.when === "in-session") return "In session";
-  if (item.when === "now") return `Now · ${item.time}`;
+  if (item.when === "now") {
+    return (
+      <span>
+        <span className="hn-now">Now</span>
+        {" · "}
+        {item.time}
+      </span>
+    );
+  }
   return item.time;
 }
 
