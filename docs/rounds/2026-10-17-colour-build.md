@@ -1,6 +1,6 @@
 # The colour build (Oct 17 2026)
 
-Light mode's plain greys, the header and bottom bar edged by one 1px line in both modes, a calmer Active Session in dark, and the quiet blue for buttons that repeat down a list; then the card round's Hub cards (Now, Next, Done) with the calmer Hub, both modes; then the narrow cards round, "Two at Once" (Oct 18: two or three at once side by side, saying less). Branch `oct17/colour-build`, cut from master `9b36d4d5`, with master `bb39cbb5` merged in on Oct 18 and master `b7773a53` (`5481c7a6`) before the narrow cards. **Not pushed, not deployed.** Stylesheets, components, code comments, docs and tests: no rules, index, Cloud Function, cron, Mindbody or Firestore change. The Hub now reads each studio's `journeyCutoverDate`, which it already held.
+Light mode's plain greys, the header and bottom bar edged by one 1px line in both modes, a calmer Active Session in dark, and the quiet blue for buttons that repeat down a list; then the card round's Hub cards (Now, Next, Done) with the calmer Hub, both modes; then the narrow cards round, "Two at Once" (Oct 18: two or three at once side by side, saying less). Branch `oct17/colour-build`, cut from master `9b36d4d5`, with master `bb39cbb5` merged in on Oct 18 and master `b7773a53` (`5481c7a6`) before the narrow cards, and master `0f6a936f` (`d427098b`, the trainer lock and the iPad no-zoom fix) after them. **Not pushed, not deployed.** Stylesheets, components, code comments, docs and tests: no rules, index, Cloud Function, cron, Mindbody or Firestore change. The Hub now reads each studio's `journeyCutoverDate`, which it already held.
 
 It follows the three plans AJ answered, `harness/colour/light2/recommendation.md`, `harness/colour/dark2/recommendation.md` and `harness/colour/cards/recommendation.md` (git-ignored). Each has a "Build plan" section with the exact values, the edits and the tests.
 
@@ -85,7 +85,7 @@ The design is the lanes round's short form (`harness/colour/lanes/short.css`, `s
 | 1, the parts and the label | `f214c8bd` | Nothing. Every card carries the narrow card's parts, hidden, and a spoken label that says the whole card |
 | 2, a consult and the narrow single column | `7cd26b01` | A consult's word sits on the line under its time. In a lane of about 155 to 176px the Critical triangle hides her number, and "+N" gives way beside In session. The Unassigned column's "Booked with ..." drops whole, so the time stays |
 | 3, the short form | `4fa6e200` | Two or three at once: her name in Saira, the time alone, a symbol for what happened, one mark. Three at once on an upright iPad, and any very long name: her initials. The Key's new row |
-| 4, the guard and the docs | this commit | Nothing |
+| 4, the guard and the docs | `898021e9` | Nothing |
 
 **Phase 1** (`f214c8bd`, 12 files): the parts, the words and the long-name check.
 
@@ -127,7 +127,7 @@ The design is the lanes round's short form (`harness/colour/lanes/short.css`, `s
 - Tests changed because they pinned the look: `paint-cost.test.ts` (136 container blocks), `hub-card-narrow.test.ts` (the lane ends at 176px), `hub-card-look.test.ts` ("never CSS" names the one content, a time).
 - Full suite 14,988 in 906 files.
 
-**Phase 4** (this commit): `src/lib/names-wrap.test.ts` holds a narrow card, its 8 earlier tests unchanged and 13 new ones.
+**Phase 4** (`898021e9`): `src/lib/names-wrap.test.ts` holds a narrow card, its 8 earlier tests unchanged and 13 new ones.
 
 - Her name: whole, switched off only for her initials.
 - Her time: never in an ellipsis or a line clamp; clipped only on the Now line, where the clock comes first.
@@ -165,11 +165,22 @@ The design is the lanes round's short form (`harness/colour/lanes/short.css`, `s
 - The level-4 entry becomes its own `###` entry, linked from that bullet, as Hub card states will be.
 - The test count is updated.
 
-**To undo:** each phase is one commit. Phase 3 builds on phase 1's parts and extends phase 2's lane rule, so revert newest first: phase 4, then `4fa6e200`, `7cd26b01`, `f214c8bd`.
+**To undo:** each phase is one commit. Phase 3 builds on phase 1's parts and extends phase 2's lane rule, so revert newest first: `898021e9`, then `4fa6e200`, `7cd26b01`, `f214c8bd`.
 
 ## The gates
 
 Run in the worktree `.claude\worktrees\colour-build` on AJ's PC. Each table names the tip it was run on.
+
+**The narrow cards round, on the tip `d427098b`** (Oct 19 2026, its four phases in and master `0f6a936f` merged):
+
+| Gate | Result |
+| --- | --- |
+| Typecheck, `npx tsc --noEmit` | **0** errors, the baseline (`.github/typecheck-baseline.txt`), after every phase and on the tip |
+| Full suite, `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` | **15,042** passed in **912** files, none failed, no unhandled errors: the merge's own count, run again on the tip. Phase 4 (`898021e9`): 15,001 in 906, so the merge's 41 tests and 6 files are all master's. Before the round (`5481c7a6`): 14,907 in 902, so the round adds 94 tests and 4 files (`hub-schedule/card-words.test.ts`, `name-fit.test.ts`, `hub-card-narrow.test.ts`, `hub-card-short.test.ts`). No test needed changing on the tip |
+| Production build, `NODE_ENV=production npx vite build`, then `npm run check:bundle` | Clean. The first screen is **477.6 KB** gzip in 8 files (budget 480), 2.4 KB of room. At the whole branch's gates (`299e78b3`) it was 470.7, so **+6.9 KB** since: 3.0 before phase 3 (the card review's Key fix, master `b7773a53`, phases 1 and 2, not measured apart), 3.0 in phase 3 (473.7 to 476.7), and 0.9 with master `0f6a936f` (phase 4 is tests and docs only) |
+| The case check, `git ls-files \| tr A-Z a-z \| sort \| uniq -d` | Prints nothing |
+| Line ends | LF in all 79 files the branch changes from master, on disk and in the commits |
+| `git status` | Clean; master `0f6a936f` is an ancestor of the tip; `master..HEAD` is 27 commits with this one: the whole branch's 18 (the table below), the card review's two (`ba27fc6a`, `adcff1f7`), the merge `5481c7a6`, the four phases, the merge `d427098b`, and these gates |
 
 **The card build, phase by phase** (Oct 18 2026), each phase on its own commit: typecheck **2** after every one. Full suite: 14,721 in 892 at the head row (`80695c0f`), 14,741 in 892 at C1, 14,848 in 900 at the merge, 14,869 in 901 at C3, and **14,882** in **901**, none failed (C4 adds 12 tests, C5 1) at the docs commit. The colour set (`harness/colour/light2/judge-tests-css.txt`) with the Hub's tests, the card state, the quiet blue, the Calendar, the phone, `ClientsView` and `CalendarView`: 3,480 in 81 at C3, 3,493 at C4, 3,494 at C5, none failed.
 
