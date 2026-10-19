@@ -34,6 +34,12 @@ It reads no client record, so it can't speak about one client. It never gives a 
 | `answer.ts` | The answering request and `readAnswer` |
 | `ask.ts` | One question start to end, for the server: `askAcademy`, `pickPages`, `answerFrom`, the `AskResult` a trainer is shown |
 | `models.ts` | Which model does what (`ANSWER_MODEL` is Sonnet 5.5), the prices, `costOf` |
+| `client.ts` | The app's signed-in call to the route; one flat reply (`result` or `error`) |
+| `AskAnswer.tsx` + `ask.css` | The Ask row and the answer page (phase 2), on Learning's tokens |
+| `learning-ref.ts` | Which Learning page a quote opens |
+| `find-quote.ts` | Finding a quote on its page by its first words, for the highlight |
+| `repeats-quote.ts` | Leaving out Claude's line when it only repeats its quote |
+| `AskAnswer.render.test.tsx` | The screen mounted: the row, waiting, an answer, clearance first, not covered, disagreeing pages, a failure and Try again |
 | `academy-routes.test.ts` | The server route on a bare Express app: sign-in, length, no key, one at a time, a failure |
 | `trial-questions.ts` | Phase 0's questions: Claude's 20 and AJ's 37 (his ten reasons), each naming the pages it should come from |
 
@@ -50,6 +56,6 @@ Everything here is pure: no React, no Firebase, no network of its own. The calls
 
 0. **The trial**: passed on Oct 18 2026; AJ picked Sonnet 5.5. The commands are in the round document.
 1. **The server route**: built (Oct 18 2026).
-2. The screen.
+2. **The screen**: built (Oct 18 2026; AJ "1a 2a 3a"). The Ask row is first in Learning's one search once two words are typed (WikiSearch's `lead`) and asks only when tapped. The answer page replaces the results; Back keeps the question typed. A quote's page opens scrolled to the quote, highlighted (LearningView looks for it for up to 5 seconds as the page draws). A health answer's clearance point comes first, in Learning's plum. Claude's line is left out when it only repeats its quote (most of Sonnet's did, in the trial). "This answer is wrong" (3a) comes with phase 3.
 3. Head office's list of questions the Academy can't answer, with its Firestore collection and rules.
 4. AJ's walk, then the deploy.

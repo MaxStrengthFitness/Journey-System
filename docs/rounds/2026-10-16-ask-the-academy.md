@@ -88,4 +88,14 @@ Steps for the PC, in PowerShell from the project folder:
   - **The route:** `POST /api/academy/ask` (`server/academy-routes.ts`, `server/academy.ts`). It has the staff sign-in, one question at a time and 20 in 15 minutes per person, a 4 KB body and a question of 3 to 300 characters. The question is never logged. With no key it says "isn't switched on yet". The key is `ANTHROPIC_API_KEY` in `render.yaml`, not synced. Sonnet 5.5 answers (`ANSWER_MODEL`).
   - **Two of AJ's notes fixed:** neck pain is now answered from form and breathing (Cervical Extension, Breathing), and the four P's answer cites the compound row's elbow example. One thing to watch: a pain question with no surgery in it still leads with the surgery-and-clearance line.
   - **Checks:** typecheck 0; suite 14,898 in 912 files: one server.ts source check failed on the new parser line, which was fixed and re-run green; first screen 470.5 KB of 480. The server bundle grew to 1.4 MB with the Academy's text.
-  - **Not live:** nothing calls the route until phase 2's screen. When it ships, the key goes on the Render web service's Environment: a NEW key, not the 30-day `journey-trial` one, which ends Nov 17.
+  - **Not live:** nothing calls the route until phase 2's screen.
+- **Oct 18-19 2026: phase 2, the screen, is built.** The plan page is `claude.ai/artifact/Tu5NqEGhJko47ohjpYg8Ec`, and AJ answered **1a 2a 3a**:
+  - **1a:** the Ask row shows once two words are typed. It asks only when tapped, since a question costs about 5 cents.
+  - **2a:** a quote's page opens scrolled to the quote, highlighted.
+  - **3a:** "This answer is wrong" is wanted. It comes in phase 3, with head office's list, because it has nowhere to go before then.
+  - **What else it does:** Claude's line is left out when it only repeats the quote under it; most of Sonnet's lines did in the trial. A health answer's clearance point comes first, in Learning's plum.
+  - **Checked:**
+    - In a preview page (`harness/ask-academy/`, never shipped): two real trial answers, on an upright phone and the desktop, light and dark, with no sideways scroll.
+    - Typecheck 0. The full suite: 14,907 of 14,910 passed, and the 3 that failed were the house-style guards on the new stylesheet, fixed and re-run green with the touched areas (590). The build and the first screen (470.5 KB of 480) pass.
+    - The two house-style guards (a tapering side border, capitals) flagged the first stylesheet; it was fixed.
+  - **Not yet seen:** the highlight inside the real Learning tab, which needs a sign-in. It's for AJ's walk once the key is on Render (phase 4). When it ships, the key goes on the Render web service's Environment: a NEW key, not the 30-day `journey-trial` one, which ends Nov 17.

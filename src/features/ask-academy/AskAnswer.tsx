@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight, GraduationCap } from "lucide-react";
 import type { LearningRef } from "../learning/ref";
 import type { AskResult, ShownQuote } from "./ask";
 import { askTheAcademy } from "./client";
+import { repeatsQuote } from "./repeats-quote";
 import { refForAcademyPage } from "./learning-ref";
 import "./ask.css";
 
@@ -25,6 +26,8 @@ import "./ask.css";
  */
 
 /** Two or more words: when the Ask row shows (AJ's 1a). */
+export { repeatsQuote };
+
 export function asksWorthOffering(query: string): boolean {
   return query.trim().split(/\s+/).filter(Boolean).length >= 2;
 }
@@ -135,7 +138,7 @@ export function AskAnswer({ question, onBack, onOpenQuote }: AskAnswerProps) {
                 return (
                   <li key={i} className={caution ? "aa__point aa__point--caution" : "aa__point"}>
                     {caution && <span className="aa__caution-tag">Clearance first</span>}
-                    <p className="aa__says">{p.says}</p>
+                    {!repeatsQuote(p.says, p.quotes) && <p className="aa__says">{p.says}</p>}
                     {p.quotes.map((q, j) => (
                       <blockquote key={j} className="aa__quote">
                         <p className="aa__words">{q.text}</p>

@@ -87,15 +87,15 @@
 .aa__point { display: grid; gap: 0.5rem; }
 .aa__point--caution {
   padding: 12px 14px;
-  border-left: 3px solid var(--wk-warn);
   border-radius: var(--wk-radius);
-  background: var(--wk-warn-fill);
+  /* The plum band is a background layer: a side border on a rounded corner tapers (elevation.test.ts). */
+  background:
+    linear-gradient(var(--wk-warn), var(--wk-warn)) left / 3px 100% no-repeat,
+    var(--wk-warn-fill);
 }
 .aa__caution-tag {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--wk-warn-strong);
 }
 .aa__says { margin: 0; font-weight: 600; font-size: 15px; line-height: 1.45; }

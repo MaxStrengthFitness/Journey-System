@@ -65,6 +65,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The standing week | `src/features/standing-week/` — each trainer's usual week, checked against Mindbody |
 | My Profile | `src/features/trainer-profile/` |
 | The Machine Catalog | `src/features/catalog/` (Learning → Catalog: the floor, the body, All MSF machines) |
+| Ask the Academy | `src/features/ask-academy/` — a trainer's question answered in the Academy's own words, from Learning's one search; `server/academy-routes.ts` (Sonnet 5.5, the key on the server) |
 | The studio map and the machine's card | `src/features/studio-map/` (the floor drawn to size, a machine tapped to open) and `src/features/machine-card/` (Learn · Clean · Maintain · Set up, one card from every door) |
 | FileMaker floors | `src/features/filemaker-floors/` and `scripts/build-floors-from-filemaker.ts` — westlake's and Willoughby's floors from FileMaker's charts (Oct 12 2026) |
 | The Machine Codex and Compare | `src/features/machine-codex/`; Compare is `src/features/admin/machines/compare/` |
