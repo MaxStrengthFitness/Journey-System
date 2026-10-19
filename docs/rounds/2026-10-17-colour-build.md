@@ -1,6 +1,6 @@
 # The colour build (Oct 17 2026)
 
-Light mode's plain greys, the header and bottom bar edged by one 1px line in both modes, a calmer Active Session in dark, and the quiet blue for buttons that repeat down a list; then the card round's Hub cards (Now, Next, Done) with the calmer Hub, both modes. Branch `oct17/colour-build`, cut from master `9b36d4d5`, with master `bb39cbb5` merged in on Oct 18. **Not pushed, not deployed.** Stylesheets, components, code comments, docs and tests: no rules, index, Cloud Function, cron, Mindbody or Firestore change. The Hub now reads each studio's `journeyCutoverDate`, which it already held.
+Light mode's plain greys, the header and bottom bar edged by one 1px line in both modes, a calmer Active Session in dark, and the quiet blue for buttons that repeat down a list; then the card round's Hub cards (Now, Next, Done) with the calmer Hub, both modes; then the narrow cards round, "Two at Once" (Oct 18: two or three at once side by side, saying less). Branch `oct17/colour-build`, cut from master `9b36d4d5`, with master `bb39cbb5` merged in on Oct 18 and master `b7773a53` (`5481c7a6`) before the narrow cards. **Not pushed, not deployed.** Stylesheets, components, code comments, docs and tests: no rules, index, Cloud Function, cron, Mindbody or Firestore change. The Hub now reads each studio's `journeyCutoverDate`, which it already held.
 
 It follows the three plans AJ answered, `harness/colour/light2/recommendation.md`, `harness/colour/dark2/recommendation.md` and `harness/colour/cards/recommendation.md` (git-ignored). Each has a "Build plan" section with the exact values, the edits and the tests.
 
@@ -69,6 +69,103 @@ AJ's answers on the card page ("Now, Next, Done"): 1A, Not logged stands out fro
 **The docs** (this commit). `DECISIONS.md`: a new decision, [Hub card states](../DECISIONS.md#hub-card-states), with AJ's words, the cutover gate and the colour jobs, written as a level-4 entry under Type and depth for now (`src/claude-md.test.ts` asks for a `CLAUDE.md` link to every `###` entry, and `CLAUDE.md` is edited at ship time, when it becomes its own entry with its short form); the Navy Frame amended (orange marks Now, plum marks not recorded; and the light round's sentence now says it "left dark mode alone", the review's wording); Type and depth amended (the light outline, the Hub's cards drawn one way, the lighter Hub type, the picked day's glow gone); the iPad round's finished card (Oct 6 2026, a veil of the ground) amended inside the new decision, and `paint-cost.test.ts`'s comment says so. `KNOWN-TRAPS.md`: a card whose look changes with the clock must be compared in `sameCard` (React, tests, dates and tooling → The cards round), and the two numbers the review found stale (Type and depth's trap 4, `#808386` on `#EEEEEE` is 3.29:1 now; phase 13's trap 2, the shelf has no spread since L3 and D3). `clinical-review.css`'s `--cr-live-fill` fallback is `#e1ecf5`, the grid's light value. The hub-schedule README says the new looks. `CLAUDE.md` is left for the ship-time pass (its short decision and the test count).
 
 **Parked, outside this round:** the map can leave a machine's name off when it measures the name before the title font has loaded (`studio-map/ui/StudioRoom.tsx`, `textWidth`; the dark plan's Q2 note).
+
+## Two at Once: the narrow cards round (Oct 18 2026)
+
+**What AJ asked.** The "Two at Once" page (the artifact <https://claude.ai/artifact/G9FKbC91zMatcuCnmqqA9h>; the working files are `harness/colour/lanes/`, git-ignored). When two or three clients start together with one trainer, HubGrid lays their cards side by side, each a half or a third of the column: 48.5px inside a card two to a slot in a 156px upright column, 22.7px three to a slot. There names broke inside a word, and the time, "Not logged" and a consult's span were cut, against "names are never truncated". The page recommended stacking them (one under the other, the half hour growing) and offered the short form beside it. AJ's answers:
+
+- **Q1 = B: "Keep them side by side, cards say less."** Q2 (a Now line through every stacked card) fell away with the stack.
+- To the brief-back: **"Build it as you described, including initials for the very long names."** Then "go ahead".
+- He paused the build at 7:40 PM on Oct 18 and said "continue" to run it overnight.
+
+The design is the lanes round's short form (`harness/colour/lanes/short.css`, `short/`; its report and the judges' notes are in `lanes-round.json`), with the reviewers' gaps closed. It also closes the card review's open item above: "Not logged", "Late cancel" and "Left open" cut at a narrow card's edge.
+
+| Phase | Commit | What changes on screen |
+| --- | --- | --- |
+| 1, the parts and the label | `f214c8bd` | Nothing. Every card carries the narrow card's parts, hidden, and a spoken label that says the whole card |
+| 2, a consult and the narrow single column | `7cd26b01` | A consult's word sits on the line under its time. In a lane of about 155 to 176px the Critical triangle hides her number, and "+N" gives way beside In session. The Unassigned column's "Booked with ..." drops whole, so the time stays |
+| 3, the short form | `4fa6e200` | Two or three at once: her name in Saira, the time alone, a symbol for what happened, one mark. Three at once on an upright iPad, and any very long name: her initials. The Key's new row |
+| 4, the guard and the docs | this commit | Nothing |
+
+**Phase 1** (`f214c8bd`, 12 files): the parts, the words and the long-name check.
+
+- `card-words.ts` is new: `spokenCard` (the card's aria-label at every width), `cardStateWords`, `timeAndSuffix`, `cardSpanKind` and `initialsOf`.
+- `name-fit.ts` is new: Saira Condensed 700's advance widths, read back out of the vendored fonts by its test, and `data-name-over`.
+- `CardGlyph.rank` is new, and HubCard draws every part.
+- A full card is drawn exactly as before. The lanes harness's 1,188 cases came to 23,790 card layouts, and 0 differed in any run of text or element box. The sheets are the same PNG byte for byte.
+- Tests changed because they pinned the markup: `HubCard.render.test.tsx` (the triangle count, the Now part's time), `card-marks.test.ts` and `NextStrip.render.test.tsx` (rank).
+- Full suite 14,956 in 904 files.
+
+**Phase 2** (`7cd26b01`, 8 files), measured over HubCard's own markup and the built stylesheet at the iPad's thirteen column widths:
+
+- One to a slot: 1,388 of 5,346 card cases had something cut upright, and 436 sideways. Now none.
+- With the words after the time: 3,024 cases, 912 and 272 cut. Now none.
+- The Unassigned column: 8,064 cases, 5,997 and 3,461 cut. Now none.
+- Two to a slot in a 318 or 420px column: none.
+- Two changes where nothing was cut. A half-hour Unassigned card's time sits 1px higher. A one-line staff name beside marks now drops (231 cases at 156px).
+- `paint-cost.test.ts` counts nine container blocks, not seven.
+- Full suite 14,967 in 905 files.
+
+**Phase 3** (`4fa6e200`, 12 files). Failing cards before and after, upright and sideways:
+
+| Case | Before | After |
+| --- | --- | --- |
+| The harness's names, two to a slot | 4,874 and 2,754 of 5,346 | 0 and 0 |
+| The harness's names, three to a slot | 5,314 and 4,611 | 94 and 36, all cards with no profile or still loading |
+| The stress names, two to a slot | 5,288 and 3,818 | 78 and 110 |
+| The stress names, three to a slot | 5,346 and 5,072 | 142 and 96 |
+| The Unassigned column (8,064), two to a slot | 7,680 and 5,652 | 0 and 0 |
+| The Unassigned column, three to a slot | 8,028 and 7,812 | 210 and 108, no profile only |
+| The words after the time (3,024), up to three to a slot | | 0 |
+
+- None of the stress names' failures is a client's card in the short form. What is left is a card with no profile, and the full card two to a slot in your 318px column sideways, which breaks a stress name as one to a slot already does.
+- Swept across every column from 155 to 720px, one to four to a slot, a client's card fails only four to a slot under a 186px column (parked), or where the full card does with a stress name.
+- Drawn exactly as before: one to a slot at all thirteen widths, two to a slot at 318 and 420px, and the phone's list.
+- The pause stays lucide's Pause, solid, at 13px. At arm's length it is 0.54 from the ring, its nearest, where the prototype's CirclePause was 0.25.
+- Contrast: the symbols at least 4.91:1 in light and 5.01 in dark; her initials 5.18 and 6.75; the Key's symbols 5.55 and 4.92.
+- First-screen bundle 476.7 KB gzip (was 473.7; the budget is 480).
+- Tests changed because they pinned the look: `paint-cost.test.ts` (136 container blocks), `hub-card-narrow.test.ts` (the lane ends at 176px), `hub-card-look.test.ts` ("never CSS" names the one content, a time).
+- Full suite 14,988 in 906 files.
+
+**Phase 4** (this commit): `src/lib/names-wrap.test.ts` holds a narrow card, its 8 earlier tests unchanged and 13 new ones.
+
+- Her name: whole, switched off only for her initials.
+- Her time: never in an ellipsis or a line clamp; clipped only on the Now line, where the clock comes first.
+- Her state word: never cut, and hidden only where its symbol shows.
+- The initials are named as the one exception, with AJ's words.
+- Each rule was checked by breaking `hub-card.css` fifteen ways, and every one failed the file.
+- `DECISIONS.md` amends "Names are never truncated". Until Oct 18 it lived only in `CLAUDE.md`; it is a level-4 entry beside Hub card states for now. It also amends Type and depth (Saira for a narrow card's name) and records AJ's Oct 1 corner number moving to the peek on a narrow card.
+- `KNOWN-TRAPS.md` → Layout and CSS says a narrow card's words move only with a stand-in you can see and the spoken label, and that four at once is parked. Its "number in a part that never shrinks" trap no longer says `text-overflow: ellipsis`.
+- The hub-schedule README is updated, and so is this section.
+- No test that pinned today's look changed.
+- Full suite 15,001 in 906 files (14,988 at phase 3; the 13 new tests are all in `names-wrap.test.ts`). Typecheck 0 after every phase.
+
+**Open, for AJ.**
+
+- **A card with no profile, three to a slot under a 228px column** (every upright iPad), keeps Mindbody's name in a line of 36 to 60px. A word breaks inside itself on 80% of the 2,500 realistic names in a 156px column, 23% at 196.5px and 6% at 220.8px, and the name pushes the time off a half-hour card as often. Nothing more is built for it without his answer.
+- **The peek on an Unassigned booking** says "with Samuel" for a person and nothing for a "... Rotation" name (`withWords`), which is his to decide.
+
+**Parked:** four or more at once. A card is about 36px wide, under the 40px tap minimum.
+
+**The walk** adds to the cards' (below), portrait then landscape:
+
+- two at once and three at once, in a colleague's column and in yours;
+- a consult beside another booking;
+- a very long name taking initials beside a short one;
+- a card with no profile three to a slot (the open item);
+- each symbol at arm's length: the pause should read as left open, not a button;
+- the Key's row;
+- VoiceOver on a narrow card, reading the whole card;
+- the Unassigned column's "Booked with";
+- the Calendar's Day, where a tap opens the client.
+
+**At ship time:**
+
+- `CLAUDE.md`'s names bullet ("Names are never truncated, and a guard holds it") needs its one-line amendment: initials only on a narrow card, in AJ's Oct 18 words, the whole name in the label, the peek and the profile, never on a card with no profile.
+- The level-4 entry becomes its own `###` entry, linked from that bullet, as Hub card states will be.
+- The test count is updated.
+
+**To undo:** each phase is one commit. Phase 3 builds on phase 1's parts and extends phase 2's lane rule, so revert newest first: phase 4, then `4fa6e200`, `7cd26b01`, `f214c8bd`.
 
 ## The gates
 
