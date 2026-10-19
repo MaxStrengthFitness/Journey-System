@@ -445,6 +445,7 @@ The ownership rule is fixed (`docs/business/data-sources.md`): **Mindbody owns i
 | `studios/{s}/wiki/{id}` | the studio's own Learning pages and machine overlays | Journey | same as playbook | trainers (overlays), leaders (pages) | canonical |
 | `studios/{s}/comments/{id}` | comments with @mentions on Learning pages | Journey | the studio's people, admins and franchise owners (other studios never see them) | author; delete author, leaders, admins | canonical, studio-scoped |
 | `hub_announcements/{id}` | `HubAnnouncement` | Journey | any signed-in user | admins, franchise owners, studio owners as themselves; anyone marks read | canonical |
+| `shares/{shareId}` | `JourneyShare` (the Teams link round, Oct 19 2026; AJ's T2a): the document behind a client or session link, `/t/{shareId}` — `kind` client / session, `targetId` (the client's id, or the session's), `clientId`, `studioId` (the client's home studio when the link was copied), `createdBy` (the Auth uid), `createdAt`. The id is random, made on the iPad, 20–32 letters and digits, so a link carries no name and no record id | Journey (`features/deep-link/share.ts`) | anyone who may read that client (`sessionClientIsReadable`): the rules are the only gate on the link | create: the signed-in person only, as themselves, at a studio they work at or run, the server's time; never updated; delete: the creator, or that studio's leaders (`trainerLeads`), to cancel a link | canonical; one index, a client's shares newest first, for the Share sheet's list (a later phase) |
 
 **System and integration**
 

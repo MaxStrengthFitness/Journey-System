@@ -10957,3 +10957,80 @@ describe("the trainer lock", () => {
     await assertFails(getDocs(query(collection(testEnv.unauthenticatedContext().firestore(), "trainers"), where("primaryHomeStudioId", "in", ["studioA"]))));
   });
 });
+
+describe("a Journey link's share (shares/{shareId}, the Teams link round, Oct 19 2026)", () => {
+  const as = (uid: string) => testEnv.authenticatedContext(uid, { email: `${uid}@test.com` }).firestore();
+  const ID = "abcdefghij1234567890"; // 20 letters and digits: what the iPad makes
+  const share = (over: Record<string, unknown> = {}) => ({
+    kind: "client",
+    targetId: "clientA",
+    clientId: "clientA",
+    studioId: "studioA",
+    createdBy: "trainerA",
+    createdAt: serverTimestamp(),
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "clients", "clientA"), { firstName: "Client", lastName: "A", isActive: true, homeStudioId: "studioA" });
+      await setDoc(doc(db, "shares", "existing0123456789ab"), share({ createdAt: new Date() }));
+    });
+  });
+
+  it("is created by the signed-in person, as themselves, at a studio they work at", async () => {
+    await assertSucceeds(setDoc(doc(as("trainerA"), "shares", ID), share()));
+    await assertSucceeds(
+      setDoc(doc(as("trainerA"), "shares", "5f1f4f8c2d8b4c6a9e0f1a2b3c4d5e6f"), share({ kind: "session", targetId: "sessionA" })),
+    );
+  });
+
+  it("refuses a share signed as someone else, at a studio the person doesn't work at, or with the wrong shape", async () => {
+    const db = as("trainerA");
+    await assertFails(setDoc(doc(db, "shares", ID), share({ createdBy: "ownerA" })));
+    await assertFails(setDoc(doc(db, "shares", ID), share({ studioId: "studioB" })));
+    await assertFails(setDoc(doc(db, "shares", ID), share({ createdAt: new Date() })));
+    await assertFails(setDoc(doc(db, "shares", ID), share({ kind: "note" })));
+    // A client share's target is the client.
+    await assertFails(setDoc(doc(db, "shares", ID), share({ targetId: "sessionA" })));
+    await assertFails(setDoc(doc(db, "shares", ID), share({ name: "Judy" })));
+    await assertFails(setDoc(doc(db, "shares", ID), share({ clientId: "" })));
+    // The id is 20 to 32 letters and digits: never a record id, never a dot.
+    await assertFails(setDoc(doc(db, "shares", "abc"), share()));
+    await assertFails(setDoc(doc(db, "shares", "100000123"), share()));
+    await assertFails(setDoc(doc(db, "shares", "abcdefghij12345.67890"), share()));
+    await assertFails(setDoc(doc(testEnv.unauthenticatedContext().firestore(), "shares", ID), share()));
+  });
+
+  it("is read by whoever may read that client, and nobody else", async () => {
+    await assertSucceeds(getDoc(doc(as("trainerA"), "shares", "existing0123456789ab")));
+    await assertSucceeds(getDoc(doc(as("ownerA"), "shares", "existing0123456789ab")));
+    await assertFails(getDoc(doc(as("trainerB"), "shares", "existing0123456789ab")));
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), "shares", "existing0123456789ab")));
+    // A share pointing at a client that is not there is unreadable: nothing says "not found".
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "shares", "orphan0123456789abcd"), share({ clientId: "nobody", targetId: "nobody", createdAt: new Date() }));
+    });
+    await assertFails(getDoc(doc(as("trainerA"), "shares", "orphan0123456789abcd")));
+  });
+
+  it("is never updated, and is deleted by its creator or the studio's leaders", async () => {
+    await assertFails(updateDoc(doc(as("trainerA"), "shares", "existing0123456789ab"), { clientId: "clientB" }));
+    await assertFails(deleteDoc(doc(as("trainerB"), "shares", "existing0123456789ab")));
+    await assertSucceeds(deleteDoc(doc(as("ownerA"), "shares", "existing0123456789ab")));
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "shares", "existing0123456789ab"), share({ createdAt: new Date() }));
+    });
+    await assertSucceeds(deleteDoc(doc(as("trainerA"), "shares", "existing0123456789ab")));
+  });
+
+  it("is listed for one client, newest first, by someone who may read that client (the index this ships with)", async () => {
+    await assertSucceeds(
+      getDocs(query(collection(as("trainerA"), "shares"), where("clientId", "==", "clientA"), orderBy("createdAt", "desc"))),
+    );
+    await assertFails(
+      getDocs(query(collection(as("trainerB"), "shares"), where("clientId", "==", "clientA"), orderBy("createdAt", "desc"))),
+    );
+  });
+});

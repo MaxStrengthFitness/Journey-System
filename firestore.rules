@@ -3394,6 +3394,37 @@ service cloud.firestore {
       allow delete: if superOnRecord();
     }
 
+    /* A JOURNEY LINK'S SHARE (the Teams link round, Oct 19 2026; AJ's T2a).
+       /t/{shareId} opens a client or a session through this document, so the
+       id is random (made on the iPad) and the rules are the only gate: read
+       by whoever may read its client, created by the signed-in person as
+       themselves at a studio they work at or run, never changed, deleted by
+       the creator or that studio's leaders to cancel a link. */
+    function shareCreateOk(d, r, t) {
+      return d.keys().hasOnly(['kind', 'targetId', 'clientId', 'studioId', 'createdBy', 'createdAt'])
+          && d.keys().hasAll(['kind', 'targetId', 'clientId', 'studioId', 'createdBy', 'createdAt'])
+          && (d.kind == 'client' || d.kind == 'session')
+          && d.targetId is string && d.targetId.size() > 0 && d.targetId.size() <= 200
+          && d.clientId is string && d.clientId.size() > 0 && d.clientId.size() <= 200
+          && (d.kind != 'client' || d.targetId == d.clientId)
+          && d.studioId is string && d.studioId.size() > 0 && d.studioId.size() <= 100
+          && d.createdBy == request.auth.uid
+          && d.createdAt == request.time
+          && (trainerWorksAt(t, d.studioId) || trainerLeads(r, t, d.studioId));
+    }
+
+    match /shares/{shareId} {
+      allow read: if isAuthenticated()
+                  && sessionClientIsReadable(resource.data.get('clientId', ''), getRole(), callerTrainer());
+      allow create: if isAuthenticated()
+                    && shareId.matches('^[A-Za-z0-9]{20,32}$')
+                    && shareCreateOk(request.resource.data, getRole(), callerTrainer());
+      allow update: if false;
+      allow delete: if isAuthenticated()
+                    && (resource.data.get('createdBy', '') == request.auth.uid
+                        || trainerLeads(getRole(), callerTrainer(), resource.data.get('studioId', '')));
+    }
+
     // Why: docs/ops/RULES-NOTES.md#announcementacksreadable
     function announcementAcksReadable(announcementId) {
       let r = getRole();

@@ -2077,6 +2077,25 @@ export interface Studio {
   brandColor?: string;
 }
 
+/**
+ * shares/{shareId}: the document behind a client or session link, /t/{shareId}
+ * (the Teams link round, Oct 19 2026; AJ's T2a). The id is random and made on
+ * the iPad, so a link carries neither a name nor a record id; the rules let
+ * the share be read by whoever may read its client, and nobody else. See
+ * features/deep-link/README.md and docs/ARCHITECTURE.md §3.2.
+ */
+export interface JourneyShare {
+  kind: "client" | "session";
+  /** The client's id for a client share; the session's id for a session share. */
+  targetId: string;
+  clientId: string;
+  /** The client's home studio when the link was copied. */
+  studioId: string;
+  /** The Firebase Auth uid of whoever copied the link. */
+  createdBy: string;
+  createdAt: any;
+}
+
 export interface HubAnnouncement {
   id?: string;
   title: string;
