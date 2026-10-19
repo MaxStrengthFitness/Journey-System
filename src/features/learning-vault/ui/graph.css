@@ -1,0 +1,276 @@
+/* ------------------------------------------------------------------ *
+ * A page's local constellation (LocalConstellation) — prefix vtg__.
+ * The Learning vault redesign, Oct 19 2026.
+ *
+ * Built on Learning's palette (--wk-*, wiki.tokens.css, which reaches the
+ * page through wiki.css; LocalConstellation imports both). No hex, no
+ * Tailwind. A node's domain colour arrives as three inline custom
+ * properties (graph.ts DOMAIN_COLOUR, LocalConstellation domainStyle):
+ *   --vtg-c     the accent, for a dot and a line
+ *   --vtg-fill  its tinted fill, behind a glyph
+ *   --vtg-text  the shade that may colour a glyph or words (4.5:1)
+ * The defaults below are the neutral strong edge, so a node without a
+ * domain still draws.
+ *
+ * A pill is a raised control (.wk__btn's recipe: the 3:1 edge, the raised
+ * fill, a small lift, a press). The orbit is a well on the page ground
+ * (the tray, sunk, no edge). Every tappable thing is 44px. Words wrap,
+ * never cut.
+ * ------------------------------------------------------------------ */
+
+.vtg {
+  --vtg-c: var(--wk-border-strong);
+  --vtg-fill: var(--wk-surface-2);
+  --vtg-text: var(--wk-ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+  color: var(--wk-ink);
+}
+
+.vtg--wait {
+  align-items: flex-start;
+  padding: 0.5rem 0;
+}
+
+/* Nothing connects: one quiet line in a well on the page ground. */
+.vtg__empty {
+  margin: 0;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+  color: var(--wk-ink-2);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* ── the groups: why these links connect ─────────────────────────── */
+
+.vtg__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* The label voice: 14/700 in ink-2, its own capitalisation. */
+.vtg__head {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wk-ink-2);
+}
+
+.vtg__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vtg__pills > li {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.vtg__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--wk-tap);
+  padding: 6px 14px 6px 8px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.vtg__pill:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+
+.vtg__pill:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .vtg__pill:hover {
+    border-color: var(--wk-live);
+  }
+}
+
+.vtg__pill-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A domain's glyph on its own tint: the shape AND the colour say what it is. */
+.vtg__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--vtg-fill);
+  color: var(--vtg-text);
+}
+
+.vtg__mark svg {
+  display: block;
+}
+
+/* ── the orbit: a picture of the same links ──────────────────────── */
+
+.vtg__orbit {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--wk-radius);
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+}
+
+.vtg__orbit-in {
+  position: relative;
+  width: 100%;
+}
+
+.vtg__lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.vtg__line {
+  stroke: var(--wk-border-strong);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* The page you are on, in the middle. Not a button: you are already here. */
+.vtg__centre {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--wk-edge);
+  border-radius: 12px;
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.vtg__centre-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A name too long for the middle: the glyph alone, the page title says the rest. */
+.vtg__centre--mark {
+  padding: 7px;
+}
+
+/* A link: its dot centred in a 44px target, its words running outwards. */
+.vtg__node {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--wk-tap);
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.vtg__node--left {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.vtg__node-hit {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--wk-tap);
+  height: var(--wk-tap);
+}
+
+.vtg__dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--vtg-c);
+  box-shadow: 0 0 0 3px var(--wk-tray);
+}
+
+.vtg__node-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) {
+  .vtg__node:hover .vtg__node-label {
+    color: var(--wk-live-text);
+  }
+}
+
+/* Inside the peek sheet the ground is a panel, not the page: a well there is
+   surface-2, as inside any panel, and the dots' halo follows it. */
+.vtp__body .vtg__orbit,
+.vtp__body .vtg__empty {
+  background: var(--wk-surface-2);
+}
+
+.vtp__body .vtg__dot {
+  box-shadow: 0 0 0 3px var(--wk-surface-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vtg__pill {
+    transition: none;
+  }
+}

@@ -1,0 +1,95 @@
+/* ====================================================================
+ * The version switch — "Solon's version | MSF original", and "Hide
+ * crossed-out lines". Learning vault redesign, Oct 19 2026.
+ *
+ * Owns the vtv__ prefix and nothing else. Learning's tokens only (--wk-*,
+ * loaded by wiki.css, which the component imports): no raw colour.
+ *
+ * The switch is Learning's segmented control (.wk__seg) in its own name: a
+ * well inside its 3:1 edge holds the two segments, the picked one raised
+ * with the soft ring and 700. Picking a version is a selection, so the
+ * picked one's words are blue. Each segment is 44px tall and its words
+ * wrap ("Practice Studio North's version" on a phone), never cut short.
+ *
+ * The hide button is Learning's raised button (.wk__btn): 14/700 sentence
+ * case on the 3:1 edge, a press on :active, nothing on hover that a tap
+ * would leave behind.
+ * ------------------------------------------------------------------ */
+
+.vtv {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.vtv__seg {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+
+.vtv__opt {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--wk-tap);
+  padding: 0.375rem 0.875rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.vtv__opt[aria-pressed="true"] {
+  background: var(--wk-raised);
+  color: var(--wk-live-text);
+  font-weight: 700;
+  box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-edge-control), inset 0 1px 0 var(--wk-highlight);
+}
+.vtv__opt:active { transform: translateY(1px); }
+.vtv__opt:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 1px; }
+
+.vtv__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: var(--wk-tap);
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.vtv__toggle svg { flex: none; color: var(--wk-ink-muted); }
+.vtv__toggle:not(:disabled):active { transform: translateY(1px); box-shadow: var(--wk-press); }
+.vtv__toggle:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 2px; }
+
+@media (hover: hover) {
+  .vtv__opt:not([aria-pressed="true"]):hover { color: var(--wk-ink); }
+  .vtv__toggle:hover { color: var(--wk-ink); }
+}

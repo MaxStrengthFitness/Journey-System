@@ -1,0 +1,276 @@
+/* ==========================================================================
+   Concept cards and linked words (the Learning vault redesign, Oct 19 2026).
+   Prefix vtc__. Colour, depth and type from wiki.tokens.css (--wk-*), which
+   wiki.css brings; each component here imports both.
+
+   - A linked word reads as today's glossary link (.wk__term): blue words, a
+     dotted underline, no box, so a passage still reads as prose.
+   - The card is a popover, the deepest lift a page holds: the panel recipe
+     (1px edge, the surface clipped to the padding box) with --wk-elev-4.
+     position: fixed in <body>, so it never widens or clips inside Learning's
+     one scroller; z-index 60, with the Hub's peek, under the unsaved-changes
+     question (400) and any Select (200).
+   - Every tap is 40px or more; hover changes live only where there is a
+     pointer that hovers; motion is opacity and a 4px slide, once, and none
+     at all for a reader who asked for less.
+   ========================================================================== */
+
+/* A linked word in a passage, and inside a card. */
+.vtc__term {
+  position: relative;
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  font: inherit;
+  line-height: inherit;
+  color: var(--wk-live-text);
+  text-align: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* A word is small under a finger: a tap a few pixels above or below it is
+   still the word's (where two linked words on adjacent lines meet, the later
+   one, painted on top, takes it). An inline link is the one tap exempt from
+   40px (learning-scale.test). */
+.vtc__term::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px;
+}
+@media (hover: hover) {
+  .vtc__term:hover { background: var(--wk-live-fill); }
+}
+.vtc__term:active { background: var(--wk-live-fill); }
+.vtc__term:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 1px; }
+
+/* ------------------------------------------------------------------ *
+ * The card
+ * ------------------------------------------------------------------ */
+
+.vtc__pop {
+  position: fixed;
+  z-index: 60;
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 12px 14px 16px;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-4), var(--wk-panel-highlight);
+  /* In <body>, outside .wk: restate the ink, the size and the alignment
+     (the face and the body weight are <body>'s own). */
+  color: var(--wk-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: left;
+}
+/* In dark, a popover is a step LIGHTER than the panel it floats over (higher
+   is lighter in the studio navy; the app's own popovers do the same): on the
+   card's own fill it would sink into the section under it. */
+.dark .vtc__pop,
+[data-theme="dark"] .vtc__pop { background: var(--wk-surface-3); }
+/* Pinned: the edge says so, in the colour of anything you picked. */
+.vtc__pop[data-pinned="true"] { border-color: var(--wk-live); }
+.vtc__pop:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .vtc__pop { animation: vtc-in-down 140ms ease-out 1 both; }
+  .vtc__pop[data-side="above"] { animation-name: vtc-in-up; }
+  /* A pushed card's words ease in where the last card's were. */
+  .vtc__heading,
+  .vtc__body { animation: vtc-fade 120ms ease-out 1 both; }
+}
+@keyframes vtc-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes vtc-in-down {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes vtc-in-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The stack: where you came from, one tap back. Wraps; never cut. */
+.vtc__crumbs { margin: -4px 0 -6px -6px; }
+.vtc__crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vtc__crumbs li { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.vtc__crumb {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--wk-live-text);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .vtc__crumb:hover { background: var(--wk-live-fill); }
+}
+.vtc__crumb:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 1px; }
+.vtc__crumb--here { color: var(--wk-ink-2); cursor: default; }
+.vtc__crumb-sep { flex: none; color: var(--wk-ink-muted); }
+
+/* The name, where it comes from, and the two corner buttons. */
+.vtc__head { display: flex; align-items: flex-start; gap: 4px; }
+.vtc__heading { flex: 1 1 auto; min-width: 0; padding-top: 6px; }
+.vtc__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.vtc__title:focus { outline: none; }
+.vtc__title:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 2px; border-radius: 4px; }
+.vtc__source {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.vtc__source-icon { flex: none; margin-top: 1px; color: var(--wk-ink-muted); }
+
+/* Pin and Close: 44px squares, quiet until picked. */
+.vtc__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--wk-tap);
+  height: var(--wk-tap);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .vtc__icon:hover { background: var(--wk-surface-2); color: var(--wk-ink); }
+}
+.vtc__icon:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 1px; }
+.vtc__icon[aria-pressed="true"] {
+  border-color: var(--wk-live);
+  background: var(--wk-live-fill);
+  color: var(--wk-live-text);
+}
+
+/* Everything under the name, as one column. */
+.vtc__body { display: flex; flex-direction: column; gap: 12px; }
+
+/* The words: two sentences at most, at the reading size. */
+.vtc__summary {
+  margin: 0;
+  padding-right: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink);
+  overflow-wrap: break-word;
+}
+
+/* Where else it leads: firm chips, each with its kind's glyph. */
+.vtc__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--wk-divider);
+  list-style: none;
+}
+.vtc__links li { display: flex; min-width: 0; max-width: 100%; }
+.vtc__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--wk-tap);
+  max-width: 100%;
+  padding: 6px 12px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: var(--wk-radius-pill);
+  /* The card's own fill: a chip is its firm edge, not a second panel. */
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--wk-ink);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .vtc__chip:hover { border-color: var(--wk-live); background: var(--wk-live-fill); }
+}
+.vtc__chip:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 1px; }
+.vtc__chip-icon { flex: none; color: var(--wk-ink-muted); }
+
+/* Open page and Peek: raised buttons (.wk__btn's recipe), side by side. */
+.vtc__actions { display: flex; flex-wrap: wrap; gap: 8px; padding-right: 4px; }
+.vtc__btn {
+  /* Each as wide as its words, the room left shared: "Show on the map"
+     stays on one line beside "Peek". */
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--wk-tap);
+  padding: 0 14px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.vtc__btn--open { color: var(--wk-live-text); }
+.vtc__btn:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 2px; }
+.vtc__btn:not(:disabled):active { transform: translateY(1px); box-shadow: var(--wk-press); }
+.vtc__btn svg { flex: none; }

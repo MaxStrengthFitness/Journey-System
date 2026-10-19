@@ -1,0 +1,298 @@
+/**
+ * THE VAULT'S DATA — everything the three designs read, gathered once.
+ *
+ * Round: the Learning vault redesign, Oct 19 2026 (overnight prototypes).
+ *
+ * WHAT IT HOLDS, AND WHEN
+ * -----------------------
+ * The Academy is a generated corpus of JSON chunks (features/academy). The
+ * small index travels with Learning; the rest arrives on demand. This hook
+ * asks for the five small reference chunks (glossary, cues, cards, scripts,
+ * deep dives, about 110 KB gzip together, the same set the Academy's own
+ * index loads) once it is MOUNTED, never before, and a module's prose only
+ * when a page asks for it (loadModule). The studio's floor comes from the
+ * same read the Catalog uses (useCatalogMachines), in its walking order.
+ *
+ * Three things are BUILT from those, each with useMemo once its inputs have
+ * all landed, so each is built once rather than three times as the chunks
+ * trickle in: the entity index (the auto-linker and concept cards), the
+ * knowledge graph (the constellation), and the quiz's question bank. They
+ * are pure and take a few milliseconds.
+ *
+ * UNKNOWN IS NOT EMPTY
+ * --------------------
+ * The floor is null while it is loading or could not be read, and an empty
+ * list only when the studio's roster was read and holds nothing (the Catalog's
+ * four floor states, catalog/floor-index.ts). The MSF standard is never handed
+ * over as if it were this studio's floor. A module chunk that failed says so
+ * through moduleFailed; nothing retries by itself (a retry loop on a dead
+ * connection would spin the iPad), and retryModule is the reader's own tap.
+ *
+ * NAMES
+ * -----
+ * `names` is the Catalog's name for a machine (one name per machine across
+ * Learning, AJ, Oct 2 2026): the live catalog's, else the standard's; a
+ * studio's own machine is named by its floor.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  buildAcademyMachines,
+  catalogNamesOf,
+  machineName,
+  type AcademyMachine,
+} from "../academy/academy-machines";
+import type {
+  AcademyIndex,
+  Block,
+  CueMoment,
+  MachineScript,
+  ModuleContent,
+  QuickCard,
+} from "../academy/types";
+import {
+  ACADEMY_INDEX,
+  cachedAcademyModule,
+  loadAcademyModule,
+  useAcademyCards,
+  useAcademyCues,
+  useAcademyGlossary,
+  useAcademyOverviews,
+  useAcademyScripts,
+} from "../academy/useAcademyContent";
+import type { FloorState } from "../catalog/floor-index";
+import { movementOf } from "../catalog/names";
+import { useCatalogMachines } from "../catalog/useCatalogMachines";
+import { EXERCISE_SUBSTITUTES, MACHINE_CATEGORY, abbr as academyAbbr } from "../routine-builder/academy";
+import { CLINICAL_FLAGS_MATRIX } from "../../data/clinical-matrix";
+import { MACHINE_DEFINITIONS } from "../../data/machine-definitions";
+import type { Machine } from "../../types";
+import type { MachineCatalogEntry } from "../../types/machines";
+import { buildEntityIndex, type EntityIndex } from "./entities";
+import { buildVaultGraph, type GraphIndexFile } from "./graph";
+import graphIndexJson from "./graph-index.json";
+import { PILLARS, PLAYBOOKS, TRACKS } from "./playbooks";
+import { questionBank } from "./quiz/bank";
+import type { PillarId, PlaybookPage, QuizQuestion, Track, VaultGraph } from "./types";
+
+export interface VaultData {
+  index: AcademyIndex;
+  /** One row per Academy machine, named the Catalog's way (buildAcademyMachines). */
+  machines: AcademyMachine[];
+  /** MACHINE_DEFINITIONS: the standard's seed. The studio's live copy is a later wiring. */
+  defs: Record<string, MachineCatalogEntry>;
+  /** The studio's floor in walking order; null while unknown (loading or unreadable), [] when read and empty. */
+  floor: { id: string; name: string; code: string | null }[] | null;
+  names: (machineId: string) => string;
+  glossary: { term: string; definition: string }[] | null;
+  cues: CueMoment[] | null;
+  cards: QuickCard[] | null;
+  scripts: MachineScript[] | null;
+  overviews: { id: string; title: string; readingMinutes: number; words: number; blocks: Block[] }[] | null;
+  /** Module prose that has arrived, by module id. */
+  modules: Record<string, ModuleContent>;
+  /** Ask for a module's prose. Safe to call while drawing; does nothing when it is here, coming, or failed. */
+  loadModule: (id: string) => void;
+  moduleFailed: (id: string) => boolean;
+  /** A2's entity index, once the glossary and the machines have landed. */
+  entities: EntityIndex | null;
+  /** A3's knowledge graph, once every reference chunk has landed. */
+  graph: VaultGraph | null;
+  playbooks: PlaybookPage[];
+  tracks: Track[];
+  pillars: { id: PillarId; title: string; blurb: string }[];
+  /** A5's question bank, once the glossary, cues, scripts and cards have landed. */
+  quizBank: QuizQuestion[] | null;
+
+  /* Beyond the contract, optional so a fixture can leave them out. */
+  /** Which of the Catalog's four floor states the floor is in, for honest words ("Can't read Solon's floor"). */
+  floorState?: FloorState;
+  /** Try a failed module again: the reader's tap, never a timer. */
+  retryModule?: (id: string) => void;
+  /** A module this session already holds (the Academy may have fetched it), without waiting a render. */
+  cachedModule?: (id: string) => ModuleContent | null;
+}
+
+const GRAPH_INDEX = graphIndexJson as unknown as GraphIndexFile;
+/** One empty list, so the data object keeps its identity while the machine chunks are on their way. */
+const NO_MACHINES: AcademyMachine[] = [];
+const DEFS: Record<string, MachineCatalogEntry> = MACHINE_DEFINITIONS;
+
+/** A key that changes only when a machine's id or name does, so a new array with the same machines rebuilds nothing. */
+function namesKeyOf(machines: readonly { id?: string; name?: string }[]): string {
+  return machines.map((m) => `${m.id ?? ""}\u0001${m.name ?? ""}`).join("\u0002");
+}
+
+export function useVaultData(opts: { studioId: string | null; machines: Machine[] }): VaultData {
+  const { studioId, machines: legacyMachines } = opts;
+
+  /* The five reference chunks, asked for once mounted (each hook's effect). */
+  const glossary = useAcademyGlossary(true);
+  const cues = useAcademyCues(true);
+  const cards = useAcademyCards(true);
+  const scripts = useAcademyScripts(true);
+  const overviews = useAcademyOverviews(true);
+
+  /* The floor, as the Catalog reads it. */
+  const catalog = useCatalogMachines(studioId, legacyMachines);
+  const floorState = catalog.floor;
+  const floor = useMemo<VaultData["floor"]>(() => {
+    if (floorState === "empty") return [];
+    if (floorState !== "ready") return null;
+    return catalog.machines.map((m) => ({
+      id: m.id,
+      name: m.name,
+      code: movementOf(m)?.code ?? academyAbbr(m.id),
+    }));
+  }, [floorState, catalog.machines]);
+
+  /* Names. */
+  const namesKey = namesKeyOf(legacyMachines ?? []);
+  // Keyed on the names, not the array: the parent may hand a new array with the same machines.
+  const catalogNames = useMemo(() => catalogNamesOf(legacyMachines), [namesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const floorNames = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const m of catalog.machines) if (m.id && m.name && !out.has(m.id)) out.set(m.id, m.name);
+    return out;
+  }, [catalog.machines]);
+  const names = useCallback(
+    (machineId: string) => machineName(machineId, catalogNames) ?? floorNames.get(machineId) ?? machineId,
+    [catalogNames, floorNames],
+  );
+  // The quiz only asks about the standard machines, so its names never wait on, or change with, the floor.
+  const standardNames = useCallback((machineId: string) => machineName(machineId, catalogNames) ?? machineId, [catalogNames]);
+
+  const academyReady = Boolean(cards && scripts && overviews);
+  const academyMachines = useMemo(
+    () => (cards && scripts && overviews ? buildAcademyMachines(cards, scripts, overviews, catalogNames) : NO_MACHINES),
+    [cards, scripts, overviews, catalogNames],
+  );
+
+  /* Module prose, on demand. Refs hold what is here, coming or failed, so
+     loadModule can be asked while a page draws without setting state then. */
+  const [modules, setModules] = useState<Record<string, ModuleContent>>({});
+  const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const have = useRef(new Set<string>());
+  const coming = useRef(new Set<string>());
+  const failed = useRef(new Set<string>());
+  const live = useRef(true);
+  useEffect(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+    };
+  }, []);
+
+  const startLoad = useCallback((id: string) => {
+    coming.current.add(id);
+    loadAcademyModule(id)
+      .then((content) => {
+        coming.current.delete(id);
+        have.current.add(id);
+        if (live.current) setModules((prev) => (prev[id] ? prev : { ...prev, [id]: content }));
+      })
+      .catch(() => {
+        coming.current.delete(id);
+        failed.current.add(id);
+        if (live.current) setFailedIds(new Set(failed.current));
+      });
+  }, []);
+
+  const loadModule = useCallback(
+    (id: string) => {
+      if (!id || have.current.has(id) || coming.current.has(id) || failed.current.has(id)) return;
+      startLoad(id);
+    },
+    [startLoad],
+  );
+
+  const retryModule = useCallback(
+    (id: string) => {
+      if (!failed.current.has(id)) return;
+      failed.current.delete(id);
+      setFailedIds(new Set(failed.current));
+      startLoad(id);
+    },
+    [startLoad],
+  );
+
+  const moduleFailed = useCallback((id: string) => failedIds.has(id), [failedIds]);
+
+  /* The three builds. */
+  const entities = useMemo<EntityIndex | null>(() => {
+    if (!glossary || !academyReady) return null;
+    return buildEntityIndex({
+      glossary,
+      machines: academyMachines,
+      clinical: CLINICAL_FLAGS_MATRIX,
+      playbooks: PLAYBOOKS,
+      modules: ACADEMY_INDEX.modules,
+    });
+  }, [glossary, academyReady, academyMachines]);
+
+  const graph = useMemo<VaultGraph | null>(() => {
+    if (!glossary || !cues || !academyReady) return null;
+    return buildVaultGraph({
+      index: ACADEMY_INDEX,
+      machines: academyMachines,
+      glossary,
+      cues,
+      clinical: CLINICAL_FLAGS_MATRIX,
+      playbooks: PLAYBOOKS,
+      graphIndex: GRAPH_INDEX,
+      substitutes: EXERCISE_SUBSTITUTES,
+      categories: MACHINE_CATEGORY,
+    });
+  }, [glossary, cues, academyReady, academyMachines]);
+
+  const quizBank = useMemo<QuizQuestion[] | null>(() => {
+    if (!glossary || !cues || !scripts || !cards) return null;
+    // The playbooks let a question drawn from docs/business open the page written from it.
+    return questionBank({ glossary, cues, scripts, cards, defs: DEFS, names: standardNames, playbooks: PLAYBOOKS });
+  }, [glossary, cues, scripts, cards, standardNames]);
+
+  return useMemo<VaultData>(
+    () => ({
+      index: ACADEMY_INDEX,
+      machines: academyMachines,
+      defs: DEFS,
+      floor,
+      names,
+      glossary,
+      cues,
+      cards,
+      scripts,
+      overviews,
+      modules,
+      loadModule,
+      moduleFailed,
+      entities,
+      graph,
+      playbooks: PLAYBOOKS,
+      tracks: TRACKS,
+      pillars: PILLARS,
+      quizBank,
+      floorState,
+      retryModule,
+      cachedModule: cachedAcademyModule,
+    }),
+    [
+      academyMachines,
+      floor,
+      names,
+      glossary,
+      cues,
+      cards,
+      scripts,
+      overviews,
+      modules,
+      loadModule,
+      moduleFailed,
+      entities,
+      graph,
+      quizBank,
+      floorState,
+      retryModule,
+    ],
+  );
+}

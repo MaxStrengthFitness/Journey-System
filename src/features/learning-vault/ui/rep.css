@@ -1,0 +1,553 @@
+/* ==========================================================================
+   THE REP SCRUBBER (vtr__) — the Learning vault redesign, Oct 19 2026
+   --------------------------------------------------------------------------
+   One set as a bar a trainer drags a thumb along (RepScrubber.tsx). Built on
+   Learning's palette (--wk-*, loaded by ../../wiki/wiki.css), so it reads as
+   part of Learning in both themes and writes no colour of its own.
+
+   The colour jobs, as everywhere in Learning: blue is what you act on and
+   where you are (the thumb, the played part of the bar, the moment under the
+   thumb, every picked switch); the rest is the neutral ramp. The once-a-set
+   ends (the load-up or handoff, the final descent) are hatched rather than
+   coloured, so they read as different in dark mode too, where the light
+   greys sit close together. Orange is Learning's brand mark and is not used
+   here; crimson is for critical things and is not used here either.
+
+   The house rules this sheet keeps (design-system.md §11): tokens only;
+   type at 11 / 12 / 14 / 17 / 22 / 30; every control at least 44px
+   (--wk-tap) and the thumb 44px square; words wrap, never clip; hover only
+   inside (hover: hover); motion is transform and opacity only, finite, and
+   only when the reader has not asked for less; no blur, no will-change.
+   The bar's turn windows and the thumb are drawn here; their arithmetic is
+   in ../rep-phases.ts.
+   ========================================================================== */
+
+/* The panel. The container is the scrubber itself, so its two-column detail
+   follows the room it is given (a lesson card, a machine page's column),
+   never the window. */
+.vtr {
+  container: vtr / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1.125rem 1rem 1.25rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background-color: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+  color: var(--wk-ink);
+}
+
+/* ---- The head: the title, the shape in words, the shape switch ------- */
+
+.vtr__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+.vtr__titles {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.vtr__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.vtr__sub {
+  margin: 0.25rem 0 0;
+  max-width: var(--wk-measure);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.vtr__machine {
+  font-weight: 700;
+  color: var(--wk-ink);
+}
+.vtr__examples {
+  margin: 0.125rem 0 0;
+  max-width: var(--wk-measure);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The segmented switch (the shape; the pace): a well inside its 3:1 edge,
+   the picked segment raised on its own 3:1 edge. */
+.vtr__seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background-color: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.vtr__seg-btn {
+  min-height: var(--wk-tap);
+  min-width: var(--wk-tap);
+  padding: 0 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background-color: transparent;
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.vtr__seg-btn--num {
+  font-variant-numeric: tabular-nums;
+  padding: 0 0.5rem;
+}
+.vtr__seg-btn[aria-pressed="true"] {
+  border-color: var(--wk-border-strong);
+  background-color: var(--wk-raised);
+  color: var(--wk-live-text);
+  font-weight: 700;
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+}
+.vtr__seg-btn:active { transform: translateY(1px); }
+.vtr__seg-btn:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 1px; }
+
+/* ---- Now: the moment under the thumb, and Play ----------------------- */
+
+.vtr__now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+.vtr__readout {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+/* The phase's name: the display face, upright, the headline size. */
+.vtr__phase {
+  margin: 0;
+  font-family: var(--wk-font-display);
+  font-size: 30px;
+  font-weight: 800;
+  font-style: normal;
+  line-height: 1.04;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.vtr__words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.625rem;
+  margin: 0.375rem 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+}
+.vtr__clock {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---- The bar --------------------------------------------------------- */
+
+/* A well in the panel. Its side padding is half the thumb, so the thumb's
+   middle reaches both ends without the thumb poking past the bar. The whole
+   bar is the target: a drag can start anywhere on it. It lets a vertical
+   swipe scroll the page; a sideways one moves the thumb. */
+.vtr__track {
+  position: relative;
+  height: 64px;
+  padding: 0 22px;
+  border-radius: 16px;
+  background-color: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.vtr__rail {
+  position: relative;
+  height: 100%;
+}
+
+.vtr__band {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+.vtr__band--stroke {
+  background-color: var(--wk-raised);
+  box-shadow: inset 0 0 0 1px var(--wk-edge-control);
+}
+.vtr__band--start,
+.vtr__band--end {
+  background-color: var(--wk-surface-3);
+  background-image: repeating-linear-gradient(135deg, var(--wk-edge-control) 0 2px, transparent 2px 8px);
+}
+/* A continuous turn: a dark window over the reversal, drawn over the strokes it joins. */
+.vtr__band--turn {
+  z-index: 1;
+  background-color: var(--wk-border-strong);
+}
+/* The squeeze: a hold of its own, the same dark. */
+.vtr__band--hold {
+  background-color: var(--wk-border-strong);
+}
+/* The moment under the thumb, in blue. */
+.vtr__band--on.vtr__band--stroke,
+.vtr__band--on.vtr__band--start,
+.vtr__band--on.vtr__band--end {
+  background-color: var(--wk-live-fill);
+  background-image: none;
+  box-shadow: inset 0 0 0 1px var(--wk-live);
+}
+.vtr__band--on.vtr__band--turn,
+.vtr__band--on.vtr__band--hold {
+  background-color: var(--wk-live);
+}
+
+/* A mark each second along the top, like a ruler (named "ruler", not
+   "ticks": learning-scale.test.ts reads "tick" as a control). */
+.vtr__ruler {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background-image: linear-gradient(to right, var(--wk-border-strong) 1px, transparent 1px);
+  background-size: calc(100% / var(--vtr-secs)) 100%;
+  background-repeat: repeat-x;
+  pointer-events: none;
+}
+
+/* What has been played, along the bottom. */
+.vtr__fill {
+  position: absolute;
+  left: 0;
+  bottom: 5px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--wk-live);
+  pointer-events: none;
+}
+
+/* The thumb: 44px, blue, with a ring of the raised fill so it stands off the
+   bands, and two grip lines in the ink that sits on blue. */
+.vtr__thumb {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--wk-live);
+  box-shadow: 0 0 0 3px var(--wk-raised), var(--wk-glow-live), var(--wk-solid-light);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+}
+.vtr__thumb::before,
+.vtr__thumb::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background-color: var(--wk-live-on);
+  transform: translateY(-50%);
+}
+.vtr__thumb::before { left: 17px; }
+.vtr__thumb::after { right: 17px; }
+.vtr__thumb[data-grabbed="true"] { cursor: grabbing; }
+.vtr__thumb:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 4px;
+}
+
+/* A rep's cycle, bracketed under the bar. The words sit in the flow, as wide
+   as the cycle, so a narrow bar wraps them instead of cutting them off. */
+.vtr__cycle-row {
+  padding: 0 22px;
+  margin-top: -0.375rem;
+}
+.vtr__cycle {
+  position: relative;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0.375rem;
+  border-top: 1px solid var(--wk-border-strong);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.vtr__cycle::before,
+.vtr__cycle::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  width: 1px;
+  height: 6px;
+  background-color: var(--wk-border-strong);
+}
+.vtr__cycle::before { left: 0; }
+.vtr__cycle::after { right: 0; }
+
+/* ---- The moments, by name (the bar's list alternative) --------------- */
+
+.vtr__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.vtr__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--wk-tap);
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background-color: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.vtr__step[aria-pressed="true"] {
+  border-color: var(--wk-live);
+  background-color: var(--wk-live-fill);
+  color: var(--wk-live-text);
+  font-weight: 700;
+}
+.vtr__step:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.vtr__step:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 2px; }
+.vtr__step-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.vtr__swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.vtr__swatch--stroke {
+  background-color: var(--wk-raised);
+  box-shadow: inset 0 0 0 1px var(--wk-border-strong);
+}
+.vtr__swatch--start,
+.vtr__swatch--end {
+  background-color: var(--wk-surface-3);
+  background-image: repeating-linear-gradient(135deg, var(--wk-edge-control) 0 2px, transparent 2px 5px);
+  box-shadow: inset 0 0 0 1px var(--wk-border-strong);
+}
+.vtr__swatch--turn,
+.vtr__swatch--hold {
+  background-color: var(--wk-border-strong);
+}
+
+/* ---- The pace, and the Academy's window ------------------------------- */
+
+.vtr__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem 1rem;
+}
+.vtr__pace {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.625rem;
+}
+.vtr__pace-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wk-ink-2);
+}
+.vtr__window {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin: 0;
+  max-width: var(--wk-measure);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---- The rule and the words to say ------------------------------------ */
+
+.vtr__detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+/* Side by side only with room for both (a landscape iPad's full width);
+   stacked in portrait, never a cramped half each. */
+@container vtr (min-width: 860px) {
+  .vtr__detail { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
+
+/* Two wells in the panel. Their minimum heights keep the panel from jumping
+   as Play moves from a moment with two lines to one with six. */
+.vtr__rule,
+.vtr__say {
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  background-color: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.vtr__rule { min-height: 8.5rem; }
+.vtr__say { min-height: 9.5rem; }
+.vtr__rule-text {
+  margin: 0;
+  max-width: var(--wk-measure);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.vtr__h {
+  margin: 0 0 0.5rem;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wk-ink-2);
+}
+.vtr__phrases {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Each line a trainer would say, with a rule down its left as a background band. */
+.vtr__phrases li {
+  padding-left: 0.75rem;
+  background-image: linear-gradient(var(--wk-border-strong), var(--wk-border-strong));
+  background-position: left top;
+  background-size: 2px 100%;
+  background-repeat: no-repeat;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.vtr__none {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+}
+.vtr__src {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin: 0.625rem 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wk-ink-muted);
+}
+.vtr__src-label {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Buttons: the codex's raised button, in this sheet's own name ----- */
+
+.vtr__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--wk-tap);
+  padding: 0 1rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background-color: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vtr__btn svg { flex: none; }
+.vtr__btn:focus-visible { outline: 2px solid var(--wk-focus-ring); outline-offset: 2px; }
+/* Play: what you act on, so solid blue, like every Save in Learning. */
+.vtr__btn--primary {
+  border-color: var(--wk-live);
+  background-color: var(--wk-live);
+  color: var(--wk-live-on);
+  box-shadow: var(--wk-glow-live), var(--wk-solid-light);
+}
+/* "Read it": a quiet door in the blue words, no box. */
+.vtr__btn--quiet {
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--wk-live-text);
+  box-shadow: none;
+  padding: 0 0.5rem;
+}
+.vtr__btn:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.vtr__btn--quiet:not(:disabled):active { box-shadow: none; }
+.vtr__play { min-width: 7.5rem; }
+
+@media (hover: hover) {
+  .vtr__btn--primary:hover { background-color: var(--wk-live); }
+  .vtr__btn--quiet:hover { color: var(--wk-live); }
+}
+
+/* ---- Motion: only for a reader who has not asked for less ------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .vtr__thumb { transition: transform 120ms ease; }
+  .vtr__thumb[data-grabbed="true"] { transform: translate(-50%, -50%) scale(1.08); }
+  /* A new moment's name settles in once. */
+  .vtr__phase { animation: vtr-settle 180ms ease-out 1; }
+}
+
+@keyframes vtr-settle {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}

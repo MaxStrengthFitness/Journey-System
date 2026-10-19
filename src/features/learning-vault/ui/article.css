@@ -1,0 +1,678 @@
+/* ==========================================================================
+   THE PAGE BODY EVERY DESIGN DRAWS — ArticleBlocks and its forms
+   (the Learning vault redesign, Oct 19 2026). Prefix: vta__ (this file owns
+   it). Learning's --wk-* tokens only, light and dark; they arrive with
+   wiki.css, which every component here imports first.
+
+   The voice is the Academy page's: 14px prose at 1.6 on the reading measure,
+   a section title in Geist 17/700, a spoken line on its accent wash. What is
+   new is that every line can be TAPPED: a calm blue tint and band says which
+   one is chosen, and its actions and forms open under it in one raised
+   panel. A studio's marks are quiet callouts on a 3px band, never a colour
+   of their own: crimson is critical and rep quality only, plum is caution,
+   and a crossed-out line is neither. The struck words keep the muted ink,
+   faded but readable, as RemovedLines does on the Catalog (never the faint
+   ink, which is for icons).
+   ========================================================================== */
+
+.vta {
+  /* The line's own inset, and where everything outside a line lines up with
+     its words (Design 2's gutter pushes it right by the gutter and its gap). */
+  --vta-pad: 0.625rem;
+  --vta-indent: var(--vta-pad);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--wk-ink);
+}
+.vta[data-annotate="gutter"] {
+  --vta-indent: calc(40px + 0.5rem + var(--vta-pad));
+}
+.vta[data-compact] {
+  gap: 0.875rem;
+}
+
+/* Nothing on the page yet: a well on the ground, in ink-2, no edge. */
+.vta__empty {
+  margin: 0;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+}
+
+/* ── Sections and headings ──────────────────────────────────────────── */
+
+.vta__section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.vta__title {
+  margin: 0 0 0.25rem;
+  padding-inline: var(--vta-indent);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.vta[data-compact] .vta__title {
+  font-size: 14px;
+}
+.vta__section-note {
+  margin: 0 0 0.375rem;
+  padding-inline: var(--vta-indent);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.vta__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.vta__heading {
+  margin: 0.5rem 0 0.125rem;
+  padding-inline: var(--vta-indent);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.vta__heading--subheading {
+  color: var(--wk-ink-2);
+}
+
+/* ── A line ─────────────────────────────────────────────────────────── */
+
+.vta__unit {
+  min-width: 0;
+}
+/* The words keep the reading measure; the line's own inset rides outside it. */
+.vta__col {
+  min-width: 0;
+  max-width: calc(var(--wk-measure) + 2 * var(--vta-pad));
+}
+.vta[data-annotate="gutter"] .vta__unit {
+  display: grid;
+  grid-template-columns: 40px minmax(0, calc(var(--wk-measure) + 2 * var(--vta-pad)));
+  column-gap: 0.5rem;
+  align-items: start;
+}
+.vta[data-annotate="gutter"] .vta__col {
+  max-width: none;
+}
+
+/* The line itself is the tap: 44px at the least, so a one-line bullet is
+   still a finger's width, and the whole line is the target, not its words. */
+.vta__line {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--wk-tap);
+  padding: 0.375rem var(--vta-pad);
+  border-radius: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.vta__line:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+
+.vta__label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.vta__text {
+  display: block;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.vta__text--line {
+  color: var(--wk-ink);
+}
+.vta__text--do {
+  color: var(--wk-ink-muted);
+}
+.vta__text--bullet {
+  position: relative;
+  padding-left: 1rem;
+}
+.vta__text--bullet::before {
+  content: "";
+  position: absolute;
+  left: 0.1875rem;
+  top: 0.6em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--wk-accent, var(--wk-ink-faint));
+}
+/* A cue is said out loud: a short rule rather than a bullet, as the
+   Academy's cue lists draw it. */
+.vta__text--cue {
+  position: relative;
+  padding-left: 1.125rem;
+  font-weight: 600;
+  color: var(--wk-ink);
+}
+.vta__text--cue::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.45em;
+  width: 3px;
+  height: 0.9em;
+  border-radius: 2px;
+  background: var(--wk-accent, var(--wk-live));
+}
+/* What the trainer SAYS in a script, on its accent wash with a band (a
+   background layer: the left corners are square, so it never tapers). */
+.vta__text--said {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0 8px 8px 0;
+  background:
+    linear-gradient(var(--wk-accent, var(--wk-live)), var(--wk-accent, var(--wk-live))) left / 3px 100% no-repeat,
+    var(--wk-accent-fill, var(--wk-live-fill));
+  font-size: 17px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--wk-ink);
+}
+.vta[data-compact] .vta__text--said {
+  font-size: 14px;
+}
+
+/* Crossed out on the studio's version: faded, still readable. */
+.vta__struck {
+  color: var(--wk-ink-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  overflow-wrap: anywhere;
+}
+.vta__text--said .vta__struck,
+.vta__text--cue .vta__struck {
+  font-weight: 500;
+}
+
+@media (hover: hover) {
+  .vta__line:hover {
+    background-color: var(--wk-surface-2);
+  }
+  .vta__btn--quiet:hover {
+    color: var(--wk-ink);
+  }
+  .vta__reveal:hover {
+    color: var(--wk-ink);
+  }
+}
+
+/* Chosen: a calm blue tint and a band (a background layer, never a wide
+   border on a rounded box). After the hover rule, so it wins under a mouse. */
+.vta__line[aria-expanded="true"] {
+  background:
+    linear-gradient(var(--wk-live), var(--wk-live)) left / 3px 100% no-repeat,
+    var(--wk-live-fill);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .vta__line {
+    transition: background-color 120ms ease;
+  }
+}
+
+/* ── The studio's marks: a reason, what it does instead, a note ──────── */
+
+.vta__mark {
+  margin: 0.25rem var(--vta-pad) 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0 10px 10px 0;
+  background:
+    linear-gradient(var(--wk-border-strong), var(--wk-border-strong)) left / 3px 100% no-repeat,
+    var(--wk-surface-2);
+}
+.vta__mark-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.vta__mark-by {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.vta__mark-body + .vta__mark-by,
+.vta__mark-body + .vta__mark-row {
+  margin-top: 0.25rem;
+}
+.vta__notes {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vta__notes .vta__mark {
+  margin-bottom: 0.25rem;
+}
+/* The byline with Remove beside it (or the question it asks), while the
+   line is chosen: one row, so a note does not double in height. */
+.vta__mark-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+}
+.vta__mark-tools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.vta__confirm {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wk-ink);
+}
+
+/* ── The gutter (Design 2): one marker per marked line ──────────────── */
+
+.vta__gutter {
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+.vta__marker {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 40px;
+  min-height: 40px;
+  padding: 4px 0;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 10px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.vta__marker[aria-expanded="true"] {
+  border-color: var(--wk-live);
+  background-color: var(--wk-live-fill);
+  color: var(--wk-live-text);
+}
+.vta__marker:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.vta__marker:not(.vta__marker--still):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+/* A line crossed out with no notes: the glyph alone, nothing to open (its
+   reason is already under the line). */
+.vta__marker--still {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--wk-ink-muted);
+  cursor: default;
+}
+.vta__marker-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Hidden crossed-out lines ───────────────────────────────────────── */
+
+.vta__hidden {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.vta__reveal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  align-self: flex-start;
+  min-height: var(--wk-tap);
+  padding: 0 0.75rem 0 var(--vta-indent);
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--wk-ink-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.vta__reveal svg {
+  flex: none;
+}
+.vta__reveal:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── The panel under a chosen line: its source, its actions, its form ── */
+
+.vta__panel {
+  margin: 0.375rem 0 0.625rem;
+  padding: 0.625rem 0.75rem 0.75rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.vta[data-compact] .vta__panel {
+  padding: 0.5rem 0.625rem 0.625rem;
+}
+.vta__source {
+  margin: 0 0 0.5rem;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.vta__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@keyframes vta-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .vta__panel,
+  .vta__form {
+    animation: vta-open 160ms ease-out 1;
+  }
+}
+
+/* The codex's button, copied: 14px bold sentence case, 12px corners,
+   raised on the 3:1 edge, a press on :active, flat when it can't be
+   pressed. Every Save is solid blue; crossing out is the one crimson. */
+.vta__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: var(--wk-tap);
+  padding: 0 0.75rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  cursor: pointer;
+}
+.vta__btn svg {
+  flex: none;
+}
+.vta__btn:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.vta__btn[aria-expanded="true"] {
+  border-color: var(--wk-live);
+  color: var(--wk-live-text);
+}
+.vta__btn--primary {
+  border-color: var(--wk-live);
+  background: var(--wk-live);
+  color: var(--wk-live-on);
+  box-shadow: var(--wk-glow-live), var(--wk-solid-light);
+}
+.vta__btn--danger {
+  border-color: var(--wk-alert);
+  background: var(--wk-alert-fill);
+  color: var(--wk-alert);
+  box-shadow: var(--wk-elev-1);
+}
+.vta__btn--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--wk-ink-muted);
+  box-shadow: none;
+}
+.vta__btn:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.vta__btn--quiet:not(:disabled):active {
+  box-shadow: none;
+}
+.vta__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ── The forms, in place ────────────────────────────────────────────── */
+
+.vta__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--wk-divider);
+}
+.vta__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.vta__field-label {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.vta__optional {
+  margin-left: 0.25rem;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--wk-ink-muted);
+}
+/* 16px, or iOS Safari zooms the page on focus: the one size off the scale. */
+.vta__input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 10px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.vta__input--area {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+.vta__input::placeholder {
+  color: var(--wk-ink-muted);
+}
+.vta__input:focus {
+  outline: none;
+  border-color: var(--wk-live);
+  box-shadow: 0 0 0 3px var(--wk-live-fill);
+}
+.vta__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+.vta__form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Dispute this / Add to it: two firm options, the picked one blue. */
+.vta__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.vta__choice {
+  min-height: var(--wk-tap);
+  padding: 0 1rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+.vta__choice[aria-pressed="true"] {
+  border-color: var(--wk-live);
+  background-color: var(--wk-live-fill);
+  color: var(--wk-live-text);
+}
+.vta__choice:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.vta__choice:active {
+  transform: translateY(1px);
+}
+
+/* Sent: said plainly, in the green that means done. */
+.vta__sent-line {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wk-ok);
+}
+.vta__sent-line svg {
+  flex: none;
+}
+
+/* ── Lines that changed since the studio marked them ────────────────── */
+
+.vta__orphans {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-width: calc(var(--wk-measure) + 2rem);
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.vta__orphans-head {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.vta__orphans-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0.375rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.vta__orphan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.vta__orphan + .vta__orphan {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--wk-divider);
+}
+.vta__orphan-words {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+/* A note's line is not crossed out, only gone: its old words, faded. */
+.vta__orphan-words--quote {
+  color: var(--wk-ink-muted);
+}
+.vta[data-annotate="gutter"] .vta__orphans {
+  margin-left: calc(40px + 0.5rem);
+}
+.vta__orphan .vta__mark {
+  margin: 0;
+}

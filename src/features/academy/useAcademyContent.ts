@@ -98,6 +98,29 @@ export function useAcademyModule(moduleId: string | null) {
   return { content, loading, failed };
 }
 
+/**
+ * One module's prose, for a caller that asks while it draws rather than from
+ * an effect (the Learning vault's page builder, Oct 19 2026). It shares the
+ * cache above, so the Academy and the vault never fetch a module twice.
+ * Rejects for an id with no loader.
+ */
+export function loadAcademyModule(moduleId: string): Promise<ModuleContent> {
+  const cached = cache.get(moduleId);
+  if (cached) return Promise.resolve(cached);
+  const load = MODULE_LOADERS[moduleId];
+  if (!load) return Promise.reject(new Error(`No Academy module "${moduleId}".`));
+  return load().then((m) => {
+    const loaded = m.default as ModuleContent;
+    cache.set(moduleId, loaded);
+    return loaded;
+  });
+}
+
+/** A module's prose if this session already has it, else null. Never fetches. */
+export function cachedAcademyModule(moduleId: string): ModuleContent | null {
+  return cache.get(moduleId) ?? null;
+}
+
 /** The per-machine cards. One chunk, loaded on demand. */
 export function useAcademyCards(enabled: boolean) {
   const [cards, setCards] = useState<CardsFile["cards"] | null>(null);
