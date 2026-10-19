@@ -18,6 +18,10 @@
  *     a renewal talk is a glyph alone; its words live in the peek and the
  *     list, which a trainer opens on purpose (rule 9: a shared screen shows
  *     little).
+ *   - Each glyph keeps its RANK, its place in the Key's order (the narrow
+ *     cards round, Oct 18 2026): a card sharing its slot has room for one
+ *     mark and keeps the most important, not the one drawn first for its
+ *     word.
  */
 import type { Client, ScheduleEntry } from "../../types";
 import { isDefaultService } from "../../lib/hub-markers";
@@ -40,6 +44,13 @@ export interface CardGlyph {
   word: string | null;
   /** The whole words, for its label (a screen reader, the peek). */
   label: string;
+  /**
+   * Its place in the Key's order among the card's glyphs, 0 the most
+   * important (the narrow cards round, Oct 18 2026). The glyphs are drawn
+   * with a worded one first, so the order of `glyphs` is not this: a card
+   * with room for one mark keeps rank 0 (HubCard's data-rank).
+   */
+  rank: number;
 }
 
 export interface CardMarks {
@@ -110,9 +121,10 @@ export function cardMarks(
   if (!moments || moments.length === 0) return EMPTY;
   const critical = moments.find((m) => m.family === "read-first");
   const rest = moments.filter((m) => m.family !== "read-first");
-  // WHICH marks make the card is the Key's order (importance); among them,
-  // one that can say a word goes first, where a roomy card has space for it.
-  const chosen = rest.slice(0, Math.max(0, max)).map((m) => ({ kind: m.kind, family: m.family, word: sayableWord(m, opts), label: labelOf(m) }));
+  // WHICH marks make the card is the Key's order (importance), kept as each
+  // glyph's rank; among them, one that can say a word goes first, where a
+  // roomy card has space for it.
+  const chosen = rest.slice(0, Math.max(0, max)).map((m, rank) => ({ kind: m.kind, family: m.family, word: sayableWord(m, opts), label: labelOf(m), rank }));
   const worded = chosen.findIndex((g) => g.word !== null);
   if (worded > 0) chosen.unshift(...chosen.splice(worded, 1));
   const folded = rest.slice(chosen.length);

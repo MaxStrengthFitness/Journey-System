@@ -440,6 +440,20 @@ describe("Today, the brief", () => {
     expect(acks.every((w) => (w.data as { acknowledgedBy: string }).acknowledgedBy === "lead")).toBe(true);
   });
 
+  it("puts each row's own blue button in its row and Acknowledge all in the section's door, so only the rows take the quiet blue (the dark round's Q2, Oct 17 2026)", async () => {
+    // overview.css quiets `.adm-ov__row-actions .adm-btn--primary` and nothing else (src/quiet-blue.test.ts).
+    const el = await mount();
+    const needs = section(el, "needs");
+    const all = buttonByText(needs, "Acknowledge all");
+    expect(all?.classList.contains("adm-btn--primary")).toBe(true);
+    expect(all?.closest(".ops-sec__door")).not.toBeNull();
+    expect(all?.closest(".adm-ov__row-actions")).toBeNull();
+    const rows = [...needs.querySelectorAll<HTMLButtonElement>(".adm-ov__row-actions .adm-btn--primary")];
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows.map((b) => b.textContent?.trim())).toContain("Acknowledge");
+    for (const b of rows) expect(b.closest("li.adm-ov__row")).not.toBeNull();
+  });
+
   it("Needs you lists a session left open, by the Hub's rule, with a door to finish it (the Atlas answers, Oct 2 2026)", async () => {
     failures.leftOpen = true;
     const opened: unknown[][] = [];

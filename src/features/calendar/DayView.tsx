@@ -16,6 +16,7 @@ import { HubCard } from "../hub-schedule/HubCard";
 import { UNASSIGNED_ID, orderColumnsBySessions, planColumns, staffLabel } from "../hub-schedule/columns";
 import { usualServiceOf } from "../hub-schedule/card-marks";
 import { yourDay } from "../hub-schedule/your-day";
+import { loggingFrom } from "../hub-schedule/hub-day";
 import type { Span } from "../hub-schedule/grid-model";
 import type { TrainerDayFrame } from "../hub-schedule/off-hours";
 import { PhoneDayList } from "../phone/PhoneDayList";
@@ -56,6 +57,11 @@ import "./calendar.css";
  * nor says a word, so it never reads as done. The Hub is not mounted while
  * the Calendar is, so these are its own reads, not more.
  *
+ * BEFORE THE STUDIO LOGS IN JOURNEY (the cards round, Oct 17 2026): the
+ * Hub's own gate, `loggingFrom` (hub-day.ts) on this studio's Journey
+ * cutover date and the day on screen. Before the date, or with none set, a
+ * Not logged card steps back like a recorded one and keeps its words.
+ *
  * A tap on a booking opens the client, as the Calendar always has (the Hub
  * opens a peek; here the card says nothing about a dialog). On a phone the
  * day is the Hub's phone list (`PhoneDayList`), the same cards one under the
@@ -93,6 +99,11 @@ export interface DayViewProps {
   frameOf?: (columnId: string, range: Span) => TrainerDayFrame;
   /** A phone draws the day as one list. */
   phone: boolean;
+  /**
+   * This studio's Journey cutover date (yyyy-mm-dd), or null when none is
+   * set: before it, Not logged steps back (`loggingFrom`, as on the Hub).
+   */
+  journeyCutoverDate?: string | null;
   onOpenClient: (clientId: string) => void;
 }
 
@@ -123,6 +134,7 @@ export function DayView({
   frameOf,
   phone,
   onOpenClient,
+  journeyCutoverDate = null,
 }: DayViewProps) {
   const plan = useMemo(
     () => planColumns({ trainers, bookings, studioId, staffIds, selfId }),
@@ -158,6 +170,7 @@ export function DayView({
   }, [plan.trainers, trainers, onlyTrainerId]);
 
   const nowMin = dayKey === studioDateKey(now) ? studioMinutes(now) : null;
+  const logging = loggingFrom(dayKey, journeyCutoverDate);
   const myColumnId = selfId && columnTrainers.some((t) => String(t.id) === String(selfId)) ? String(selfId) : null;
 
   const columns = useMemo(() => {
@@ -294,6 +307,7 @@ export function DayView({
           return column ? (column.isMe ? "with you" : `with ${column.name}`) : null;
         }}
         emptyWords={emptyWords}
+        logging={logging}
       />
       </>
     );
@@ -312,6 +326,7 @@ export function DayView({
         focusId={myColumnId}
         emptyWords={emptyWords}
         restWords={restWords}
+        logging={logging}
       />
     </>
   );

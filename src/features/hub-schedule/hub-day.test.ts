@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { studioTodayKey } from "../../lib/studio-time";
-import { dayTitle, pickDay, shownDay, stripFrom } from "./hub-day";
+import { studioIsLive } from "../renewals/job-plan";
+import { dayTitle, loggingFrom, pickDay, shownDay, stripFrom } from "./hub-day";
 
 describe("the Hub's day (hub fixes, Oct 1 2026)", () => {
   it("is the studio's Eastern day, not the iPad's or UTC's", () => {
@@ -33,5 +34,36 @@ describe("the Hub's day (hub fixes, Oct 1 2026)", () => {
   it("names the day in words, never shifted a day by the iPad's zone", () => {
     expect(dayTitle("2026-10-01")).toBe(new Date(2026, 9, 1).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }));
     expect(dayTitle("2026-10-01")).toContain("Thursday");
+  });
+});
+
+describe("does the studio log the day shown in Journey? (the cards round, Oct 17 2026)", () => {
+  it("is live from the studio's Journey cutover date on, and not yet before it", () => {
+    expect(loggingFrom("2026-10-14", "2026-10-15")).toBe("not-yet");
+    expect(loggingFrom("2026-10-15", "2026-10-15")).toBe("live");
+    expect(loggingFrom("2026-10-16", "2026-10-15")).toBe("live");
+    // Across a year's end, read as day keys, never as numbers.
+    expect(loggingFrom("2027-01-02", "2026-12-31")).toBe("live");
+    expect(loggingFrom("2026-12-31", "2027-01-01")).toBe("not-yet");
+  });
+
+  it("is not yet while the studio has no date set: the safe side, Not logged stays quiet", () => {
+    for (const none of [null, undefined, ""]) expect(loggingFrom("2026-10-15", none)).toBe("not-yet");
+  });
+
+  it("is not yet for a date that is not a real yyyy-mm-dd day, or a day shown that isn't one", () => {
+    for (const bad of ["2026-10-1", "10/15/2026", "2026-13-01", "2026-02-30", "2026-10-15T00:00:00Z", " 2026-10-15", 20261015, new Date(2026, 9, 15), {}]) {
+      expect(loggingFrom("2026-10-20", bad)).toBe("not-yet");
+    }
+    expect(loggingFrom("2028-02-29", "2028-02-29")).toBe("live");
+    expect(loggingFrom("", "2026-10-15")).toBe("not-yet");
+    expect(loggingFrom(null, "2026-10-15")).toBe("not-yet");
+    expect(loggingFrom("2026-02-30", "2026-01-01")).toBe("not-yet");
+  });
+
+  it("is not the nightly job's gate: the day before the cutover is still not yet", () => {
+    // studioIsLive turns a studio live a day early, on purpose, for the nightly Mindbody refresh.
+    expect(studioIsLive("2026-10-15", "2026-10-15")).toBe(true);
+    expect(loggingFrom("2026-10-14", "2026-10-15")).toBe("not-yet");
   });
 });

@@ -2187,6 +2187,8 @@ export default function AppContent({
                       // In the studio's order, as the Hub's columns are.
                       trainers={sortedTrainers}
                       mindbodySiteId={studios.find((s) => s.id === activeStudioId)?.mindbodySiteId ?? null}
+                      // Before it, the Day's Not logged cards step back, as the Hub's do.
+                      journeyCutoverDate={studios.find((s) => s.id === activeStudioId)?.journeyCutoverDate ?? null}
                       rosterStatus={rosterStatus}
                       // The Hub's own session stream: the Day's cards say what
                       // happened, as the Hub's do, on the days it covers.

@@ -50,3 +50,19 @@ describe("Me / Everyone", () => {
     expect(focusColumnId("me", null)).toBeNull();
   });
 });
+
+describe("Day / Week on a phone (Oct 19 2026)", () => {
+  it("starts on the day, remembers the week, and answers the day when storage refuses", async () => {
+    const { DEFAULT_RANGE, RANGE_KEY, readRange, writeRange } = await import("./focus");
+    expect(DEFAULT_RANGE).toBe("day");
+    const store = memoryStore();
+    expect(readRange(store)).toBe("day");
+    writeRange("week", store);
+    expect(store.data.get(RANGE_KEY)).toBe("week");
+    expect(readRange(store)).toBe("week");
+    store.data.set(RANGE_KEY, "nonsense");
+    expect(readRange(store)).toBe("day");
+    expect(readRange(refusing)).toBe("day");
+    expect(() => writeRange("week", refusing)).not.toThrow();
+  });
+});

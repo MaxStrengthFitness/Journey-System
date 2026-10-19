@@ -40,7 +40,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The session record | `src/features/session-record/` — never lose or block a session: Finish counted once, the watching iPad, Continue on this iPad, a session left open cleared by anyone at the studio |
 | The open session | `src/features/open-session/` — a session started before its client is chosen: Start, Who's this? and Assign's one batch, the settings held until then (`heldSetup`; Oct 9 2026) |
 | A new client's first session and a routine's plan | `src/features/routine-plan/` (the plan, starting routines, B, focus, Can't do); also read both round documents it names. **Start from a routine…** in the session's corner lays one on today's list and writes no routine (`start-from.ts`, Oct 9 2026) |
-| The routine builder | `src/features/ab-builder/` — Programming → Routines: A and B side by side, B built whole, Phase it in |
+| The routine builder | `src/features/ab-builder/` — Programming → Routines: A and B in one builder |
 | The machine menu | `src/features/machine-menu/` — one card for a client on one machine, from the session and the profile. The Now Bar's **Set up** opens it on the first empty dial, on the number pad (`journey-grid/setup-button.ts`, Oct 9 2026) |
 | Machine fit | `src/features/machine-fit/` (predictive set-up, Programming → Setup, the Kaizen report); Operations → Machine fit is `src/features/admin/machine-fit/` |
 | Machine totals | `src/features/machine-totals/` — a client's machine maps in their own document |
@@ -81,7 +81,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The Home Screen app | `src/features/home-screen/` — the status bar, the safe areas, the icon |
 | Journey on a phone | `src/features/phone/` — the same app laid out for a phone (`usePhone()`) |
 | Rooms and the Calendar | `src/features/rooms/` (the one room bar, each room's hue) and `src/features/calendar/` (Month · Week · Day, the first room) |
-| The PC build's mark | `src/features/environment-mark/` — "PC build · live data" on every screen of a development build, never in production |
+| The PC build's mark | `src/features/environment-mark/` — "PC build · live data" on a development build only |
 | The perf lab | `harness/perf-lab/` — Journey on a slow iPad, measured; it never ships |
 
 ## Environments
@@ -98,9 +98,9 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | Install | `npm ci` | `npm install` fails with an `edgesOut` error |
 | Run locally | `npm run dev` | Port 3000 |
 | Typecheck | `npx tsc --noEmit` | **0** errors since Oct 18 2026; CI holds it there (`.github/typecheck-baseline.txt`). History by round: `docs/KNOWN-TRAPS.md#baselines` |
-| Tests | `npx vitest run src` | **15,988** passing in 965 files (Oct 19 2026, the routine builder). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
+| Tests | `npx vitest run src` | **16,199** passing in 975 files (Oct 19 2026, the routine builder merged). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
 | Build | `npx vite build` | Then `npm run check:bundle` (`scripts/check-bundle-budget.mjs`, a CI step since Oct 5 2026): the first screen at most 480 KB gzip, no charts, drag-and-drop or motion on it, and a PRODUCTION build (`NODE_ENV` unset or `production`; a `test` build ships React's development files and is refused). `src/first-screen.test.ts` names the import chain if the first screen reaches a heavy module |
-| Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken" means an old emulator still holds 8080 — stop it first. Runs in the cloud container too; AJ's run is the one that counts |
+| Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken" means an old emulator still holds 8080 — stop it first. |
 
 **Deploy order:** `firebase deploy --only firestore:indexes` → `npm run test:rules` → `firebase deploy --only firestore:rules` → `git push origin master` → on Render, Manual Deploy on the web service and Manual Build on both cron jobs (the app goes live; see Environments). Rules go first when they only add access, so the running app is unaffected and the new one finds its rules waiting. If the rules tests fail, stop. Releases are shipped with a staged PowerShell script (`scripts/ship/ship-*.ps1`): `-Stage prepare`, then `-Stage golive`.
 
@@ -120,6 +120,7 @@ Each is the rule, in AJ's words wherever AJ gave them. **More** opens its full e
 - **A client's first day at the studio is set by a person, once, and every anniversary counts from it** (AJ, Sep 29 2026: "we need to make sure setting a client's anniversary for their first day in the studio is intuitive"). `client.firstStudioDay`, set on Account → First day at the studio, beats every inferred date (`src/lib/client-since.ts`); until it is set, a screen says the guess and where it came from. Nothing writes it for you. [More](docs/DECISIONS.md#first-day-at-the-studio)
 - **A client's pronoun follows their Mindbody gender** (AJ, Oct 15 2026: "We defiently need to read client gender"): Male he, Female she, blank or Other the first name or they; a sentence that reads well with no pronoun keeps none, and a wrong gender is fixed in Mindbody. Built: `pronounsFor` (codex `kit/pronouns.ts`) is the one place it is read. [More](docs/DECISIONS.md#no-guessed-gender)
 - **Names are never truncated, and a guard holds it** (Sep 29 2026): `src/lib/names-wrap.test.ts` reads the stylesheets and screens the audit found cutting a name short (the live session's bar and Now Bar, the calendar, history, My Profile's lists, the top strip's studio name, the profile's sub-tabs) and fails on an ellipsis, a line clamp, or nowrap with hidden overflow; a row that must hold a wrapped name has a minimum height, never a height.
+- **The phone is the minimalist mode** (AJ, Oct 19 2026: "get rid of a lot of the features"): rows, My week, one switch. [More](docs/DECISIONS.md#the-phone-is-the-minimalist-mode)
 - **In-app only, for now** (AJ, Oct 15 2026: "this is not a NEVER do its a we arent doing yet"). **Never book a Mindbody visit** ("2.50 fee is crazy for that").
 - **The standing week is a check, never a booking** (AJ, Sep 27 2026). A trainer proposes their usual week, a leader agrees it, and Journey checks the next 7 days of Mindbody bookings against it and says where they differ. It never writes a hold, a booking or availability to Mindbody. A day not read in full, or read offline or only from cache, is "can't tell", never "open". Days away block slots out ("if someone has a vacation then it should block it out"); colleagues see each other's agreed week. [More](docs/DECISIONS.md#the-standing-week)
 - **Openings is a screen a person opens: it never books, never pings, and says "room" only where it can stand behind it** (AJ, Sep 27 2026). A past day counts only if Journey read it in full; every offer ends "Check it in Mindbody before you promise it. Journey doesn't book." A Mindbody "Unavailable" block is never a booking (`isStaffBlock`). No Mindbody call and no new index ("i just dont want a big mindbody bill or firestore bill popping up"). [More](docs/DECISIONS.md#openings)
@@ -213,4 +214,4 @@ The traps are this project's scar tissue: what broke, why, and the rule that cam
 
 ## Keeping this file short
 
-Every session and every helper reads this file in full, so it holds the map, the commands, the environments and the rules, and nothing else (the trim, Oct 9 2026, redone Oct 14 2026; AJ: "1a 2a 3a"). A round adds at most one line to the map and one short decision. The files, the history and the tests go in the feature's `README.md` and `docs/DECISIONS.md`; a new trap goes in `docs/KNOWN-TRAPS.md`; a test count replaces the one above. `src/claude-md.test.ts` holds the limits: the whole file, each map row, each decision, and every `docs/DECISIONS.md` link landing on a heading.
+Every session and every helper reads this file in full, so it holds the map, the commands, the environments and the rules, and nothing else. A round adds at most one line to the map and one short decision. The files, the history and the tests go in the feature's `README.md` and `docs/DECISIONS.md`; a new trap goes in `docs/KNOWN-TRAPS.md`; a test count replaces the one above. `src/claude-md.test.ts` holds the limits: the whole file, each map row, each decision, and every `docs/DECISIONS.md` link landing on a heading.

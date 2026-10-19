@@ -248,10 +248,10 @@
    the lightest rung, 950 always the darkest), so pairs already written as
    `bg-white dark:bg-slate-900` keep behaving exactly as before.
 
-   Contrast of the light text rungs on the light ground (#DEE6EE):
-     slate-500   4.95:1     slate-600   6.44:1
-     slate-700   8.28:1     slate-900  11.16:1
-   slate-400 (2.46:1) is NOT a text colour: it is a non-text grey by design
+   Contrast of the light text rungs on the light ground (#EEEEEE):
+     slate-500   5.38:1     slate-600   7.00:1
+     slate-700   9.00:1     slate-900  12.12:1
+   slate-400 (2.84:1) is NOT a text colour: it is a non-text grey by design
    and cannot be darkened without colliding with slate-500. Words that
    need a quiet grey use `text-muted-foreground`.
    In dark, on a card (slate-900): slate-400 6.47:1, slate-500 4.53:1,
@@ -307,15 +307,23 @@
       The header, the bottom bar and the status bar are the frame
       (--chrome below), the logo's navy in both modes.
 
-   Contrast ratios quoted are against the ground (#DEE6EE) unless stated.
+   6. THE WHITE HAD A BLUE HUE (the light round, Oct 16-17 2026). AJ: light
+      mode "hurts to look at because it has this like blue hue to the
+      white". Every surface is a plain grey now: cards #FCFCFC on a ground
+      #EEEEEE, the navy ink at 13.7:1 on a card, and still nothing pure
+      white. Blue stays only where it means something (yours, picked, in
+      session, Save). Dark mode did not move.
+
+   Contrast ratios quoted inline were measured on the Oct 4 surfaces
+   (#F3F6F9 on #DEE6EE) unless stated; the tests compute today's.
    ===================================================================== */
 :root {
-    --background: #DEE6EE;
+    --background: #EEEEEE;
     --foreground: #192D41;          /* 11.2:1; 13.0:1 on a card — body copy */
-    --card: #F3F6F9;
+    --card: #FCFCFC;
     --card-foreground: #192D41;
-    --popover: #F3F6F9;
-    --elevated: #F3F6F9;
+    --popover: #FCFCFC;
+    --elevated: #FCFCFC;
     --popover-foreground: #192D41;
     --primary: #0A548B;             /* the logo blue: 7.3:1 on a card, white on it 7.9:1 */
     --primary-foreground: #FFFFFF;
@@ -333,9 +341,9 @@
     --action-foreground: #071727;   /* navy words on the logo orange, 6.05:1 (white is 2.99) */
     --secondary: #546271;
     --secondary-foreground: #FFFFFF;
-    --muted: #E4EBF3;
+    --muted: #F2F2F2;
     --muted-foreground: #546271;    /* 4.95:1; 5.8:1 on a card, 5.2:1 on --muted */
-    --accent: #E4EBF3;
+    --accent: #F2F2F2;
     --accent-foreground: #0A548B;
     /* --destructive is a WORD colour: Sign out, errors, invalid borders and
        the shadcn destructive button, which is red words on a 10% tint. No
@@ -343,8 +351,8 @@
        the popover, 4.9:1 on the ground, 4.8:1 on its 10% button tint. */
     --destructive: #BB271B;
     --destructive-foreground: #FFFFFF;
-    --border: #D1DAE4;              /* separators — decorative, low contrast is fine */
-    --input: #748190;               /* 3.15:1; 3.7:1 on a card — WCAG 1.4.11 wants 3:1 for a control's own boundary */
+    --border: #E2E2E2;              /* separators — decorative, low contrast is fine */
+    --input: #7D8083;               /* 3.15:1; 3.7:1 on a card — WCAG 1.4.11 wants 3:1 for a control's own boundary */
     --ring: #0A548B;
     --chart-1: #0A548B;
     --chart-2: #F36D21;
@@ -356,9 +364,9 @@
     --sidebar-foreground: #0F172A;
     --sidebar-primary: #115E8D;
     --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #F1F5F9;
+    --sidebar-accent: #F3F3F3;
     --sidebar-accent-foreground: #115E8D;
-    --sidebar-border: #E2E8F0;
+    --sidebar-border: #E4E4E4;
     --sidebar-ring: #115E8D;
     
     /* ---------------------------------------------------------------
@@ -398,6 +406,12 @@
          --shelf       a bar over scrolling content (a room's toolbar)
          --frame-down, --frame-up   under the navy header, over the navy
                        bottom bar
+                       These three are ONE layer, a 1px line with no blur,
+                       in both modes (the light round, phase 3, Oct 17
+                       2026; AJ's 1A; dark since phase D3, below): on the
+                       plain grey page the navy casts under them read as
+                       navy bleeding onto it. Buttons and panels keep
+                       their two layers; elevation.test.ts holds it
          --press       a raised control pressed in, with translateY(1px)
          --glow-live, --glow-go     a solid blue or orange fill's drop;
                        --solid-light and --go-light are its top light.
@@ -438,9 +452,9 @@
     --elev-4-up: 0 -2px 6px rgba(25,45,65,0.10), 0 -24px 48px -16px rgba(25,45,65,0.34);
     --elev-5: 0 4px 10px rgba(25,45,65,0.10), 0 32px 64px -20px rgba(25,45,65,0.42);
     --elev-list: 0 1px 3px rgba(25,45,65,0.16);
-    --shelf: 0 1px 0 rgba(25,45,65,0.10), 0 6px 14px -10px rgba(25,45,65,0.45);
-    --frame-down: 0 1px 0 rgba(0,18,36,0.22), 0 4px 12px -2px rgba(0,35,65,0.35);
-    --frame-up: 0 -1px 0 rgba(0,18,36,0.22), 0 -10px 26px -12px rgba(0,35,65,0.45);
+    --shelf: 0 1px 0 rgba(25,45,65,0.10);
+    --frame-down: 0 1px 0 rgba(0,18,36,0.22);
+    --frame-up: 0 -1px 0 rgba(0,18,36,0.22);
     --press: inset 0 1px 3px rgba(25,45,65,0.18);
     --glow-live: 0 1px 2px rgba(25,45,65,0.18), 0 6px 14px -6px color-mix(in srgb, var(--primary) 65%, transparent);
     --glow-go: 0 1px 2px rgba(25,45,65,0.16), 0 10px 22px -10px color-mix(in srgb, var(--cta) 80%, transparent);
@@ -448,9 +462,9 @@
     --go-light: inset 0 1px 0 rgba(255,255,255,0.32);
     --panel-highlight: 0 0 0 0 transparent;
 
-    --raised: #F8FAFC;              /* 3.8:1 under --input, 3.5:1 under --eq-border-strong */
-    --well: #E4EBF3;
-    --tray: #D1DAE4;                /* 1.12:1 off the page; the open tab 1.35:1 on it */
+    --raised: #FDFDFD;              /* 3.8:1 under --input, 3.5:1 under --eq-border-strong */
+    --well: #F2F2F2;
+    --tray: #DADADA;                /* 1.12:1 off the page; the open tab 1.35:1 on it */
     --edge: rgba(25,45,65,0.13);
     --edge-control: rgba(25,45,65,0.26);
     --divider: rgba(25,45,65,0.10);
@@ -515,24 +529,24 @@
        the off-white, which is the inverse of the colours but the same
        hierarchy.
        --------------------------------------------------------------- */
-    --bg-dark:     #DEE6EE;   /* page ground */
-    --bg-dark-2:   #F3F6F9;   /* card / panel */
-    --bg-dark-3:   #ECF1F5;   /* raised or inset within a card */
+    --bg-dark:     #EEEEEE;   /* page ground */
+    --bg-dark-2:   #FCFCFC;   /* card / panel */
+    --bg-dark-3:   #F6F6F6;   /* raised or inset within a card */
     --ink-d1:      #192D41;   /* 11.2:1 on the ground, 13.0:1 on a card */
     --ink-d2:      #3F4F60;   /* 6.7:1  — secondary copy */
     --ink-d3:      #546271;   /* 4.95:1 — labels, meta; 5.8:1 on a card */
-    --div-d:       #D1DAE4;
+    --div-d:       #E2E2E2;
 
-    --surface-1:   #F3F6F9;
-    --surface-2:   #ECF1F5;
+    --surface-1:   #FCFCFC;
+    --surface-2:   #F6F6F6;
 
     --bg-l:        #0F172A;
     --bg-l-card:   #1E293B;
-    --ink-l1:      #F8FAFC;
+    --ink-l1:      #FDFDFD;
     --ink-l2:      #CBD5E1;
     --ink-l3:      #546271;   /* no reader since the header became the frame (--chrome, Oct 4 2026); it was the light header's studio name, #94A3B8 at 2.6:1 on white */
     --ink-l4:      #64748B;
-    --div-l:       #D1DAE4;   /* hairlines (the routine drawer, the profile's note box; the header's until it became the frame): it was white at 8%, invisible on a light surface */
+    --div-l:       #E2E2E2;   /* hairlines (the routine drawer, the profile's note box; the header's until it became the frame): it was white at 8%, invisible on a light surface */
 
     /* --cta is the logo orange, a FILL colour. White on it is 2.99:1, so
        words on it are navy, --cta-foreground (6.05:1): no white words sit
@@ -563,21 +577,23 @@
                                card, so every bg-slate-50 inset still
                                reads as a well
          n-100 = --background  the page ground
-         n-200 = --border      hairline
+         n-200 = --tray        the tab tray (it was --border too until the
+                               light round, Oct 17 2026, split the
+                               hairline off at #E2E2E2)
          n-300 =               a soft control line, 1.6:1 on a card
-         n-400 =               a NON-TEXT grey, 2.46:1 on the ground
-         n-500 = --ink-d3      secondary ink, 4.95:1 (5.8:1 on a card)
-         n-600 =               6.4:1
-         n-700 =               8.3:1
-         n-800 =               9.7:1; a dark chip on a light ground
-         n-900 = --foreground  the ink, 11.2:1
+         n-400 =               a NON-TEXT grey, 2.84:1 on the ground
+         n-500 = --ink-d3      secondary ink, 5.38:1 (6.09:1 on a card)
+         n-600 =               7.00:1
+         n-700 =               9.00:1
+         n-800 =               10.5:1; a dark chip on a light ground
+         n-900 = --foreground  the ink, 12.1:1
          n-950 =               the deepest navy (--cta-foreground)
        --------------------------------------------------------------- */
-    --n-50:  #ECF1F5;
-    --n-100: #DEE6EE;
-    --n-200: #D1DAE4;
-    --n-300: #BBC5D1;
-    --n-400: #8794A1;
+    --n-50:  #F6F6F6;
+    --n-100: #EEEEEE;
+    --n-200: #DADADA;
+    --n-300: #C9C9C9;
+    --n-400: #8B8E92;
     --n-500: #546271;
     --n-600: #425162;
     --n-700: #314153;
@@ -695,7 +711,7 @@
     --destructive: #FF8C8C;
     --destructive-foreground: #071727;
     --border: #2B3E50;
-    --input: #6E8397;               /* 3.8:1; 4.4:1 on the ground */
+    --input: #8393A3;               /* 4.7:1; 5.5:1 on the ground */
     --ring: #65ABE9;
     --chart-1: #65ABE9;
     --chart-2: #F36D21;
@@ -717,7 +733,11 @@
        tray sit below it. Edges are soft rims of a pale navy, never a dark
        line, and a panel gets a faint top light. The shadows are short and
        in the deepest navy (2,10,20), stronger than light's because a navy
-       shadow on a navy ground shows less, but never a black smudge. */
+       shadow on a navy ground shows less, but never a black smudge.
+       The frame's edge and a room's shelf are one pale rim line with no
+       cast (the dark round, phase D3, Oct 17 2026): the frame's cast
+       darkened the first 10-14px under the header into a groove, and on
+       the navy the line is what tells the frame from the page. */
     --elev-0: inset 0 1px 2px rgba(2,10,20,0.45);
     --elev-1: 0 1px 2px rgba(2,10,20,0.50);
     --elev-2: 0 1px 2px rgba(2,10,20,0.40), 0 6px 16px -8px rgba(2,10,20,0.60);
@@ -726,9 +746,9 @@
     --elev-4-up: 0 -2px 6px rgba(2,10,20,0.50), 0 -20px 44px -16px rgba(2,10,20,0.80);
     --elev-5: 0 4px 10px rgba(2,10,20,0.55), 0 28px 56px -20px rgba(2,10,20,0.85);
     --elev-list: 0 1px 3px rgba(2,10,20,0.55);
-    --shelf: 0 1px 0 rgba(150,180,210,0.10), 0 6px 14px -10px rgba(2,10,20,0.85);
-    --frame-down: 0 1px 0 rgba(255,255,255,0.05), 0 4px 12px -2px rgba(2,10,20,0.60);
-    --frame-up: 0 -1px 0 rgba(255,255,255,0.05), 0 -10px 24px -12px rgba(2,10,20,0.60);
+    --shelf: 0 1px 0 rgba(150,180,210,0.12);
+    --frame-down: 0 1px 0 rgba(150,180,210,0.16);
+    --frame-up: 0 -1px 0 rgba(150,180,210,0.16);
     --press: inset 0 1px 3px rgba(2,10,20,0.55);
     --glow-live: 0 1px 2px rgba(2,10,20,0.45), 0 6px 14px -8px rgba(2,10,20,0.80);
     --glow-go: 0 1px 2px rgba(2,10,20,0.40), 0 10px 22px -12px color-mix(in srgb, var(--cta) 55%, transparent);
@@ -736,7 +756,7 @@
     --go-light: inset 0 1px 0 rgba(255,255,255,0.28);
     --panel-highlight: inset 0 1px 0 rgba(255,255,255,0.045);
 
-    --raised: #203549;              /* lighter is higher; 3.2:1 under --input */
+    --raised: #203549;              /* lighter is higher; 4.0:1 under --input */
     --well: #0D2235;
     --tray: #081725;                /* below the page */
     --edge: rgba(150,180,210,0.11);
@@ -746,10 +766,10 @@
     --scrim: rgba(0,6,14,0.60);     /* no blur behind it (the iPad round): .55 with a 4px blur */
     /* The popover (#22374B) is a step above the card, lighter than the
        raised fill, so a raised control on it steps up again: 1.11:1 above
-       the popover, its edge 3.43:1 on the fill and 3.81:1 on the popover,
+       the popover, its edge 4.10:1 on the fill and 4.55:1 on the popover,
        the words 8.8:1 (muted 4.8:1). */
     --popover-raised: #283E54;
-    --popover-input: #7D92A6;
+    --popover-input: #8DA0B3;
     --raised-lift: var(--elev-1), inset 0 1px 0 var(--highlight);
     --solid-lift: var(--glow-live), var(--solid-light);
     --go-lift: var(--glow-go), var(--go-light);

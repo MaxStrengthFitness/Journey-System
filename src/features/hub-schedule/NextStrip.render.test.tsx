@@ -42,11 +42,11 @@ const ITEMS: NextStripItem[] = [
     name: "Belladonna Took",
     critical: "Critical: no overhead pressing",
     glyphs: [
-      { kind: "milestone", family: "celebrate", word: "100th", label: "100th today" },
-      { kind: "birthday", family: "celebrate", word: "turns 80", label: "Turns 80 Thu" },
+      { kind: "milestone", family: "celebrate", word: "100th", label: "100th today", rank: 0 },
+      { kind: "birthday", family: "celebrate", word: "turns 80", label: "Turns 80 Thu", rank: 1 },
     ],
   }),
-  item({ key: "estella", name: "Estella Bolger", when: "now", withText: "with Damrod", glyphs: [{ kind: "waiver", family: "watch", word: null, label: "No waiver signed" }] }),
+  item({ key: "estella", name: "Estella Bolger", when: "now", withText: "with Damrod", glyphs: [{ kind: "waiver", family: "watch", word: null, label: "No waiver signed", rank: 0 }] }),
   item({ key: "wilcome", name: "Wilcome Cotton", withText: "with Mablung", clientId: null }),
 ];
 
@@ -67,6 +67,25 @@ describe("the Next 30 minutes strip", () => {
     expect([...el.querySelectorAll(".hn-when")].map((w) => w.textContent)).toEqual(["In session", "9:30", "Now · 9:30", "9:30"]);
     expect([...el.querySelectorAll(".hn-name")].map((n) => n.textContent)).toEqual(["Hamfast Gamgee", "Belladonna Took", "Estella Bolger", "Wilcome Cotton"]);
     expect(itemOf(el, "Estella").querySelector(".hn-with")?.textContent).toBe("with Damrod");
+  });
+
+  it("says Now as its own word, so only the word takes the Now colour and the time stays in the ink (cards round, Oct 17 2026)", () => {
+    const { el } = mount();
+    const estella = itemOf(el, "Estella");
+    expect(estella.dataset.when).toBe("now");
+    const when = estella.querySelector(".hn-when")!;
+    expect(when.textContent).toBe("Now · 9:30");
+    expect([...when.querySelectorAll(".hn-now")].map((w) => w.textContent)).toEqual(["Now"]);
+    // The word, its dot and the time are ONE flex item (no 5px gap inside "Now · 9:30"), and the time is not inside the word.
+    expect(when.children).toHaveLength(1);
+    const words = when.firstElementChild!;
+    expect(words.textContent).toBe("Now · 9:30");
+    expect(words.lastChild?.nodeType).toBe(Node.TEXT_NODE);
+    expect(words.lastChild?.textContent).toBe("9:30");
+    // Coming up and in session have no Now word.
+    expect(itemOf(el, "Belladonna").querySelector(".hn-now")).toBeNull();
+    expect(itemOf(el, "Hamfast").querySelector(".hn-now")).toBeNull();
+    expect(itemOf(el, "Hamfast").querySelector(".hn-when")?.textContent).toBe("In session");
   });
 
   it("the triangle is the only red, and the card's marks say only their sayable words", () => {
