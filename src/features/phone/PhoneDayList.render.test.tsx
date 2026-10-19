@@ -87,7 +87,7 @@ describe("PhoneDayList", () => {
     mount(null, null, BLOCKS, { logging: "not-yet" });
     expect(day().dataset.logging).toBe("not-yet");
     // The gate changes how a Not logged card looks (hub-card.css), never what is listed.
-    expect(rows()).toEqual(["6AMFrodo Bagginswith you", "6:30AMMeriadoc Brandybuckwith Sam", "7AMPeregrin Tookwith you"]);
+    expect(rows()).toEqual(["6AMwith youFrodo Baggins", "6:30AMwith SamMeriadoc Brandybuck", "7AMwith youPeregrin Took"]);
     act(() => root!.unmount());
     host!.remove();
     mount(null, null, BLOCKS, { logging: "live" });
