@@ -142,7 +142,7 @@ The design is the lanes round's short form (`harness/colour/lanes/short.css`, `s
 
 **Open, for AJ.**
 
-- **A card with no profile, three to a slot under a 228px column** (every upright iPad), keeps Mindbody's name in a line of 36 to 60px. A word breaks inside itself on 80% of the 2,500 realistic names in a 156px column, 23% at 196.5px and 6% at 220.8px, and the name pushes the time off a half-hour card as often. Nothing more is built for it without his answer.
+- **A card with no profile, three to a slot under a 228px column** (every upright iPad), keeps Mindbody's name in a line of 36 to 60px. A word breaks inside itself on 80% of the 2,500 realistic names in a 156px column, 23% at 196.5px and 6% at 220.8px, and the name pushes the time off a half-hour card as often. **Two to a slot too, for a long surname** (the review, Oct 19 2026): none of the 2,500 (their longest word is Zimmerman, 60.6px in the narrow face), but a word over about 61px breaks inside itself in an upright 156px column's 62px line: 28 of 78 long US surnames and first names tried, among them Montgomery (65.5px), Cunningham and Christiansen (62.4) and Weatherspoon (74.1). In headless Chrome over this tree's build, "Gwendolyn Christiansen" (156px) and "Jacqueline Weatherspoon" (156 to 175px) with no profile, two to a slot, break the surname and push the time off a half-hour card; three to a slot from 228px, the same. Nothing more is built for it without his answer.
 - **The peek on an Unassigned booking** says "with Samuel" for a person and nothing for a "... Rotation" name (`withWords`), which is his to decide.
 
 **Parked:** four or more at once. A card is about 36px wide, under the 40px tap minimum.
@@ -152,7 +152,7 @@ The design is the lanes round's short form (`harness/colour/lanes/short.css`, `s
 - two at once and three at once, in a colleague's column and in yours;
 - a consult beside another booking;
 - a very long name taking initials beside a short one;
-- a card with no profile three to a slot (the open item);
+- a card with no profile three to a slot, and two to a slot with a long surname such as Montgomery (the open item);
 - each symbol at arm's length: the pause should read as left open, not a button;
 - the Key's row;
 - VoiceOver on a narrow card, reading the whole card;
