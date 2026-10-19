@@ -5,6 +5,8 @@ Design spec for `src/features/journey-grid/` — the sticky client-tracking grid
 
 Files: `src/features/journey-grid/`. Live prototype: the "Journey Grid" artifact (same code, compiled with Judy Daus's data).
 
+**The seat belt on the Now Bar (Oct 19 2026; `docs/rounds/2026-10-19-seat-belt.md`).** Once recorded it joins the settings button's line in its own words, "Gap 3 · Back pad 4 · Seat 4 · Belt on" ("Belt off", "Belt not needed"; `setup-button.ts` through `equipment/seat-belt.ts` `beltWords`). It never counts in "Set up · 2 not set" (`machine-menu/setting-draft.ts` `emptyDials`), so nothing recorded says nothing. The settings' order sorts it after every dial and shortens it to "Belt", so the seat keeps its "S" (`lib/utils.ts` `orderMachineSettings`). The profile chart's position boxes leave it out (`JourneyGrid.tsx`): they line up under Gap, one small box each, and "Belt Not needed" would be cut short there; the row still says it to a screen reader (`belt-rail.render.test.tsx`).
+
 **The floor on day one (Oct 8 2026; `docs/rounds/2026-10-08-first-session-screens.md` §4.6).**
 Routine A's plan reaches the session (`routine-plan/session-plan.ts`, the
 hook `routine-plan/ui/useSessionPlan.ts`):

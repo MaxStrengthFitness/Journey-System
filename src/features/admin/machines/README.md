@@ -112,6 +112,10 @@ lists, never the gap's). A standard machine keeps the catalog's names until
 the settings audit before the FileMaker import. The trap is in
 `docs/KNOWN-TRAPS.md` → Machines and the template boundary.
 
+## A unit's seat belt (Oct 19 2026)
+
+AJ: "if the machine has it installed is another question that the studio needs to answer". The Dials section has one more line, **Seat belt on this unit: Yes / No** (`editor/controls.tsx` `SeatBeltAnswer`, the 40px chips, the chosen one blue). It writes `hasSeatBelt` on the definition, a studio field (`lib/machine-template.ts`): administrators on the standard (`machines/{id}`), the studio on its copy (`overrides`, a difference from the standard, `false` kept as a real answer by `pruneOverrides`) or its own machine (`definition`). **Until it is answered the belt shows** (AJ's "Ba"); No takes it off that unit's card (`equipment/seat-belt.ts`). Compare and the save's toast name it "seat belt". A dial typed as "Seat belt" or "Belt" is refused: every machine has one already. The round is `docs/rounds/2026-10-19-seat-belt.md`.
+
 ## The files
 
 | | |

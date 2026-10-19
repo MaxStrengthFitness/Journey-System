@@ -437,3 +437,14 @@ nothing; a failed read is said. The client's own machine note says whose it is
 ("About her on this machine"), and that a fault with the unit is the floor's:
 flag it on Relay so it's fixed for everyone. `docs/rounds/2026-10-03-client-notes.md`
 (the second half, machines) is the round.
+
+## The seat belt (Oct 19 2026)
+
+AJ: "every machine could/should have a seatbelt now if the client chooses to use it or if the machine has it installed is another question that the studio needs to answer ... On/off/Not needed" ("Aa Ba"). The round is `docs/rounds/2026-10-19-seat-belt.md`.
+
+`seat-belt.ts` is the ONE module, pure, with only a type import so the floor can ask it:
+
+- **`SEAT_BELT_KEY` is "Seat belt"**, the key a client's choice is saved under in `clientMachineSettings.settings` and the label too (floor dials are saved under their labels). It never changes.
+- **Three choices, `SEAT_BELT_CHOICES`: On · Off · Not needed.** Nothing saved is NOT RECORDED: never Off, and never one of the "not set" dials.
+- **`withSeatBelt`** is the one place the belt joins a machine's dials: last, unless the unit's `hasSeatBelt` is `false` (the studio's No; unanswered shows it, AJ's "Ba") or a dial of the machine's own already is the belt (`isSeatBelt`: "Seat belt", "seat-belt", "Belt"). `adapters.ts` `buildFields` calls it, so the card, the Now Bar's count, the open session's held set-up at Assign and Programming → Setup all hold one list.
+- **`beltChoiceOf`** reads a written value ("yes", "N", "No belt", "N/A") as one of the three, for the paste box; **`beltWords`** says it the Now Bar's way ("Belt on").
