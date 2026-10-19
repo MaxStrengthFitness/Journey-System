@@ -186,7 +186,7 @@ AJ's say.
 
 ## 7. What was built (Oct 19 2026)
 
-Five commits on `oct19/routine-builder`, each typechecked alone:
+Six commits on `oct19/routine-builder`, each typechecked alone:
 
 1. The pure half: `ab-builder/builder.ts`, `phase.ts`, and what a save
    writes (`store.ts`), with `plan.phase` on the plan's type.
@@ -221,6 +221,29 @@ Five commits on `oct19/routine-builder`, each typechecked alone:
 - **Routine A's plan** (on deck, can't do, a weak area, Re-plan, the plan's
   changes) opens under the builder, folded, without B's column; it opens by
   itself while Routine A is empty and the plan runs day one.
+
+**What an independent review of the branch caught, and what was fixed**
+(a sixth commit):
+
+- A tick rebuilt B from the plan's start, so a machine the Wrap-up or the
+  drawer had added to B since would quietly leave it. Now a tick makes its
+  one step on B as it stands.
+- A tick could switch B back on after someone turned it off. Now only the
+  save that starts a plan turns B on.
+- A save on Routine A wrote A's whole plan back from the iPad's copy, which
+  could undo a Can't do another iPad had just marked. Now the plan is
+  written only when it changed, and What it's for by its own path.
+- Right after Save the old list showed again until the live read caught up,
+  and a tap in that moment could undo the save. Now what was saved holds
+  until it comes back.
+- B on with nothing in it had no switch on Routines; it does now. Phase it
+  in started from Routine A's unsaved draft; it starts from A as saved.
+  The briefing's line said a due step while B was off; it doesn't now.
+  Drafts carried over to the next client; they are cleared.
+- **Left open:** a routine laid from Start from… does not record which
+  template it came from (the Edit routine drawer writes the template's
+  name, its machine notes and the time it was applied). The drawer still
+  does that; the builder doesn't yet.
 
 **Not done, and waiting on AJ:**
 

@@ -165,6 +165,16 @@ describe("one builder for A and B", () => {
     expect(listOf("Routine B")).toEqual(["Leg Curl", "Chest Press"]);
   });
 
+  it("swaps a machine in its own place in B, and never touches A", async () => {
+    await mount({ routines: [A] });
+    await tap("Copy A into B");
+    await tap("Change Leg Press in Routine B");
+    await tap("Swap for…");
+    await tap("Swap Leg Press for Leg Curl");
+    expect(listOf("Routine B")).toEqual(["Pulldown", "Leg Curl"]);
+    expect(listOf("Routine A")).toEqual(["Pulldown", "Leg Press"]);
+  });
+
   it("saves Routine B whole, and turns B on with it", async () => {
     await mount({ routines: [A] });
     await tap("Copy A into B");
@@ -210,6 +220,29 @@ describe("one builder for A and B", () => {
     expect(save.adjustment?.notes).toBe("Phasing in: Leg Curl for Leg Press");
   });
 
+  it("keeps a machine someone else added to B when a step is ticked, and never turns B back on", async () => {
+    const phase = phasePlanOf({ base: ["m-pulldown", "m-leg-press"], target: ["m-pulldown", "m-leg-curl"], todayYmd: TODAY, who: { uid: "u0" } });
+    const B: Routine = {
+      id: "rb",
+      name: "Routine B",
+      clientId: "c1",
+      studioId: "strongsville",
+      // The Wrap-up added Chest Press since the plan began.
+      machineIds: ["m-pulldown", "m-leg-press", "m-chest-press"],
+      plan: { purpose: "", intended: [], building: false, madeByUid: "u0", phase },
+    };
+    await mount({ routines: [A, B], isBActive: false });
+    await tap(/^Leg Curl for Leg Press/);
+    const save = commits.phase[0] as PhaseSave;
+    expect(save.fields.machineIds).toEqual(["m-pulldown", "m-leg-curl", "m-chest-press"]);
+    expect(save.turnB).toBeNull();
+  });
+
+  it("shows the B switch while B is on with nothing in it, so it can be turned off", async () => {
+    await mount({ routines: [A], isBActive: true });
+    expect(document.body.querySelector('[aria-label="Turn Routine B off"]')).not.toBeNull();
+  });
+
   it("hands the B switch to the profile once B has machines", async () => {
     const toggles: boolean[] = [];
     const B: Routine = { id: "rb", name: "Routine B", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-curl"] };
@@ -232,8 +265,8 @@ describe("one builder for A and B", () => {
     await act(async () => {
       root!.render(
         <>
-          <PhaseDueLine routineB={{ plan: { purpose: "", intended: [], building: false, madeByUid: "u0", phase } }} todayYmd="2026-10-27" nameOf={nameOf} />
-          <PhaseDueLine routineB={{ plan: { purpose: "", intended: [], building: false, madeByUid: "u0", phase } }} todayYmd="2026-10-12" nameOf={nameOf} />
+          <PhaseDueLine active routineB={{ plan: { purpose: "", intended: [], building: false, madeByUid: "u0", phase } }} todayYmd="2026-10-27" nameOf={nameOf} />
+          <PhaseDueLine active routineB={{ plan: { purpose: "", intended: [], building: false, madeByUid: "u0", phase } }} todayYmd="2026-10-12" nameOf={nameOf} />
         </>,
       );
     });

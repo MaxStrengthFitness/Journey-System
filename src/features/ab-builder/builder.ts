@@ -75,6 +75,16 @@ export function takenOut(list: readonly string[], id: string): string[] {
   return without(list, id);
 }
 
+/**
+ * A machine swapped for another in its place, the rest of the order kept: the
+ * way B is made a machine different from A. A machine already in the routine
+ * is never put in twice.
+ */
+export function swapped(list: readonly string[], from: string, to: string): string[] {
+  if (from === to || !list.includes(from) || list.includes(to)) return [...list];
+  return list.map((id) => (id === from ? to : id));
+}
+
 /** B as a copy of A, the start for a B that differs by a machine or two. */
 export function copiedAIntoB(draft: Draft): Draft {
   return { a: [...draft.a], b: [...draft.a] };

@@ -12,14 +12,17 @@ import "../../routine-plan/ui/routine-plan.css";
 
 export function PhaseDueLine({
   routineB,
+  active,
   todayYmd,
   nameOf,
 }: {
   routineB: Pick<Routine, "plan"> | null | undefined;
+  /** B is on: a B switched off says nothing about its plan. */
+  active: boolean;
   todayYmd: string;
   nameOf: (id: string) => string;
 }) {
-  const phase = phaseOf(routineB?.plan?.phase);
+  const phase = active ? phaseOf(routineB?.plan?.phase) : null;
   const words = phase ? phaseDueWords(phase, todayYmd, nameOf) : null;
   if (!words) return null;
   return (

@@ -25,7 +25,7 @@
  * refusal comes back through `onError`. What is typed and not saved is
  * registered as unsaved work.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, ClipboardList, Copy, History, Layers, Undo2 } from "lucide-react";
 import type { Client, Machine, Routine, RoutineAdjustment, Trainer } from "../../../types";
 import { db } from "../../../firebase";
@@ -45,15 +45,16 @@ import {
   markWords,
   moved,
   sameList,
+  swapped,
   takenOut,
   tapFloor,
   TARGET_WORDS,
   type Draft,
   type Target,
 } from "../builder";
-import { phaseOf, phasePlanOf, type PhasePlan } from "../phase";
+import { appliedStep, isDone, phaseOf, phasePlanOf, type PhasePlan } from "../phase";
 import { commitPhaseSave, commitRoutineSave, phaseSaveOf, routineSaveOf, saveChanges, type Slot } from "../store";
-import { PhasePanel, PhaseSheet } from "./PhasePanel";
+import { PhasePanel, PhaseSheet, type PhaseMove } from "./PhasePanel";
 import "../../routine-plan/ui/routine-plan.css";
 import "./ab-builder.css";
 
@@ -107,18 +108,53 @@ export function RoutineBuilder({
   const [purposeB, setPurposeB] = useState<string | null>(null);
   const [whyA, setWhyA] = useState("");
   const [whyB, setWhyB] = useState("");
+  /**
+   * What was just saved, held until the live read brings it back, so the
+   * screen never shows the old list in between, and a tap meanwhile builds
+   * on what was saved rather than on the list before it (the review, Oct 19
+   * 2026). Cleared when the routine matches it, or the save is refused.
+   */
+  const [pendingA, setPendingA] = useState<{ ids: string[]; purpose: string } | null>(null);
+  const [pendingB, setPendingB] = useState<{ ids: string[]; purpose: string } | null>(null);
   const [startFrom, setStartFrom] = useState(false);
   const [phaseDraft, setPhaseDraft] = useState<PhasePlan | null>(null);
   const [changesOf, setChangesOf] = useState<Slot | null>(null);
 
-  const draft: Draft = {
-    a: draftA ?? savedA?.machineIds ?? [],
-    b: draftB ?? savedB?.machineIds ?? [],
-  };
-  const pA = purposeA ?? savedA?.plan?.purpose ?? "";
-  const pB = purposeB ?? savedB?.plan?.purpose ?? "";
-  const dirtyA = saveChanges(savedA, draft.a, pA);
-  const dirtyB = saveChanges(savedB, draft.b, pB);
+  // Another client is another builder: nothing carries over.
+  const lastClient = useRef(clientId);
+  useEffect(() => {
+    if (lastClient.current === clientId) return;
+    lastClient.current = clientId;
+    setTarget("A");
+    setDraftA(null);
+    setDraftB(null);
+    setPurposeA(null);
+    setPurposeB(null);
+    setWhyA("");
+    setWhyB("");
+    setPendingA(null);
+    setPendingB(null);
+    setStartFrom(false);
+    setPhaseDraft(null);
+    setChangesOf(null);
+  }, [clientId]);
+
+  const savedPurposeA = (savedA?.plan?.purpose ?? "").trim();
+  const savedPurposeB = (savedB?.plan?.purpose ?? "").trim();
+  useEffect(() => {
+    if (pendingA && sameList(pendingA.ids, savedA?.machineIds ?? []) && pendingA.purpose === savedPurposeA) setPendingA(null);
+  }, [pendingA, savedA?.machineIds, savedPurposeA]);
+  useEffect(() => {
+    if (pendingB && sameList(pendingB.ids, savedB?.machineIds ?? []) && pendingB.purpose === savedPurposeB) setPendingB(null);
+  }, [pendingB, savedB?.machineIds, savedPurposeB]);
+
+  const baseA = pendingA ?? { ids: savedA?.machineIds ?? [], purpose: savedPurposeA };
+  const baseB = pendingB ?? { ids: savedB?.machineIds ?? [], purpose: savedPurposeB };
+  const draft: Draft = { a: draftA ?? baseA.ids, b: draftB ?? baseB.ids };
+  const pA = purposeA ?? baseA.purpose;
+  const pB = purposeB ?? baseB.purpose;
+  const dirtyA = !sameList(baseA.ids, draft.a) || baseA.purpose !== pA.trim();
+  const dirtyB = !sameList(baseB.ids, draft.b) || baseB.purpose !== pB.trim();
   const phase = phaseOf(savedB?.plan?.phase);
 
   const resetA = () => {
@@ -152,6 +188,14 @@ export function RoutineBuilder({
   const save = (slot: Slot) => {
     if (!who || disabled) return;
     const isA = slot === "Routine A";
+    const ids = [...(isA ? draft.a : draft.b)];
+    const purpose = (isA ? pA : pB).trim();
+    // Not changed since it was saved: compared with the routine as saved, so the pending list is never written twice.
+    if (!saveChanges(isA ? savedA : savedB, ids, purpose)) {
+      if (isA) resetA();
+      else resetB();
+      return;
+    }
     const s = routineSaveOf({
       slot,
       routine: isA ? savedA : savedB,
@@ -161,24 +205,43 @@ export function RoutineBuilder({
       trainerId: authTrainer?.id || "unknown",
       who,
       todayYmd: host.todayYmd,
-      machineIds: isA ? draft.a : draft.b,
-      purpose: isA ? pA : pB,
+      machineIds: ids,
+      purpose,
       why: isA ? whyA : whyB,
       isBActive,
     });
     const { commit } = commitRoutineSave(db, s);
-    commit.catch(() => onError?.(`Couldn't save ${slot}. Try again.`));
+    const setPending = isA ? setPendingA : setPendingB;
+    setPending({ ids, purpose });
+    commit.catch(() => {
+      setPending(null);
+      onError?.(`Couldn't save ${slot}. Try again.`);
+    });
     if (isA) resetA();
     else resetB();
     if (!(isA ? dirtyB : dirtyA)) unsaved.release();
   };
 
-  // Where B starts phasing in from: B as it stands, or a copy of A when B has nothing.
-  const phaseBase = savedB && savedB.machineIds.length > 0 ? savedB.machineIds : draft.a;
-  const canPhase = !phase && draft.b.length > 0 && !sameList(phaseBase, draft.b) && dirtyB;
+  // Where B starts phasing in from: B as saved, or a copy of Routine A as saved when B has nothing (never A's unsaved draft).
+  const phaseBase = savedB && savedB.machineIds.length > 0 ? savedB.machineIds : (savedA?.machineIds ?? []);
+  const canPhase = !phase && phaseBase.length > 0 && draft.b.length > 0 && !sameList(phaseBase, draft.b) && dirtyB;
 
-  const savePhase = (next: PhasePlan | null, note: string) => {
+  /**
+   * A phase plan saved. B's machines are worked out from B as it stands now,
+   * never rebuilt from the plan's base, so a change someone else made to B
+   * since (the Wrap-up, the Edit routine drawer) is kept.
+   */
+  const savePhase = (next: PhasePlan | null, note: string, move: PhaseMove) => {
     if (!who || disabled) return;
+    const now = savedB?.machineIds ?? [];
+    const machineIds =
+      move.kind === "start"
+        ? phaseBase
+        : move.kind === "step"
+          ? appliedStep(now, move.step, next?.target ?? [], move.forward)
+          : move.kind === "all"
+            ? move.steps.reduce<string[]>((list, s) => appliedStep(list, s, next?.target ?? []), [...now])
+            : now;
     const s = phaseSaveOf({
       routine: savedB,
       clientId,
@@ -187,6 +250,8 @@ export function RoutineBuilder({
       who,
       todayYmd: host.todayYmd,
       phase: next,
+      machineIds,
+      starting: move.kind === "start",
       purpose: pB,
       note,
       isBActive,
@@ -194,7 +259,6 @@ export function RoutineBuilder({
     const { commit } = commitPhaseSave(db, s, clientId);
     commit.catch(() => onError?.("Couldn't save Routine B's phase-in plan. Try again."));
   };
-
   if (host.status === "loading") {
     return (
       <section className="rpl-panel" aria-busy="true">
@@ -284,6 +348,7 @@ export function RoutineBuilder({
 
         <RoutineCard
           slot="Routine A"
+          held={held}
           first={first}
           ids={draft.a}
           nameOf={nameOf}
@@ -303,6 +368,7 @@ export function RoutineBuilder({
 
         <RoutineCard
           slot="Routine B"
+          held={held}
           first={first}
           ids={draft.b}
           nameOf={nameOf}
@@ -319,7 +385,8 @@ export function RoutineBuilder({
           onChanges={savedB?.id ? () => setChangesOf("Routine B") : undefined}
           saveWords={!isBActive && draft.b.length > 0 ? "Save and turn B on" : undefined}
           head={
-            savedB && savedB.machineIds.length > 0 ? (
+            // B's switch whenever there is something to switch: B with machines, or B on with nothing in it (the way to turn it off).
+            (savedB && savedB.machineIds.length > 0) || isBActive ? (
               <label className="rt-switch abb-switch">
                 <span>{isBActive ? "B on" : "B off"}</span>
                 <Switch
@@ -355,7 +422,11 @@ export function RoutineBuilder({
           }
           extra={
             canPhase ? (
-              <Button variant="outline" onClick={() => who && setPhaseDraft(phasePlanOf({ base: phaseBase, target: draft.b, todayYmd: host.todayYmd, who }))} disabled={!who || disabled}>
+              <Button
+                variant="outline"
+                onClick={() => who && setPhaseDraft(phasePlanOf({ base: phaseBase, target: draft.b, todayYmd: host.todayYmd, who }))}
+                disabled={!who || disabled}
+              >
                 <Layers aria-hidden="true" />
                 Phase it in
               </Button>
@@ -392,7 +463,24 @@ export function RoutineBuilder({
           first={first}
           onClose={() => setPhaseDraft(null)}
           onSave={(next) => {
-            savePhase(next, phase ? "Phase-in plan changed" : `Phasing B in: ${next.steps.length} ${next.steps.length === 1 ? "step" : "steps"}`);
+            if (phase) {
+              // Weeks and owners from the sheet over the plan as it stands now, so a tick made meanwhile on another iPad is kept.
+              const merged =
+                phase.steps.length === next.steps.length
+                  ? {
+                      ...phase,
+                      steps: phase.steps.map((s, i) => {
+                        if (isDone(s)) return s;
+                        const { ownerId: _o, ownerName: _n, ...rest } = s;
+                        const from = next.steps[i];
+                        return { ...rest, week: from.week, ...(from.ownerId ? { ownerId: from.ownerId, ownerName: from.ownerName } : null) };
+                      }),
+                    }
+                  : next;
+              savePhase(merged, "Phase-in plan changed", { kind: "none" });
+            } else {
+              savePhase(next, `Phasing B in: ${next.steps.length} ${next.steps.length === 1 ? "step" : "steps"}`, { kind: "start" });
+            }
             setPhaseDraft(null);
             if (!phase) {
               resetB();
@@ -444,6 +532,7 @@ function RoutineCard({
   middle,
   extra,
   foot,
+  held = [],
 }: {
   slot: Slot;
   first: string;
@@ -466,8 +555,16 @@ function RoutineCard({
   middle?: ReactNode;
   extra?: ReactNode;
   foot?: ReactNode;
+  /** What the client can't do: never offered as a swap. */
+  held?: readonly string[];
 }) {
-  const [open, setOpen] = useState<string | null>(null);
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [swapOpen, setSwapOpen] = useState(false);
+  const open = openRow;
+  const setOpen = (id: string | null) => {
+    setOpenRow(id);
+    setSwapOpen(false);
+  };
   const effects = useMemo(() => effectsAbove(ids, nameOf, floor), [ids, nameOf, floor]);
   const letter = slot === "Routine A" ? "A" : "B";
   const items: ReactNode[] = [];
@@ -499,6 +596,9 @@ function RoutineCard({
               Move down
             </Button>
           )}
+          <Button variant="outline" aria-expanded={swapOpen} onClick={() => setSwapOpen((o) => !o)}>
+            Swap for…
+          </Button>
           <Button
             variant="outline"
             onClick={() => {
@@ -510,6 +610,45 @@ function RoutineCard({
           </Button>
         </li>,
       );
+      if (swapOpen) {
+        // The same family first (the Academy's swap is within the family), then the rest of the floor.
+        const families = floorByFamily(floor);
+        const own = families.find((f) => f.machineIds.includes(id));
+        const groups = [
+          ...(own ? [{ key: own.key, label: `${own.label}, like ${nameOf(id)}`, ids: own.machineIds }] : []),
+          ...families.filter((f) => f !== own).map((f) => ({ key: f.key, label: f.label, ids: f.machineIds })),
+        ]
+          .map((g) => ({ ...g, ids: g.ids.filter((x) => !ids.includes(x) && !held.includes(x)) }))
+          .filter((g) => g.ids.length > 0);
+        items.push(
+          <li key={`s-${id}`} className="abb-swap" aria-label={`Swap ${nameOf(id)} for`}>
+            {groups.length === 0 ? (
+              <p className="rpl-meta">Every machine on this floor is in {slot} already.</p>
+            ) : (
+              groups.map((g) => (
+                <div key={g.key} className="rpl-sheet__section">
+                  <p className="rpl-meta">{g.label}</p>
+                  <div className="rpl-chips">
+                    {g.ids.map((x) => (
+                      <Chip
+                        key={x}
+                        label={`Swap ${nameOf(id)} for ${nameOf(x)}`}
+                        onClick={() => {
+                          onChange(swapped(ids, id, x));
+                          setOpen(null);
+                          setSwapOpen(false);
+                        }}
+                      >
+                        {nameOf(x)}
+                      </Chip>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </li>,
+        );
+      }
     }
   });
 

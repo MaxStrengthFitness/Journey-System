@@ -40,7 +40,7 @@ import { planFromRoutine, signedChange, type Who } from "../routine-plan/lineup"
 import { PLAN_CHANGES, setRoutineBActive, withBFollowing } from "../routine-plan/store";
 import { PLAN_CHANGE_MACHINES_MAX, type PlanChange, type RoutinePlan } from "../routine-plan/types";
 import { sameList } from "./builder";
-import { runningB, type PhasePlan } from "./phase";
+import type { PhasePlan } from "./phase";
 
 export type Slot = "Routine A" | "Routine B";
 
@@ -121,14 +121,25 @@ export function routineSaveOf(input: RoutineSaveInput): RoutineSave {
       turnB: null,
     };
   }
+  /*
+   * Only what changed (CLAUDE.md: "Write only what changed, never a whole
+   * object read back"): the plan is written whole only when the machines
+   * moved it (`planChangeFromEdit`, the drawer's rule), What it's for alone
+   * goes by its own field path, and a save that moved neither leaves the
+   * plan alone, so a mark another iPad made on it is never written over.
+   */
   const changes: PlanChange[] = [];
   let plan: RoutinePlan | undefined;
+  let purposeOnly = false;
   if (saved.plan) {
     const kept = planChangeFromEdit({ before, after: machineIds, plan: saved.plan });
-    plan = kept ? kept.plan : saved.plan;
-    for (const c of kept?.changes ?? []) changes.push(signedChange(c, input.who, why));
-    if ((saved.plan.purpose ?? "") !== purpose) {
-      plan = { ...plan, purpose };
+    if (kept) {
+      plan = kept.plan;
+      for (const c of kept.changes) changes.push(signedChange(c, input.who, why));
+    }
+    if ((saved.plan.purpose ?? "").trim() !== purpose) {
+      if (plan) plan = { ...plan, purpose };
+      else purposeOnly = true;
       changes.push(signedChange({ kind: "purpose", machineIds: [], value: purpose }, input.who, why));
     }
   } else if (purpose) {
@@ -140,7 +151,7 @@ export function routineSaveOf(input: RoutineSaveInput): RoutineSave {
     bFollowOf(input.routines, saved.id, machineIds) ?? (plan ? plannedBFollowOf(input.routines, saved.id, plan) : null);
   return {
     routineId: saved.id ?? null,
-    fields: withoutUndefined({ machineIds, ...(plan ? { plan } : null) }),
+    fields: withoutUndefined({ machineIds, ...(plan ? { plan } : purposeOnly ? { "plan.purpose": purpose } : null) }),
     adjustment,
     changes,
     follow,
@@ -199,6 +210,16 @@ export interface PhaseSaveInput {
   todayYmd: string;
   /** The plan as it now stands, or null to stop phasing (B left as it stands). */
   phase: PhasePlan | null;
+  /**
+   * What Routine B holds after this save, worked out by the caller from B as
+   * it stands now (`appliedStep`), never rebuilt from the plan's base, so a
+   * change someone else made to B since the plan began is kept: the plan's
+   * base when the plan is made, B with the ticked step made or undone, and B
+   * unchanged for a week, an owner, or Stop.
+   */
+  machineIds: readonly string[];
+  /** The plan is being made now: the one save that may turn B on. */
+  starting?: boolean;
   /** What B is for, when the plan is first made. */
   purpose?: string;
   /** The adjustment's words: "Phasing in: Leg Curl for Leg Press". */
@@ -223,7 +244,7 @@ export interface PhaseSave {
 export function phaseSaveOf(input: PhaseSaveInput): PhaseSave {
   const saved = input.routine && input.routine.id && !input.routine.id.startsWith("temp-") ? input.routine : null;
   const before = saved?.machineIds ?? [];
-  const now = input.phase ? runningB(input.phase) : [...before];
+  const now = [...input.machineIds];
   const moved = !saved || !sameList(before, now);
   const adjustment = moved
     ? withoutUndefined({
@@ -250,7 +271,8 @@ export function phaseSaveOf(input: PhaseSaveInput): PhaseSave {
       plan,
     });
   }
-  const turnB = now.length > 0 && !input.isBActive && !!input.phase ? true : null;
+  // Only the save that starts the plan turns B on: a tick never switches back on a B someone turned off.
+  const turnB = input.starting && now.length > 0 && !input.isBActive && !!input.phase ? true : null;
   return { routineId: saved?.id ?? null, fields, adjustment, turnB };
 }
 

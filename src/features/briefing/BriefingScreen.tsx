@@ -1444,7 +1444,7 @@ export function BriefingScreen({
                 </button>
               </div>
               {/* Routine B's phase-in step when it is due, with its owner (the routine builder round, Oct 19 2026). */}
-              <PhaseDueLine routineB={routineB} todayYmd={todayKey} nameOf={planNameOf} />
+              <PhaseDueLine routineB={routineB} active={!!client?.isRoutineBActive} todayYmd={todayKey} nameOf={planNameOf} />
               {rebuilding ? (
                 <div className="br-today__rebuild" data-testid="briefing-rebuild">
                   <div className="br-today__rebuild-bar">

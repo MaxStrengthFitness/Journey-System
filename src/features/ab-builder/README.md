@@ -39,12 +39,23 @@ its own order, What it's for and its own Save.
 - **Phasing in is a choice, and a person makes every step.** Kept on Routine
   B's plan as `plan.phase`; Routine B's `machineIds` stays what the client
   does now. Anyone makes, changes or drops the plan, and anyone ticks a step.
-  Each tick writes B's machines and the plan in one update, and a
-  `routineAdjustments` record with the step's words. Saving B whole ends the
+  Each tick makes its one step on Routine B AS IT STANDS (`appliedStep`),
+  never rebuilds B from the plan's base, so a machine the Wrap-up or the
+  Edit routine drawer added to B since is kept; it writes B's machines and
+  `plan.phase` in one update, and a `routineAdjustments` record with the
+  step's words. Only the save that starts a plan turns B on: a tick never
+  switches back on a B someone turned off. Change the plan puts the sheet's
+  weeks and owners over the plan as it stands, so a tick made meanwhile on
+  another iPad is kept. Saving B whole ends the
   plan, and the card says so before it happens. Nothing pings anyone.
-- **Routine A keeps its plan.** A save on a Routine A with a plan writes the
-  plan's matching changes beside it (`planChangeFromEdit`) and What it's for
-  as a `purpose` change; a plan-less Routine A given What it's for gets the
+- **A save holds what it saved until the live read brings it back**
+  (`pendingA`, `pendingB`), so the old list never flashes back and a tap
+  meanwhile builds on what was saved. Another client clears every draft.
+- **Routine A keeps its plan, and only what changed is written.** A save on a
+  Routine A with a plan writes the plan whole only when the machines moved
+  it (`planChangeFromEdit`, the drawer's rule), What it's for alone by its
+  own field path (`plan.purpose`) with a `purpose` change, and nothing on
+  the plan otherwise, so a mark another iPad made is never written over; a plan-less Routine A given What it's for gets the
   plan Add a plan makes. A client starting out at the studio keeps Start a
   plan (the starting lineup, day one); Routine A's plan opens under the
   builder (`ProgrammingTab`).

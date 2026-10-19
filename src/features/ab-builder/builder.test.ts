@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { copiedAIntoB, differs, laidFrom, markOf, markWords, moved, sameList, takenOut, tapFloor } from "./builder";
+import { copiedAIntoB, differs, laidFrom, markOf, markWords, moved, sameList, swapped, takenOut, tapFloor } from "./builder";
 
 describe("tapFloor", () => {
   const d = { a: ["pull", "row"], b: ["pull"] };
@@ -38,6 +38,14 @@ describe("a routine's order", () => {
     expect(moved(["a", "b", "c"], "b", -1)).toEqual(["b", "a", "c"]);
     expect(moved(["a", "b", "c"], "c", 1)).toEqual(["a", "b", "c"]);
     expect(takenOut(["a", "b"], "a")).toEqual(["b"]);
+  });
+});
+
+describe("swapped", () => {
+  it("puts the new machine in the old one's place, never twice", () => {
+    expect(swapped(["a", "press", "c"], "press", "curl")).toEqual(["a", "curl", "c"]);
+    expect(swapped(["a", "press", "c"], "press", "c")).toEqual(["a", "press", "c"]);
+    expect(swapped(["a"], "x", "y")).toEqual(["a"]);
   });
 });
 

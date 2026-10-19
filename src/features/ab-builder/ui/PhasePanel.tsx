@@ -34,6 +34,18 @@ import {
   type PhaseStep,
 } from "../phase";
 
+/**
+ * What a phase save does to Routine B's machines, for the caller to work out
+ * from B as it stands now: the plan's base when it starts, one step made or
+ * undone, every step left made (Finish now), or nothing (a week, an owner,
+ * Stop).
+ */
+export type PhaseMove =
+  | { kind: "start" }
+  | { kind: "step"; step: Pick<PhaseStep, "from" | "to">; forward: boolean }
+  | { kind: "all"; steps: Pick<PhaseStep, "from" | "to">[] }
+  | { kind: "none" };
+
 /** A step's line under its words: when, who, and whether it is due or behind. */
 export function stepSub(step: PhaseStep, todayYmd: string): string {
   if (isDone(step)) return `Done ${dayWords(step.doneAt as string)}${step.doneByName ? ` · ${step.doneByName}` : ""}`;
@@ -59,7 +71,7 @@ export function PhasePanel({
   disabled: boolean;
   /** B is being edited on screen: saving it whole ends the plan, and the screen says so. */
   editing: boolean;
-  onSave: (next: PhasePlan | null, note: string) => void;
+  onSave: (next: PhasePlan | null, note: string, move: PhaseMove) => void;
   onChange: () => void;
 }) {
   const [stopping, setStopping] = useState(false);
@@ -80,7 +92,11 @@ export function PhasePanel({
             sub={stepSub(s, todayYmd)}
             onChange={(on) => {
               if (!can || !who) return;
-              onSave(tickedStep(phase, i, on, who, todayYmd), `${on ? "Phasing in" : "Phasing in, undone"}: ${stepWords(s, nameOf)}`);
+              onSave(tickedStep(phase, i, on, who, todayYmd), `${on ? "Phasing in" : "Phasing in, undone"}: ${stepWords(s, nameOf)}`, {
+                kind: "step",
+                step: s,
+                forward: on,
+              });
             }}
           />
         ))}
@@ -92,7 +108,7 @@ export function PhasePanel({
           <Button
             variant="outline"
             onClick={() => {
-              onSave(null, "Stopped phasing Routine B in");
+              onSave(null, "Stopped phasing Routine B in", { kind: "none" });
               setStopping(false);
             }}
             disabled={!can}
@@ -112,7 +128,9 @@ export function PhasePanel({
           {!st.complete && (
             <Button
               variant="outline"
-              onClick={() => who && onSave(finishedNow(phase, who, todayYmd), "Phased Routine B in: every step at once")}
+              onClick={() =>
+                who && onSave(finishedNow(phase, who, todayYmd), "Phased Routine B in: every step at once", { kind: "all", steps: phase.steps.filter((s) => !isDone(s)) })
+              }
               disabled={!can}
             >
               <FastForward aria-hidden="true" />

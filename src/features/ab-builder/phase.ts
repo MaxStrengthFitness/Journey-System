@@ -162,6 +162,35 @@ export function runningB(plan: Pick<PhasePlan, "base" | "target" | "steps">): st
   return out;
 }
 
+/**
+ * One step made on Routine B as it stands now (or undone, `forward` false),
+ * so a change someone else made to B since the plan began (the Wrap-up's
+ * Next time, the Edit routine drawer) is kept: a tick moves only its own
+ * machines. A swap takes its place; an addition goes after the machine it
+ * follows in the target; nothing is put in twice.
+ */
+export function appliedStep(
+  list: readonly string[],
+  step: Pick<PhaseStep, "from" | "to">,
+  target: readonly string[],
+  forward = true,
+): string[] {
+  const from = forward ? step.from : step.to;
+  const to = forward ? step.to : step.from;
+  let out = [...list];
+  if (from && to) {
+    const at = out.indexOf(from);
+    if (at >= 0 && !out.includes(to)) out[at] = to;
+    else if (at >= 0) out = out.filter((id) => id !== from);
+    else if (!out.includes(to)) out = insertAfterTarget(out, to, target);
+  } else if (from) {
+    out = out.filter((id) => id !== from);
+  } else if (to && !out.includes(to)) {
+    out = insertAfterTarget(out, to, target);
+  }
+  return out;
+}
+
 function insertAfterTarget(list: string[], id: string, target: readonly string[]): string[] {
   const at = target.indexOf(id);
   for (let i = at - 1; i >= 0; i--) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appliedStep,
   dayWords,
   finishedNow,
   phaseDueWords,
@@ -103,6 +104,20 @@ describe("where it stands", () => {
     expect(stepWords({ from: "press", to: "curl" }, nameOf)).toBe("Leg Curl for Leg Press");
     expect(stepWords({ to: "curl" }, nameOf)).toBe("Add Leg Curl");
     expect(stepWords({ from: "press" }, nameOf)).toBe("Take out Leg Press");
+  });
+});
+
+describe("appliedStep", () => {
+  const target = ["add", "curl", "fly", "row"];
+  it("makes a step on B as it stands, keeping what someone else added", () => {
+    expect(appliedStep(["add", "press", "ohp", "row", "abs"], { from: "press", to: "curl" }, target)).toEqual(["add", "curl", "ohp", "row", "abs"]);
+  });
+  it("undoes a step in place", () => {
+    expect(appliedStep(["add", "curl", "ohp", "row", "abs"], { from: "press", to: "curl" }, target, false)).toEqual(["add", "press", "ohp", "row", "abs"]);
+  });
+  it("adds after the machine it follows, and takes out", () => {
+    expect(appliedStep(["add", "row"], { to: "curl" }, target)).toEqual(["add", "curl", "row"]);
+    expect(appliedStep(["add", "press"], { from: "press" }, target)).toEqual(["add"]);
   });
 });
 

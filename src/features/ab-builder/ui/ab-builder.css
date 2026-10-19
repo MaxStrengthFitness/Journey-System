@@ -84,6 +84,14 @@
   padding: 4px 0 8px;
 }
 
+/* A row's Swap for…: the floor as chips under the row, its own family first. */
+.abb-swap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 8px 40px;
+}
+
 /* Phasing in, on B's card: a well inside the panel. */
 .abb-phase {
   display: flex;
