@@ -14,9 +14,10 @@ import { describe, expect, it } from "vitest";
  *      at-rule), and its marks under the time where they don't fit beside
  *      it: in the grid only (.hs-slot), never the phone's list, which grows
  *      with its words. Nothing hides the word or clips the time.
- *   2. A lane of about 155 to 175px (one to a slot under a 175px column, two
- *      in a column of 310 to 350px): the Critical triangle hides her number,
- *      and "+N" gives way beside In session. Hidden whole, nothing else.
+ *   2. A lane of about 155 to 176px (one to a slot under a 176px lane, two
+ *      in a column of 310 to 352px, and since phase 3 three in 465 to 528
+ *      and four in 620 to 704): the Critical triangle hides her number, and
+ *      "+N" gives way beside In session. Hidden whole, nothing else.
  *   3. The Unassigned column's "Booked with ..." has the room the name and
  *      the time leave and drops whole when that is too little (a column
  *      that wraps, behind a lead as wide as the box and no height), so the
@@ -105,19 +106,26 @@ describe("a consult's word on its own line, at every width (phase 2)", () => {
   });
 });
 
-describe("a lane of about 155 to 175px: two narrow rules (phase 2)", () => {
-  const blocks = (lanes: number) => ALL.filter((r) => r.selectors.some((s) => s.startsWith(`.hs-slot[data-lanes="${lanes}"] .hs-card[data-critical`) || s.startsWith(`.hs-slot[data-lanes="${lanes}"] .hs-card[data-state="in-session"] .hs-g`)));
+describe("a lane of about 155 to 176px: two narrow rules (phase 2; three and four to a slot since phase 3)", () => {
+  // Exactly these two selectors: the short form (phase 3) hides more under the same lanes, in its own blocks.
+  const blocks = (lanes: number) => ALL.filter((r) => r.selectors.some((s) => s === `.hs-slot[data-lanes="${lanes}"] .hs-card[data-critical="true"] .hs-card-num` || s === `.hs-slot[data-lanes="${lanes}"] .hs-card[data-state="in-session"] .hs-g[data-family="more"]`));
 
-  it("one to a slot under a 175px column, two in a column of 310 to 350px: the column asked by name", () => {
-    expect([...new Set(blocks(1).map((r) => r.at.join(" ")))]).toEqual(["@container hs-col (max-width: 174.98px)"]);
-    expect([...new Set(blocks(2).map((r) => r.at.join(" ")))]).toEqual(["@container hs-col (min-width: 310px) and (max-width: 349.98px)"]);
-    // The lanes are the same width: 155 to 175px each.
-    expect(310 / 2).toBe(155);
-    expect(Math.round(349.98 / 2)).toBe(175);
+  it("one to a slot under a 176px lane, two in a column of 310 to 352px, three of 465 to 528, four of 620 to 704: the column asked by name", () => {
+    // 176 since phase 3 (it was 175): a lane of 175 to 176px still broke "Christophe / r" beside the number and the triangle.
+    expect([...new Set(blocks(1).map((r) => r.at.join(" ")))]).toEqual(["@container hs-col (max-width: 175.98px)"]);
+    expect([...new Set(blocks(2).map((r) => r.at.join(" ")))]).toEqual(["@container hs-col (min-width: 310px) and (max-width: 351.98px)"]);
+    // Three and four to a slot since phase 3: the same lanes, from where the short form ends.
+    expect([...new Set(blocks(3).map((r) => r.at.join(" ")))]).toEqual(["@container hs-col (min-width: 465px) and (max-width: 527.98px)"]);
+    expect([...new Set(blocks(4).map((r) => r.at.join(" ")))]).toEqual(["@container hs-col (min-width: 620px) and (max-width: 703.98px)"]);
+    // The lanes are the same width: 155 to 176px each.
+    for (const [lanes, from, to] of [[2, 310, 351.98], [3, 465, 527.98], [4, 620, 703.98]]) {
+      expect(from / lanes).toBe(155);
+      expect(Math.round(to / lanes)).toBe(176);
+    }
   });
 
   it("hides her number beside the triangle, and +N beside In session, whole, and nothing else", () => {
-    for (const lanes of [1, 2]) {
+    for (const lanes of [1, 2, 3, 4]) {
       const found = blocks(lanes);
       expect(found.map((r) => r.selectors.join(", "))).toEqual([
         `.hs-slot[data-lanes="${lanes}"] .hs-card[data-critical="true"] .hs-card-num`,

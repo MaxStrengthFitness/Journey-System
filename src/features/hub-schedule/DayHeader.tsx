@@ -36,16 +36,20 @@ import {
   ArrowDown,
   Award,
   Cake,
+  Check,
   ChevronRight,
+  Circle,
   Eye,
   FileSignature,
   KeyRound,
   ListChecks,
   MessageCircle,
   PartyPopper,
+  Pause,
   RefreshCw,
   Sparkles,
   Undo2,
+  X,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { LayerSwitch, type HubLayer } from "../hub-opportunities/LayerSwitch";
@@ -320,6 +324,28 @@ const STATES: ReadonlyArray<{ state: string; name: string; means: string }> = [
   { state: "off", name: "Not working", means: "Outside the trainer’s agreed week, or a day away. Nothing is shaded without an agreed week." },
 ];
 
+/*
+ * ON A NARROW CARD (the narrow cards round, phase 3, Oct 18 2026; AJ: "Keep
+ * them side by side, cards say less"): two or three booked at once share
+ * their slot, and a card a half or a third of its column says what happened
+ * as a symbol beside its time, the word in its label and its peek. Each is
+ * drawn here as the card draws it (HubCard's done check and .hs-card-sym:
+ * the same icon, size, stroke and colour).
+ */
+export const NARROW_SYMBOLS: ReadonlyArray<{
+  sym: "done" | "not-logged" | "left-open" | "late-cancel";
+  icon: ComponentType<{ size?: number; strokeWidth?: number; fill?: string; "aria-hidden"?: boolean }>;
+  size: number;
+  strokeWidth: number;
+  fill?: string;
+  word: string;
+}> = [
+  { sym: "done", icon: Check, size: 13, strokeWidth: 2, word: "Done" },
+  { sym: "not-logged", icon: Circle, size: 12, strokeWidth: 2.6, word: "Not logged" },
+  { sym: "left-open", icon: Pause, size: 13, strokeWidth: 2, fill: "currentColor", word: "Left open" },
+  { sym: "late-cancel", icon: X, size: 13, strokeWidth: 2.6, word: "Late cancel" },
+];
+
 export function KeySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Dialog
@@ -370,6 +396,23 @@ export function KeySheet({ open, onClose }: { open: boolean; onClose: () => void
             </li>
           ))}
         </ul>
+        <p className="hd-key-note hd-key-narrow">
+          <strong>On a narrow card:</strong>{" "}
+          {NARROW_SYMBOLS.map((row, i) => {
+            const I = row.icon;
+            return (
+              <span key={row.sym} className="hd-key-sym-item">
+                {i > 0 && " · "}
+                <span className="hd-key-sym" data-sym={row.sym} aria-hidden>
+                  {/* Fill only where the card fills it: an unset fill would take the icon's own default away. */}
+                  <I size={row.size} strokeWidth={row.strokeWidth} {...(row.fill ? { fill: row.fill } : {})} aria-hidden />
+                </span>
+                {row.word}
+              </span>
+            );
+          })}
+          {". Two or three booked at once share the slot, so each card shows its time, one mark and a symbol for what happened, and where the name won’t fit, the client’s initials. Tap it for the rest."}
+        </p>
       </DialogContent>
     </Dialog>
   );

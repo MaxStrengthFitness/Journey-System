@@ -651,3 +651,35 @@
     display: block;
   }
 }
+
+/* On a narrow card (the narrow cards round, phase 3, Oct 18 2026): the
+   symbols a card sharing its slot draws for what happened, here as the card
+   draws them, in the card's colours (hub-card.css's .hs-card-sym and the
+   done check, which takes the time's muted ink). Each stays beside its
+   word. */
+.hd-key-sym-item {
+  white-space: nowrap;
+}
+
+.hd-key-sym {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
+.hd-key-sym[data-sym="done"],
+.hd-key-sym[data-sym="late-cancel"] {
+  color: var(--eq-ink-muted);
+}
+
+.hd-key-sym[data-sym="not-logged"] {
+  color: var(--eq-ink);
+}
+
+.hd-key-sym[data-sym="left-open"] {
+  color: var(--eq-warn);
+}

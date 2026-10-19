@@ -455,6 +455,20 @@ button.hs-colhead:focus-visible {
   z-index: 1;
 }
 
+/* Two, three or four to a slot in a lane under 155px (the narrow cards
+   round, phase 3: hub-card.css's short form): the slot gives its card
+   1.75px more each side, so neighbours stand 2.5px apart, not 6. Asked of
+   the column, as the card's own rules are. */
+@container hs-col (max-width: 309.98px) {
+  .hs-slot[data-lanes="2"] { padding: 0 1.25px; }
+}
+@container hs-col (max-width: 464.98px) {
+  .hs-slot[data-lanes="3"] { padding: 0 1.25px; }
+}
+@container hs-col (max-width: 619.98px) {
+  .hs-slot[data-lanes="4"] { padding: 0 1.25px; }
+}
+
 /* ---- the folds ---- */
 
 .hs-band {

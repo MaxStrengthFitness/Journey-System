@@ -249,7 +249,17 @@ describe("Now: the orange mark and the word", () => {
     expect(read("features/hub-schedule/HubCard.tsx")).toContain('<strong className="hs-card-now">Now</strong>');
     expect(read("features/hub-schedule/NextStrip.tsx")).toContain('<span className="hn-now">Now</span>');
     for (const css of [CARD, STRIP]) {
-      for (const r of rules(css)) if (r.body.content !== undefined) expect(r.body.content, r.selectors.join(", ")).toMatch(/^(""|none)$/);
+      for (const r of rules(css)) {
+        if (r.body.content === undefined) continue;
+        // The one exception, a time and never a word (the narrow cards round, phase 3): a card sharing its
+        // slot shows a span without its AM or PM from HubCard's own data-time, so the full card's text stays
+        // the nodes it was; the part is aria-hidden and the card's label says the whole time.
+        if (css === CARD && r.selectors.join(", ") === ".hs-card-clock-short::before") {
+          expect(r.body.content).toBe("attr(data-time)");
+          continue;
+        }
+        expect(r.body.content, r.selectors.join(", ")).toMatch(/^(""|none)$/);
+      }
     }
   });
 });

@@ -22,6 +22,7 @@ import { resolve } from "node:path";
 import { StrictMode, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { HubCard, sameCard, type HubCardProps } from "./HubCard";
+import { KeySheet } from "./DayHeader";
 import { bookingMarks, loggedSessions, type BookingMarks, type LoggedSessions } from "../../lib/booking-state";
 import { momentsToday, type MomentsTodayInput, type RunSheetEntry } from "../hub-opportunities/moments-today";
 import type { Client, WorkoutSession } from "../../types";
@@ -893,6 +894,41 @@ describe("the narrow card's parts, drawn on every card", () => {
     expect(draw({ now: tAt("16:00") }).dataset.nameOver).toBeUndefined();
     const long = { id: "c1", firstName: "Bartholomew", lastName: "Hollingsworth" } as unknown as Client;
     expect(draw({ now: tAt("16:00"), client: long }).dataset.nameOver).toBe("60 62 64 66 68 70 72");
+  });
+
+  /* Phase 3 (hub-card.css): the short form and the shortest read data-name-over and the initials; a card
+     with no profile, still loading or unread has neither, so its name stays whole, however long. */
+  it("never gives a card with no profile, still loading or unread a way to initials, however long Mindbody's name", () => {
+    const longName = { ...half, clientName: "Mary Ellen Szymanski-Abernathy" };
+    for (const props of [{ client: null }, { client: null, rosterLoading: true }, { client: null, rosterFailed: true }] as Partial<HubCardProps>[]) {
+      const card = draw({ now: tAt("16:00"), booking: longName, ...props });
+      expect(card.dataset.kind).not.toBe("client");
+      expect(card.dataset.nameOver).toBeUndefined();
+      expect(card.querySelector(".hs-card-initials")).toBeNull();
+      expect(card.querySelector(".hs-card-name")?.textContent).toBe("Mary Ellen Szymanski-Abernathy");
+      expect(card.getAttribute("aria-label")).toMatch(/^Mary Ellen Szymanski-Abernathy, /);
+    }
+    // The same name on a client's card: the narrow lines it is too long for, and her initials.
+    const client = draw({ now: tAt("16:00"), booking: longName, client: { id: "c1", firstName: "Mary Ellen", lastName: "Szymanski-Abernathy" } as unknown as Client });
+    expect(client.dataset.nameOver?.split(" ")).toContain("112");
+    expect(client.querySelector(".hs-card-initials")?.textContent).toBe("MS");
+  });
+
+  it("the Key draws each narrow card's symbol exactly as the card does: the icon, its size, stroke and fill", () => {
+    const drawn = (svg: Element | null | undefined) => (svg ? ["class", "width", "height", "stroke-width", "fill"].map((a) => svg.getAttribute(a)) : null);
+    const onCard = {
+      done: drawn(draw({ now: tAt("16:50"), logged: loggedSessions([finished]), workoutSession: finished }).querySelector('.hs-card-when > svg[aria-label="Done"]')),
+      "not-logged": drawn(draw({ now: tAt("17:10") }).querySelector('.hs-card-sym[data-sym="not-logged"] svg')),
+      "left-open": drawn(draw({ now: tAt("18:00"), workoutSession: quiet() }).querySelector('.hs-card-sym[data-sym="left-open"] svg')),
+      "late-cancel": drawn(draw({ now: tAt("17:10"), noShows: bookingMarks([{ id: half.id, noShow: true }]) }).querySelector('.hs-card-sym[data-sym="late-cancel"] svg')),
+    };
+    act(() => root!.render(<KeySheet open onClose={() => {}} />));
+    for (const [sym, svg] of Object.entries(onCard)) {
+      expect(svg, sym).not.toBeNull();
+      expect(drawn(document.querySelector(`.hd-key-sym[data-sym="${sym}"] svg`)), sym).toEqual(svg);
+    }
+    // Two solid bars for Left open, the plainer pause (phase 1's CirclePause read like a button).
+    expect(onCard["left-open"]).toEqual(["lucide lucide-pause", "13", "13", "2", "currentColor"]);
   });
 
   it("hides every new part on a full card: the wrappers are display: contents, the extras take no box", () => {

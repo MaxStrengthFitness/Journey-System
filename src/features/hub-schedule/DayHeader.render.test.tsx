@@ -194,6 +194,31 @@ describe("the Key", () => {
     }
   });
 
+  it("says a narrow card's four symbols, each drawn beside its word, after the grid's states (the narrow cards round, phase 3)", () => {
+    render(<KeySheet open onClose={() => {}} />);
+    const row = document.querySelector(".hd-key-narrow");
+    expect(row?.tagName).toBe("P");
+    // The row AJ's design names, then one sentence: what a narrow card shows, and where the rest is.
+    expect(row?.textContent).toMatch(/^On a narrow card: Done · Not logged · Left open · Late cancel\. /);
+    expect(row?.textContent).toContain("one mark and a symbol for what happened");
+    expect(row?.textContent).toContain("the client’s initials");
+    expect(row?.textContent).toContain("Tap it for the rest.");
+    const syms = [...row!.querySelectorAll(".hd-key-sym")];
+    expect(syms.map((s) => s.getAttribute("data-sym"))).toEqual(["done", "not-logged", "left-open", "late-cancel"]);
+    // A symbol is a picture of its word, which follows it: unheard, and never wrapped away from it.
+    for (const s of syms) {
+      expect(s.getAttribute("aria-hidden")).toBe("true");
+      expect(s.parentElement?.classList.contains("hd-key-sym-item")).toBe(true);
+    }
+    expect(syms.map((s) => s.querySelector("svg")?.getAttribute("class"))).toEqual(["lucide lucide-check", "lucide lucide-circle", "lucide lucide-pause", "lucide lucide-x"]);
+    // After the grid's states: the last list is still the grid's (the test above), and the row is not a state.
+    const lists = [...document.querySelectorAll(".hd-key-list")];
+    expect(lists[lists.length - 1].compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Each symbol has its ink in the stylesheet.
+    const css = readFileSync(resolve(__dirname, "day-header.css"), "utf8");
+    for (const sym of ["done", "not-logged", "left-open", "late-cancel"]) expect(css, sym).toContain(`.hd-key-sym[data-sym="${sym}"]`);
+  });
+
   it("explains the ✎ Ask about, and says its words stay off the card (wave 2 hub)", () => {
     render(<KeySheet open onClose={() => {}} />);
     const row = [...document.querySelectorAll(".hd-key-list li")].find((li) => li.textContent?.startsWith("Ask about."));

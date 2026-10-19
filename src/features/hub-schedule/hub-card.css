@@ -764,9 +764,9 @@
   margin-top: -2px;
 }
 
-/* ---- a lane of about 155 to 175px, the full card: two narrow rules ----
-   One lane in a column under 176px (every colleague's column upright, five
-   or six trainers sideways), or two in a column of 310 to 350px (your
+/* ---- a lane of about 155 to 176px, the full card: two narrow rules ----
+   One lane in a column under 177px (every colleague's column upright, five
+   or six trainers sideways), or two in a column of 310 to 352px (your
    column sideways with five trainers, 318px): the card's inside is 126 to
    147px (the column's content box, less the slot's 3px sides and the
    card's 23px). There:
@@ -776,8 +776,11 @@
        don't fit 126px, and the "+1" was cut at the card's edge.
    Each is hidden whole and said in the card's label ("session 264", "1
    more: ...", spokenCard) and in the peek. Two to a slot under 310px is the
-   short card's, never this. */
-@container hs-col (max-width: 174.98px) {
+   short card's, never this. Since phase 3 the lane ends at 176px, not 175:
+   swept across every column width, a lane of 175 to 176px still broke the
+   longest first words beside the number and the triangle ("Christophe / r",
+   79px in Geist 600; "Szymanski / -Abernathy"), which fit from 176. */
+@container hs-col (max-width: 175.98px) {
   .hs-slot[data-lanes="1"] .hs-card[data-critical="true"] .hs-card-num {
     display: none;
   }
@@ -786,11 +789,35 @@
   }
 }
 
-@container hs-col (min-width: 310px) and (max-width: 349.98px) {
+@container hs-col (min-width: 310px) and (max-width: 351.98px) {
   .hs-slot[data-lanes="2"] .hs-card[data-critical="true"] .hs-card-num {
     display: none;
   }
   .hs-slot[data-lanes="2"] .hs-card[data-state="in-session"] .hs-g[data-family="more"] {
+    display: none;
+  }
+}
+
+/* And, since phase 3, three to a slot in a column of 465 to 528px and four
+   in one of 620 to 704px: the same lanes, just above the short form's. A
+   colleague's column can be that wide on an iPad on its side with two
+   trainers (yours stops at 420px and the other takes the rest); measured
+   across every column width, "Margare / t" and the cut "+1" came back there
+   as they were in the narrower columns. */
+@container hs-col (min-width: 465px) and (max-width: 527.98px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-critical="true"] .hs-card-num {
+    display: none;
+  }
+  .hs-slot[data-lanes="3"] .hs-card[data-state="in-session"] .hs-g[data-family="more"] {
+    display: none;
+  }
+}
+
+@container hs-col (min-width: 620px) and (max-width: 703.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-critical="true"] .hs-card-num {
+    display: none;
+  }
+  .hs-slot[data-lanes="4"] .hs-card[data-state="in-session"] .hs-g[data-family="more"] {
     display: none;
   }
 }
@@ -839,4 +866,785 @@
   flex: none;
   width: 100%;
   margin: -0.5px 0;
+}
+
+/* ==== THE NARROW CARDS ROUND, PHASE 3: the short form, for two or three at once ====
+   AJ (Oct 18 2026): "Keep them side by side, cards say less", then "Build it
+   as you described, including initials for the very long names." When two
+   or three bookings share a slot, a card is a half or a third of its
+   column, and below a lane of 155px the full card no longer fits: names
+   broke inside a word, times fell off the bottom, words were cut at the
+   edge. There the card says less, and every word it gives up is still the
+   card's: its label says it (spokenCard), the peek says it, the Key explains
+   the symbols.
+
+   Decided by the COLUMN (hs-col, the one container) and the slot's
+   data-lanes, never a container per card (the iPad round's W12). The widths
+   are the column's content box (its width less its 1px right edge):
+     the short form   a lane under 155px: two to a slot under 310px, three
+                      under 465px, four under 620px;
+     the shortest     a lane under 76px: three to a slot under 228px (every
+                      upright iPad), four under 304px.
+
+   THE SHORT FORM:
+     - her name whole in the lane head's narrower face (Saira Condensed 700,
+       14/16), broken only between words, on at most two lines; the slot
+       gives its cards 1.75px more each side (hub-grid.css) and the card
+       keeps 10px on the left for its mark (4px in) and 3px on the right;
+     - the time alone: a span without its AM or PM (.hs-card-clock-short,
+       the peek says it), wrapping only at its spaces, each part whole;
+     - what happened as the card's look plus a small symbol, never the word:
+       the check for done, an empty ring for Not logged (in the ink, the
+       muted ink before the cutover), a pause for Left open, Paused and At
+       End Session (plum, its word's colour), a cross for a late cancel (the
+       muted ink); in session the blue fill (the dot gives way and the time
+       takes the words' place); Now the orange mark, "Now ·" only where it
+       fits whole, as it already does; no profile its cloud and its time;
+     - at most ONE mark: the Critical triangle, at the end of the time line
+       (the name needs the whole first line), else the glyph first in the
+       Key's order (data-rank 0); her number, the other marks, "+N", the
+       glyphs' words, "New to Journey" and the service are the peek's.
+   THE SHORTEST: her initials (Saira 700 15/17) in her name's place, then
+   the time, then the one mark or symbol under it (AJ accepted that this
+   bends "names are never truncated"); a Mindbody "Unavailable" block keeps
+   its hatching and its time, its word in its label.
+   THE LONG-NAME RULE (AJ's "initials for the very long names"): in the
+   short form a name that would need a third line, or a word wider than the
+   line, shows her initials too, so the time is never pushed off the card.
+   HubCard writes the narrow lines her name is too long for (data-name-over,
+   name-fit.ts, from Saira's own advance widths); the blocks at the end ask
+   for the line their column gives a card (W / lanes - 15.5px), so the
+   stylesheet never guesses from the text.
+   NEVER INITIALS: a card with no profile yet, one still loading, or one
+   whose profile couldn't be checked opens no peek, so Mindbody's name stays
+   whole in the narrow face, broken only between words where its words fit
+   the line (HubCard draws initials and data-name-over on a client's card
+   only).
+
+   Whether the name or the initials show is two custom properties the
+   blocks set on the card (--hs-name-shown, --hs-initials-shown) and the
+   short form reads, so each block is one rule. Measured in the lanes
+   harness (headless Chrome over HubCard's own markup and the built
+   stylesheet): see the README. No new colour, no opacity, no blur, no
+   shadow; tokens only. */
+
+/* ---- the narrow parts' own look, wherever they show (hidden above on a
+   full card, which these never reach) ---- */
+.hs-card-sym {
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+}
+
+.hs-card-sym[data-sym="not-logged"] {
+  color: var(--eq-ink);
+}
+
+.hs-card-sym[data-sym="left-open"] {
+  color: var(--eq-warn);
+}
+
+.hs-card-sym[data-sym="late-cancel"] {
+  color: var(--eq-ink-muted);
+}
+
+/* Before the studio's cutover Not logged steps back with its words (the
+   cards round), and so does its ring. */
+.hs-scroll[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"] .hs-card-sym {
+  color: var(--eq-ink-muted);
+}
+
+.hs-tri.hs-tri--short {
+  width: 20px;
+  height: 20px;
+}
+
+/* A span without its AM or PM ("10:00 – 10:45"), said from its attribute
+   so the full card's text stays the nodes it was (phase 1). */
+.hs-card-clock-short {
+  white-space: normal;
+}
+
+.hs-card-clock-short::before {
+  content: attr(data-time);
+}
+
+/* Her initials take her name's ink in every state. */
+.hs-card-initials {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 17px;
+  letter-spacing: 0.02em;
+  color: var(--eq-ink);
+}
+
+.hs-card[data-recede="true"] .hs-card-initials {
+  color: var(--eq-ink-2);
+}
+
+.hs-card[data-kind="client"][data-state="done"] .hs-card-initials,
+.hs-card[data-kind="client"][data-state="didnt-come"] .hs-card-initials {
+  color: var(--eq-ink-muted);
+}
+
+.hs-card[data-kind="client"][data-state="not-logged"] .hs-card-initials,
+.hs-card[data-kind="client"][data-state="left-open"] .hs-card-initials {
+  color: var(--eq-ink);
+}
+
+.hs-scroll[data-logging="not-yet"] .hs-card[data-kind="client"][data-state="not-logged"] .hs-card-initials {
+  color: var(--eq-ink-muted);
+}
+
+/* ---- the short form: a lane under 155px ----
+   One body, written per lanes count (a container query cannot divide the
+   column by its lanes). It comes after the consult's rules above and
+   outweighs or follows each one it changes. */
+@container hs-col (max-width: 309.98px) {
+  .hs-slot[data-lanes="2"] .hs-card {
+    padding: 4px 3px 4px 10px;
+  }
+  .hs-slot[data-lanes="2"] .hs-card::before {
+    left: 4px;
+  }
+  .hs-slot[data-lanes="2"] .hs-card[data-kind="unlinked"] {
+    padding: 3px 2px 3px 9px;
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-top {
+    gap: 4px;
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-head {
+    line-height: 16px;
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-name {
+    display: var(--hs-name-shown, inline);
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 0.005em;
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-initials {
+    display: var(--hs-initials-shown, none);
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-num,
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-rest,
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-state-part,
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-unsynced,
+  .hs-slot[data-lanes="2"] .hs-card .hs-g-word,
+  .hs-slot[data-lanes="2"] .hs-card .hs-g[data-family="more"],
+  .hs-slot[data-lanes="2"] .hs-card .hs-g:not([data-rank="0"]),
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-top > .hs-tri,
+  .hs-slot[data-lanes="2"] .hs-card[data-critical="true"] .hs-glyphs,
+  .hs-slot[data-lanes="2"] .hs-card .hs-live-dot,
+  .hs-slot[data-lanes="2"] .hs-card[data-state="in-session"] .hs-card-when > strong,
+  .hs-slot[data-lanes="2"] .hs-card[data-span] .hs-card-clock {
+    display: none;
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-sym,
+  .hs-slot[data-lanes="2"] .hs-card .hs-tri.hs-tri--short {
+    display: inline-flex;
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-alt-time,
+  .hs-slot[data-lanes="2"] .hs-card[data-span] .hs-card-clock-short {
+    display: inline;
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-meta {
+    gap: 4px;
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-when {
+    flex: 0 1 auto;
+    gap: 3px;
+  }
+  .hs-slot[data-lanes="2"] .hs-card .hs-card-when[data-now="true"] {
+    gap: 0;
+  }
+  .hs-slot[data-lanes="2"] .hs-card[data-span] .hs-card-when {
+    flex-wrap: nowrap;
+  }
+}
+
+@container hs-col (max-width: 464.98px) {
+  .hs-slot[data-lanes="3"] .hs-card {
+    padding: 4px 3px 4px 10px;
+  }
+  .hs-slot[data-lanes="3"] .hs-card::before {
+    left: 4px;
+  }
+  .hs-slot[data-lanes="3"] .hs-card[data-kind="unlinked"] {
+    padding: 3px 2px 3px 9px;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-top {
+    gap: 4px;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-head {
+    line-height: 16px;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-name {
+    display: var(--hs-name-shown, inline);
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 0.005em;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-initials {
+    display: var(--hs-initials-shown, none);
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-num,
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-rest,
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-state-part,
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-unsynced,
+  .hs-slot[data-lanes="3"] .hs-card .hs-g-word,
+  .hs-slot[data-lanes="3"] .hs-card .hs-g[data-family="more"],
+  .hs-slot[data-lanes="3"] .hs-card .hs-g:not([data-rank="0"]),
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-top > .hs-tri,
+  .hs-slot[data-lanes="3"] .hs-card[data-critical="true"] .hs-glyphs,
+  .hs-slot[data-lanes="3"] .hs-card .hs-live-dot,
+  .hs-slot[data-lanes="3"] .hs-card[data-state="in-session"] .hs-card-when > strong,
+  .hs-slot[data-lanes="3"] .hs-card[data-span] .hs-card-clock {
+    display: none;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-sym,
+  .hs-slot[data-lanes="3"] .hs-card .hs-tri.hs-tri--short {
+    display: inline-flex;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-alt-time,
+  .hs-slot[data-lanes="3"] .hs-card[data-span] .hs-card-clock-short {
+    display: inline;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-meta {
+    gap: 4px;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-when {
+    flex: 0 1 auto;
+    gap: 3px;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-when[data-now="true"] {
+    gap: 0;
+  }
+  .hs-slot[data-lanes="3"] .hs-card[data-span] .hs-card-when {
+    flex-wrap: nowrap;
+  }
+}
+
+@container hs-col (max-width: 619.98px) {
+  .hs-slot[data-lanes="4"] .hs-card {
+    padding: 4px 3px 4px 10px;
+  }
+  .hs-slot[data-lanes="4"] .hs-card::before {
+    left: 4px;
+  }
+  .hs-slot[data-lanes="4"] .hs-card[data-kind="unlinked"] {
+    padding: 3px 2px 3px 9px;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-top {
+    gap: 4px;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-head {
+    line-height: 16px;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-name {
+    display: var(--hs-name-shown, inline);
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 0.005em;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-initials {
+    display: var(--hs-initials-shown, none);
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-num,
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-rest,
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-state-part,
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-unsynced,
+  .hs-slot[data-lanes="4"] .hs-card .hs-g-word,
+  .hs-slot[data-lanes="4"] .hs-card .hs-g[data-family="more"],
+  .hs-slot[data-lanes="4"] .hs-card .hs-g:not([data-rank="0"]),
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-top > .hs-tri,
+  .hs-slot[data-lanes="4"] .hs-card[data-critical="true"] .hs-glyphs,
+  .hs-slot[data-lanes="4"] .hs-card .hs-live-dot,
+  .hs-slot[data-lanes="4"] .hs-card[data-state="in-session"] .hs-card-when > strong,
+  .hs-slot[data-lanes="4"] .hs-card[data-span] .hs-card-clock {
+    display: none;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-sym,
+  .hs-slot[data-lanes="4"] .hs-card .hs-tri.hs-tri--short {
+    display: inline-flex;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-alt-time,
+  .hs-slot[data-lanes="4"] .hs-card[data-span] .hs-card-clock-short {
+    display: inline;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-meta {
+    gap: 4px;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-when {
+    flex: 0 1 auto;
+    gap: 3px;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-when[data-now="true"] {
+    gap: 0;
+  }
+  .hs-slot[data-lanes="4"] .hs-card[data-span] .hs-card-when {
+    flex-wrap: nowrap;
+  }
+}
+
+/* ---- the shortest: a lane under 76px ----
+   A card 49 to 73px wide, a line of 36 to 60px: no name we'd write on a
+   card fits it ("Margaret" is 47px even in the narrow face). Her initials,
+   whole, then the time on its own line, then the one mark or the symbol
+   under it; the word "Now ·" gives way to the orange mark. Only a client's
+   card has initials. A Mindbody "Unavailable" block drops its word (its
+   hatching and its label say it). A card with no profile, or still loading,
+   keeps Mindbody's name; one with no profile drops its cloud there, its
+   dashed edge (the Key's Not synced yet) and its label say it, so a name
+   of two lines still leaves room for the time. The time's part takes a box
+   of its own here (display: inline) so it can go first. */
+@container hs-col (max-width: 227.98px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-kind="client"],
+  .hs-slot[data-lanes="3"] .hs-card[data-kind="staff"] {
+    --hs-name-shown: none;
+    --hs-initials-shown: inline;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-meta {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: flex-start;
+    row-gap: 2px;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-when,
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-when[data-now="true"] {
+    flex: 1 0 100%;
+    max-width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    height: auto;
+    overflow: visible;
+    gap: 2px;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-now-part,
+  .hs-slot[data-lanes="3"] .hs-card[data-kind="unlinked"] .hs-card-when > svg {
+    display: none;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-clock {
+    display: inline;
+    order: -1;
+  }
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-clock-short,
+  .hs-slot[data-lanes="3"] .hs-card .hs-card-alt-time {
+    order: -1;
+  }
+}
+
+@container hs-col (max-width: 303.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-kind="client"],
+  .hs-slot[data-lanes="4"] .hs-card[data-kind="staff"] {
+    --hs-name-shown: none;
+    --hs-initials-shown: inline;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-meta {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: flex-start;
+    row-gap: 2px;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-when,
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-when[data-now="true"] {
+    flex: 1 0 100%;
+    max-width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    height: auto;
+    overflow: visible;
+    gap: 2px;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-now-part,
+  .hs-slot[data-lanes="4"] .hs-card[data-kind="unlinked"] .hs-card-when > svg {
+    display: none;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-clock {
+    display: inline;
+    order: -1;
+  }
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-clock-short,
+  .hs-slot[data-lanes="4"] .hs-card .hs-card-alt-time {
+    order: -1;
+  }
+}
+
+/* ---- the long-name rule: initials where her name won't fit the short form ----
+   One block per narrow line (every 2px, 60 to 138: name-fit.ts's
+   NARROW_LINES) and lanes count. A card's line is W / lanes - 15.5px (the
+   slot's 1.25px sides, the card's 10px and 3px). The block for line L
+   holds while the line is under L + 2, so a column asks for the even line
+   at or under its own: a name too long for that is too long for the
+   column's, or within 2px of it, and shows initials (the safe side). A
+   block also holds in every narrower column, where it asks the same of a
+   name too long for a wider line, which is too long there as well. */
+@container hs-col (max-width: 154.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="60"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 158.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="62"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 162.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="64"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 166.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="66"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 170.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="68"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 174.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="70"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 178.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="72"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 182.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="74"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 186.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="76"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 190.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="78"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 194.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="80"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 198.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="82"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 202.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="84"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 206.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="86"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 210.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="88"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 214.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="90"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 218.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="92"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 222.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="94"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 226.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="96"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 230.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="98"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 234.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="100"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 238.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="102"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 242.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="104"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 246.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="106"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 250.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="108"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 254.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="110"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 258.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="112"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 262.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="114"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 266.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="116"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 270.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="118"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 274.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="120"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 278.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="122"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 282.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="124"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 286.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="126"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 290.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="128"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 294.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="130"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 298.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="132"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 302.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="134"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 306.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="136"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 309.98px) {
+  .hs-slot[data-lanes="2"] .hs-card[data-name-over~="138"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+
+@container hs-col (max-width: 232.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="60"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 238.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="62"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 244.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="64"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 250.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="66"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 256.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="68"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 262.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="70"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 268.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="72"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 274.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="74"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 280.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="76"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 286.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="78"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 292.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="80"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 298.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="82"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 304.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="84"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 310.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="86"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 316.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="88"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 322.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="90"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 328.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="92"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 334.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="94"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 340.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="96"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 346.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="98"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 352.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="100"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 358.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="102"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 364.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="104"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 370.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="106"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 376.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="108"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 382.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="110"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 388.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="112"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 394.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="114"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 400.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="116"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 406.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="118"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 412.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="120"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 418.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="122"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 424.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="124"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 430.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="126"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 436.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="128"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 442.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="130"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 448.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="132"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 454.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="134"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 460.48px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="136"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 464.98px) {
+  .hs-slot[data-lanes="3"] .hs-card[data-name-over~="138"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+
+@container hs-col (max-width: 309.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="60"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 317.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="62"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 325.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="64"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 333.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="66"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 341.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="68"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 349.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="70"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 357.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="72"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 365.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="74"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 373.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="76"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 381.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="78"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 389.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="80"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 397.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="82"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 405.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="84"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 413.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="86"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 421.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="88"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 429.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="90"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 437.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="92"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 445.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="94"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 453.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="96"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 461.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="98"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 469.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="100"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 477.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="102"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 485.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="104"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 493.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="106"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 501.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="108"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 509.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="110"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 517.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="112"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 525.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="114"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 533.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="116"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 541.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="118"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 549.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="120"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 557.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="122"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 565.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="124"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 573.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="126"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 581.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="128"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 589.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="130"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 597.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="132"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 605.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="134"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 613.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="136"] { --hs-name-shown: none; --hs-initials-shown: inline; }
+}
+@container hs-col (max-width: 619.98px) {
+  .hs-slot[data-lanes="4"] .hs-card[data-name-over~="138"] { --hs-name-shown: none; --hs-initials-shown: inline; }
 }

@@ -302,15 +302,52 @@ describe("4. the Hub's cards: no container each, no layer each, and the hatching
     // Nine since the narrow cards round's phase 2 (Oct 18 2026): the seven
     // word widths, and a lane of about 155 to 175px, one to a slot under a
     // 175px column or two in a column of 310 to 350px, where the card hides
-    // two marks it can't hold (below). Still the column, asked by name.
-    expect([...text.matchAll(/@container hs-col/g)].length, "four widths for the first word, three for every word, two for a 155 to 175px lane").toBe(9);
-    const lane = [...text.matchAll(/@container hs-col ([^{]+)\{([^@]*?)\n\}/g)].filter((m) => m[1].includes("max-width"));
-    expect(lane.map((m) => m[1].trim())).toEqual(["(max-width: 174.98px)", "(min-width: 310px) and (max-width: 349.98px)"]);
+    // two marks it can't hold (below). 136 since its phase 3, the short form
+    // for two or three at once: the same lane (now to 176px) three and four
+    // to a slot (two more), three for the short form (two, three and four
+    // to a slot), two for the shortest (three and four), and 120 for the
+    // long-name rule (name-fit.ts's 40 narrow lines, every 2px from 60 to 138,
+    // for each of the three lanes counts). Still the column, asked by name,
+    // never a card: a block is a condition WebKit answers once per column when
+    // its width changes (five to eight columns, at a rotation), and its rules
+    // are keyed on the slot's lanes and the card's own attributes, so a card
+    // is matched against them as against any rule; none adds a layer or a
+    // container (below).
+    const blocks = [...text.matchAll(/@container hs-col ([^{]+)\{([^@]*?)\n\}/g)];
+    expect([...text.matchAll(/@container hs-col/g)].length, "four widths for the first word, three for every word, four for a 155 to 176px lane, and the short form's 3 + 2 + 120").toBe(7 + 4 + 3 + 2 + 3 * 40);
+    expect(blocks.length).toBe(136);
+    // The lane's four by what they hold (a long-name block could share a width).
+    const lane = blocks.filter((m) => m[2].includes('.hs-card[data-critical="true"] .hs-card-num'));
+    expect(lane.map((m) => m[1].trim())).toEqual([
+      "(max-width: 175.98px)",
+      "(min-width: 310px) and (max-width: 351.98px)",
+      "(min-width: 465px) and (max-width: 527.98px)",
+      "(min-width: 620px) and (max-width: 703.98px)",
+    ]);
     lane.forEach((m, i) => {
       // Each block is the slot's own lanes count, and only hides whole.
       for (const sel of m[2].match(/^\s*\.[^{]+(?=\{)/gm) ?? []) expect(sel.trim(), m[1]).toMatch(new RegExp(`^\\.hs-slot\\[data-lanes="${i + 1}"\\] \\.hs-card`));
       expect([...m[2].matchAll(/([\w-]+)\s*:\s*([^;]+);/g)].map((d) => `${d[1]}: ${d[2]}`), m[1]).toEqual(["display: none", "display: none"]);
     });
+    // Phase 3's 125: each block is one lanes count's, in a lane under 155px, and adds no layer or container.
+    const narrow = blocks.filter((m) => /^\(max-width: \d+\.\d+px\)$/.test(m[1].trim()) && !lane.includes(m));
+    expect(narrow.length).toBe(125);
+    for (const m of narrow) {
+      const max = Number(/([\d.]+)px/.exec(m[1])![1]);
+      const lanes = new Set((m[2].match(/^\s*\.[^{]+(?=\{)/gm) ?? []).flatMap((s) => s.split(",")).map((s) => /^\s*\.hs-slot\[data-lanes="(\d)"\] \.hs-card/.exec(s)?.[1]));
+      expect([...lanes], m[1]).toHaveLength(1);
+      expect(max / Number([...lanes][0]), m[1]).toBeLessThan(155);
+      expect(m[2], m[1]).not.toMatch(/opacity|filter|shadow|will-change|container|transition|animation/);
+    }
+    // The slot's own three (hub-grid.css): the same widths, its padding alone.
+    const grid = stripComments(read(GRID));
+    const slots = [...grid.matchAll(/@container hs-col \(max-width: ([\d.]+)px\) \{\s*\.hs-slot\[data-lanes="(\d)"\] \{ padding: 0 1\.25px; \}\s*\}/g)];
+    expect([...grid.matchAll(/@container hs-col/g)].length).toBe(3);
+    expect(slots.map((m) => [m[2], m[1]])).toEqual([
+      ["2", "309.98"],
+      ["3", "464.98"],
+      ["4", "619.98"],
+    ]);
     // On a phone the card is the day's list less the time (56) and the gap (8).
     expect(text).toContain(`@container ph-day (min-width: ${176 + chrome - 6 + 64}px)`);
     expect(text).toContain(`@container ph-day (min-width: ${280 + chrome - 6 + 64}px)`);
