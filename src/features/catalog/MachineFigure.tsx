@@ -41,6 +41,15 @@ export interface MachineFigureProps {
   onGenderChange: (gender: "male" | "female") => void;
   /** Tapping a muscle group jumps to a machine that trains it. */
   onRegionClick?: (slug: string) => void;
+  /**
+   * A class on the root, so a host sizes the figure without reaching into
+   * the wiki's own classes (the Learning redesign's Codex bento, Oct 19
+   * 2026). Given one, the root is also `wk__figure-sized`: a column the host
+   * gives a height (or a flex share), the body taking what the controls under
+   * it leave. Without one (the Catalog, the machine database) the figure
+   * keeps its own size, exactly as before.
+   */
+  className?: string;
 }
 
 export function MachineFigure({
@@ -50,12 +59,13 @@ export function MachineFigure({
   onViewChange,
   onGenderChange,
   onRegionClick,
+  className,
 }: MachineFigureProps) {
   // A muscle is a link to another machine's page: it asks about typing on
   // this one first (features/wiki/page-guard).
   const guard = useWikiPageGuard();
   return (
-    <div>
+    <div className={className ? `wk__figure-sized ${className}` : undefined}>
       <div className="wk__figure">
         <BodyModel
           primary={anatomy.primary}

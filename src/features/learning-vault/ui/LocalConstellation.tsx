@@ -6,8 +6,8 @@
  *
  * TWO WAYS TO DRAW THE SAME LINKS
  * -------------------------------
- *   "pills"  the links grouped by WHY they connect ("Substitutes",
- *            "Comes up in", "Clinical flags"), each a 44px pill with its
+ *   "pills"  the links grouped by WHY they connect ("In sets that replace
+ *            it", "Comes up in", "Clinical flags"), each a 44px pill with its
  *            domain's mark. The Codex's bento and the Course's lesson foot.
  *   "orbit"  a small drawing: this page in the middle, its links on an
  *            ellipse around it (layout.ts layoutConstellation), then the same
@@ -15,6 +15,15 @@
  *            shortcuts for a finger; the list is the way in for a keyboard
  *            and a screen reader (decision 12: every map has a list; hover is
  *            never the only way), so the drawing is hidden from both.
+ *            With `list={false}` the orbit is drawn alone (a page's head,
+ *            where the pills would push the body below the fold): its nodes
+ *            are then the list, each a focusable button named with its
+ *            reason ("Leg Extension, machine. In sets that replace it."),
+ *            in the drawing's own order (clockwise from the top right).
+ *
+ * `layout="columns"` lets the pill groups sit side by side in a wide box
+ * (the Codex's bento foot), as many 13rem columns as fit; "stack" (the
+ * default) puts one group under the next.
  *
  * Every node and every pill is at least 44px to tap. A label is never cut:
  * it wraps, and the orbit grows taller to give a long one its lines.
@@ -43,8 +52,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { LoadingMark } from "../../../components/LoadingMark";
-import { DOMAIN_COLOUR, DOMAIN_NOUN, constellationOf, groupLinks, type LinkGroup } from "../graph";
-import { layoutConstellation, orbitHeight, orbitRadiusX } from "../layout";
+import { DOMAIN_COLOUR, DOMAIN_NOUN, constellationOf, groupLinks, linkHeading, type LinkGroup } from "../graph";
+import { layoutConstellation, orbitHeight, orbitRadiusX, wordsFit, wrappedLines } from "../layout";
 import type { Constellation, GraphDomain, VaultGraph, VaultRoute } from "../types";
 import "../../wiki/wiki.css";
 import "./graph.css";
@@ -76,10 +85,9 @@ const HIT = 44;
 /** A 12px label line, and the padding a two-line label needs around it. */
 const LINE_PX = 15;
 const ROW_PAD = 14;
-/** About how wide one character of a 12px label is, to guess where it wraps. */
-const CHAR_PX = 6.6;
-/** And of the centre's 14px bold name. */
-const CENTRE_CHAR_PX = 7.8;
+/** A side label's type size, and the centre name's (layout.ts labelWidth measures both). */
+const LABEL_FONT = 12;
+const CENTRE_FONT = 14;
 /** The centre's padding, glyph and gap, beside its name. */
 const CENTRE_CHROME = 52;
 
@@ -89,9 +97,25 @@ export interface LocalConstellationProps {
   onOpen: (route: VaultRoute) => void;
   variant?: "pills" | "orbit";
   max?: number;
+  /** The pill groups one under another ("stack", the default) or side by side as columns fit ("columns"). */
+  layout?: "stack" | "columns";
+  /**
+   * The orbit only: false draws the drawing without its pill groups, the
+   * drawing's nodes then the way in (focusable, named with their reason).
+   * Default true. The pills ignore it: they are the list.
+   */
+  list?: boolean;
 }
 
-export function LocalConstellation({ graph, nodeId, onOpen, variant = "pills", max = DEFAULT_MAX }: LocalConstellationProps) {
+export function LocalConstellation({
+  graph,
+  nodeId,
+  onOpen,
+  variant = "pills",
+  max = DEFAULT_MAX,
+  layout = "stack",
+  list = true,
+}: LocalConstellationProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -147,16 +171,20 @@ export function LocalConstellation({ graph, nodeId, onOpen, variant = "pills", m
     );
   }
 
+  // The drawing alone is the way in only when there is a drawing.
+  const orbitAlone = hasOrbit && !list;
+  const classes = ["vtg", hasOrbit ? "vtg--orbit" : "", layout === "columns" && !orbitAlone ? "vtg--columns" : ""]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <section className={`vtg${hasOrbit ? " vtg--orbit" : ""}`} aria-label={`What connects to ${center.label}`}>
+    <section className={classes} aria-label={`What connects to ${center.label}`}>
       {hasOrbit && (
-        <div className="vtg__orbit" ref={boxRef} aria-hidden="true">
-          <Orbit constellation={constellation} width={width || FALLBACK_WIDTH} onOpen={onOpen} />
+        <div className="vtg__orbit" ref={boxRef} aria-hidden={orbitAlone ? undefined : "true"}>
+          <Orbit constellation={constellation} width={width || FALLBACK_WIDTH} onOpen={onOpen} reachable={orbitAlone} />
         </div>
       )}
-      {groups.map((g) => (
-        <PillGroup key={g.key} group={g} onOpen={onOpen} />
-      ))}
+      {!orbitAlone && groups.map((g) => <PillGroup key={g.key} group={g} onOpen={onOpen} />)}
     </section>
   );
 }
@@ -190,40 +218,23 @@ function PillGroup({ group, onOpen }: { group: LinkGroup; onOpen: (route: VaultR
   );
 }
 
-/** Lines a label will take at a width, roughly: enough to give the row its height. */
-function linesFor(label: string, px: number, charPx = CHAR_PX): number {
-  const perLine = Math.max(6, Math.floor(px / charPx));
-  let lines = 1;
-  let used = 0;
-  for (const word of label.split(/\s+/)) {
-    const len = word.length;
-    if (used === 0) {
-      lines += Math.floor(Math.max(0, len - 1) / perLine);
-      used = len % perLine || perLine;
-    } else if (used + 1 + len <= perLine) {
-      used += 1 + len;
-    } else {
-      lines += 1 + Math.floor(Math.max(0, len - 1) / perLine);
-      used = len % perLine || perLine;
-    }
-  }
-  return lines;
-}
-
 function Orbit({
   constellation,
   width,
   onOpen,
+  reachable,
 }: {
   constellation: Constellation;
   width: number;
   onOpen: (route: VaultRoute) => void;
+  /** The drawing is the way in (no list beside it): its nodes take focus and say why they connect. */
+  reachable: boolean;
 }) {
   const links = constellation.links;
   const rx = orbitRadiusX(width);
   // The room a side label has: from just past its dot's tap target to the edge.
   const labelPx = Math.max(56, width / 2 - rx - HIT / 2 - 12);
-  const lines = links.reduce((most, l) => Math.max(most, linesFor(l.node.label, labelPx)), 1);
+  const lines = links.reduce((most, l) => Math.max(most, wrappedLines(l.node.label, labelPx, LABEL_FONT)), 1);
   const height = orbitHeight(links.length, Math.max(52, lines * LINE_PX + ROW_PAD));
   const { center, points } = layoutConstellation(constellation, { w: width, h: height });
   const CenterIcon = DOMAIN_ICON[center.domain];
@@ -232,15 +243,24 @@ function Orbit({
   // word; a long one ("Upper Turnaround: without an end stop and include a
   // squeeze") would stand in a tall column over its own links, so the middle
   // then shows its glyph alone.
+  // Measured as written: a name in capitals is wider than the same name in
+  // small letters (layout.ts labelWidth), so "LEG PRESS" is never broken
+  // mid-word in a box sized for "leg press".
   const centreBox = Math.max(88, 2 * rx - 20);
   const centreText = centreBox - CENTRE_CHROME;
-  const perLine = Math.floor(centreText / CENTRE_CHAR_PX);
   const centreNamed =
-    center.label.split(/\s+/).every((w) => w.length <= perLine) && linesFor(center.label, centreText, CENTRE_CHAR_PX) <= 2;
+    wordsFit(center.label, centreText, CENTRE_FONT) && wrappedLines(center.label, centreText, CENTRE_FONT) <= 2;
 
   return (
     <div className="vtg__orbit-in" style={{ height }}>
-      <svg className="vtg__lines" width={width} height={height} viewBox={`0 0 ${width} ${height}`} focusable="false">
+      <svg
+        className="vtg__lines"
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        focusable="false"
+        aria-hidden="true"
+      >
         {points.map((p) => (
           <line key={p.id} className="vtg__line" x1={center.x} y1={center.y} x2={p.x} y2={p.y} />
         ))}
@@ -248,6 +268,8 @@ function Orbit({
       <span
         className={`vtg__centre${centreNamed ? "" : " vtg__centre--mark"}`}
         style={{ ...domainStyle(center.domain), left: center.x, top: center.y, maxWidth: centreBox }}
+        // The page you are on: its name is already the section's label.
+        aria-hidden="true"
       >
         <span className="vtg__mark" aria-hidden="true">
           <CenterIcon size={15} strokeWidth={2.25} />
@@ -265,7 +287,10 @@ function Orbit({
           <button
             key={p.id}
             type="button"
-            tabIndex={-1}
+            // Beside the list, a picture for a finger (the list is the way
+            // in); alone, the way in itself, each node saying why it is here.
+            tabIndex={reachable ? undefined : -1}
+            aria-label={reachable ? `${link.node.label}, ${DOMAIN_NOUN[link.node.domain]}. ${linkHeading(link)}.` : undefined}
             className={`vtg__node ${right ? "vtg__node--right" : "vtg__node--left"}`}
             style={{ ...domainStyle(p.domain), ...place }}
             onClick={() => onOpen(link.node.route)}

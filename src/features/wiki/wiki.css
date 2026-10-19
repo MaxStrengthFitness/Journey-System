@@ -709,6 +709,15 @@
 
 .wk__figure-controls { display: flex; justify-content: center; margin-top: 0.625rem; }
 
+/* A figure its host sizes (MachineFigure's className; the Learning
+   redesign's Codex, Oct 19 2026): the root is a column the host gives a
+   height or a flex share, and the body takes what the controls under it
+   leave, asking for no height of its own. The Catalog passes no class and
+   keeps the rules above. */
+.wk__figure-sized { display: flex; flex-direction: column; min-height: 0; }
+.wk__figure-sized > .wk__figure { flex: 1 1 0; height: auto; min-height: 0; max-height: none; contain: size; }
+.wk__figure-sized > .wk__figure-controls { flex: none; }
+
 .wk__infobox-body { padding: 0.875rem; display: flex; flex-direction: column; gap: 0.875rem; }
 .wk__infobox-group { display: flex; flex-direction: column; }
 .wk__infobox-foot {

@@ -92,29 +92,50 @@ const fx = vi.hoisted(() => ({ jumps: [] as { design: string; jump: unknown; sec
 vi.mock("../learning-redesign/LearningRedesign", async () => {
   const React = await import("react");
   const { useWikiSections } = await import("../wiki/sections");
+  const { useUnsavedChanges } = await import("../unsaved-changes");
   function LearningRedesign({
     design,
     viewAs,
     section,
     jump,
     onJumpHandled,
+    resetSignal,
   }: {
     design: string;
     viewAs: string | null;
     section: string;
     jump: unknown;
     onJumpHandled: () => void;
+    resetSignal?: number;
   }) {
     const sections = useWikiSections();
+    const [draft, setDraft] = React.useState("");
+    useUnsavedChanges(draft !== "", "the prototype's note", { onDiscard: () => setDraft("") });
     React.useEffect(() => {
       if (!jump) return;
       fx.jumps.push({ design, jump, section });
       onJumpHandled();
     }, [design, jump, section, onJumpHandled]);
     return (
-      <div data-screen="redesign" data-design={design} data-view-as={viewAs ?? ""} data-section={section}>
+      <div
+        data-screen="redesign"
+        data-design={design}
+        data-view-as={viewAs ?? ""}
+        data-section={section}
+        data-reset={String(resetSignal ?? "none")}
+      >
+        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} />
         <button type="button" data-action="redesign-search" onClick={() => sections?.onSearch?.()}>
           Search Learning
+        </button>
+        <button type="button" data-action="title" onClick={() => sections?.onHome?.()}>
+          Learning
+        </button>
+        <button type="button" data-action="same-section" onClick={() => sections?.onSelect(section)}>
+          This section again
+        </button>
+        <button type="button" data-action="to-academy" onClick={() => sections?.onSelect("academy")}>
+          Academy
         </button>
       </div>
     );
@@ -397,5 +418,52 @@ describe("the prototype bar", () => {
     // Back to Current: no jump was left behind for the Catalog.
     await bar("Current");
     expect(machineOnScreen()).toBe("");
+  });
+});
+
+/* Back to a section's front page (the Learning vault redesign, Oct 19 2026). */
+describe("a prototype asked back to its section's front page", () => {
+  const reset = () => redesign()?.getAttribute("data-reset");
+  const section = () => redesign()?.getAttribute("data-section");
+
+  it("the title on the Overview, and the section already on, each send the design one reset", async () => {
+    await mount("learning", null, "codex");
+    expect(reset()).toBe("0");
+    await click('[data-action="title"]');
+    expect(question()).toBeNull();
+    expect(reset()).toBe("1");
+    expect(section()).toBe("learning");
+    await click('[data-action="same-section"]');
+    expect(reset()).toBe("2");
+  });
+
+  it("another section, or the title from another section, moves the masthead and resets nothing", async () => {
+    await mount("machine-anatomy", null, "vault");
+    await click('[data-action="to-academy"]');
+    expect(section()).toBe("academy");
+    expect(reset()).toBe("0");
+    await click('[data-action="title"]');
+    expect(section()).toBe("learning");
+    expect(reset()).toBe("0");
+  });
+
+  it("asks over typing first: Keep editing resets nothing, Leave resets once", async () => {
+    await mount("learning", null, "course");
+    await type("Half a thought");
+    await click('[data-action="title"]');
+    expect(question()!.textContent).toContain("the prototype's note");
+    await answer("keep-editing");
+    expect(reset()).toBe("0");
+    expect(draft()).toBe("Half a thought");
+    await click('[data-action="same-section"]');
+    await answer("leave");
+    expect(reset()).toBe("1");
+    expect(draft()).toBe("");
+  });
+
+  it("today's Learning is unchanged: the title on the Overview stays on the Overview", async () => {
+    await mount("learning");
+    expect(screen("overview")).not.toBeNull();
+    expect(redesign()).toBeNull();
   });
 });

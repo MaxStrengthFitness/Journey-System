@@ -67,7 +67,10 @@ import "./learning.css";
  * three sections, inside the same comments and masthead, and every door
  * above that would open a page here (search, a jump from outside) hands the
  * design that page as its `jump` instead. Picking a design or "View as" asks
- * the gate first and changes only inside the answer, like every door.
+ * the gate first and changes only inside the answer, like every door. The
+ * Learning title on the Overview, or the section already on, asks too and
+ * then sends the design `resetSignal` + 1: back to that section's front page
+ * (today's Learning has nothing to do there, so it is unchanged).
  */
 
 export type LearningViewId = "learning" | "machine-anatomy" | "academy";
@@ -127,6 +130,10 @@ export function LearningView({
   const [viewAs, setViewAs] = useState<ViewAs | null>(initialViewAs);
   const [designJump, setDesignJump] = useState<LearningRef | null>(null);
   const clearDesignJump = useCallback(() => setDesignJump(null), []);
+  /* A prototype asked back to its section's front page while already in the
+     section (the title on the Overview, or the section already on): it goes
+     up by one inside the leave gate's answer (DesignProps.resetSignal). */
+  const [designReset, setDesignReset] = useState(0);
 
   const canWritePages = canWriteStudioPages(authTrainer, activeStudioId);
 
@@ -250,17 +257,26 @@ export function LearningView({
       ],
       active: view,
       onSelect: (id) => {
+        // A prototype deep in this section's trail goes back to its root.
+        if (design !== "current" && id === view) {
+          through(() => setDesignReset((n) => n + 1));
+          return;
+        }
         setSearchOpen(false);
         onViewChange(id as LearningViewId);
       },
       onHome: () => {
+        if (design !== "current" && view === "learning") {
+          through(() => setDesignReset((n) => n + 1));
+          return;
+        }
         setSearchOpen(false);
         onViewChange("learning");
       },
       onSearch: () => setSearchOpen(true),
       searchLabel: "Search Learning",
     }),
-    [view, onViewChange],
+    [view, onViewChange, design, through],
   );
 
   return (
@@ -282,6 +298,7 @@ export function LearningView({
             studioName={activeStudio?.name ?? "This studio"}
             jump={designJump}
             onJumpHandled={clearDesignJump}
+            resetSignal={designReset}
           />
         ) : (
           <>

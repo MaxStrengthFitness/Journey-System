@@ -80,7 +80,20 @@ export interface ArticleBlocksProps {
   /** The level of each section's title; a block heading sits one below it. */
   headingLevel?: 2 | 3;
   hideSectionTitles?: boolean;
+  /**
+   * List the studio's marks whose words have left the page ("Lines that
+   * changed since {Studio} marked them") at the foot. Default true. A design
+   * that draws one PART of a page here (a codex tier, the course's manual one
+   * tier at a time) passes false, because a mark on a line in another part is
+   * not a line that changed, and draws the page's own once instead:
+   * `<OrphanMarks orphans={useAppliedMarkup(target, page.sections).orphans} />`
+   * over the WHOLE page's sections.
+   */
+  showOrphans?: boolean;
 }
+
+/** The foot of a page drawn in parts: drawn once by the design, over the whole page (see showOrphans). */
+export { OrphanMarks } from "./OrphanMarks";
 
 type FormKind = Exclude<LineAction, "unstrike">;
 
@@ -142,6 +155,7 @@ function ArticleBody({
   compact = false,
   headingLevel = 2,
   hideSectionTitles = false,
+  showOrphans = true,
 }: ArticleBlocksProps) {
   const vault = useVault();
   const applied = useAppliedMarkup(target, sections);
@@ -529,7 +543,7 @@ function ArticleBody({
           );
         })
       )}
-      {studioLens && <OrphanMarks target={target} orphans={applied.orphans} headingLevel={headingLevel} />}
+      {studioLens && showOrphans && <OrphanMarks target={target} orphans={applied.orphans} headingLevel={headingLevel} />}
     </div>
   );
 }

@@ -35,7 +35,7 @@ import { UnsavedChangesProvider } from "../../unsaved-changes";
 import { blockKeyFor, toVaultBlocks, vaultSection } from "../blocks";
 import { createSandboxStore, type MarkupStore } from "../markup-store";
 import type { StudioBlockNote, StudioMarkup, StudioStrike, VaultBlock, VaultSection, VaultTarget, VaultViewer } from "../types";
-import { ArticleBlocks, type ArticleBlocksProps } from "./ArticleBlocks";
+import { ArticleBlocks, OrphanMarks, useAppliedMarkup, type ArticleBlocksProps } from "./ArticleBlocks";
 import { VaultProvider, useVault } from "./VaultProvider";
 
 /* ── fixtures ─────────────────────────────────────────────────────────── */
@@ -391,6 +391,39 @@ describe("a mark whose line has changed", () => {
     await mount({ viewer: TRAINER, seed: [markup({ strikes: [strikeOn(OLD)] })] });
     expect(host.querySelectorAll('[data-testid="orphan-mark"]')).toHaveLength(1);
     expect(host.querySelector(".vta__orphans button")).toBeNull();
+  });
+});
+
+/* ── a page drawn in parts (a codex tier, the course's manual) ────────── */
+
+/** The design's foot: the page's own lines that changed, over EVERY part. */
+function PageFoot() {
+  const applied = useAppliedMarkup(TARGET, SECTIONS);
+  return <OrphanMarks target={TARGET} orphans={applied.orphans} />;
+}
+
+describe("a page drawn in parts (showOrphans)", () => {
+  const OLD = "Hold the squeeze for exactly three seconds.";
+  const seed = () => [markup({ strikes: [strikeOn(LOWER, { reason: "Ours has a hard stop" }), strikeOn(OLD, { reason: "We hold two" })] })];
+  const orphanWords = () => [...host.querySelectorAll('[data-testid="orphan-mark"] .vta__orphan-words')].map((o) => o.textContent);
+
+  it("left on, one part alone calls a mark on another part a line that changed (why a part turns it off)", async () => {
+    await mount({ seed: seed(), props: { sections: [SECTIONS[0]] } });
+    expect(orphanWords()).toEqual([LOWER, OLD]);
+  });
+
+  it("turned off, a part lists none, and the page's foot lists only the mark whose words left the page, once", async () => {
+    await mount({ seed: seed(), props: { sections: [SECTIONS[0]], showOrphans: false }, extra: <PageFoot /> });
+    expect(host.querySelectorAll(".vta__orphans")).toHaveLength(1);
+    expect(orphanWords()).toEqual([OLD]);
+    // The part's own lines still carry their marks.
+    expect(lines().map((l) => l.textContent)).toEqual([SPEED, STACK, BREATHE]);
+  });
+
+  it("the default draws the foot itself on a whole page", async () => {
+    await mount({ seed: seed() });
+    expect(host.querySelectorAll(".vta__orphans")).toHaveLength(1);
+    expect(orphanWords()).toEqual([OLD]);
   });
 });
 

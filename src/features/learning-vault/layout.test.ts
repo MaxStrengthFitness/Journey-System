@@ -14,10 +14,13 @@ import {
   MIN_SEP,
   ORBIT_PAD_Y,
   labelPlacement,
+  labelWidth,
   layoutConstellation,
   layoutMap,
   mapSideRoom,
   orbitHeight,
+  wordsFit,
+  wrappedLines,
   type PlacedNode,
 } from "./layout";
 import type { Constellation, EdgeKind, GraphDomain, GraphEdge, GraphNode, VaultGraph } from "./types";
@@ -182,6 +185,30 @@ describe("labelPlacement", () => {
     expect(labelPlacement(at(-Math.PI / 2))).toMatchObject({ anchor: "middle", side: "above", y: 87 });
     expect(labelPlacement(at(Math.PI / 2))).toMatchObject({ anchor: "middle", side: "below", y: 113 });
     expect(labelPlacement(at(undefined))).toMatchObject({ side: "below", y: 113 });
+  });
+});
+
+describe("how wide a label is", () => {
+  it("measures capitals as capitals, wider than the same word in small letters", () => {
+    expect(labelWidth("LEG PRESS", 14)).toBeGreaterThan(labelWidth("leg press", 14) * 1.15);
+    expect(labelWidth("MW", 12)).toBeGreaterThan(labelWidth("IJ", 12) * 2);
+    expect(labelWidth("", 14)).toBe(0);
+  });
+
+  it("would not let \"PRESS\" into a box the flat small-letter guess said it fitted (the \"PRES S\" break)", () => {
+    // 44px of words at 14px bold: the old guess (7.8px a letter) said five letters fit.
+    expect(Math.floor(44 / 7.8)).toBeGreaterThanOrEqual(5);
+    expect(wordsFit("LEG PRESS", 44, 14)).toBe(false);
+    expect(wordsFit("leg press", 44, 14)).toBe(true);
+  });
+
+  it("wraps word by word, and breaks a word wider than the box across lines", () => {
+    expect(wrappedLines("Leg Press", 400, 12)).toBe(1);
+    expect(wrappedLines("Leg Press", labelWidth("Press", 12) + 1, 12)).toBe(2);
+    const long = "Supercalifragilistic";
+    expect(wrappedLines(long, labelWidth(long, 12) / 2 + 1, 12)).toBe(2);
+    expect(wrappedLines("", 100, 12)).toBe(1);
+    expect(wrappedLines("A B", 0, 12)).toBeGreaterThan(1);
   });
 });
 

@@ -18,6 +18,7 @@ import {
   cueKeysFor,
   deepDiveSection,
   scriptSections,
+  substituteLine,
   substituteSection,
   tidyScriptLine,
   workoutWords,
@@ -217,10 +218,23 @@ describe("adapt and clinical", () => {
 
   it("writes each substitute set as one line, reading a machine id as its name", () => {
     const s = substituteSection([["m-ext", "m-hip-abd", "m-lumbar"], ["Leg Extension", "Lumbar"]])!;
-    expect(s.blocks.map((b) => b.text)).toEqual(["LEG EXTENSION + HIP ABDUCTION + LUMBAR", "Leg Extension + Lumbar"]);
+    expect(s.blocks.map((b) => b.text)).toEqual([
+      "Together: LEG EXTENSION + HIP ABDUCTION + LUMBAR",
+      "Together: Leg Extension + Lumbar",
+    ]);
     expect(s.blocks[0].source).toBe("Academy 6 · Exercise Substitutes");
     expect(substituteSection([])).toBeNull();
     expect(substituteSection([[]])).toBeNull();
+  });
+
+  it("says a set replaces the machine TOGETHER, never one for one; a set of one is the machine alone", () => {
+    const s = substituteSection([["Leg Extension", "Leg Curl", "Hip Abduction"], ["Chest Press"]])!;
+    expect(s.title).toBe("Can be replaced by");
+    expect(s.blocks.map((b) => b.text)).toEqual(["Together: Leg Extension + Leg Curl + Hip Abduction", "Chest Press"]);
+    expect(substituteLine(["Dip"])).toBe("Dip");
+    expect(substituteLine([])).toBe("");
+    // No line or title calls a single machine a substitute "for" the main one.
+    expect(JSON.stringify(s)).not.toMatch(/substitutes? for|stands? in/i);
   });
 
   it("puts them on the adapt tier, after the machine's own adapt lines", () => {

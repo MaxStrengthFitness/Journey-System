@@ -14,7 +14,13 @@
  * A link is only drawn where the repo can say why it exists:
  *
  *   substitutes     EXERCISE_SUBSTITUTES (routine-builder/academy.ts), the
- *                   Academy's "Exercise Substitutes" table.
+ *                   Academy's "Exercise Substitutes" table. Each entry is a
+ *                   SET of machines that TOGETHER replace the main exercise
+ *                   (Leg Extension + Leg Curl + Hip Abduction for the Leg
+ *                   Press), never one for one, unless the set is a single
+ *                   machine. So a link from a machine in a set to the main
+ *                   one says "is part of a set that replaces"; only a set
+ *                   of one says "can replace" (SUBSTITUTE_LABEL).
  *   same-category   MACHINE_CATEGORY, the Academy's five programming families.
  *   part-of         a topic sits in its module (the Academy index).
  *   explained-in    a topic whose TITLE names the term ("Pace" → Mastery:
@@ -407,9 +413,21 @@ export const CUE_EXAMPLES: { prefix: string; machineIds: string[] }[] = [
  * Edges: what each kind says
  * ------------------------------------------------------------------ */
 
-/** Read from `from` to `to`: "Leg Extension substitutes for Leg Press". */
+/**
+ * A substitutes link, read from the machine that stands in to the main one.
+ * The Academy's substitutes are SETS that together replace the main
+ * exercise: a machine in a set of two or more is only part of the answer
+ * ("Leg Extension is part of a set that replaces Leg Press"); a set of one
+ * replaces it alone ("Chest Press can replace Overhead Press").
+ */
+export const SUBSTITUTE_LABEL = {
+  alone: "can replace",
+  inSet: "is part of a set that replaces",
+} as const;
+
+/** Read from `from` to `to`: "Leg Extension is part of a set that replaces Leg Press". */
 export const EDGE_LABEL: Record<EdgeKind, string> = {
-  substitutes: "substitutes for",
+  substitutes: SUBSTITUTE_LABEL.inSet,
   "same-category": "is in the same family as",
   "explained-in": "is explained in",
   mentions: "talks about",
@@ -426,7 +444,7 @@ export const EDGE_LABEL: Record<EdgeKind, string> = {
  * (Pace, which comes up in that topic).
  */
 const LINK_HEADING: Record<EdgeKind, { out: string; in: string }> = {
-  substitutes: { out: "Substitutes for", in: "Substitutes" },
+  substitutes: { out: "Part of a set that replaces", in: "In sets that replace it" },
   "same-category": { out: "Same family", in: "Same family" },
   "explained-in": { out: "Explained in", in: "Explains" },
   mentions: { out: "Talks about", in: "Comes up in" },
@@ -454,9 +472,17 @@ const UNDIRECTED: ReadonlySet<EdgeKind> = new Set<EdgeKind>(["same-category", "s
 
 export type ConstellationLink = Constellation["links"][number];
 
-/** "Comes up in", "Substitutes for": what a link is, said from the centre. */
+/** A set of one: this machine replaces the main one alone, so the link says so (one for one is true here only). */
+const SUBSTITUTE_ALONE_HEADING = { out: "Can replace", in: "Can be replaced by" };
+
+/** True for a substitutes link whose set is this one machine alone. */
+export function substitutesAlone(edge: Pick<GraphEdge, "kind" | "label">): boolean {
+  return edge.kind === "substitutes" && edge.label === SUBSTITUTE_LABEL.alone;
+}
+
+/** "Comes up in", "In sets that replace it": what a link is, said from the centre. */
 export function linkHeading(link: Pick<ConstellationLink, "edge" | "direction">): string {
-  const h = LINK_HEADING[link.edge.kind];
+  const h = substitutesAlone(link.edge) ? SUBSTITUTE_ALONE_HEADING : LINK_HEADING[link.edge.kind];
   return UNDIRECTED.has(link.edge.kind) ? h.out : link.direction === "out" ? h.out : h.in;
 }
 
@@ -505,13 +531,13 @@ class Builder {
     this.nodes.push(n);
   }
 
-  /** Adds a link once, both ends known, never a node to itself. */
-  edge(from: string, to: string, kind: EdgeKind): void {
+  /** Adds a link once, both ends known, never a node to itself. `label` says why when the kind alone cannot (a substitute set). */
+  edge(from: string, to: string, kind: EdgeKind, label: string = EDGE_LABEL[kind]): void {
     if (from === to || !this.byId.has(from) || !this.byId.has(to)) return;
     const key = UNDIRECTED.has(kind) ? [kind, ...[from, to].sort()].join("|") : `${kind}|${from}|${to}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);
-    this.edges.push({ from, to, kind, label: EDGE_LABEL[kind] });
+    this.edges.push({ from, to, kind, label });
   }
 
   done(): VaultGraph {
@@ -570,8 +596,15 @@ export function buildVaultGraph(input: VaultGraphInput): VaultGraph {
     b.node(machineNodeId(m.machineId), m.name, "machine", { kind: "machine", id: m.machineId });
   }
   for (const main of Object.keys(input.substitutes).sort()) {
-    for (const set of input.substitutes[main]) {
-      for (const sub of set.machineIds) b.edge(machineNodeId(sub), machineNodeId(main), "substitutes");
+    const sets = input.substitutes[main];
+    // A machine that replaces the main one alone in any set says so; one
+    // that only ever comes with others is part of a set that replaces it.
+    const alone = new Set(sets.filter((set) => set.machineIds.length === 1).map((set) => set.machineIds[0]));
+    for (const set of sets) {
+      for (const sub of set.machineIds) {
+        const label = alone.has(sub) ? SUBSTITUTE_LABEL.alone : SUBSTITUTE_LABEL.inSet;
+        b.edge(machineNodeId(sub), machineNodeId(main), "substitutes", label);
+      }
     }
   }
   for (let i = 0; i < machineIds.length; i += 1) {
@@ -763,16 +796,25 @@ export function constellationOf(graph: VaultGraph, nodeId: string, max = 12): Co
   return { center, links };
 }
 
-/** Links that read the same from the centre share a group: kind and direction. */
+/**
+ * Links that read the same from the centre share a group: kind and
+ * direction, and for substitutes whether the set is the machine alone ("Can
+ * be replaced by") or with others ("In sets that replace it").
+ */
 function groupKey(link: ConstellationLink): string {
   const dir = UNDIRECTED.has(link.edge.kind) ? "out" : link.direction;
-  return `${link.edge.kind}:${dir}`;
+  const shape = link.edge.kind === "substitutes" ? (substitutesAlone(link.edge) ? ":alone" : ":set") : "";
+  return `${link.edge.kind}:${dir}${shape}`;
 }
 
 function compareGroupKeys(a: string, b: string): number {
-  const [ka, da] = a.split(":") as [EdgeKind, string];
-  const [kb, db] = b.split(":") as [EdgeKind, string];
-  return priorityOf(ka) - priorityOf(kb) || (da === db ? 0 : da === "out" ? -1 : 1);
+  const [ka, da, sa = ""] = a.split(":") as [EdgeKind, string, string?];
+  const [kb, db, sb = ""] = b.split(":") as [EdgeKind, string, string?];
+  return (
+    priorityOf(ka) - priorityOf(kb) ||
+    (da === db ? 0 : da === "out" ? -1 : 1) ||
+    (sa === sb ? 0 : sa === "alone" ? -1 : 1)
+  );
 }
 
 export interface LinkGroup {

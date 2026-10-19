@@ -28,6 +28,8 @@ vi.mock("../comments/mutations", () => ({
 import { UnsavedChangesProvider, useLeaveGuard } from "../unsaved-changes";
 import { CommentsPanel, CommentsProvider } from "../comments";
 import { WikiShell } from "./WikiShell";
+import { useWikiPageGuard } from "./page-guard";
+import { WikiSectionsProvider, type WikiSectionsValue } from "./sections";
 import { WikiEditor } from "./WikiEditor";
 import { WikiChips, WikiLinkCard } from "./WikiLinks";
 import { WikiRow } from "./WikiIndex";
@@ -150,6 +152,62 @@ describe("a studio note being written on a page", () => {
     await click(button("Cancel"));
     expect(question()!.textContent).toContain("You have unsaved changes to the new page.");
   });
+});
+
+/**
+ * A control in the bar's actions that changes the page (the Learning
+ * redesign's version switch, Oct 19 2026): it asks through the page's guard.
+ */
+function BarSwitch({ onFlip }: { onFlip: () => void }) {
+  const guard = useWikiPageGuard();
+  return (
+    <button type="button" onClick={() => guard(onFlip)}>
+      MSF original
+    </button>
+  );
+}
+
+function PageWithActions({ flipped, masthead }: { flipped: () => void; masthead?: boolean }) {
+  const shell = (
+    <WikiShell crumbs={[{ label: "Academy", onClick: () => {} }, { label: "Turnarounds" }]} actions={<BarSwitch onFlip={flipped} />}>
+      <WikiEditor kind="overlay" fixedTitle="Turnarounds" onSave={() => {}} onCancel={() => {}} />
+    </WikiShell>
+  );
+  if (!masthead) return shell;
+  const sections: WikiSectionsValue = {
+    title: "Learning",
+    sections: [{ id: "academy", label: "Academy" }],
+    active: "academy",
+    onSelect: () => {},
+  };
+  return <WikiSectionsProvider value={sections}>{shell}</WikiSectionsProvider>;
+}
+
+describe("the bar's actions (the page's guard reaches them too)", () => {
+  const note = () => host.querySelector("textarea.wk__textarea");
+
+  for (const masthead of [false, true]) {
+    const which = masthead ? "the masthead's second row" : "the plain bar";
+    it(`goes at once with nothing typed, and asks first when the page holds typing: ${which}`, async () => {
+      const flipped = vi.fn();
+      await mount(<PageWithActions flipped={flipped} masthead={masthead} />);
+      await click(button("MSF original"));
+      expect(question()).toBeNull();
+      expect(flipped).toHaveBeenCalledTimes(1);
+
+      await type(note(), "Ours pauses a beat longer.");
+      await click(button("MSF original"));
+      expect(question()).not.toBeNull();
+      expect(flipped).toHaveBeenCalledTimes(1);
+      await click(answer("keep-editing"));
+      expect(flipped).toHaveBeenCalledTimes(1);
+      expect((note() as HTMLTextAreaElement).value).toBe("Ours pauses a beat longer.");
+
+      await click(button("MSF original"));
+      await click(answer("leave"));
+      expect(flipped).toHaveBeenCalledTimes(2);
+    });
+  }
 });
 
 /** The app's own navigation, as the bottom bar asks it. */

@@ -20,6 +20,15 @@
  * only in the proceed callback. A move that would change nothing (pushing the
  * page already on top, Back on the root) asks nothing.
  *
+ * THE ONE MOVE THAT DOES NOT ASK
+ * ------------------------------
+ * `set(stack)` replaces the whole trail at once, WITHOUT asking: for a move
+ * the app has already asked about before it reached the design (a page
+ * opened from outside, through AppContent's guarded screen or LearningView's
+ * doors; a masthead section change; the Learning title tapped on the
+ * section's front page). Asking there again would put the same question
+ * twice. It is never for a door inside the design: those use the four above.
+ *
  * The stack's own rules (a trail cut back when a page in it is re-opened, a
  * cap on its depth, a root that never leaves) are pure and live in routes.ts.
  * `root` is where the stack starts; a design that changes section calls
@@ -33,7 +42,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useLeaveGuard } from "../unsaved-changes";
-import { popRoute, pushRoute, replaceRoute, sameRoute } from "./routes";
+import { STACK_MAX, popRoute, pushRoute, replaceRoute, sameRoute } from "./routes";
 import type { VaultRoute } from "./types";
 
 export interface VaultNav {
@@ -45,6 +54,13 @@ export interface VaultNav {
   replace: (r: VaultRoute) => void;
   back: () => void;
   reset: (root: VaultRoute) => void;
+  /**
+   * The whole trail, root first, at once and WITHOUT asking: only for a move
+   * the app already asked about (a jump from outside, a masthead section
+   * change, the title). An empty trail is ignored, the same trail changes
+   * nothing, and a trail past STACK_MAX keeps its root and its newest pages.
+   */
+  set: (stack: VaultRoute[]) => void;
   canBack: boolean;
 }
 
@@ -82,8 +98,23 @@ export function useVaultNav(root: VaultRoute): VaultNav {
     [stack, leave],
   );
 
+  const set = useCallback((next: VaultRoute[]) => {
+    if (next.length === 0) return;
+    setStack((s) => (sameTrail(s, next) ? s : capTrail(next)));
+  }, []);
+
   return useMemo(
-    () => ({ route: top, stack, push, replace, back, reset, canBack: stack.length > 1 }),
-    [top, stack, push, replace, back, reset],
+    () => ({ route: top, stack, push, replace, back, reset, set, canBack: stack.length > 1 }),
+    [top, stack, push, replace, back, reset, set],
   );
+}
+
+function sameTrail(a: VaultRoute[], b: VaultRoute[]): boolean {
+  return a.length === b.length && a.every((r, i) => sameRoute(r, b[i]));
+}
+
+/** A copy, its root and newest pages kept past STACK_MAX (as pushRoute keeps them). */
+function capTrail(next: VaultRoute[]): VaultRoute[] {
+  if (next.length <= STACK_MAX) return [...next];
+  return [next[0], ...next.slice(next.length - (STACK_MAX - 1))];
 }

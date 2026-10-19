@@ -29,7 +29,7 @@ vi.mock("../unsaved-changes", async (importOriginal) => {
 });
 
 import { UnsavedChangesProvider, useUnsavedChanges } from "../unsaved-changes";
-import { routeKey } from "./routes";
+import { STACK_MAX, routeKey } from "./routes";
 import type { VaultRoute } from "./types";
 import { useVaultNav, type VaultNav } from "./useVaultNav";
 
@@ -170,6 +170,33 @@ describe("useVaultNav — through a stubbed leave guard", () => {
     expect(keys()).toEqual(["academy"]);
   });
 
+  it("sets a whole trail at once without asking (a move the app already asked about)", async () => {
+    await mount(<Probe />);
+    await act(async () => nav.set([{ kind: "academy" }, TOPIC]));
+    expect(fx.asked).toHaveLength(0);
+    expect(keys()).toEqual(["academy", routeKey(TOPIC)]);
+    expect(shown()).toBe(routeKey(TOPIC));
+    expect(nav.canBack).toBe(true);
+
+    // The same trail again keeps the very same stack; an empty one is ignored.
+    const before = nav.stack;
+    await act(async () => nav.set([{ kind: "academy" }, { ...TOPIC }]));
+    expect(nav.stack).toBe(before);
+    await act(async () => nav.set([]));
+    expect(nav.stack).toBe(before);
+    expect(fx.asked).toHaveLength(0);
+  });
+
+  it("keeps a set trail's root and newest pages past the cap, and never holds the caller's array", async () => {
+    await mount(<Probe />);
+    const long: VaultRoute[] = [HOME, ...Array.from({ length: STACK_MAX + 5 }, (_, i): VaultRoute => ({ kind: "card", id: `c${i}` }))];
+    await act(async () => nav.set(long));
+    expect(nav.stack).toHaveLength(STACK_MAX);
+    expect(routeKey(nav.stack[0])).toBe("home");
+    expect(routeKey(nav.route)).toBe(`card:c${STACK_MAX + 4}`);
+    expect(nav.stack).not.toBe(long);
+  });
+
   it("keeps the trail when the parent hands a different root on a re-render", async () => {
     await mount(<Probe />);
     await act(async () => nav.push(CARD));
@@ -219,6 +246,18 @@ describe("useVaultNav — with the app's own gate", () => {
     expect((host.querySelector('[data-testid="draft"]') as HTMLTextAreaElement).value).toBe(
       "This unit has no seat belt.",
     );
+  });
+
+  it("set moves over typing without asking: the app asked before it reached the design", async () => {
+    await mount(
+      <UnsavedChangesProvider>
+        <Probe />
+        <Typing />
+      </UnsavedChangesProvider>,
+    );
+    await act(async () => nav.set([{ kind: "catalog" }]));
+    expect(question()).toBeNull();
+    expect(shown()).toBe("catalog");
   });
 
   it("asks over typing; Leave lets the words go and then moves", async () => {

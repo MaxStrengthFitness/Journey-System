@@ -582,7 +582,8 @@ describe("pageFor — a machine", () => {
     const opts = fx.tierCalls[0][2] as { substitutes: string[][] };
     expect(opts.substitutes).toEqual([["LEG PRESS"]]);
     const lp = page.related.find((r) => r.route.kind === "machine" && r.route.id === "m-leg-press");
-    expect(lp?.why).toBe("It can stand in for this one.");
+    // Leg Press replaces Hip Abduction alone (a set of one): said as one for one, truthfully.
+    expect(lp?.why).toBe("On its own, it can replace this one.");
     const add = page.related.find((r) => r.route.kind === "machine" && r.route.id === "m-hip-add");
     expect(add?.why).toBe("Also Hips.");
     expect(page.facts.find((f) => f.label === "Failure")).toBeUndefined();

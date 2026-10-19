@@ -42,7 +42,7 @@ const NODES: GraphNode[] = [
 ];
 const e = (from: string, to: string, kind: GraphEdge["kind"], label: string): GraphEdge => ({ from, to, kind, label });
 const EDGES: GraphEdge[] = [
-  e("machine:m-ext", "machine:m-leg-press", "substitutes", "substitutes for"),
+  e("machine:m-ext", "machine:m-leg-press", "substitutes", "is part of a set that replaces"),
   e("machine:m-leg-press", "machine:m-leg-curl", "same-category", "is in the same family as"),
   e("clinical:bone-osteoporosis", "machine:m-leg-press", "affects", "affects"),
   e("topic:mastery-pace", "machine:m-leg-press", "mentions", "talks about"),
@@ -75,7 +75,7 @@ const pills = () => Array.from(host.querySelectorAll<HTMLButtonElement>(".vtg__p
 describe("the pills", () => {
   it("group the links by why they connect, strongest reason first", async () => {
     await mount(<LocalConstellation graph={GRAPH} nodeId="machine:m-leg-press" onOpen={() => {}} />);
-    expect(headings()).toEqual(["Substitutes", "Cue moments", "Clinical flags", "Same family", "Comes up in"]);
+    expect(headings()).toEqual(["In sets that replace it", "Cue moments", "Clinical flags", "Same family", "Comes up in"]);
     expect(pills().map((p) => p.querySelector(".vtg__pill-label")?.textContent)).toEqual([
       "LEG EXTENSION",
       "Lower Turnaround: weight stack touches",
@@ -108,12 +108,20 @@ describe("the pills", () => {
   it("show no more than they are asked to, every kind keeping a place", async () => {
     await mount(<LocalConstellation graph={GRAPH} nodeId="machine:m-leg-press" onOpen={() => {}} max={3} />);
     expect(pills()).toHaveLength(3);
-    expect(headings()).toEqual(["Substitutes", "Cue moments", "Clinical flags"]);
+    expect(headings()).toEqual(["In sets that replace it", "Cue moments", "Clinical flags"]);
+  });
+
+  it("stack by default, and sit side by side as columns when asked", async () => {
+    await mount(<LocalConstellation graph={GRAPH} nodeId="machine:m-leg-press" onOpen={() => {}} />);
+    expect(host.querySelector("section.vtg")?.classList.contains("vtg--columns")).toBe(false);
+    await mount(<LocalConstellation graph={GRAPH} nodeId="machine:m-leg-press" onOpen={() => {}} layout="columns" />);
+    expect(host.querySelector("section.vtg")?.classList.contains("vtg--columns")).toBe(true);
+    expect(headings()).toHaveLength(5);
   });
 
   it("are the same from the other end, said the other way", async () => {
     await mount(<LocalConstellation graph={GRAPH} nodeId="machine:m-ext" onOpen={() => {}} />);
-    expect(headings()).toEqual(["Substitutes for"]);
+    expect(headings()).toEqual(["Part of a set that replaces"]);
   });
 });
 
@@ -173,6 +181,38 @@ describe("the orbit", () => {
     expect(host.querySelector(".vtg__lines")?.getAttribute("width")).toBe("640");
     const label = host.querySelector<HTMLElement>(".vtg__node--right .vtg__node-label")!;
     expect(parseFloat(label.style.maxWidth)).toBeGreaterThan(56);
+  });
+
+  it("drawn alone (list={false}), its nodes are the way in: focusable, each named with why it connects", async () => {
+    const opened: VaultRoute[] = [];
+    await mount(
+      <LocalConstellation graph={GRAPH} nodeId="machine:m-leg-press" onOpen={(r) => opened.push(r)} variant="orbit" list={false} />,
+    );
+    expect(pills()).toHaveLength(0);
+    expect(headings()).toEqual([]);
+    const orbit = host.querySelector(".vtg__orbit")!;
+    expect(orbit.getAttribute("aria-hidden")).toBeNull();
+    expect(host.querySelector("section.vtg")?.getAttribute("aria-label")).toBe("What connects to LEG PRESS");
+    const nodes = Array.from(orbit.querySelectorAll<HTMLButtonElement>(".vtg__node"));
+    expect(nodes).toHaveLength(6);
+    for (const b of nodes) expect(b.tabIndex).toBe(0);
+    const flag = nodes.find((b) => b.textContent?.includes("Osteoporosis"))!;
+    expect(flag.getAttribute("aria-label")).toBe("Osteoporosis / Severe Osteopenia, clinical flag. Clinical flags.");
+    // The drawing's lines and its centre say nothing a reader needs twice.
+    expect(orbit.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    expect(orbit.querySelector(".vtg__centre")?.getAttribute("aria-hidden")).toBe("true");
+    await act(async () => flag.click());
+    expect(opened).toEqual([{ kind: "map", focus: "clinical:bone-osteoporosis" }]);
+  });
+
+  it("names the centre in capitals only where its words fit whole (never \"PRES S\")", async () => {
+    // 340px: the middle has 44px for words. The old small-letter guess let
+    // "PRESS" in, and the browser broke it; measured as capitals it does not fit.
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(340);
+    await mount(<LocalConstellation graph={GRAPH} nodeId="machine:m-leg-press" onOpen={() => {}} variant="orbit" />);
+    const centre = host.querySelector(".vtg__centre")!;
+    expect(centre.classList.contains("vtg__centre--mark")).toBe(true);
+    expect(centre.querySelector(".vtg__centre-label")).toBeNull();
   });
 
   it("is just the list when there is nothing to orbit", async () => {

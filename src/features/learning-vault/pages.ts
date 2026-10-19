@@ -368,11 +368,15 @@ function machineRelated(machineId: string, am: AcademyMachine | undefined, data:
     for (const id of set.machineIds) {
       if (seen.has(id)) continue;
       seen.add(id);
+      // The Academy's sets replace this machine TOGETHER: a machine in a set
+      // of two or more is only part of the answer, and says who with.
       const others = set.machineIds.filter((o) => o !== id).map((o) => data.names(o));
       out.push({
         route: { kind: "machine", id },
         title: data.names(id),
-        why: others.length ? `With ${others.join(" and ")}, it stands in for this one.` : "It can stand in for this one.",
+        why: others.length
+          ? `Together with ${others.join(" and ")}, it can replace this one.`
+          : "On its own, it can replace this one.",
       });
     }
   }

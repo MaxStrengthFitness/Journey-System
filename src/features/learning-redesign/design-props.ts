@@ -27,4 +27,13 @@ export interface DesignProps {
   /** A page to open from outside (search, the bell, a link). Cleared by onJumpHandled. */
   jump: LearningRef | null;
   onJumpHandled: () => void;
+  /**
+   * Goes up by one each time the trainer asks for the section's front page
+   * while already in that section: the Learning title (the masthead's
+   * onHome) on the Overview, or the section that is already on. LearningView
+   * asked the leave gate before it moved, so the design goes back to the
+   * section's root without asking again (useVaultNav's set). Only a CHANGE
+   * means anything; the first value (absent, or 0) asks for nothing.
+   */
+  resetSignal?: number;
 }

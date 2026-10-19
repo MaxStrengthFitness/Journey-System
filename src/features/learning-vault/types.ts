@@ -315,7 +315,7 @@ export interface GraphEdge {
   from: string;
   to: string;
   kind: EdgeKind;
-  /** Says WHY the two connect, read from `from` to `to` ("substitutes for", "is explained in"). */
+  /** Says WHY the two connect, read from `from` to `to` ("is part of a set that replaces", "is explained in"). */
   label: string;
 }
 

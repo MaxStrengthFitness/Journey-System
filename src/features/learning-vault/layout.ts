@@ -124,6 +124,83 @@ export function labelPlacement(
 }
 
 /* ------------------------------------------------------------------ *
+ * How wide a label is, before it is drawn
+ * ------------------------------------------------------------------ */
+
+/**
+ * About how wide one character is, in ems of its font (Geist at 600-700, the
+ * weight Learning's labels use). Capitals are wider than small letters, so a
+ * name in capitals ("LEG PRESS", the catalog's own spelling) is measured as
+ * one, not as "leg press": the flat per-character guess this replaced read
+ * capitals as small letters, said "PRESS" fitted a box it did not, and the
+ * browser broke it mid-word ("PRES S"). A slight overestimate on purpose:
+ * a name guessed too wide shows a glyph, one guessed too narrow breaks.
+ */
+function charEm(ch: string): number {
+  if (ch === " ") return 0.28;
+  if (/[A-Z]/.test(ch)) {
+    if (/[IJ]/.test(ch)) return 0.34;
+    if (/[MW]/.test(ch)) return 0.9;
+    if (/[EFLPSTZ]/.test(ch)) return 0.63;
+    return 0.72;
+  }
+  if (/[a-z]/.test(ch)) {
+    if (/[ijl]/.test(ch)) return 0.28;
+    if (/[ft]/.test(ch)) return 0.36;
+    if (ch === "r") return 0.4;
+    if (/[mw]/.test(ch)) return 0.86;
+    return 0.57;
+  }
+  if (/[0-9]/.test(ch)) return 0.6;
+  if (/[.,:;'!|·]/.test(ch)) return 0.3;
+  if (/[-\/()]/.test(ch)) return 0.4;
+  return 0.64;
+}
+
+/** About how many px `text` takes at `fontPx` (one line, unwrapped). */
+export function labelWidth(text: string, fontPx: number): number {
+  let em = 0;
+  for (const ch of text) em += charEm(ch);
+  return em * fontPx;
+}
+
+/**
+ * About how many lines `text` wraps to in a box `maxPx` wide at `fontPx`:
+ * word by word, and a word wider than the box broken across lines, as
+ * `overflow-wrap: anywhere` breaks it.
+ */
+export function wrappedLines(text: string, maxPx: number, fontPx: number): number {
+  const room = Math.max(1, maxPx);
+  const space = labelWidth(" ", fontPx);
+  let lines = 1;
+  let used = 0;
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const w = labelWidth(word, fontPx);
+    if (used > 0 && used + space + w <= room) {
+      used += space + w;
+      continue;
+    }
+    if (used > 0) lines += 1;
+    if (w <= room) {
+      used = w;
+    } else {
+      const parts = Math.ceil(w / room);
+      lines += parts - 1;
+      used = w - (parts - 1) * room;
+    }
+  }
+  return lines;
+}
+
+/** True when every word of `text` fits a line `maxPx` wide whole (none would be broken mid-word). */
+export function wordsFit(text: string, maxPx: number, fontPx: number): boolean {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((w) => labelWidth(w, fontPx) <= maxPx);
+}
+
+/* ------------------------------------------------------------------ *
  * One node and its links (the orbit)
  * ------------------------------------------------------------------ */
 

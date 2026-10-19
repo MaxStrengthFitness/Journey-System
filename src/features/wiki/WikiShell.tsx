@@ -86,7 +86,10 @@ export interface WikiShellProps {
   /** Opens the search overlay. Omit to hide the button entirely. */
   onOpenSearch?: () => void;
   searchLabel?: string;
-  /** Rendered at the right of the bar, before search. Admin edit actions. */
+  /**
+   * Rendered at the right of the bar, before search. Admin edit actions. They
+   * act on the page, so useWikiPageGuard inside them asks about its typing.
+   */
   actions?: ReactNode;
   children: ReactNode;
   /** Extra class on the root, e.g. `wk--academy`. */
@@ -183,7 +186,7 @@ export function WikiShell({
         )}
 
         <div className="wk__bar-actions">
-          {actions}
+          {actions && <PageGuarded page={page}>{actions}</PageGuarded>}
           {onOpenSearch && (
             <button
               type="button"
@@ -305,7 +308,11 @@ function MastheadShell({
           ) : (
             <Trail crumbs={crumbs} />
           )}
-          {actions && <div className="wk__bar-actions">{actions}</div>}
+          {actions && (
+            <div className="wk__bar-actions">
+              <PageGuarded page={page}>{actions}</PageGuarded>
+            </div>
+          )}
         </div>
       )}
 
@@ -314,6 +321,18 @@ function MastheadShell({
       </PageScroller>
     </div>
   );
+}
+
+/**
+ * The page's actions sit in the bar, outside the scroller, but they act on
+ * the page: the Learning redesign's version switch ("MSF original", "Hide
+ * crossed-out lines", Oct 19 2026) can take away a form half typed under a
+ * line. So they get the page's guard too (./page-guard), and a control
+ * there that changes the page asks about its typing first, as a link inside
+ * the page does.
+ */
+function PageGuarded({ page, children }: { page: LeaveScope; children: ReactNode }) {
+  return <WikiPageGuardContext.Provider value={page.guard}>{children}</WikiPageGuardContext.Provider>;
 }
 
 /* ------------------------------------------------------------------ *

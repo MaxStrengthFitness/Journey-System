@@ -29,6 +29,19 @@
   color: var(--wk-ink);
 }
 
+/* layout="columns": the groups side by side, as many 13rem columns as the
+   box holds (one in a narrow one); an orbit drawn above them spans them all. */
+.vtg--columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr));
+  gap: 0.75rem 0.875rem;
+  align-items: start;
+}
+
+.vtg--columns > .vtg__orbit {
+  grid-column: 1 / -1;
+}
+
 .vtg--wait {
   align-items: flex-start;
   padding: 0.5rem 0;
@@ -250,6 +263,12 @@
 .vtg__node-label {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* An orbit drawn alone (list={false}) is the way in: its nodes take focus. */
+.vtg__node:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
 }
 
 @media (hover: hover) {

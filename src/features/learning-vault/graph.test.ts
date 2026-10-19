@@ -28,6 +28,7 @@ import {
   DOMAIN_ORDER,
   EQUIPMENT_FROM,
   KIND_PRIORITY,
+  SUBSTITUTE_LABEL,
   buildVaultGraph,
   constellationOf,
   cueLabel,
@@ -230,7 +231,7 @@ describe("buildVaultGraph", () => {
 
   it("draws the Academy's substitutes and families", () => {
     const sub = edgesBetween(graph, "machine:m-ext", "machine:m-leg-press").find((e) => e.kind === "substitutes");
-    expect(sub).toMatchObject({ from: "machine:m-ext", to: "machine:m-leg-press", label: "substitutes for" });
+    expect(sub).toMatchObject({ from: "machine:m-ext", to: "machine:m-leg-press", label: "is part of a set that replaces" });
     expect(edgesBetween(graph, "machine:m-leg-press", "machine:m-leg-curl").some((e) => e.kind === "same-category")).toBe(true);
     expect(edgesBetween(graph, "machine:m-leg-press", "machine:m-pulldown").some((e) => e.kind === "same-category")).toBe(false);
   });
@@ -282,7 +283,7 @@ describe("constellationOf", () => {
     const c = constellationOf(graph, "machine:m-leg-press", 500)!;
     const ids = c.links.map((l) => l.node.id);
     expect(new Set(ids).size).toBe(ids.length);
-    // Leg Extension both substitutes for Leg Press and shares its family: substitutes wins.
+    // Leg Extension is both in sets that replace Leg Press and in its family: substitutes wins.
     expect(c.links.find((l) => l.node.id === "machine:m-ext")?.edge.kind).toBe("substitutes");
   });
 
@@ -312,17 +313,69 @@ describe("headings", () => {
     const c = constellationOf(graph, "machine:m-leg-press", 500)!;
     const groups = groupLinks(c);
     const headings = groups.map((g) => g.heading);
-    expect(headings).toContain("Substitutes");
+    expect(headings).toContain("In sets that replace it");
     expect(headings).toContain("Clinical flags");
     expect(headings).toContain("Comes up in");
     expect(new Set(groups.map((g) => g.key)).size).toBe(groups.length);
     const ext = constellationOf(graph, "machine:m-ext", 500)!;
-    expect(groupLinks(ext).map((g) => g.heading)).toContain("Substitutes for");
+    expect(groupLinks(ext).map((g) => g.heading)).toContain("Part of a set that replaces");
   });
 
   it("read the same both ways for a family", () => {
     const edge = { from: "a", to: "b", kind: "same-category" as const, label: "x" };
     expect(linkHeading({ edge, direction: "in" })).toBe(linkHeading({ edge, direction: "out" }));
+  });
+});
+
+describe("substitutes say the Academy's sets truthfully", () => {
+  const subs = () => graph.edges.filter((e) => e.kind === "substitutes");
+
+  it("a machine in a set of two or more is part of a set that replaces the main one, never a substitute for it", () => {
+    for (const e of subs()) expect(e.label).not.toMatch(/substitutes for/);
+    // Leg Extension only ever comes with others for the Leg Press.
+    expect(edgesBetween(graph, "machine:m-ext", "machine:m-leg-press").find((e) => e.kind === "substitutes")?.label).toBe(
+      SUBSTITUTE_LABEL.inSet,
+    );
+  });
+
+  it("only a set of one says one for one: Chest Press can replace Overhead Press", () => {
+    const e = edgesBetween(graph, "machine:m-chest-press", "machine:m-overhead-press").find(
+      (x) => x.kind === "substitutes" && x.from === "machine:m-chest-press",
+    );
+    expect(e?.label).toBe(SUBSTITUTE_LABEL.alone);
+    // On Overhead Press, Dip (a set of one) can replace it. (Chest Press is
+    // linked both ways, and a neighbour shows once: either way it says true.)
+    const ohp = groupLinks(constellationOf(graph, "machine:m-overhead-press", 500)!);
+    const alone = ohp.find((g) => g.heading === "Can be replaced by");
+    expect(alone?.links.map((l) => l.node.id)).toContain("machine:m-dip");
+    for (const g of ohp) {
+      for (const l of g.links.filter((x) => x.edge.kind === "substitutes")) {
+        const solo = l.edge.label === SUBSTITUTE_LABEL.alone;
+        const want = l.direction === "in" ? (solo ? "Can be replaced by" : "In sets that replace it") : solo ? "Can replace" : "Part of a set that replaces";
+        expect(g.heading, l.node.id).toBe(want);
+      }
+    }
+  });
+
+  it("every label matches the Academy's table: alone only where a set is that machine alone", () => {
+    for (const [main, sets] of Object.entries(EXERCISE_SUBSTITUTES)) {
+      for (const set of sets) {
+        for (const id of set.machineIds) {
+          const e = graph.edges.find((x) => x.kind === "substitutes" && x.from === `machine:${id}` && x.to === `machine:${main}`);
+          if (!e) continue;
+          const alone = sets.some((s) => s.machineIds.length === 1 && s.machineIds[0] === id);
+          expect(e.label, `${id} → ${main}`).toBe(alone ? SUBSTITUTE_LABEL.alone : SUBSTITUTE_LABEL.inSet);
+        }
+      }
+    }
+  });
+
+  it("groups a machine's set partners apart from its one-for-one replacements", () => {
+    const edge = (label: string) => ({ from: "a", to: "b", kind: "substitutes" as const, label });
+    expect(linkHeading({ edge: edge(SUBSTITUTE_LABEL.inSet), direction: "in" })).toBe("In sets that replace it");
+    expect(linkHeading({ edge: edge(SUBSTITUTE_LABEL.inSet), direction: "out" })).toBe("Part of a set that replaces");
+    expect(linkHeading({ edge: edge(SUBSTITUTE_LABEL.alone), direction: "in" })).toBe("Can be replaced by");
+    expect(linkHeading({ edge: edge(SUBSTITUTE_LABEL.alone), direction: "out" })).toBe("Can replace");
   });
 });
 

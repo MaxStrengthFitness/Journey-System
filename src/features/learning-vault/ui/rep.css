@@ -514,7 +514,7 @@
 /* Play: what you act on, so solid blue, like every Save in Learning. */
 .vtr__btn--primary {
   border-color: var(--wk-live);
-  background-color: var(--wk-live);
+  background: var(--wk-live);
   color: var(--wk-live-on);
   box-shadow: var(--wk-glow-live), var(--wk-solid-light);
 }

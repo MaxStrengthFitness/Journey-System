@@ -15,7 +15,8 @@
  *                       this machine turns around
  *   3 Adapt & clinical  If something goes wrong, Adapt, Faults and fixes,
  *                       the client conditions the clinical matrix names here
- *                       (their names only), and the substitutes
+ *                       (their names only), and what can replace it (the
+ *                       Academy's substitute sets, each set together)
  *   4 Deep science      Understand, Program it, the quick card's target
  *                       muscles and synergists, and the Academy's deep dive
  *
@@ -239,18 +240,34 @@ function substituteName(entry: string): string {
   return e;
 }
 
+/** The substitutes section's title: what can stand in for this machine. */
+export const SUBSTITUTES_TITLE = "Can be replaced by";
+
 /**
- * The Academy's substitute sets: each line is machines that together stand
- * in for this one ("All of these together replace the main exercise").
+ * One substitute set as a line: a set of two or more machines says they go
+ * TOGETHER ("Together: Leg Extension + Leg Curl + Hip Abduction"), because
+ * the Academy's sets replace the main exercise between them, never one for
+ * one; a set of one is just the machine ("Chest Press").
+ */
+export function substituteLine(set: readonly string[] | null | undefined): string {
+  const names = (set ?? []).map(substituteName).filter(Boolean);
+  if (names.length === 0) return "";
+  return names.length === 1 ? names[0] : `Together: ${names.join(" + ")}`;
+}
+
+/**
+ * The Academy's substitute sets (EXERCISE_SUBSTITUTES: "All of these
+ * together replace the main exercise"), under "Can be replaced by", one
+ * line a set.
  */
 export function substituteSection(sets: readonly (readonly string[])[] | null | undefined): VaultSection | null {
   if (!sets || sets.length === 0) return null;
   const blocks = sets
-    .map((set) => (set ?? []).map(substituteName).filter(Boolean).join(" + "))
+    .map((set) => substituteLine(set))
     .map((text) => block("bullet", text, { source: SUBSTITUTES_SOURCE }))
     .filter(present);
   if (blocks.length === 0) return null;
-  return vaultSection("substitutes", "Substitutes", blocks, "Each line, all together, stands in for it");
+  return vaultSection("substitutes", SUBSTITUTES_TITLE, blocks);
 }
 
 /**
