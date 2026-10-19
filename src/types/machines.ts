@@ -781,7 +781,7 @@ export interface MachineDefinition {
    * studio's answer, like the dials (AJ: "if the machine has it installed is
    * another question that the studio needs to answer"). `false` takes the
    * belt off this unit's card; true or unanswered shows it (AJ's "Ba"). The
-   * client's choice (On · Off · Not needed) is saved with their other
+   * client's choice (On · Off) is saved with their other
    * settings: features/equipment/seat-belt.ts.
    */
   hasSeatBelt?: boolean;

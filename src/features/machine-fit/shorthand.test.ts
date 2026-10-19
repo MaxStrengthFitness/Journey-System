@@ -273,7 +273,7 @@ describe("the seat belt (Oct 19 2026)", () => {
     { key: "Back Pad", label: "Back Pad", type: "text" },
     { key: "Seat", label: "Seat", type: "text" },
     { key: "Handles", label: "Handles", type: "text" },
-    { key: "Seat belt", label: "Seat belt", type: "enum", options: ["On", "Off", "Not needed"] },
+    { key: "Seat belt", label: "Seat belt", type: "enum", options: ["On", "Off"] },
   ];
 
   it("reads Judy Gibson's Pulldown line: the bare word Belt is On, and S- 4 is still the seat", () => {
@@ -296,7 +296,7 @@ describe("the seat belt (Oct 19 2026)", () => {
     expect(parseShorthand("No belt, G:2", PULLDOWN).values).toEqual({ "Seat belt": "Off", Gap: "2" });
     expect(parseShorthand("Belt: off", PULLDOWN).values).toEqual({ "Seat belt": "Off" });
     expect(parseShorthand("Seat belt Y S 5", PULLDOWN).values).toEqual({ "Seat belt": "On", Seat: "5" });
-    expect(parseShorthand("Belt not needed", PULLDOWN).values).toEqual({ "Seat belt": "Not needed" });
+    expect(parseShorthand("Belt not needed", PULLDOWN).values).toEqual({ "Seat belt": "Off" });
     expect(parseShorthand("Belt S- 4", PULLDOWN).values).toEqual({ "Seat belt": "On", Seat: "4" });
   });
 

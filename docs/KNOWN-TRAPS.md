@@ -1186,7 +1186,7 @@ between two files you just wrote together) is this trap, not your code.
 
 The typecheck count and the test count after each round, moved here from the Commands table in `CLAUDE.md`. Compare COUNTS; since Oct 18 2026 the typecheck count is zero and CI fails on the first new type error, while the test count stays a count.
 
-- **The seat belt (Oct 19 2026, `oct19/seat-belt` over master `c64e2587`):** typecheck **0**; **15,976** tests in 964 files (`TZ=America/New_York npx vitest run --dir src --testTimeout=30000`, the worktree on AJ's PC); production build clean, 471.3 KB gzip on the first screen of the 480 KB budget. The Commands table's Tests row in `CLAUDE.md` until this round: **15,935** passing in 961 files (Oct 19 2026, the Learning Mix).
+- **The seat belt (Oct 19 2026, `oct19/seat-belt` over master `c64e2587`):** typecheck **0**; **15,977** tests in 964 files after AJ's On / Off tweak (15,976 before it; `TZ=America/New_York npx vitest run --dir src --testTimeout=30000`, the worktree on AJ's PC); production build clean, 471.3 KB gzip on the first screen of the 480 KB budget. The Commands table's Tests row in `CLAUDE.md` until this round: **15,935** passing in 961 files (Oct 19 2026, the Learning Mix).
 
 - **The trainer lock (Oct 18 2026, `claude/keen-elbakyan-b06716` with master `b7773a53` merged in):** typecheck **0**; **14,841** tests in 904 files (14,805 in 899 on `878c7f95`, the Wrap-up round, before it); rules tests **627** on the emulator (601 in `firestore.rules.test.ts`, 14 of them the round's, plus the lint and the comment proof); the first screen 470.6 KB gzip of the 480 KB budget.
 

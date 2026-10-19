@@ -293,9 +293,9 @@ function RowImpl({
   // is the thing a trainer reads, so the grid must never re-sort.
   const settingEntries = machine.settings ? Object.entries(machine.settings) : [];
   const settingLabel = (k: string) => machine.settingLabels?.[k] ?? k;
-  // The position boxes line up under Gap, one small box each; the seat belt is
-  // not a position, and "Belt Not needed" would be cut short there (Oct 19
-  // 2026). It is still in the spoken summary, the Now Bar and the card.
+  // The position boxes line up under Gap, one small box each, and the seat
+  // belt is not a position (Oct 19 2026). It is still in the spoken summary,
+  // the Now Bar and the card.
   const boxedSettings = settingEntries.filter(([k]) => !isSeatBelt(settingLabel(k)));
   const shownSettings = boxedSettings.slice(0, 5);
   const hiddenSettings = boxedSettings.length - shownSettings.length;

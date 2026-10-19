@@ -85,7 +85,8 @@ const settle = () =>
     await new Promise((r) => setTimeout(r, 5));
   });
 
-const theSwitch = (el: HTMLElement) => el.querySelector("[role='switch']") as HTMLElement | null;
+// By its name: the editor's Dials section has the seat belt's switch too (Oct 19 2026).
+const theSwitch = (el: HTMLElement) => el.querySelector("[role='switch'][aria-label='Standard machine']") as HTMLElement | null;
 const clickEl = (el: Element) => act(async () => (el as HTMLElement).click());
 const dialog = () => document.body.querySelector("[role='alertdialog']");
 

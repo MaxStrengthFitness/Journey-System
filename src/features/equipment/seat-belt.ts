@@ -7,12 +7,15 @@
  * machine has it installed is another question that the studio needs to
  * answer. SOme clients weight is so low the seatbelt is not required or their
  * form has progressed to a point they dont need the seatbelt. On/off/Not
- * needed" (his "Aa Ba"). `docs/rounds/2026-10-19-seat-belt.md` is the round.
+ * needed" (his "Aa Ba"), and then, the same day: "rather than having 3 options
+ * lets switch it to on or off. Then allow studios to toggle if they have a
+ * seatbelt on the machine in the studio editor".
+ * `docs/rounds/2026-10-19-seat-belt.md` is the round.
  *
  * So:
- *   - THE CLIENT'S CHOICE is one of three words a trainer taps: On, Off (the
- *     client chose not to wear it) or Not needed (the trainer judged it
- *     unnecessary: a light load, or form that no longer needs it). It is saved
+ *   - THE CLIENT'S CHOICE is On or Off, tapped on the card. Off covers every
+ *     reason not to wear it (the client's choice, a load so light it isn't
+ *     needed, form that no longer needs it). It is saved
  *     like every dial, in `clientMachineSettings.settings`, under SEAT_BELT_KEY,
  *     with the same Save, history row and Undo. Nothing saved means NOT
  *     RECORDED, which is every client before this round: it is never "Off"
@@ -48,10 +51,9 @@ export const SEAT_BELT_LABEL = "Seat belt";
 
 export const SEAT_BELT_ON = "On";
 export const SEAT_BELT_OFF = "Off";
-export const SEAT_BELT_NOT_NEEDED = "Not needed";
 
-/** The three choices, in the order the tile draws them. */
-export const SEAT_BELT_CHOICES = [SEAT_BELT_ON, SEAT_BELT_OFF, SEAT_BELT_NOT_NEEDED] as const;
+/** The two choices, in the order the tile draws them (AJ: "on or off"). */
+export const SEAT_BELT_CHOICES = [SEAT_BELT_ON, SEAT_BELT_OFF] as const;
 export type SeatBeltChoice = (typeof SEAT_BELT_CHOICES)[number];
 
 /** "Seat belt", "seat-belt", "Belt" → one spelling. */
@@ -113,8 +115,14 @@ export function withSeatBelt(
 }
 
 const ON_WORDS: ReadonlySet<string> = new Set(["on", "yes", "y", "belt", "seatbelt", "belted", "true", "x"]);
-const OFF_WORDS: ReadonlySet<string> = new Set(["off", "no", "n", "nobelt", "noseatbelt", "false"]);
-const NOT_NEEDED_WORDS: ReadonlySet<string> = new Set([
+/** Off, and every reason not to wear it: "not needed" is Off since AJ's "on or off". */
+const OFF_WORDS: ReadonlySet<string> = new Set([
+  "off",
+  "no",
+  "n",
+  "nobelt",
+  "noseatbelt",
+  "false",
   "notneeded",
   "notneed",
   "unneeded",
@@ -124,9 +132,9 @@ const NOT_NEEDED_WORDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * A written or typed belt value as one of the three choices, or null when it
- * is none of them ("3", "PILLOW"): "On", "yes", "Y", "Belt", "✓" are On; "off",
- * "no", "No belt" are Off; "not needed", "N/A" are Not needed.
+ * A written or typed belt value as On or Off, or null when it is neither
+ * ("3", "PILLOW"): "On", "yes", "Y", "Belt", "✓" are On; "off", "no", "No
+ * belt", "not needed", "N/A" are Off.
  */
 export function beltChoiceOf(raw: string | null | undefined): SeatBeltChoice | null {
   const text = String(raw ?? "").trim();
@@ -135,19 +143,17 @@ export function beltChoiceOf(raw: string | null | undefined): SeatBeltChoice | n
   const word = fold(text);
   if (ON_WORDS.has(word)) return SEAT_BELT_ON;
   if (OFF_WORDS.has(word)) return SEAT_BELT_OFF;
-  if (NOT_NEEDED_WORDS.has(word)) return SEAT_BELT_NOT_NEEDED;
   return null;
 }
 
 /**
- * The belt as the Now Bar and the phone card say it: "Belt on", "Belt off",
- * "Belt not needed" (AJ's "Aa": "Gap 3 · Back pad 4 · Seat 4 · Belt on"). A
- * value that is none of the three is said as written, never dropped.
+ * The belt as the Now Bar and the phone card say it: "Belt on", "Belt off"
+ * (AJ's "Aa": "Gap 3 · Back pad 4 · Seat 4 · Belt on"). A value that is
+ * neither is said as written, never dropped.
  */
 export function beltWords(value: string): string {
   const choice = beltChoiceOf(value);
   if (choice === SEAT_BELT_ON) return "Belt on";
   if (choice === SEAT_BELT_OFF) return "Belt off";
-  if (choice === SEAT_BELT_NOT_NEEDED) return "Belt not needed";
   return `${SEAT_BELT_LABEL} ${String(value).trim()}`;
 }

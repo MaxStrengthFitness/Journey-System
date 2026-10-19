@@ -1092,9 +1092,9 @@ describe("the seat belt (the seat belt round, Oct 19 2026; AJ's Aa)", () => {
   const WITH_BELT: TileField[] = [...FIELDS, BELT];
   const beltButtons = (host: HTMLElement) => [...tile(host, "Seat belt").querySelectorAll("button")];
 
-  it("is three buttons where a value sits, none picked while nothing is recorded, and On is one tap then Save", async () => {
+  it("is two buttons where a value sits, none picked while nothing is recorded, and On is one tap then Save", async () => {
     const host = await mount(<Tiles fields={WITH_BELT} />);
-    expect(beltButtons(host).map((b) => b.getAttribute("aria-label"))).toEqual(["Seat belt On", "Seat belt Off", "Seat belt Not needed"]);
+    expect(beltButtons(host).map((b) => b.getAttribute("aria-label"))).toEqual(["Seat belt On", "Seat belt Off"]);
     expect(beltButtons(host).every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
     // Nothing recorded is never drawn as Off.
     expect(tile(host, "Seat belt").textContent).not.toContain("Not set");
@@ -1123,14 +1123,14 @@ describe("the seat belt (the seat belt round, Oct 19 2026; AJ's Aa)", () => {
     expect(button(host, "Seat belt On")!.getAttribute("aria-pressed")).toBe("true");
     expect(tile(host, "Seat belt").getAttribute("data-changed")).toBeNull();
 
-    await click(button(host, "Seat belt Not needed"));
+    await click(button(host, "Seat belt Off"));
     expect(tile(host, "Seat belt").textContent).toContain("was On");
     const strip = host.querySelector('[data-strip="edit"]')!;
-    expect(strip.textContent).toContain("Seat belt On → Not needed");
+    expect(strip.textContent).toContain("Seat belt On → Off");
     expect(strip.textContent).toContain("Why? (optional)");
 
     // Tapping the one already picked changes nothing.
-    await click(button(host, "Seat belt Not needed"));
+    await click(button(host, "Seat belt Off"));
     await click(byText(host, "Cancel"));
     expect(button(host, "Seat belt On")!.getAttribute("aria-pressed")).toBe("true");
     expect(host.querySelector('[data-strip="edit"]')).toBeNull();

@@ -445,6 +445,6 @@ AJ: "every machine could/should have a seatbelt now if the client chooses to use
 `seat-belt.ts` is the ONE module, pure, with only a type import so the floor can ask it:
 
 - **`SEAT_BELT_KEY` is "Seat belt"**, the key a client's choice is saved under in `clientMachineSettings.settings` and the label too (floor dials are saved under their labels). It never changes.
-- **Three choices, `SEAT_BELT_CHOICES`: On · Off · Not needed.** Nothing saved is NOT RECORDED: never Off, and never one of the "not set" dials.
-- **`withSeatBelt`** is the one place the belt joins a machine's dials: last, unless the unit's `hasSeatBelt` is `false` (the studio's No; unanswered shows it, AJ's "Ba") or a dial of the machine's own already is the belt (`isSeatBelt`: "Seat belt", "seat-belt", "Belt"). `adapters.ts` `buildFields` calls it, so the card, the Now Bar's count, the open session's held set-up at Assign and Programming → Setup all hold one list.
-- **`beltChoiceOf`** reads a written value ("yes", "N", "No belt", "N/A") as one of the three, for the paste box; **`beltWords`** says it the Now Bar's way ("Belt on").
+- **Two choices, `SEAT_BELT_CHOICES`: On · Off** (AJ, the same day: "rather than having 3 options lets switch it to on or off"). Nothing saved is NOT RECORDED: never Off, and never one of the "not set" dials.
+- **`withSeatBelt`** is the one place the belt joins a machine's dials: last, unless the unit's `hasSeatBelt` is `false` (the studio's switch turned off; unanswered shows it, AJ's "Ba") or a dial of the machine's own already is the belt (`isSeatBelt`: "Seat belt", "seat-belt", "Belt"). `adapters.ts` `buildFields` calls it, so the card, the Now Bar's count, the open session's held set-up at Assign and Programming → Setup all hold one list.
+- **`beltChoiceOf`** reads a written value ("yes", "N", "No belt", "N/A", "not needed") as On or Off, for the paste box; **`beltWords`** says it the Now Bar's way ("Belt on").

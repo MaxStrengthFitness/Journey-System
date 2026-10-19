@@ -1343,12 +1343,10 @@
   color: var(--eq-ink-muted);
 }
 
-/* The seat belt (Oct 19 2026; AJ's "Aa"): the tile is the switch. Three of
-   the option buttons where a value sits, as tall as the ± (56px), each as
-   wide as its word and sharing what is left: in a 224px tile On, Off and
-   Not needed fit one row. A word never breaks inside itself (the option
-   buttons' own rule breaks anywhere, which cut "Not neede / d" when the
-   three were forced equal). */
+/* The seat belt (Oct 19 2026; AJ's "Aa", then "on or off"): the tile is the
+   switch. Two of the option buttons where a value sits, as tall as the ±
+   (56px), sharing the row. A word never breaks inside itself (the option
+   buttons' own rule breaks anywhere). */
 .mm-belt {
   display: flex;
   flex-wrap: wrap;

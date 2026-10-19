@@ -13,6 +13,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
+// The kit's switch (base-ui, the seat belt's) builds a PointerEvent on a click; jsdom has none.
+if (typeof (globalThis as { PointerEvent?: unknown }).PointerEvent === "undefined") {
+  (globalThis as { PointerEvent?: unknown }).PointerEvent = class PointerEvent extends MouseEvent {};
+}
+
 vi.mock("../../../firebase", () => ({
   db: {},
   auth: { currentUser: { uid: "leader" } },
@@ -193,21 +198,34 @@ describe("a studio's copy of a catalog machine", () => {
     expect(toasts[0]).toContain("follows the Max Strength standard exactly");
   });
 
-  it("writes the studio's seat belt answer, No as a real answer, and says what the floor differs on (Oct 19 2026)", async () => {
+  it("toggles the studio's seat belt: on until turned off, off written as a real answer (Oct 19 2026)", async () => {
     const el = await mount({ entry: rosterEntry, resolved: legPress, catalogEntry: legPress });
-    const group = el.querySelector('[aria-label="Seat belt on this unit"]')!;
-    const [yes, no] = [...group.querySelectorAll("button")];
-    expect([yes.textContent, no.textContent]).toEqual(["Yes", "No"]);
-    // Unanswered: neither picked (the floor shows the belt until it is answered).
-    expect([yes, no].map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "false"]);
+    const toggle = el.querySelector('[aria-label="This unit has a seat belt"]') as HTMLElement;
+    // Unanswered: on (the floor shows the belt until a studio turns it off).
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    expect(el.textContent).toContain("This unit has one");
 
-    await act(async () => no.click());
-    expect(no.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(el.textContent).toContain("This unit has none");
     await save(el);
 
     expect(writes).toHaveLength(1);
     expect(writes[0].data.overrides).toEqual({ hasSeatBelt: false });
     expect(toasts[0]).toContain("differs from the standard on seat belt");
+  });
+
+  it("turned back on, follows the standard again and stores nothing", async () => {
+    const el = await mount({
+      entry: { ...rosterEntry, overrides: { hasSeatBelt: false } },
+      resolved: { ...legPress, hasSeatBelt: false },
+      catalogEntry: legPress,
+    });
+    const toggle = el.querySelector('[aria-label="This unit has a seat belt"]') as HTMLElement;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    await act(async () => toggle.click());
+    await save(el);
+    expect(writes[0].data.overrides).toEqual({});
   });
 
   it("refuses a dial called Seat belt: every machine has one already", async () => {

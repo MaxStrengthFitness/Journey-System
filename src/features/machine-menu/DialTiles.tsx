@@ -872,8 +872,8 @@ export function DialTiles({
   /* ---------------- drawing ---------------- */
 
   /**
-   * The seat belt (the seat belt round, Oct 19 2026; AJ's "Aa"): the tile IS
-   * the switch, three buttons where a value sits (On · Off · Not needed),
+   * The seat belt (the seat belt round, Oct 19 2026; AJ's "Aa", then "on or
+   * off"): the tile IS the switch, two buttons where a value sits (On · Off),
    * the chosen one filled blue. A tap is a change like any dial's: the tile
    * turns blue with "was On", the change strip opens, and Save closes the
    * card. No editor, no Use (nobody sets a standard for it), and nothing

@@ -307,6 +307,19 @@
   color: var(--adm-live-on);
 }
 
+/* The seat belt's switch (Oct 19 2026): the switch and its words on one
+   40px row, the whole row a target. */
+.adm-me__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  color: var(--adm-ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* ── Body-type columns ────────────────────────────────────────────── */
 
 .adm-me__cols {

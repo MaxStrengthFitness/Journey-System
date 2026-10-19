@@ -35,7 +35,7 @@
  * THE SEAT BELT (Oct 19 2026) is placed by its own rule, because FileMaker
  * prints it as a bare word: Judy Gibson's Pulldown reads "B- 4 S- 4 G- 3
  * Belt". Its name alone is On; "No belt" is Off; a word after it says which
- * ("Belt: off", "Belt N", "Belt not needed"). And it answers only to its
+ * ("Belt: off", "Belt N", "Belt not needed" is Off). And it answers only to its
  * whole name ("Belt", "Seat belt"), never to a letter or its first word:
  * "Seat belt" answering to "Seat" would have taken "S- 4" off the seat.
  *
@@ -274,7 +274,7 @@ function beltAt(
   const word = (t: string | undefined) => (t === undefined || t === SEP ? null : t);
   const a = word(chunk[k]);
   const b = word(chunk[k + 1]);
-  // Two words only for "not needed" / "not required": "N A- 3" is Off and an Arm of 3, never "N/A".
+  // Two words only for "not needed" / "not required" (Off): "N A- 3" is Off and an Arm of 3.
   const two = a !== null && b !== null && norm(a) === "not" ? beltChoiceOf(`${a} ${b}`) : null;
   if (two) return { field: belt, value: two, next: k + 2 };
   const one = a !== null ? beltChoiceOf(a) : null;

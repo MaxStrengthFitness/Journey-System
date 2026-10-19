@@ -145,7 +145,7 @@ describe("orderMachineSettings — the seat belt (Oct 19 2026)", () => {
     expect(asMap(entries)).toEqual({ G: "3", S: "4", H: "N", Belt: "On" });
   });
 
-  it("keeps Not needed whole", () => {
-    expect(asMap(orderMachineSettings({ "Seat belt": "Not needed" }))).toEqual({ Belt: "Not needed" });
+  it("keeps Off as written", () => {
+    expect(asMap(orderMachineSettings({ "Seat belt": "Off" }))).toEqual({ Belt: "Off" });
   });
 });

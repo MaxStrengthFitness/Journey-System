@@ -15,6 +15,7 @@ import type {
 } from "../../../../types/machines";
 import { settingFieldKey } from "../../../../types/machines";
 import { isSeatBelt } from "../../../equipment/seat-belt";
+import { Switch } from "@/components/ui/switch";
 import "../../admin.css";
 
 /**
@@ -540,9 +541,10 @@ export function SettingFields({
 
 /**
  * Does this unit have a seat belt (the seat belt round, Oct 19 2026)? The
- * studio's answer, Yes or No (AJ: "if the machine has it installed is
- * another question that the studio needs to answer"). Unanswered shows the
- * belt on the floor (his "Ba"); No takes it off this unit's card.
+ * studio's answer, as a switch (AJ: "allow studios to toggle if they have a
+ * seatbelt on the machine in the studio editor"). On until someone turns it
+ * off (his "Ba": shown on every machine until the studio says it has none);
+ * off takes the belt off this unit's card.
  */
 export function SeatBeltAnswer({
   value,
@@ -553,24 +555,13 @@ export function SeatBeltAnswer({
   onChange: (next: boolean) => void;
   readOnly?: boolean;
 }) {
-  if (readOnly) return <ReadValue value={value === undefined ? "" : value ? "Yes" : "No"} />;
+  const on = value !== false;
+  if (readOnly) return <ReadValue value={on ? "Yes" : "No"} />;
   return (
-    <div className="adm-me__chips" role="group" aria-label="Seat belt on this unit">
-      {([true, false] as const).map((answer) => {
-        const on = value === answer;
-        return (
-          <button
-            key={String(answer)}
-            type="button"
-            aria-pressed={on}
-            className={`adm-me__chip${on ? " adm-me__chip--on" : ""}`}
-            onClick={() => onChange(answer)}
-          >
-            {answer ? "Yes" : "No"}
-          </button>
-        );
-      })}
-    </div>
+    <label className="adm-me__switch">
+      <Switch checked={on} aria-label="This unit has a seat belt" onCheckedChange={(next) => onChange(next)} />
+      <span>{on ? "This unit has one" : "This unit has none"}</span>
+    </label>
   );
 }
 

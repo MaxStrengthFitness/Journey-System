@@ -105,7 +105,7 @@ a whole set-up, and how many clients. It is built from the per-studio
 - **A machine with no sets this window AND no fit block loses its document**,
   so a stale trend never outlives its window.
 
-**The page never says the seat belt** (Oct 19 2026, `docs/rounds/2026-10-19-seat-belt.md`). The job counts it like any setting (nothing on the server changed), but its choices beside a median best load would read as advice ("Not needed lifts more"), so `present.ts` drops it before the page sees it.
+**The page never says the seat belt** (Oct 19 2026, `docs/rounds/2026-10-19-seat-belt.md`). The job counts it like any setting (nothing on the server changed), but its choices beside a median best load would read as advice ("Off lifts more"), so `present.ts` drops it before the page sees it.
 
 ## Running it
 

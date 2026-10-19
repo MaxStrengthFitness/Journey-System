@@ -179,7 +179,7 @@ export function presentMachineTrends(read: TrendReadLike | null | undefined): Ma
 
   const settings: SettingGroup[] = Object.entries(doc.settings ?? {})
     // The seat belt is not a position, and its choices beside a median best
-    // load would read as advice ("Not needed lifts more"): the job still
+    // load would read as advice ("Off lifts more"): the job still
     // counts it, this page never says it (the seat belt round, Oct 19 2026).
     .filter(([key]) => !isSeatBelt(key))
     .map(([key, values]) => {

@@ -701,8 +701,14 @@ function Dials(p: SectionProps) {
         onChangeDefaults={(next) => p.set("defaultSettings", next)}
         readOnly={p.readOnly}
       />
-      <FieldShell {...f("hasSeatBelt", "Seat belt on this unit", "No takes the belt off this unit's card. Until it is answered, trainers see it.")}>
-        <SeatBeltAnswer value={v.hasSeatBelt} onChange={(next) => p.set("hasSeatBelt", next)} readOnly={p.readOnly} />
+      <FieldShell {...f("hasSeatBelt", "Seat belt", "Off takes the belt off this unit's card.")}>
+        <SeatBeltAnswer
+          value={v.hasSeatBelt}
+          readOnly={p.readOnly}
+          // On clears the answer, so the unit follows the standard again; it
+          // is stored only where the standard says the unit has none.
+          onChange={(on) => p.set("hasSeatBelt", on ? (p.standard?.hasSeatBelt === false ? true : undefined) : false)}
+        />
       </FieldShell>
       <div className="adm-grid">
         <FieldShell

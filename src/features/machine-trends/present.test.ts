@@ -84,7 +84,7 @@ describe("presentMachineTrends", () => {
 
   it("never says the seat belt, which the job still counts (Oct 19 2026)", () => {
     const view = presentMachineTrends({
-      trend: doc({ settings: { seat: { "5": sv(7, 40, 130) }, "seat-belt": { on: sv(9, 50, 120), "not_needed": sv(3, 20, 150) } } }),
+      trend: doc({ settings: { seat: { "5": sv(7, 40, 130) }, "seat-belt": { on: sv(9, 50, 120), off: sv(3, 20, 150) } } }),
       failed: false,
     });
     if (view.kind !== "ready") throw new Error("expected ready");
