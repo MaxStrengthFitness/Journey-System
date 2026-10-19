@@ -1,11 +1,11 @@
 /**
  * Learning on a page of its own, for the redesign round (the Learning vault
  * redesign, Oct 19 2026): the app's REAL LearningView, with its prototype bar
- * and the three designs, inside a stand-in of the shell AppContent draws it
+ * and the Mix, inside a stand-in of the shell AppContent draws it
  * in (the header, <main>, the real bottom bar), with the real providers and
  * every database call answered by stubs/ instead.
  *
- *   ?design=codex|vault|course|current     the Learning drawn (default: the
+ *   ?design=codex|current            the Learning drawn (default: the
  *                                          one last picked here, else current)
  *   &view=learning|machine-anatomy|academy the masthead's section (default learning)
  *   &theme=light|dark                      (default light)

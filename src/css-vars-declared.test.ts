@@ -134,8 +134,12 @@ const FILES = [
   "features/learning-vault/ui/floor-status.css",
   "features/learning-redesign/redesign.css",
   "features/learning-redesign/codex/codex.css",
-  "features/learning-redesign/vault/vault-map.css",
-  "features/learning-redesign/course/course.css",
+  "features/learning-vault/lesson/lesson.css",
+  "features/learning-vault/lesson/drills.css",
+  "features/learning-vault/lesson/glossary-vault.css",
+  "features/learning-vault/lesson/dial-tiles.css",
+  "features/learning-vault/map/map.css",
+  "features/learning-vault/map/linked-here.css",
 ];
 
 function filesUnder(dir: string, ext: RegExp, out: string[] = []): string[] {

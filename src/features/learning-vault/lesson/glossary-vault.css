@@ -1,0 +1,353 @@
+/* ====================================================================
+ * The glossary vault — every Academy word a card: a search, All · Method ·
+ * Equipment, a sticky A–Z, More and Where it's taught. Lifted from the
+ * Interactive Course (course.css's crs__ rules, moved here as they were)
+ * into the shared parts, the Learning vault redesign, Oct 19 2026 (AJ
+ * picked the mix: the Codex as the base with the Course's glossary vault).
+ * GlossaryVault.tsx; a card's whole definition is MarkedLine's (vtl__).
+ *
+ * Owns the vtw__ prefix (and .vtw) and nothing else. Learning's tokens only
+ * (--wk-*, loaded by wiki.css, which GlossaryVault.tsx imports): no raw
+ * colour. Blue acts and selects (the picked filter, More, a topic row);
+ * "Equipment" is a quiet neutral tag, no borrowed category colour. Type at
+ * 12 / 14 / 17 / 22 / 30, the search field 16 (iOS zooms under it); every
+ * tap 44px or more (the filters and the clear button 40); hover only inside
+ * (hover: hover); focus is the 2px ring; words wrap, never cut.
+ *
+ * The bar sticks to the top of Learning's one scroller (.wk__scroll) and
+ * takes back its side padding (1rem); --vtw-bar-h, measured by the
+ * component, keeps a letter or a card clear of it when one is jumped to.
+ * ------------------------------------------------------------------ */
+
+.vtw {
+  margin-top: 1rem;
+}
+/* The vault's bar: search, filter, the letters. It stays at the top while
+   the cards scroll (an opaque ground, the scroller's padding taken back). */
+.vtw__bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 -1rem;
+  padding: 0.625rem 1rem;
+  background: var(--wk-bg);
+  box-shadow: var(--wk-shelf);
+}
+.vtw[data-phone] .vtw__bar {
+  position: static;
+  box-shadow: none;
+}
+.vtw__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.vtw__find {
+  flex: 1 1 15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: var(--wk-tap);
+  padding: 0 0.25rem 0 0.875rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-surface);
+  color: var(--wk-ink-muted);
+}
+.vtw__find:focus-within {
+  border-color: var(--wk-live);
+  box-shadow: 0 0 0 3px var(--wk-live-fill);
+}
+.vtw__find svg {
+  flex: none;
+}
+.vtw__find-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 42px;
+  border: 0;
+  background: transparent;
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.vtw__find-input::-webkit-search-cancel-button {
+  display: none;
+}
+.vtw__find-clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--wk-tap);
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  cursor: pointer;
+}
+.vtw__find-clear:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: -2px;
+}
+.vtw__filters {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.vtw__filter {
+  min-height: 40px;
+  padding: 0.25rem 0.875rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* As a mode switch's: the picked filter raised, on its own 3:1 edge. */
+.vtw__filter[aria-pressed="true"] {
+  border-color: var(--wk-border-strong);
+  background: var(--wk-raised);
+  color: var(--wk-live-text);
+  font-weight: 700;
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+}
+.vtw__filter:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 1px;
+}
+.vtw__az {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 4px;
+}
+.vtw__az-btn {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  height: var(--wk-tap);
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 10px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.vtw__az-btn:active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.vtw__az-btn:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 1px;
+}
+
+/* A well on the page ground: nothing matches the search. */
+.vtw__empty {
+  margin: 0.75rem 0 0;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--wk-tray);
+  box-shadow: var(--wk-elev-0);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.vtw__group {
+  margin-top: 1.25rem;
+}
+.vtw__letter {
+  margin: 0 0 0.625rem;
+  font-family: var(--wk-font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wk-ink);
+  scroll-margin-top: var(--vtw-bar-h, 10rem);
+}
+.vtw[data-phone] .vtw__letter {
+  scroll-margin-top: 1rem;
+}
+/* Each card as tall as its own words: opening one never stretches its row
+   partner into a tall empty card. */
+.vtw__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+.vtw__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem 1rem 0.5rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
+  scroll-margin-top: var(--vtw-bar-h, 10rem);
+}
+.vtw__card[data-open] {
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.vtw__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+}
+.vtw__term {
+  margin: 0;
+  font-family: var(--wk-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+/* "Equipment": a quiet neutral tag, no borrowed category colour. */
+.vtw__kind {
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface-2);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-ink-2);
+}
+.vtw__first {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--wk-ink-2);
+  overflow-wrap: anywhere;
+}
+.vtw__full {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.vtw__card-more {
+  align-self: flex-start;
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: var(--wk-tap);
+  margin-left: -0.5rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vtw__card-more:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 1px;
+}
+.vtw__taught {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--wk-divider);
+}
+.vtw__taught-title {
+  margin: 0 0 0.25rem;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-ink-2);
+}
+.vtw__taught-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vtw__taught-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--wk-tap);
+  padding: 0.25rem 0.5rem;
+  margin-left: -0.5rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.vtw__taught-row svg {
+  flex: none;
+}
+.vtw__taught-row:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: -2px;
+}
+
+/* ------------------------------------------------------------------ *
+ * Hover, where there is a pointer to hover with
+ * ------------------------------------------------------------------ */
+
+@media (hover: hover) {
+  .vtw__az-btn:hover {
+    border-color: var(--wk-live);
+  }
+  .vtw__taught-row:hover,
+  .vtw__card-more:hover {
+    background: var(--wk-surface-2);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Three across on a wide screen (two beside a docked peek), one on a phone
+ * ------------------------------------------------------------------ */
+
+@media (min-width: 1024px) {
+  .vtw__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  /* With the peek docked beside the page, the vault keeps two columns. */
+  .vtp__frame--open .vtw__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A phone: one column; the search finds a word on a narrow screen, so the
+   letters (three rows of them only pushed the first card down) are left out. */
+@media (max-width: 599px) {
+  .vtw__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .vtw__az {
+    display: none;
+  }
+}

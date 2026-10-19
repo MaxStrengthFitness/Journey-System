@@ -45,8 +45,12 @@ const VAULT_SHEETS: Record<string, string> = {
   "learning-vault/ui/floor-status.css": src("learning-vault", "ui", "floor-status.css"),
   "learning-redesign/redesign.css": src("learning-redesign", "redesign.css"),
   "learning-redesign/codex/codex.css": src("learning-redesign", "codex", "codex.css"),
-  "learning-redesign/vault/vault-map.css": src("learning-redesign", "vault", "vault-map.css"),
-  "learning-redesign/course/course.css": src("learning-redesign", "course", "course.css"),
+  "learning-vault/lesson/lesson.css": src("learning-vault", "lesson", "lesson.css"),
+  "learning-vault/lesson/drills.css": src("learning-vault", "lesson", "drills.css"),
+  "learning-vault/lesson/glossary-vault.css": src("learning-vault", "lesson", "glossary-vault.css"),
+  "learning-vault/lesson/dial-tiles.css": src("learning-vault", "lesson", "dial-tiles.css"),
+  "learning-vault/map/map.css": src("learning-vault", "map", "map.css"),
+  "learning-vault/map/linked-here.css": src("learning-vault", "map", "linked-here.css"),
 };
 const EQUIPMENT = read("..", "equipment", "equipment.tokens.css");
 const WIKI = read("wiki.tokens.css");
@@ -303,7 +307,8 @@ describe("one meaning per colour in Learning", () => {
       rule(VAULT_SHEETS["learning-vault/ui/queue.css"], ".vtq__btn--primary"),
       rule(VAULT_SHEETS["learning-vault/ui/rep.css"], ".vtr__btn--primary"),
       rule(VAULT_SHEETS["learning-redesign/codex/codex.css"], ".cdx__btn--primary"),
-      rule(VAULT_SHEETS["learning-redesign/course/course.css"], ".crs__btn--primary"),
+      rule(VAULT_SHEETS["learning-vault/lesson/lesson.css"], ".vtl__btn--primary"),
+      rule(VAULT_SHEETS["learning-vault/lesson/drills.css"], ".vtd__btn--primary"),
     ];
     for (const r of saves) {
       expect(r).toMatch(/background:\s*var\(--(wk|cat)-live\)/);

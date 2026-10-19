@@ -18,7 +18,7 @@ import type { LearningRef } from "../learning/ref";
  * ------------------------------------------------------------------ */
 
 /** Which Learning the tab draws. "current" is today's, untouched. */
-export type LearningDesign = "codex" | "vault" | "course" | "current";
+export type LearningDesign = "codex" | "current";
 
 /* ------------------------------------------------------------------ *
  * Pages and blocks

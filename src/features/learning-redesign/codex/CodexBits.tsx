@@ -21,6 +21,8 @@ import {
   Type,
 } from "lucide-react";
 import { useWikiPageGuard } from "../../wiki/page-guard";
+import { nodeIdForRoute } from "../../learning-vault/graph";
+import { LinkedHere } from "../../learning-vault/map/LinkedHere";
 import { applyMarkup } from "../../learning-vault/markup";
 import { ArticleBlocks } from "../../learning-vault/ui/ArticleBlocks";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
@@ -361,6 +363,84 @@ export function KindGlyph({ kind, size = 16 }: { kind: StepKind; size?: number }
     <span className="cdx__glyph" data-kind={kind} aria-hidden="true">
       <Icon size={size} />
     </span>
+  );
+}
+
+/**
+ * The foot of an article: "Read next", then "Linked here" (what points at
+ * this page, and why; the Vault's backlinks, Oct 19 2026). Say it once: a
+ * page that Read next already lists, or that draws its own constellation
+ * (`also`: the node ids it shows), is not listed again under Linked here,
+ * and Linked here draws nothing at all when nothing is left to list. Its
+ * rows peek, so the page stays under the reader's thumb.
+ */
+export function ArticleFoot({
+  items,
+  mode,
+  nodeId,
+  title,
+  also,
+}: {
+  items: VaultPage["related"];
+  mode: "peek" | "open";
+  nodeId: string | null | undefined;
+  /** The page's title, for each row's reason ("talks about LEG PRESS"); the node's own label when absent. */
+  title?: string;
+  /** Node ids the page already draws elsewhere (a constellation), so Linked here does not repeat them. */
+  also?: ReadonlySet<string>;
+}) {
+  const { data, open, peek } = useCodex();
+  const exclude = useMemo(() => {
+    const ids = new Set<string>(also ?? []);
+    for (const r of items) {
+      const id = nodeIdForRoute(r.route);
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [items, also]);
+  return (
+    <>
+      <ReadNext items={items} mode={mode} />
+      <LinkedHere graph={data.graph} nodeId={nodeId} onOpen={open} onPeek={peek} title={title} exclude={exclude} />
+    </>
+  );
+}
+
+/**
+ * A lens switch: two or three ways to look at one index, as one segmented
+ * control (Floor · Map on the Catalog, Chapters · Map on the Academy, Read ·
+ * Drill these on the phrasebook). Each option is 44px. A switch replaces
+ * what is on the page, so it asks the page's leave scope first and changes
+ * only inside the answer, like the tier bar.
+ */
+export function LensSwitch({
+  options,
+  active,
+  onPick,
+  label,
+}: {
+  options: readonly { id: string; label: string }[];
+  active: string;
+  onPick: (id: string) => void;
+  label: string;
+}) {
+  const guard = useWikiPageGuard();
+  return (
+    <div className="cdx__lens" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          className="cdx__lens-opt"
+          aria-pressed={o.id === active}
+          onClick={() => {
+            if (o.id !== active) guard(() => onPick(o.id));
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

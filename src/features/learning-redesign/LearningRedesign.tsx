@@ -27,11 +27,22 @@ import { LazyDesign, type RedesignId } from "./lazy";
  *
  *   THE SANDBOX. Nothing in the prototypes reads or writes Firestore: every
  *   mark goes to ONE in-memory store per studio, seeded with the sample
- *   (learning-vault/sample.ts) so a fresh prototype shows what markup looks
- *   like. It is held here, keyed by the studio, so it survives a switch
- *   between the three designs and starts again when the studio changes. It
+ *   (learning-vault/sample.ts) on a development build only, so a fresh
+ *   prototype shows what markup looks like; a production build starts empty. It is held here, keyed by the studio, so it survives a switch
+ *   between Mix and Current and starts again when the studio changes. It
  *   is gone when Learning closes, or when the bar goes back to Current.
  */
+/**
+ * What the sandbox starts with. The sample marks (made-up crossed-out lines
+ * and notes by sample people) are for the PC build and the harness only,
+ * where a fresh prototype needs something to show; a production build starts
+ * the sandbox empty, so nobody on a real studio ever sees made-up marks
+ * attributed to people. (Review, Oct 19 2026.)
+ */
+export function sandboxSeed(studioId: string | null, studioName: string, dev: boolean) {
+  return dev ? sampleSeed({ id: studioId ?? "this-studio", name: studioName }, new Date()) : undefined;
+}
+
 export interface LearningRedesignProps extends DesignProps {
   design: RedesignId;
   viewAs: ViewAs | null;
@@ -59,7 +70,7 @@ export function LearningRedesign({ design, viewAs, authTrainer, ...props }: Lear
   if (sandbox.current === null || sandbox.current.studioKey !== studioKey) {
     sandbox.current = {
       studioKey,
-      store: createSandboxStore(sampleSeed({ id: studioId ?? "this-studio", name: studioName }, new Date())),
+      store: createSandboxStore(sandboxSeed(studioId, studioName, import.meta.env.DEV)),
     };
   }
   const store = sandbox.current.store;

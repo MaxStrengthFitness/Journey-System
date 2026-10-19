@@ -22,7 +22,7 @@ import type { LearningDesign, VaultViewer } from "../learning-vault/types";
 
 export interface DesignOption {
   id: LearningDesign;
-  /** The prototype's number on the bar; today's Learning has none. */
+  /** A number on the bar, if it ever has two prototypes again; the Mix has none. */
   number: 1 | 2 | 3 | null;
   /** The bar's word for it. */
   label: string;
@@ -30,11 +30,15 @@ export interface DesignOption {
   name: string;
 }
 
-/** In the bar's order: the three prototypes, then today's. */
+/**
+ * In the bar's order: the Mix, then today's. AJ picked the mix (Oct 19 2026):
+ * the Codex as the base, with the Course's lesson cards, scrubber, cue drills
+ * and glossary vault and the Vault's map as a lens. The id stays "codex" (the
+ * folder, the remembered pick), so an iPad that remembered "vault" or
+ * "course" just opens on Current.
+ */
 export const DESIGNS: readonly DesignOption[] = [
-  { id: "codex", number: 1, label: "Codex", name: "The Tactical Codex" },
-  { id: "vault", number: 2, label: "Vault map", name: "The Living Vault" },
-  { id: "course", number: 3, label: "Course", name: "The Interactive Course" },
+  { id: "codex", number: null, label: "Mix", name: "The Mix" },
   { id: "current", number: null, label: "Current", name: "Today's Learning" },
 ];
 

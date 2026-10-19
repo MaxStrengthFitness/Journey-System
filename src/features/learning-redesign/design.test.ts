@@ -38,11 +38,9 @@ afterEach(() => {
 });
 
 describe("the designs on the prototype bar", () => {
-  it("are the three prototypes in order, then today's Learning", () => {
+  it("are the Mix (id still codex), then today's Learning", () => {
     expect(DESIGNS.map((d) => [d.id, d.number, d.label])).toEqual([
-      ["codex", 1, "Codex"],
-      ["vault", 2, "Vault map"],
-      ["course", 3, "Course"],
+      ["codex", null, "Mix"],
       ["current", null, "Current"],
     ]);
   });
@@ -55,9 +53,12 @@ describe("the designs on the prototype bar", () => {
   });
 
   it("reads a design id only when it is one", () => {
-    expect(parseDesign("vault")).toBe("vault");
+    expect(parseDesign("codex")).toBe("codex");
     expect(parseDesign("current")).toBe("current");
-    expect(parseDesign("Vault")).toBeNull();
+    // The two designs AJ did not pick: an iPad that remembered one opens on Current.
+    expect(parseDesign("vault")).toBeNull();
+    expect(parseDesign("course")).toBeNull();
+    expect(parseDesign("Codex")).toBeNull();
     expect(parseDesign("")).toBeNull();
     expect(parseDesign(null)).toBeNull();
     expect(parseDesign(2)).toBeNull();
@@ -76,9 +77,9 @@ describe("the remembered design", () => {
   });
 
   it("comes back as it was picked, under its own key", () => {
-    rememberDesign("course");
-    expect(fake.words.get(DESIGN_KEY)).toBe("course");
-    expect(rememberedDesign()).toBe("course");
+    rememberDesign("codex");
+    expect(fake.words.get(DESIGN_KEY)).toBe("codex");
+    expect(rememberedDesign()).toBe("codex");
     rememberDesign("current");
     expect(rememberedDesign()).toBe("current");
   });
@@ -110,8 +111,8 @@ describe("who may pick a prototype (review fix, Oct 19 2026)", () => {
   });
 
   it("shows someone who may not today's Learning, whatever was picked or remembered; anyone else their pick", () => {
-    expect(shownDesign(false, "vault")).toBe("current");
-    expect(shownDesign(true, "vault")).toBe("vault");
+    expect(shownDesign(false, "codex")).toBe("current");
+    expect(shownDesign(true, "codex")).toBe("codex");
     expect(shownDesign(true, "current")).toBe("current");
   });
 });

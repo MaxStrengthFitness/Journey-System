@@ -699,87 +699,6 @@
   margin-top: 1.25rem;
 }
 
-/* ── the glossary as an index of words ─────────────────────────────── */
-
-/* A book's index: the letters read down one column and on into the next,
-   each tile as tall as its own words (a grid row would stretch N's two words
-   to P's seven). Two columns where 18rem each fit (portrait, and the capped
-   reading column in landscape), one on a phone. The 4px of padding, taken
-   back by the margin, keeps the tiles' lift from being clipped at the
-   column edges. */
-.cdx__words {
-  columns: 2 18rem;
-  column-gap: 0.75rem;
-  margin: 1.25rem -4px 0;
-  padding: 0 4px;
-}
-.cdx__letter {
-  display: flex;
-  gap: 0.625rem;
-  min-width: 0;
-  margin-bottom: 0.75rem;
-  break-inside: avoid;
-  padding: 0.625rem 0.5rem 0.625rem 0.75rem;
-  border: 1px solid var(--wk-edge);
-  border-radius: var(--wk-radius);
-  background: var(--wk-surface);
-  background-clip: padding-box;
-  box-shadow: var(--wk-elev-list), var(--wk-panel-highlight);
-}
-.cdx__letter-head {
-  flex: none;
-  width: 1.75rem;
-  margin: 0;
-  padding-top: 0.5rem;
-  font-family: var(--wk-font-display);
-  font-size: 30px;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--wk-ink-muted);
-}
-.cdx__word-list {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.cdx__word {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  width: 100%;
-  min-height: var(--wk-tap);
-  padding: 0.25rem 0.5rem;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--wk-live-text);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.3;
-  text-align: left;
-  cursor: pointer;
-}
-.cdx__word-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.cdx__word-tag {
-  flex: none;
-  padding: 1px 6px;
-  border-radius: 6px;
-  background: var(--wk-surface-2);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--wk-ink-muted);
-}
-.cdx__word:active {
-  background: var(--wk-surface-2);
-}
-
 /* Every definition, every phrase: the whole list under its index. */
 .cdx__all {
   display: flex;
@@ -1198,161 +1117,6 @@
   justify-content: center;
 }
 
-
-/* The dials: the unit's numbers in the display face, each on a sunk tile. */
-.cdx__dials {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.cdx__dial-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
-  gap: 0.375rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.cdx__dial-row > li {
-  display: flex;
-}
-.cdx__dial {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
-  min-height: 60px;
-  padding: 0.5rem 0.625rem;
-  border: 1px solid var(--wk-border-strong);
-  border-radius: 10px;
-  background: var(--wk-raised);
-  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
-  color: var(--wk-ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.cdx__dial--still {
-  border-color: transparent;
-  background: var(--wk-surface-2);
-  box-shadow: var(--wk-elev-0);
-  cursor: default;
-}
-.cdx__dial[aria-expanded="true"] {
-  border-color: var(--wk-live);
-  box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-live);
-}
-.cdx__dial:not(.cdx__dial--still):active {
-  transform: translateY(1px);
-  box-shadow: var(--wk-press);
-}
-.cdx__dial-label {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--wk-ink-muted);
-  overflow-wrap: anywhere;
-}
-.cdx__dial-letter {
-  flex: none;
-  padding: 0 5px;
-  border-radius: 6px;
-  background: var(--wk-surface-3);
-  font-family: var(--wk-font-display);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--wk-ink);
-}
-.cdx__dial-n {
-  font-family: var(--wk-font-display);
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--wk-ink);
-}
-.cdx__dial-unset {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--wk-ink-muted);
-}
-.cdx__dial-rule {
-  padding: 0.75rem 0.875rem;
-  border-radius: 10px;
-  background: var(--wk-surface-2);
-  box-shadow: var(--wk-elev-0);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--wk-ink-2);
-}
-.cdx__dial-rule p {
-  margin: 0;
-}
-.cdx__dial-rule p + p {
-  margin-top: 0.375rem;
-}
-.cdx__dial-rule-head {
-  font-weight: 700;
-  color: var(--wk-ink);
-}
-.cdx__dial-first {
-  font-size: 12px;
-  color: var(--wk-ink-muted);
-}
-/* No number set and no rule written: the dials by name, and that, said once,
-   in a sunk plate that fills the tile (beside the body the dials tile takes
-   the height the figure leaves), so the empty reads as a slot waiting for
-   the unit's numbers, never as a tile that ran out of things to say. */
-.cdx__dials--bare,
-.cdx__dials-none {
-  flex: 1;
-  justify-content: center;
-  padding: 0.75rem 0.875rem;
-  border-radius: 12px;
-  background: var(--wk-tray);
-  box-shadow: var(--wk-elev-0);
-}
-.cdx__dials-none {
-  display: flex;
-  flex-direction: column;
-}
-.cdx__dial-names {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.cdx__dial-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.625rem;
-  border-radius: 8px;
-  background: var(--wk-surface-2);
-  box-shadow: var(--wk-elev-0);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--wk-ink-2);
-  overflow-wrap: anywhere;
-}
-.cdx__dials-note {
-  margin: 0;
-  font-size: 12px;
-  color: var(--wk-ink-muted);
-}
-.cdx__dials-none {
-  margin: 0;
-  font-size: 12px;
-  color: var(--wk-ink-muted);
-}
 
 /* The facts: label and value on one line, a hairline between. */
 .cdx__facts {
@@ -1940,13 +1704,12 @@
 .cdx__mtile:focus-visible,
 .cdx__entry:focus-visible,
 .cdx__chapter:focus-visible,
-.cdx__word:focus-visible,
 .cdx__ref:focus-visible,
 .cdx__shelf-row:focus-visible,
 .cdx__deck:focus-visible,
 .cdx__ho:focus-visible,
-.cdx__dial:focus-visible,
 .cdx__piece:focus-visible,
+.cdx__lens-opt:focus-visible,
 .cdx__tier:focus-visible,
 .cdx__deeper:focus-visible,
 .cdx__from:focus-visible,
@@ -1972,7 +1735,7 @@
   }
   .cdx__btn:not(.cdx__btn--primary):hover,
   .cdx__deck:hover,
-  .cdx__dial:not(.cdx__dial--still):hover {
+  .cdx__lens-opt:not([aria-pressed="true"]):hover {
     border-color: var(--wk-live);
   }
   .cdx__row:hover,
@@ -1985,8 +1748,7 @@
   }
   .cdx__entry:hover,
   .cdx__chapter:hover,
-  .cdx__word:hover,
-  .cdx__shelf-row:hover {
+    .cdx__shelf-row:hover {
     background-color: var(--wk-surface-2);
   }
   .cdx__tier:not([aria-selected="true"]):hover {
@@ -2011,4 +1773,97 @@
     opacity: 1;
     transform: none;
   }
+}
+
+/* ── the Mix (Oct 19 2026): lens switch, lesson, vault, map, the duo ─── */
+
+/* A lens switch: Floor / Map, Chapters / Map, Read / Drill these. One
+   segmented control, the tier bar's own look, every option 44px. */
+.cdx__lens {
+  display: flex;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  gap: 3px;
+  margin-top: 1rem;
+  padding: 3px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 14px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.cdx__lens-opt {
+  min-height: var(--wk-tap);
+  min-width: 6.5rem;
+  padding: 0.375rem 1.125rem;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.cdx__lens-opt[aria-pressed="true"] {
+  background: var(--wk-raised);
+  color: var(--wk-live-text);
+  font-weight: 700;
+  box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-edge-control), inset 0 1px 0 var(--wk-highlight);
+}
+.cdx__lens-opt:active {
+  transform: translateY(1px);
+}
+
+/* A topic's Lesson tier: where the lesson sits in its course (a place, not
+   progress), the deck under it, Next lesson after Check yourself. */
+.cdx__lesson-place {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  margin: 0 0 0.25rem;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wk-ink-2);
+}
+.cdx__lesson-place span + span::before {
+  content: "\00b7";
+  margin-right: 0.5rem;
+}
+.cdx__lesson-next {
+  margin-top: 1rem;
+}
+
+/* The glossary vault and the cue drills sit in the article's column. */
+.cdx__article--vault > .vtw {
+  margin-top: 1rem;
+}
+.cdx__drills {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+/* The map as a lens, under its switch. */
+.cdx__map {
+  min-width: 0;
+}
+
+/* The Overview's last band: the drill of the day beside Play. Side by side
+   where each fits at 22rem (portrait and up), stacked on a phone. */
+.cdx__band--duo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+/* Linked here, after Read next: the same breath between them as between
+   Read next and what is above it. */
+.cdx__article > .vtb {
+  margin-top: 2rem;
 }

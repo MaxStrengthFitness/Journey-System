@@ -1,8 +1,8 @@
 /**
  * WHAT EVERY DESIGN IS GIVEN — the Learning vault redesign, Oct 19 2026.
  *
- * The three prototype designs (the Tactical Codex, the Living Vault, the
- * Interactive Course) mount in the same place with the same props, inside
+ * The prototype (the Mix: the Tactical Codex with the Course's lessons and the
+ * Vault's map as a lens) mounts in the same place with the same props, inside
  * the same VaultProvider (studio markup, the viewer, the lens) and the same
  * masthead (LearningView's Overview / Catalog / Academy switch). A design is
  * a layout of shared pages, never a second copy of their words or rules.

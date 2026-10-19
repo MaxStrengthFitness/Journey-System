@@ -274,7 +274,7 @@ describe("the Tactical Codex", () => {
     expect(title()).toBe("Concentric");
     await click(button("Every word in the glossary"));
     expect(title()).toBe("Glossary");
-    expect(all(".cdx__word").length).toBeGreaterThan(40);
+    expect(all(".vtw__card").length).toBeGreaterThan(40);
   });
 
   it("tells a reader calmly when a page has moved", async () => {
@@ -561,5 +561,180 @@ describe("the Tactical Codex", () => {
     expect(title()).toBe("CHEST PRESS");
     await act(async () => root.render(app({ section: "academy" })));
     expect(title()).toBe("The method");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * The Mix (Oct 19 2026): the Codex with the Course's lessons, drills,
+ * glossary vault and dial tiles, and the Vault's map as a lens.
+ * ------------------------------------------------------------------ */
+
+const SPEED = { kind: "academy-topic", id: "performance-speed-of-movement" } as const;
+const tabs = () => all<HTMLButtonElement>('[role="tab"]');
+
+describe("the Mix", () => {
+  it("a topic's bar is 1 In one minute, 2 Say it, 3 Lesson, 4 Full text, and the Lesson is the cards, ending on Check yourself", async () => {
+    await mount({ section: "academy", jump: SPEED });
+    const names = tabs().map((t) => t.textContent);
+    expect(names.slice(-2)).toEqual([`${names.length - 1}Lesson`, `${names.length}Full text`]);
+    expect(names.map((n) => n?.charAt(0))).toEqual(names.map((_, i) => String(i + 1)));
+    await click(tabs().find((t) => t.textContent?.endsWith("Lesson")));
+    // The shared deck: one card at a time, Back and Next.
+    expect(host.querySelector(".vtl__deck")).toBeTruthy();
+    expect(all(".vtl__card").length).toBeGreaterThan(1);
+    // Next, to the end: Check yourself is the questions whose source is this page.
+    for (let i = 0; i < 40 && !host.querySelector(".vtl__check"); i += 1) {
+      await click(host.querySelector(".vtl__deck-next"));
+    }
+    expect(host.querySelector(".vtl__check")).toBeTruthy();
+    expect(all(".vtl__q").length).toBeGreaterThan(0);
+    // An answer is marked, and nothing is stored or counted.
+    await click(all(".vtl__q-opt")[0]);
+    expect(host.querySelector(".vtl__q-verdict")).toBeTruthy();
+  });
+
+  it("opens on the Lesson, saying where it sits, when a module or path opened the topic; Next lesson goes on in the same course", async () => {
+    await mount({ section: "academy" });
+    await click(all(".cdx__chapter").find((c) => c.textContent?.includes("Exercise Performance")));
+    await click(all(".cdx__chapter")[0]);
+    expect(tabs().find((t) => t.getAttribute("aria-selected") === "true")?.textContent?.endsWith("Lesson")).toBe(true);
+    expect(host.querySelector(".cdx__lesson-place")?.textContent).toMatch(/^Lesson 1 of \d+/);
+    const before = title();
+    const nextLesson = () =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>("button")).find((b) => /^Next lesson/.test((b.textContent ?? "").trim()));
+    for (let i = 0; i < 60 && !nextLesson(); i += 1) {
+      const step = host.querySelector<HTMLButtonElement>(".vtl__deck-next");
+      if (!step || step.disabled) break;
+      await click(step);
+    }
+    expect(nextLesson()).toBeTruthy();
+    await click(nextLesson());
+    expect(title()).not.toBe(before);
+    expect(host.querySelector(".cdx__lesson-place")?.textContent).toMatch(/^Lesson 2 of \d+/);
+  });
+
+  it("draws the glossary as the vault: search, All, Method, Equipment, A to Z; a word's own entry stays the Codex's", async () => {
+    await mount({ section: "academy", jump: { kind: "academy-glossary", id: "Concentric" } });
+    expect(title()).toBe("Concentric");
+    await click(button("Every word in the glossary"));
+    expect(title()).toBe("Glossary");
+    expect(all(".vtw__card").length).toBeGreaterThan(40);
+    expect(host.querySelector(".vtw__find-input")).toBeTruthy();
+    expect(all(".vtw__filter").map((f) => f.textContent)).toEqual(["All", "Method", "Equipment"]);
+    expect(all(".vtw__az-btn").length).toBeGreaterThan(10);
+    const everyWord = all(".vtw__card").length;
+    await click(all(".vtw__filter").find((f) => f.textContent === "Equipment"));
+    expect(all(".vtw__card").length).toBeLessThan(everyWord);
+    await click(all(".vtw__filter").find((f) => f.textContent === "All"));
+    // "Where it's taught" peeks the topic: the vault stays under it.
+    const more = all(".vtw__card-more").find((m) => m.closest(".vtw__card")?.textContent?.includes("Concentric"));
+    await click(more);
+    const taught = host.querySelector<HTMLButtonElement>(".vtw__taught-row");
+    expect(taught).toBeTruthy();
+    await click(taught);
+    expect(document.querySelector(".vtp")).toBeTruthy();
+    expect(title()).toBe("Glossary");
+  });
+
+  it("the phrasebook's Drill these switch shows the cue drills, closed until the reader says it", async () => {
+    await mount({ section: "academy", jump: { kind: "academy-cueing" } });
+    expect(title()).toBe("Cueing phrasebook");
+    expect(host.querySelector(".vtd__drill")).toBeNull();
+    await click(button("Drill these"));
+    const drills = all(".vtd__drill");
+    expect(drills.length).toBeGreaterThan(3);
+    expect(drills[0].querySelector(".vtd__lines")).toBeNull();
+    await click(drills[0].querySelector(".vtd__btn"));
+    expect(all(".vtd__drill")[0].querySelectorAll(".vtd__lines li").length).toBeGreaterThan(0);
+    // The reading view is one tap back.
+    await click(button("Read"));
+    expect(host.querySelector(".vtd__drill")).toBeNull();
+    expect(all(".cdx__chapter").length).toBeGreaterThan(5);
+  });
+
+  it("the Overview asks 'What would you cue?' of the day, beside Play, with another moment on a tap", async () => {
+    await mount({ section: "learning" });
+    const drill = host.querySelector(".vtd__drill");
+    expect(drill).toBeTruthy();
+    expect(drill?.textContent).toContain("What would you cue?");
+    expect(host.querySelector(".cdx__band--duo .cdx__play")).toBeTruthy();
+    expect(drill?.parentElement).toBe(host.querySelector(".cdx__band--duo"));
+    const first = drill?.querySelector(".vtd__title")?.textContent;
+    await click(button("Show the Academy's lines"));
+    expect(host.querySelectorAll(".vtd__lines li").length).toBeGreaterThan(0);
+    await click(button("Another moment"));
+    expect(host.querySelector(".vtd__title")?.textContent).not.toBe(first);
+    // The same day deals the same card again; nothing was stored.
+    await act(async () => root.render(app({ section: "learning", resetSignal: 1 })));
+    expect(host.querySelector(".vtd__title")?.textContent).toBe(first);
+  });
+
+  it("a machine's dials are the shared tiles, a name and the unit's number or Not set; Stop stays first in the floor glance", async () => {
+    await mount({ section: "learning" });
+    await click(all(".cdx__mtile")[0]);
+    expect(title()).toBe("LEG PRESS");
+    const tiles = all(".vtk__tile");
+    expect(tiles.length).toBeGreaterThan(0);
+    for (const t of tiles) {
+      expect(t.querySelector(".vtk__label")?.textContent).toBeTruthy();
+      expect(t.querySelector(".vtk__value")?.textContent).toBeTruthy();
+    }
+    expect(host.querySelector(".cdx__dial")).toBeNull();
+    // The machine card's order: safety first, then the settings.
+    const glance = host.querySelector(".cdx__tierpanel")?.textContent ?? "";
+    const stop = glance.indexOf("Stop");
+    expect(stop).toBeGreaterThanOrEqual(0);
+    const setUp = glance.indexOf("Set up");
+    if (setUp >= 0) expect(stop).toBeLessThan(setUp);
+  });
+
+  it("the Catalog's lens is Floor then Map, Floor first; the Map is the explorer, opening through the Codex", async () => {
+    await mount({ section: "machine-anatomy" });
+    const lens = () => all<HTMLButtonElement>(".cdx__lens-opt").map((b) => [b.textContent, b.getAttribute("aria-pressed")]);
+    expect(lens()).toEqual([
+      ["Floor", "true"],
+      ["Map", "false"],
+    ]);
+    expect(host.querySelector(".vtm")).toBeNull();
+    await click(button("Map"));
+    expect(host.querySelector(".vtm")).toBeTruthy();
+    expect(host.querySelector(".cdx__entries")).toBeNull();
+    // Every star is also a row in the list: pick the Leg Press and open its page through the Codex.
+    await click(all<HTMLButtonElement>(".vtm__seg-opt").find((b) => b.getAttribute("aria-pressed") !== "true"));
+    const row = all(".vtm__list-row").find((r) => /leg press/i.test(r.textContent ?? ""));
+    expect(row).toBeTruthy();
+    await click(row);
+    await click(button("Open page"));
+    expect(title()).toBe("LEG PRESS");
+    // Back lands on the Map as it was left.
+    await click(host.querySelector('[aria-label^="Back to"]'));
+    expect(host.querySelector(".vtm")).toBeTruthy();
+    await click(button("Floor"));
+    expect(host.querySelector(".cdx__entries")).toBeTruthy();
+  });
+
+  it("the Academy's lens is Chapters then Map (modules, topics, words, cue moments)", async () => {
+    await mount({ section: "academy" });
+    expect(all<HTMLButtonElement>(".cdx__lens-opt").map((b) => b.textContent)).toEqual(["Chapters", "Map"]);
+    expect(all(".cdx__chapter")).toHaveLength(13);
+    await click(button("Map"));
+    expect(host.querySelector(".vtm")).toBeTruthy();
+    expect(all(".cdx__chapter")).toHaveLength(0);
+    await click(button("Chapters"));
+    expect(all(".cdx__chapter")).toHaveLength(13);
+  });
+
+  it("ends an article on Linked here, after Read next, saying nothing Read next said; a row peeks", async () => {
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" } });
+    const linked = host.querySelector(".vtb");
+    expect(linked).toBeTruthy();
+    expect(linked?.querySelector(".vtb__title")?.textContent).toBe("Linked here");
+    const nextEl = host.querySelector(".cdx__next");
+    if (nextEl) expect(nextEl.compareDocumentPosition(linked as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const said = new Set(all(".cdx__link-title").map((t) => t.textContent));
+    for (const row of all(".vtb__row-title")) expect(said.has(row.textContent)).toBe(false);
+    await click(host.querySelector(".vtb__row"));
+    expect(document.querySelector(".vtp")).toBeTruthy();
+    expect(title()).toBe("LEG PRESS");
   });
 });

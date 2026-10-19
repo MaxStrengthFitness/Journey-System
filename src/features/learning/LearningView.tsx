@@ -68,7 +68,7 @@ import "./learning.css";
  *
  * THE PROTOTYPE BAR (the Learning vault redesign, Oct 19 2026, this branch)
  * -------------------------------------------------------------------------
- * A strip above the masthead picks one of three prototype designs, or today's
+ * A strip above the masthead picks the Mix (the prototype), or today's
  * Learning ("Current", the default, so nothing changes for anyone who never
  * taps it). Only an administrator or the founder sees it, or anyone on a
  * development build (mayPickPrototypes): a trainer never does, and is on

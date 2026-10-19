@@ -3,6 +3,7 @@ import { useVault } from "../../learning-vault/ui/VaultProvider";
 import { useCodex } from "./codex-context";
 import { pathShelf } from "./codex-model";
 import { BandHead } from "./CodexBits";
+import { DrillOfTheDay } from "./CodexDrill";
 import { CodexFrame } from "./CodexFrame";
 import {
   FloorGrid,
@@ -24,7 +25,7 @@ import "./codex.css";
  *   The floor   the studio's machines as codex entries, in walking order
  *   The method  the Academy's thirteen chapters, the glossary and the
  *               phrasebook beside them
- *   Play        the quiz
+ *   Play        the quiz, beside "What would you cue?" (the drill of the day)
  *
  * Head office sees its queue's door first: it is the one thing on this page
  * that is waiting for someone.
@@ -71,7 +72,8 @@ export function CodexHome() {
           </div>
         </section>
 
-        <div className="cdx__band">
+        <div className="cdx__band cdx__band--duo">
+          <DrillOfTheDay />
           <PlayCard />
         </div>
       </div>

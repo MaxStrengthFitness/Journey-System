@@ -5,7 +5,7 @@
  *
  *   node harness/learning-redesign/shots.mjs [design|all] [--only text] [--port 5251] [--out dir]
  *
- *   design   codex | vault | course | current | all (default all)
+ *   design   codex (the Mix) | current | all (default all)
  *   --only   only the shots whose name includes the text ("machine",
  *            "phone", "step-", "quiz-portrait-light")
  *   --port   the Vite port (default LH_PORT, else 5251)
@@ -34,7 +34,7 @@ import { connectPage, launchChrome } from "../perf-lab/cdp.mjs";
 import { quiz as QUIZ, steps as STEPS } from "./steps.mjs";
 
 const here = resolve(import.meta.dirname);
-const ALL = ["codex", "vault", "course", "current"];
+const ALL = ["codex", "current"];
 
 /* ---------------- arguments ---------------- */
 let which = "all";

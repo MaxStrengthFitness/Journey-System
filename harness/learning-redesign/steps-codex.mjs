@@ -1,7 +1,13 @@
 /**
- * THE TACTICAL CODEX's interactions, for shots.mjs (Design 1 of the
- * Learning vault redesign, Oct 19 2026). steps.mjs gathers this file; the
- * format is in its header.
+ * THE MIX's interactions, for shots.mjs (the Tactical Codex with the
+ * Course's lessons, drills and glossary vault and the Vault's map as a lens:
+ * the design AJ picked, Oct 19 2026; its id is still "codex"). steps.mjs
+ * gathers this file; the format is in its header.
+ *
+ * The Mix's own steps are the "mix-" ones at the foot of `steps`: a topic's
+ * Lesson tier (and its Check yourself), the glossary vault, Drill these, the
+ * Catalog's and the Academy's Map lenses, Linked here (the -tall shot shows
+ * the foot of the page) and the Overview's drill of the day.
  *
  * What these show, in the order AJ would try them on the iPad:
  *   the machine's four depths (tier 2's script and rep scrubber, tier 3's
@@ -23,6 +29,11 @@ const TERM_REF = `&view=academy&ref=${enc({ kind: "academy-glossary", id: "Conce
 const LINE = "[data-vta-line]";
 const TERM = "[data-vault-term], .vtc__term";
 const TIER = (n) => `.cdx__tier:nth-child(${n})`;
+const SPEED = `&view=academy&ref=${enc({ kind: "academy-topic", id: "performance-speed-of-movement" })}`;
+const CUEING = `&view=academy&ref=${enc({ kind: "academy-cueing" })}`;
+const GLOSSARY = `&view=academy&ref=${enc({ kind: "academy-glossary" })}`;
+/** Next, taken n times (a tap that finds nothing is reported and the step still shoots). */
+const NEXT = (n) => Array.from({ length: n }, () => [{ tapSelector: ".vtl__deck-next" }, { wait: 90 }]).flat();
 
 export const steps = [
   // The showpiece: each depth of the Leg Press.
@@ -82,6 +93,25 @@ export const steps = [
   { name: "machine-out-of-service", query: "&view=machine-anatomy&machine=m-neck", actions: [{ wait: 400 }] },
   // A machine that stands in for the Leg Press, peeked from its Connected panel (after the tiers).
   { name: "substitute-peek", query: MACHINE, actions: [{ tap: "LEG EXTENSION" }, { wait: 700 }] },
+  // The Mix (Oct 19 2026): a topic's Lesson tier, its first card and then its Check yourself.
+  { name: "mix-topic-lesson", query: TOPIC, actions: [{ tap: "Lesson" }, { wait: 600 }] },
+  { name: "mix-topic-lesson-card", query: TOPIC, actions: [{ tap: "Lesson" }, { wait: 500 }, ...NEXT(2), { wait: 500 }] },
+  { name: "mix-topic-check", query: SPEED, actions: [{ tap: "Lesson" }, { wait: 500 }, ...NEXT(45), { wait: 600 }] },
+  // The glossary vault, with one word opened (its definition, where it is taught).
+  { name: "mix-glossary-vault", query: GLOSSARY, actions: [{ wait: 500 }] },
+  { name: "mix-glossary-word", query: GLOSSARY, actions: [{ tapSelector: ".vtw__card-more" }, { wait: 500 }] },
+  // The phrasebook's Drill these, one card revealed.
+  { name: "mix-drill-these", query: CUEING, actions: [{ tap: "Drill these" }, { wait: 500 }] },
+  { name: "mix-drill-revealed", query: CUEING, actions: [{ tap: "Drill these" }, { wait: 400 }, { tapSelector: ".vtd__btn" }, { wait: 700 }] },
+  // The Catalog's Map lens and the Academy's.
+  { name: "mix-catalog-map", query: "&view=machine-anatomy", actions: [{ tap: "Map" }, { wait: 900 }] },
+  { name: "mix-academy-map", query: "&view=academy", actions: [{ tap: "Map" }, { wait: 900 }] },
+  // Linked here, at the foot of the Leg Press (the -tall shot shows it) and of a topic.
+  { name: "mix-linked-here", query: MACHINE, actions: [{ wait: 500 }] },
+  { name: "mix-linked-here-topic", query: TOPIC, actions: [{ tap: "Full text" }, { wait: 500 }] },
+  // The Overview's drill of the day, asked and then answered.
+  { name: "mix-drill-of-the-day", query: "&view=learning", actions: [{ wait: 400 }] },
+  { name: "mix-drill-of-the-day-revealed", query: "&view=learning", actions: [{ tap: "Show the Academy's lines" }, { wait: 700 }] },
   // A medium trail, then the MSF original: the switch stays where it was.
   {
     name: "path-machine-original",

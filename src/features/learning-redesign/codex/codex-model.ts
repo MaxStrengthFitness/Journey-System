@@ -475,17 +475,24 @@ export function momentSections(cueing: Pick<VaultPage, "sections"> | null, momen
 }
 
 /**
- * A topic's tiers: In one minute, Say it, Full text, each left out when it
- * would be empty (a topic with only its full text has one). Numbered by
- * their place on the bar (1, 2, 3; or 1, 2 when Say it is left out): a bar
- * that read 1 · 2 · 4 would look like a tier had gone missing. The machine's
- * bar keeps its four fixed depths.
+ * A topic's tiers: 1 In one minute, 2 Say it, 3 Lesson, 4 Full text (the Mix,
+ * Oct 19 2026: the Course's lesson cards sit between the short reads and the
+ * whole page). Each is left out when it would be empty: a topic with only
+ * its full text has one, and `lesson` is false for a page with no lines to
+ * cut into cards. Numbered by their place on the bar (1, 2, 3, 4; or 1, 2
+ * when two are left out): a bar that read 1 · 2 · 4 would look like a tier
+ * had gone missing. The machine's bar keeps its four fixed depths.
+ *
+ * The Lesson draws the page's own lines as cards, so a mark on a line the
+ * page no longer has is listed under it, as under the other short tiers
+ * (partial); the full text lists it itself.
  */
-export function topicLayers(sections: readonly VaultSection[], say: readonly VaultSection[]): CodexLayer[] {
+export function topicLayers(sections: readonly VaultSection[], say: readonly VaultSection[], lesson = false): CodexLayer[] {
   const out: CodexLayer[] = [];
   const outline = outlineSections(sections);
   if (outline.length > 0) out.push({ id: "minute", n: out.length + 1, title: "In one minute", sections: outline, partial: true });
   if (say.length > 0) out.push({ id: "say", n: out.length + 1, title: "Say it", sections: [...say], home: "cueing", partial: true });
+  if (lesson) out.push({ id: "lesson", n: out.length + 1, title: "Lesson", sections: [...sections], partial: true });
   out.push({ id: "full", n: out.length + 1, title: "Full text", sections: [...sections], partial: false });
   return out;
 }
@@ -516,19 +523,6 @@ export function whoLine(track: Pick<Track, "who" | "title">): string | null {
 /** Is this glossary line an equipment word? (pages.ts says so in its source.) */
 export function isEquipmentTerm(sections: readonly VaultSection[]): boolean {
   return sections.some((s) => s.blocks.some((b) => /equipment/i.test(b.source ?? "")));
-}
-
-/** The glossary as a codex index: each letter and its words, each word marked when it names equipment. */
-export function wordIndex(glossary: Pick<VaultPage, "sections"> | null): { letter: string; words: { term: string; equipment: boolean }[] }[] {
-  if (!glossary) return [];
-  return glossary.sections
-    .map((s) => ({
-      letter: s.title,
-      words: s.blocks
-        .filter((b) => (b.label ?? "").trim() !== "")
-        .map((b) => ({ term: (b.label ?? "").trim(), equipment: /equipment/i.test(b.source ?? "") })),
-    }))
-    .filter((g) => g.words.length > 0);
 }
 
 /* ------------------------------------------------------------------ *

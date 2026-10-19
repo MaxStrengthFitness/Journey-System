@@ -17,9 +17,9 @@ installed at the usual place):
 ```
 node harness/learning-redesign/shots.mjs current          # today's Learning
 node harness/learning-redesign/shots.mjs codex            # one design
-node harness/learning-redesign/shots.mjs all              # codex, vault, course, current
-node harness/learning-redesign/shots.mjs vault --only machine
-node harness/learning-redesign/shots.mjs course --only step-
+node harness/learning-redesign/shots.mjs all              # codex (the Mix), current
+node harness/learning-redesign/shots.mjs codex --only machine
+node harness/learning-redesign/shots.mjs codex --only step-
 node harness/learning-redesign/shots.mjs codex --port 5261 --out C:\Users\austi\Desktop\shots
 ```
 
@@ -67,7 +67,7 @@ The address takes:
 
 | Parameter | Values | Default |
 | --- | --- | --- |
-| `design` | `codex`, `vault`, `course`, `current` | the one last picked here, else `current` |
+| `design` | `codex` (the Mix), `current` | the one last picked here, else `current` |
 | `view` | `learning` (Overview), `machine-anatomy` (Catalog), `academy` | `learning` |
 | `theme` | `light`, `dark` | `light` |
 | `role` | `leader` (Studio Leader), `trainer` (Life Transformer), `admin` (head office) | `leader` |

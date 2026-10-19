@@ -350,7 +350,7 @@ describe("who sees the prototype bar (review fix, Oct 19 2026)", () => {
   it("a trainer on a production build never does, and opens on today's Learning whatever the iPad last picked", async () => {
     vi.stubEnv("DEV", false);
     localStorage.setItem(DESIGN_KEY, "codex");
-    await mount("machine-anatomy", null, "vault");
+    await mount("machine-anatomy", null, "codex");
     expect(host.querySelector(".ld")).toBeNull();
     expect(redesign()).toBeNull();
     expect(screen("catalog")).not.toBeNull();
@@ -359,10 +359,10 @@ describe("who sees the prototype bar (review fix, Oct 19 2026)", () => {
   it("an administrator or the founder does, on production too", async () => {
     vi.stubEnv("DEV", false);
     studioFx.isAdmin = true;
-    localStorage.setItem(DESIGN_KEY, "course");
+    localStorage.setItem(DESIGN_KEY, "codex");
     await mount("learning");
     expect(host.querySelector(".ld")).not.toBeNull();
-    expect(redesign()?.getAttribute("data-design")).toBe("course");
+    expect(redesign()?.getAttribute("data-design")).toBe("codex");
   });
 
   it("anyone does on a development build (the PC build AJ walks)", async () => {
@@ -378,7 +378,7 @@ describe("the prototype bar", () => {
     const strip = host.querySelector(".ld");
     expect(strip).not.toBeNull();
     expect(pressed("Current")).toBe("true");
-    expect(pressed("1 Codex")).toBe("false");
+    expect(pressed("Mix")).toBe("false");
     expect(screen("catalog")).not.toBeNull();
     expect(redesign()).toBeNull();
     expect(strip!.compareDocumentPosition(screen("catalog")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -386,14 +386,14 @@ describe("the prototype bar", () => {
     expect(host.textContent).not.toContain("View as");
   });
 
-  it("picking Codex draws the prototype in place of the sections, and remembers it", async () => {
+  it("picking Mix draws the prototype in place of the sections, and remembers it", async () => {
     await mount("machine-anatomy");
-    await bar("1 Codex");
+    await bar("Mix");
     expect(question()).toBeNull();
     expect(redesign()?.getAttribute("data-design")).toBe("codex");
     expect(redesign()?.getAttribute("data-section")).toBe("machine-anatomy");
     expect(screen("catalog")).toBeNull();
-    expect(pressed("1 Codex")).toBe("true");
+    expect(pressed("Mix")).toBe("true");
     expect(host.textContent).toContain("View as");
     expect(localStorage.getItem(DESIGN_KEY)).toBe("codex");
     await bar("Current");
@@ -404,21 +404,21 @@ describe("the prototype bar", () => {
   it("asks before a pick takes typing away; Keep editing keeps today's Learning and the draft", async () => {
     await mount("machine-anatomy", chestPress);
     await type("Left pad sticks.");
-    await bar("2 Vault map");
+    await bar("Mix");
     expect(question()!.textContent).toContain("Solon’s notes on m-chest-press");
     await answer("keep-editing");
     expect(redesign()).toBeNull();
     expect(draft()).toBe("Left pad sticks.");
     expect(pressed("Current")).toBe("true");
-    await bar("2 Vault map");
+    await bar("Mix");
     await answer("leave");
-    expect(redesign()?.getAttribute("data-design")).toBe("vault");
+    expect(redesign()?.getAttribute("data-design")).toBe("codex");
   });
 
   it("opens on the prototype last picked on this iPad", async () => {
-    localStorage.setItem(DESIGN_KEY, "course");
+    localStorage.setItem(DESIGN_KEY, "codex");
     await mount("learning");
-    expect(redesign()?.getAttribute("data-design")).toBe("course");
+    expect(redesign()?.getAttribute("data-design")).toBe("codex");
   });
 
   it("View as reaches the prototype; the real viewer's own role is picked until then", async () => {
@@ -442,8 +442,8 @@ describe("the prototype bar", () => {
   });
 
   it("a jump from outside reaches the prototype once, never today's Catalog", async () => {
-    await mount("academy", chestPress, "course");
-    expect(fx.jumps).toEqual([{ design: "course", jump: chestPress, section: "machine-anatomy" }]);
+    await mount("academy", chestPress, "codex");
+    expect(fx.jumps).toEqual([{ design: "codex", jump: chestPress, section: "machine-anatomy" }]);
     // Back to Current: no jump was left behind for the Catalog.
     await bar("Current");
     expect(machineOnScreen()).toBe("");
@@ -467,7 +467,7 @@ describe("a prototype asked back to its section's front page", () => {
   });
 
   it("another section, or the title from another section, moves the masthead and resets nothing", async () => {
-    await mount("machine-anatomy", null, "vault");
+    await mount("machine-anatomy", null, "codex");
     await click('[data-action="to-academy"]');
     expect(section()).toBe("academy");
     expect(reset()).toBe("0");
@@ -477,7 +477,7 @@ describe("a prototype asked back to its section's front page", () => {
   });
 
   it("asks over typing first: Keep editing resets nothing, Leave resets once", async () => {
-    await mount("learning", null, "course");
+    await mount("learning", null, "codex");
     await type("Half a thought");
     await click('[data-action="title"]');
     expect(question()!.textContent).toContain("the prototype's note");

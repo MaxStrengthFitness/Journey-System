@@ -7,6 +7,7 @@ import type { VaultRoute } from "../../learning-vault/types";
 import type { VaultData } from "../../learning-vault/useVaultData";
 import type { VaultNav } from "../../learning-vault/useVaultNav";
 import type { WikiCrumb } from "../../wiki";
+import type { MapState } from "../../learning-vault/map/map-model";
 import { pieceLabel } from "./codex-model";
 
 /**
@@ -29,6 +30,12 @@ export interface CodexValue {
   /** The tier a page was last read at in this visit. */
   tierFor: (pageKey: string) => string | null;
   rememberTier: (pageKey: string, tier: string) => void;
+  /** The lens an index was last read through in this visit ("catalog", "academy", "phrasebook"), or null. */
+  lensFor: (key: string) => string | null;
+  rememberLens: (key: string, lens: string) => void;
+  /** The map's state for a lens, so Back finds the map as it was left. */
+  mapFor: (key: string) => MapState | null;
+  rememberMap: (key: string, state: MapState) => void;
   phone: boolean;
 }
 

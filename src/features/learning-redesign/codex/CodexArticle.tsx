@@ -1,8 +1,16 @@
-import { useId, useMemo, type CSSProperties } from "react";
+import { useId, useMemo, useState, type CSSProperties } from "react";
 import { ArrowRight, MessageSquareQuote } from "lucide-react";
 import { accentStyle } from "../../wiki/categories";
 import { DOMAIN_NOUN, cueNodeId, nodeById, termNodeId } from "../../learning-vault/graph";
-import { pageFor } from "../../learning-vault/pages";
+import { CheckYourself } from "../../learning-vault/lesson/CheckYourself";
+import { CueDrillCard } from "../../learning-vault/lesson/CueDrill";
+import { GlossaryVault } from "../../learning-vault/lesson/GlossaryVault";
+import { StepDeck } from "../../learning-vault/lesson/StepDeck";
+import { cueDrillsIn } from "../../learning-vault/lesson/drills";
+import { checkQuestions, courseContextOf, lessonPlace, nextLessonOf } from "../../learning-vault/lesson/lessons";
+import { chunkSteps } from "../../learning-vault/lesson/steps";
+import { shownIds } from "../../learning-vault/map/backlinks";
+import { pageFor, titleOf } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
 import { pageKey } from "../../learning-vault/routes";
 import { pageAccent, useAppliedMarkup } from "../../learning-vault/ui/ArticleBlocks";
@@ -22,9 +30,8 @@ import {
   termSections,
   topicCueMoments,
   topicLayers,
-  wordIndex,
 } from "./codex-model";
-import { Blocks, DeeperDoor, FactLine, PageHead, ReadNext, TierBar, useLayer, useVersionSlot } from "./CodexBits";
+import { ArticleFoot, Blocks, DeeperDoor, FactLine, LensSwitch, PageHead, TierBar, useLayer, useVersionSlot } from "./CodexBits";
 import { CodexFrame, CodexGone, CodexWaiting } from "./CodexFrame";
 import "./codex.css";
 
@@ -33,10 +40,12 @@ import "./codex.css";
  * ------------------------------------------------------------------ */
 
 /**
- * An Academy topic, adapted to the Codex honestly: In one minute (its
- * headings and the first line under each), Say it (the phrasebook's moments
- * that use its words; their marks are the phrasebook's), Full text. A tier
- * that would be empty is left out, and the bar numbers what is left 1, 2, 3.
+ * An Academy topic, adapted to the Codex honestly: 1 In one minute (its
+ * headings and the first line under each), 2 Say it (the phrasebook's
+ * moments that use its words; their marks are the phrasebook's), 3 Lesson
+ * (the page as cards, Back and Next, ending on Check yourself; the Course's,
+ * lifted into the shared parts), 4 Full text. A tier that would be empty is
+ * left out, and the bar numbers what is left by its place.
  */
 export function TopicPage({ route }: { route: Extract<VaultRoute, { kind: "topic" }> }) {
   const { data } = useCodex();
@@ -48,18 +57,28 @@ export function TopicPage({ route }: { route: Extract<VaultRoute, { kind: "topic
 }
 
 function TopicArticle({ page, topicId }: { page: VaultPage; topicId: string }) {
-  const { data, peek } = useCodex();
+  const { data, peek, nav } = useCodex();
   const cueing = useMemo(() => {
     const p = pageFor({ kind: "cueing" }, data);
     return typeof p === "string" ? null : p;
   }, [data]);
   const moments = useMemo(() => topicCueMoments(data.graph, topicId), [data.graph, topicId]);
   const say = useMemo(() => momentSections(cueing, moments), [cueing, moments]);
-  const layers = useMemo(() => topicLayers(page.sections, say), [page.sections, say]);
+  // The Lesson: the page's own lines as cards (never reworded), and the quiz
+  // questions whose source is this page for Check yourself.
+  const cards = useMemo(() => chunkSteps(page.sections), [page.sections]);
+  const questions = useMemo(() => checkQuestions(data.quizBank, page.route), [data.quizBank, page.route]);
+  const layers = useMemo(() => topicLayers(page.sections, say, cards.length > 0), [page.sections, say, cards.length]);
+  // A reading path's step, or a module's topic, opens on its Lesson and says
+  // where it sits ("Lesson 3 of 10"): a place, never progress (nothing is kept).
+  const course = useMemo(() => courseContextOf(nav.stack, data), [nav.stack, data]);
+  const wanted = course ? "lesson" : null;
+  const next = nextLessonOf(course);
 
   const applied = useAppliedMarkup(page.target, page.sections);
   const { actions, inline } = useVersionSlot(applied.struck, page);
-  const { active, pick } = useLayer(pageKey(page.route), layers);
+  const { active, pick } = useLayer(pageKey(page.route), layers, wanted);
+  const [at, setAt] = useState(0);
   const layer = layers.find((l) => l.id === active) ?? layers[layers.length - 1];
   const panelId = useId();
   const read = page.facts.filter((f) => f.label === "Read");
@@ -76,7 +95,42 @@ function TopicArticle({ page, topicId }: { page: VaultPage; topicId: string }) {
           <TierBar layers={layers} active={layer.id} onPick={pick} label={`${page.title}, layer by layer`} panelId={panelId} />
         )}
         <div className="cdx__tierpanel" role={layers.length > 1 ? "tabpanel" : undefined} id={panelId} aria-label={layer.title}>
-          {layer.home === "cueing" && cueing ? (
+          {layer.id === "lesson" ? (
+            <>
+              {course && (
+                <p className="cdx__lesson-place">
+                  <span>{lessonPlace(course)}</span>
+                  <span>{course.title}</span>
+                </p>
+              )}
+              <StepDeck
+                sections={page.sections}
+                marked={applied.sections}
+                studioLens={applied.studioLens}
+                cards={cards}
+                at={at}
+                onAt={setAt}
+                label={page.title}
+                flush
+                end={
+                  questions.length > 0 ? (
+                    <>
+                      <CheckYourself questions={questions} />
+                      {next && (
+                        <button type="button" className="cdx__btn cdx__btn--primary cdx__lesson-next" onClick={() => nav.replace(next.route)}>
+                          Next lesson: {next.title}
+                          <ArrowRight size={16} aria-hidden />
+                        </button>
+                      )}
+                    </>
+                  ) : undefined
+                }
+                endLabel="Check yourself"
+                onFinish={next ? () => nav.replace(next.route) : undefined}
+                finishLabel="Next lesson"
+              />
+            </>
+          ) : layer.home === "cueing" && cueing ? (
             <>
               <button type="button" className="cdx__from" onClick={() => peek({ kind: "cueing" })}>
                 <MessageSquareQuote size={16} aria-hidden />
@@ -97,7 +151,7 @@ function TopicArticle({ page, topicId }: { page: VaultPage; topicId: string }) {
           </div>
         )}
 
-        <ReadNext items={page.related} mode="open" />
+        <ArticleFoot items={page.related} mode="open" nodeId={page.nodeId} title={page.title} />
       </article>
     </CodexFrame>
   );
@@ -159,7 +213,7 @@ function PlainArticle({ page }: { page: VaultPage }) {
             accent={machine ? pageAccent(page) : undefined}
           />
         </div>
-        <ReadNext items={page.related} mode="open" />
+        <ArticleFoot items={page.related} mode="open" nodeId={page.nodeId} title={page.title} />
       </article>
     </CodexFrame>
   );
@@ -204,54 +258,37 @@ function TermEntry({ page, sections }: { page: VaultPage; sections: VaultPage["s
           Every word in the glossary
           <ArrowRight size={16} aria-hidden />
         </button>
+        <ArticleFoot items={[]} mode="open" nodeId={termNodeId(term)} title={term} also={shownIds(data.graph, termNodeId(term), 10)} />
       </article>
     </CodexFrame>
   );
 }
 
 /**
- * The glossary as a codex: every word by its letter, each a door to its own
- * entry (the definition, what it connects to). Under the index, every
- * definition in one list, for reading straight through and for marking.
+ * The glossary as the Course's glossary vault (the shared part): search,
+ * All · Method · Equipment, A to Z, a word's definition behind More, and
+ * "Where it's taught" (a peek of the topic). A word's own entry (TermEntry)
+ * stays as the Codex has it, one tap from any linked word.
  */
 function GlossaryList({ page }: { page: VaultPage }) {
-  const { open } = useCodex();
+  const { data, peek, phone } = useCodex();
   const applied = useAppliedMarkup(page.target, page.sections);
   const { actions, inline } = useVersionSlot(applied.struck, page);
-  const index = useMemo(() => wordIndex(page), [page]);
-  const allId = useId();
   return (
     <CodexFrame actions={actions}>
-      <article className="cdx__article">
+      <article className="cdx__article cdx__article--vault">
         <PageHead eyebrow={page.eyebrow} title={page.title} lede={page.lede}>
           {inline}
         </PageHead>
-        <div className="cdx__words">
-          {index.map((g) => (
-            <section key={g.letter} className="cdx__letter" aria-label={g.letter}>
-              <h2 className="cdx__letter-head">{g.letter}</h2>
-              <ul className="cdx__word-list">
-                {g.words.map((w) => (
-                  <li key={w.term}>
-                    <button type="button" className="cdx__word" onClick={() => open({ kind: "glossary", term: w.term })}>
-                      <span className="cdx__word-name">{w.term}</span>
-                      {w.equipment && <span className="cdx__word-tag">Equipment</span>}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
-        <section className="cdx__all" aria-labelledby={allId}>
-          <h2 className="cdx__h2" id={allId}>
-            Every definition
-          </h2>
-          <div className="cdx__tierpanel">
-            <Blocks target={page.target} sections={page.sections} />
-          </div>
-        </section>
-        <ReadNext items={page.related} mode="open" />
+        <GlossaryVault
+          glossary={data.glossary}
+          marked={applied.sections}
+          studioLens={applied.studioLens}
+          titleOf={(r) => titleOf(r, data)}
+          onPeek={peek}
+          phone={phone}
+        />
+        <ArticleFoot items={page.related} mode="open" nodeId={page.nodeId} title={page.title} />
       </article>
     </CodexFrame>
   );
@@ -297,6 +334,7 @@ function MomentEntry({ page, sections, moment }: { page: VaultPage; sections: Va
           Every moment in the phrasebook
           <ArrowRight size={16} aria-hidden />
         </button>
+        <ArticleFoot items={[]} mode="open" nodeId={cueNodeId(moment)} title={section.title} also={shownIds(data.graph, cueNodeId(moment), 10)} />
       </article>
     </CodexFrame>
   );
@@ -305,45 +343,82 @@ function MomentEntry({ page, sections, moment }: { page: VaultPage; sections: Va
 /**
  * The phrasebook as a codex: the moments of a set in order, each a door to
  * its own entry (its lines, the machines cued there, the words it uses),
- * then every phrase in one list, for reading through and for marking.
+ * then every phrase in one list, for reading through and for marking. The
+ * switch above them, Read · Drill these, turns the moments into the Course's
+ * cue drills ("What would you cue?": the moment first, the Academy's lines
+ * behind a tap). Nothing is scored, timed or kept.
  */
 function PhrasebookList({ page }: { page: VaultPage }) {
-  const { open } = useCodex();
+  const { open, peek, lensFor, rememberLens } = useCodex();
   const applied = useAppliedMarkup(page.target, page.sections);
   const { actions, inline } = useVersionSlot(applied.struck, page);
   const allId = useId();
   const rows = Math.ceil(page.sections.length / 2);
+  const drills = useMemo(() => cueDrillsIn(page.sections, { min: 1 }), [page.sections]);
+  const [lens, setLens] = useState(() => (lensFor("phrasebook") === "drill" && drills.length > 0 ? "drill" : "read"));
+  const pickLens = (id: string) => {
+    setLens(id);
+    rememberLens("phrasebook", id);
+  };
   return (
     <CodexFrame actions={actions}>
       <article className="cdx__article">
         <PageHead eyebrow={page.eyebrow} title={page.title} lede={page.lede}>
           {inline}
         </PageHead>
-        <ol className="cdx__chapters cdx__chapters--moments" style={{ "--cdx-rows": rows } as CSSProperties}>
-          {page.sections.map((s, i) => (
-            <li key={s.id}>
-              <button
-                type="button"
-                className="cdx__chapter"
-                onClick={() => open({ kind: "cueing", moment: momentIndex(s.id, i) })}
-              >
-                <span className="cdx__chapter-n">{i + 1}</span>
-                <span className="cdx__chapter-words">
-                  <span className="cdx__chapter-title">{s.title}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
-        <section className="cdx__all" aria-labelledby={allId}>
-          <h2 className="cdx__h2" id={allId}>
-            Every phrase
-          </h2>
-          <div className="cdx__tierpanel">
-            <Blocks target={page.target} sections={page.sections} />
-          </div>
-        </section>
-        <ReadNext items={page.related} mode="open" />
+        {drills.length > 0 && (
+          <LensSwitch
+            label="How to read the phrasebook"
+            active={lens}
+            onPick={pickLens}
+            options={[
+              { id: "read", label: "Read" },
+              { id: "drill", label: "Drill these" },
+            ]}
+          />
+        )}
+        {lens === "drill" && drills.length > 0 ? (
+          <section className="cdx__drills" aria-label="What would you cue?">
+            <h2 className="cdx__h2">What would you cue?</h2>
+            {drills.map((d) => (
+              <CueDrillCard
+                key={d.section}
+                drill={d}
+                marked={applied.sections}
+                studioLens={applied.studioLens}
+                onAll={d.moment !== null ? () => peek({ kind: "cueing", moment: d.moment ?? undefined }) : undefined}
+              />
+            ))}
+          </section>
+        ) : (
+          <>
+            <ol className="cdx__chapters cdx__chapters--moments" style={{ "--cdx-rows": rows } as CSSProperties}>
+              {page.sections.map((s, i) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    className="cdx__chapter"
+                    onClick={() => open({ kind: "cueing", moment: momentIndex(s.id, i) })}
+                  >
+                    <span className="cdx__chapter-n">{i + 1}</span>
+                    <span className="cdx__chapter-words">
+                      <span className="cdx__chapter-title">{s.title}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <section className="cdx__all" aria-labelledby={allId}>
+              <h2 className="cdx__h2" id={allId}>
+                Every phrase
+              </h2>
+              <div className="cdx__tierpanel">
+                <Blocks target={page.target} sections={page.sections} />
+              </div>
+            </section>
+          </>
+        )}
+        <ArticleFoot items={page.related} mode="open" nodeId={page.nodeId} title={page.title} />
       </article>
     </CodexFrame>
   );
@@ -386,6 +461,7 @@ function MapEntry({ focus, label, noun, summary }: { focus: string; label: strin
         <section className="cdx__entry-links" aria-label={`What connects to ${label}`}>
           <LocalConstellation graph={data.graph} nodeId={focus} onOpen={open} variant="pills" max={12} nodeStyle={categoryNodeStyle} />
         </section>
+        <ArticleFoot items={[]} mode="open" nodeId={focus} title={label} also={shownIds(data.graph, focus, 12)} />
       </article>
     </CodexFrame>
   );

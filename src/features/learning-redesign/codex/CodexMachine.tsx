@@ -3,8 +3,11 @@ import { BookOpen, ClipboardList, MessageSquareText } from "lucide-react";
 import { MachineFigure } from "../../catalog/MachineFigure";
 import { resolveMachineAnatomy } from "../../catalog/anatomy";
 import { presetOf, type Preset } from "../../machine-codex/format";
+import { useWikiPageGuard } from "../../wiki/page-guard";
 import { accentStyle } from "../../wiki/categories";
 import { pageFor } from "../../learning-vault/pages";
+import { DialTiles } from "../../learning-vault/lesson/DialTiles";
+import { shownIds } from "../../learning-vault/map/backlinks";
 import { repShapeOf } from "../../learning-vault/rep-phases";
 import { hasFloorStatus } from "../../learning-vault/floor-care";
 import { constellationOf } from "../../learning-vault/graph";
@@ -14,11 +17,11 @@ import { LocalConstellation, categoryNodeStyle } from "../../learning-vault/ui/L
 import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import { OrphanMarks } from "../../learning-vault/ui/OrphanMarks";
 import { RepScrubber } from "../../learning-vault/ui/RepScrubber";
-import type { VaultPage, VaultRoute } from "../../learning-vault/types";
+import type { VaultPage, VaultRoute, VaultSection } from "../../learning-vault/types";
 import type { MachineCatalogEntry } from "../../../types/machines";
 import { useCodex } from "./codex-context";
 import { PIECE_WORDS, bentoFacts, machineAccent, machineLayers, readNextOf, type CodexLayer } from "./codex-model";
-import { Blocks, DeeperDoor, PageHead, ReadNext, TierBar, useLayer, useVersionSlot } from "./CodexBits";
+import { ArticleFoot, Blocks, DeeperDoor, PageHead, TierBar, useLayer, useVersionSlot } from "./CodexBits";
 import { CodexFrame, CodexGone, CodexWaiting } from "./CodexFrame";
 import "./codex.css";
 
@@ -28,7 +31,7 @@ import "./codex.css";
  * Title and its category, the floor's status when there is one (Out of
  * service, Flagged: FloorStatus's banner), then the BENTO: the body with the
  * muscles this machine works (left), the facts a trainer checks and the
- * dials under them (right); side by side from about 700px of page, one over
+ * dials under them (right; the Course's dial tiles, the shared part); side by side from about 700px of page, one over
  * the other below. Then the four depths as one sticky bar (1 Floor glance,
  * set-up first; 2 Script & cues, 3 Adapt & clinical, 4 Deep science), the
  * tier's lines through the vault's body, the door one layer deeper, and
@@ -68,6 +71,12 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
   const { active, pick } = useLayer(pageKey(page.route), layers, wanted);
   const layer = layers.find((l) => l.id === active) ?? null;
   const panelId = useId();
+  // The lines that set the dials: the floor glance's, less the Stop well. A
+  // dial tile a line names turns to them (the Course's tiles, shared).
+  const setupLines = useMemo(
+    () => (layers.find((l) => l.id === "glance")?.sections ?? []).filter((x) => x.id !== "leaf-stop"),
+    [layers],
+  );
 
   const preset = useMemo<Preset | null>(() => (def ? presetOf(def) : null), [def]);
   const hasDials = Boolean(preset && preset.state !== "no-dials");
@@ -87,6 +96,8 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
     const c = data.graph && page.nodeId ? constellationOf(data.graph, page.nodeId, CONNECTED_MAX) : null;
     return new Set((c?.links ?? []).map((l) => routeKey(l.node.route)));
   }, [data.graph, page.nodeId]);
+  // What the constellation draws is not listed again under Linked here.
+  const constellationIds = useMemo(() => shownIds(data.graph, page.nodeId, CONNECTED_MAX), [data.graph, page.nodeId]);
   const pieces = page.related.filter(
     (r): r is VaultPage["related"][number] & { route: Extract<VaultRoute, { kind: "card" | "script" | "overview" }> } =>
       r.route.kind === "card" || r.route.kind === "script" || r.route.kind === "overview",
@@ -162,7 +173,19 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
           </section>
 
           <section className="cdx__tile cdx__tile--dials" aria-label="Dials">
-            <DialStrip preset={preset} />
+            <SetupDials
+              preset={preset}
+              lines={setupLines}
+              onSetup={() => {
+                if (active !== "glance") pick("glance");
+                try {
+                  requestAnimationFrame(() => document.getElementById(panelId)?.scrollIntoView?.({ block: "start" }));
+                } catch {
+                  /* the set-up is a tap below */
+                }
+              }}
+              onGlance={active === "glance"}
+            />
           </section>
         </div>
 
@@ -196,7 +219,13 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
 
           {connected && <div className="cdx__connected-after">{connected}</div>}
 
-          <ReadNext items={readNextOf(page, { skipAcademyPieces: true, shown })} mode="peek" />
+          <ArticleFoot
+            items={readNextOf(page, { skipAcademyPieces: true, shown })}
+            mode="peek"
+            nodeId={page.nodeId}
+            title={page.title}
+            also={constellationIds}
+          />
         </div>
       </article>
     </CodexFrame>
@@ -223,75 +252,25 @@ function Figure({ machineId, def }: { machineId: string; def: MachineCatalogEntr
 }
 
 /**
- * The dials, in the unit's own order: each with its preset number, or "not
- * set" (never a guess, and never a letter nobody recorded). A dial with a
- * rule written for it opens it underneath.
+ * The dials, in the unit's own order, as the shared dial tiles: each its
+ * name and this unit's number, or "Not set" (never a guess, and never a
+ * letter nobody recorded). A tile whose dial a set-up line names is a button
+ * that turns the page to the set-up (the guard asks first when a form is
+ * open in the tier it leaves); the rest are quiet wells.
  */
-function DialStrip({ preset }: { preset: Preset | null }) {
-  const [open, setOpen] = useState<string | null>(null);
-  if (!preset || preset.state === "no-dials") {
-    return <p className="cdx__dials-none">No dials recorded for this unit.</p>;
-  }
-  if (preset.state === "none" && !preset.dials.some((d) => d.rule || d.firstSetup)) {
-    // Nothing set and nothing written: the dials by name, and that honestly.
-    return (
-      <div className="cdx__dials cdx__dials--bare">
-        <ul className="cdx__dial-names">
-          {preset.dials.map((d) => (
-            <li key={d.key} className="cdx__dial-name">
-              {d.letter && <span className="cdx__dial-letter">{d.letter}</span>}
-              {d.label}
-            </li>
-          ))}
-        </ul>
-        <p className="cdx__dials-note">No numbers set for this unit yet.</p>
-      </div>
-    );
-  }
-  const shown = preset.dials.find((d) => d.key === open) ?? null;
-  return (
-    <div className="cdx__dials">
-      <ul className="cdx__dial-row">
-        {preset.dials.map((d) => {
-          const body = (
-            <>
-              <span className="cdx__dial-label">
-                {d.letter && <span className="cdx__dial-letter">{d.letter}</span>}
-                {d.label}
-              </span>
-              {d.number ? (
-                <span className="cdx__dial-n">{d.number}</span>
-              ) : (
-                <span className="cdx__dial-unset">not set</span>
-              )}
-            </>
-          );
-          const ruled = Boolean(d.rule || d.firstSetup);
-          return (
-            <li key={d.key}>
-              {ruled ? (
-                <button
-                  type="button"
-                  className="cdx__dial"
-                  aria-expanded={open === d.key}
-                  onClick={() => setOpen((o) => (o === d.key ? null : d.key))}
-                >
-                  {body}
-                </button>
-              ) : (
-                <div className="cdx__dial cdx__dial--still">{body}</div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      {shown && (
-        <div className="cdx__dial-rule">
-          <p className="cdx__dial-rule-head">{shown.label}</p>
-          {shown.rule && <p>{shown.rule}</p>}
-          {shown.firstSetup && <p className="cdx__dial-first">First set-up: {shown.firstSetup}</p>}
-        </div>
-      )}
-    </div>
-  );
+function SetupDials({
+  preset,
+  lines,
+  onSetup,
+  onGlance,
+}: {
+  preset: Preset | null;
+  lines: VaultSection[];
+  onSetup: () => void;
+  onGlance: boolean;
+}) {
+  const guard = useWikiPageGuard();
+  const dials = preset && preset.state !== "no-dials" ? preset.dials : [];
+  const jump = () => (onGlance ? onSetup() : guard(onSetup));
+  return <DialTiles dials={dials} lines={lines} onJump={lines.length > 0 ? jump : undefined} />;
 }

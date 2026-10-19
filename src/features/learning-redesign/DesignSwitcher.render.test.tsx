@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * THE PROTOTYPE BAR (the Learning vault redesign, Oct 19 2026): four designs
- * in one switch, "View as" only while a prototype is on, and a tap on what
+ * THE PROTOTYPE BAR (the Learning vault redesign, Oct 19 2026): the Mix and
+ * Current in one switch, "View as" only while a prototype is on, and a tap on what
  * is already picked does nothing. LearningView asks the gate; this only
  * reports the pick.
  */
@@ -51,18 +51,13 @@ const click = (el: Element | null) =>
   });
 
 describe("the prototype bar", () => {
-  it("says it is a prototype and offers the four designs, Current picked", async () => {
+  it("says it is a prototype and offers the Mix and Current, Current picked", async () => {
     await mount("current");
     expect(host.querySelector(".ld__tag")?.textContent).toBe("Prototype");
     const [designs] = groups();
     expect(designs.getAttribute("aria-label")).toBe("Design");
-    expect(options(designs).map((b) => b.getAttribute("aria-label"))).toEqual([
-      "1 Codex",
-      "2 Vault map",
-      "3 Course",
-      "Current",
-    ]);
-    expect(options(designs).map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "false", "false", "true"]);
+    expect(options(designs).map((b) => b.getAttribute("aria-label"))).toEqual(["Mix", "Current"]);
+    expect(options(designs).map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "true"]);
   });
 
   it("shows no View as while today's Learning is on", async () => {
@@ -72,7 +67,7 @@ describe("the prototype bar", () => {
   });
 
   it("shows View as while a prototype is on, with the role it reads as picked", async () => {
-    await mount("vault", "leader");
+    await mount("codex", "leader");
     expect(groups()).toHaveLength(2);
     const viewAs = groups()[1];
     expect(viewAs.getAttribute("aria-labelledby")).toBe("ld-view-as");
@@ -82,14 +77,14 @@ describe("the prototype bar", () => {
       ["Leader", "true"],
       ["Head office", "false"],
     ]);
-    expect(named("2 Vault map")?.getAttribute("aria-pressed")).toBe("true");
+    expect(named("Mix")?.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("reports a pick, and nothing for a tap on what is already picked", async () => {
     const { onDesign, onViewAs } = await mount("codex", "trainer");
-    await click(named("3 Course"));
-    expect(onDesign).toHaveBeenCalledWith("course");
-    await click(named("1 Codex"));
+    await click(named("Current"));
+    expect(onDesign).toHaveBeenCalledWith("current");
+    await click(named("Mix"));
     expect(onDesign).toHaveBeenCalledTimes(1);
     await click(named("Head office"));
     expect(onViewAs).toHaveBeenCalledWith("head-office");
@@ -98,7 +93,7 @@ describe("the prototype bar", () => {
   });
 
   it("every option is a real button with its words whole", async () => {
-    await mount("course", "head-office");
+    await mount("codex", "head-office");
     for (const b of host.querySelectorAll("button")) {
       expect(b.getAttribute("type")).toBe("button");
       expect(b.className).toBe("ld__opt");

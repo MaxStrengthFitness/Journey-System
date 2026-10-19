@@ -46,8 +46,9 @@ const SHEETS: Record<string, string> = {
   "catalog/catalog.css": read("catalog", "catalog.css"),
   "comments/comments.css": read("comments", "comments.css"),
   "studio-tasks/studio-tasks.css .stu": upkeepBlock(),
-  // The Learning vault prototypes (Oct 19 2026): the parts all three designs
-  // share, the switcher between them, and each design's own sheet.
+  // The Learning vault prototypes (Oct 19 2026): the parts the Mix
+  // shares (the lesson cards, the drills, the glossary vault, the dial tiles,
+  // the map and Linked here), the switcher, and the Codex's own sheet.
   "learning-vault/ui/version.css": read("learning-vault", "ui", "version.css"),
   "learning-vault/ui/concept.css": read("learning-vault", "ui", "concept.css"),
   "learning-vault/ui/graph.css": read("learning-vault", "ui", "graph.css"),
@@ -60,8 +61,12 @@ const SHEETS: Record<string, string> = {
   "learning-vault/ui/floor-status.css": read("learning-vault", "ui", "floor-status.css"),
   "learning-redesign/redesign.css": read("learning-redesign", "redesign.css"),
   "learning-redesign/codex/codex.css": read("learning-redesign", "codex", "codex.css"),
-  "learning-redesign/vault/vault-map.css": read("learning-redesign", "vault", "vault-map.css"),
-  "learning-redesign/course/course.css": read("learning-redesign", "course", "course.css"),
+  "learning-vault/lesson/lesson.css": read("learning-vault", "lesson", "lesson.css"),
+  "learning-vault/lesson/drills.css": read("learning-vault", "lesson", "drills.css"),
+  "learning-vault/lesson/glossary-vault.css": read("learning-vault", "lesson", "glossary-vault.css"),
+  "learning-vault/lesson/dial-tiles.css": read("learning-vault", "lesson", "dial-tiles.css"),
+  "learning-vault/map/map.css": read("learning-vault", "map", "map.css"),
+  "learning-vault/map/linked-here.css": read("learning-vault", "map", "linked-here.css"),
 };
 
 interface Rule {
@@ -162,107 +167,36 @@ const TAPS: Record<string, "height" | "square"> = {
   ".vtg__pill": "height",
   ".vtg__node": "height",
   ".vtg__node-hit": "square",
-  // The peek sheet.
-  ".vtp__grip": "height",
-  ".vtp__crumb": "height",
-  ".vtp__icon-btn": "square",
-  ".vtp__open": "height",
-  // The rep scrubber: the whole track is the slider, the thumb a finger's width.
-  ".vtr__seg-btn": "height",
-  ".vtr__track": "height",
-  ".vtr__thumb": "square",
-  ".vtr__step": "height",
-  ".vtr__btn": "height",
-  // The quiz.
-  ".qz__deck": "height",
-  ".qz__option": "height",
-  ".qz__placed-row": "height",
-  // Share, head office's queue, and a line's actions and in-place forms.
-  ".vts__btn": "height",
-  ".vtq__open": "height",
-  ".vtq__btn": "height",
-  ".vta__line": "height",
-  // The line's one real button, laid over it (review fix, Oct 19 2026).
-  ".vta__toggle": "height",
-  ".vta__marker": "square",
-  ".vta__reveal": "height",
-  ".vta__btn": "height",
-  ".vta__choice": "height",
-  // The switcher between the three designs.
-  ".ld__opt": "height",
-  // Design 1, the Tactical Codex.
-  ".cdx__more": "height",
-  ".cdx__btn": "height",
-  ".cdx__row": "height",
-  ".cdx__mtile": "height",
-  ".cdx__entry": "height",
-  ".cdx__chapter": "height",
-  ".cdx__word": "height",
-  ".cdx__ref": "height",
-  ".cdx__shelf-row": "height",
-  ".cdx__deck": "height",
-  ".cdx__ho": "height",
-  ".cdx__dial": "height",
-  ".cdx__piece": "height",
-  ".cdx__tier": "height",
-  ".cdx__deeper": "height",
-  ".cdx__from": "height",
-  ".cdx__link": "height",
-  ".cdx__step": "height",
-  ".cdx__wide-door": "height",
-  // Design 2, the Living Vault: the map's nodes are squares, as are its mini orbit's.
-  ".vm__btn": "height",
-  ".vm__map-btn": "height",
-  ".vm__more": "height",
-  ".vm__icon-btn": "square",
-  ".vm__seg-opt": "height",
-  ".vm__chip": "height",
-  ".vm__node": "square",
-  ".vm__list-row": "height",
-  ".vm__back": "height",
-  ".vm__pill": "height",
-  ".vm__track": "height",
-  ".vm__deck": "height",
-  ".vm__floor-row": "height",
-  ".vm__module": "height",
-  ".vm__door": "height",
-  ".vm__row": "height",
-  ".vm__mini-centre": "height",
-  ".vm__mini-node": "height",
-  ".vm__mini-hit": "square",
-  ".vm__path-card": "height",
-  // The glossary's row of letters (review fix, Oct 19 2026): a finger's width each.
-  ".vm__letter-btn": "square",
-  // Design 3, the Interactive Course. Every .crs__btn is at least a square,
-  // the icon-only ones exactly that; a pin is a button on the set-up page.
-  ".crs__btn": "square",
-  ".crs__more": "height",
-  ".crs__chip": "height",
-  ".crs__lesson": "height",
-  ".crs__course": "height",
-  ".crs__deckrow": "height",
-  ".crs__mode-btn": "height",
-  ".crs__q-opt": "height",
-  ".crs__rail-title": "height",
-  ".crs__rail-row": "height",
-  ".crs__coursebar-name": "height",
-  ".crs__pin": "height",
-  ".crs__tier": "height",
-  ".crs__link": "height",
-  ".crs__tile": "height",
-  ".crs__station": "height",
-  ".crs__other": "height",
-  ".crs__door": "height",
-  ".crs__module": "height",
-  ".crs__row": "height",
-  ".crs__find": "height",
-  ".crs__find-clear": "square",
-  ".crs__filter": "height",
-  ".crs__az-btn": "square",
-  ".crs__vcard-more": "height",
-  ".crs__taught-row": "height",
-  ".crs__term": "height",
-  ".crs__queue": "height",
+  // The peek sheet is the Codex's (.cdx__*, listed with its own sheet's rules).
+  // The Mix's shared parts (Oct 19 2026): the lesson cards, the drills, the
+  // glossary vault, the dial tiles, the map and Linked here.
+  ".cdx__lens-opt": "height",
+  ".vtk__tile": "height",
+  ".vtd__btn": "square",
+  ".vtd__order-step": "height",
+  ".vtw__find": "height",
+  ".vtw__find-clear": "square",
+  ".vtw__filter": "height",
+  ".vtw__az-btn": "square",
+  ".vtw__card-more": "height",
+  ".vtw__taught-row": "height",
+  ".vtl__btn": "square",
+  ".vtl__deck-back": "height",
+  ".vtl__deck-next": "height",
+  ".vtl__q-opt": "height",
+  ".vtb__row": "height",
+  ".vtb__more": "square",
+  ".vtm__btn": "square",
+  ".vtm__map-btn": "square",
+  ".vtm__more": "square",
+  ".vtm__icon-btn": "square",
+  ".vtm__seg-opt": "height",
+  ".vtm__chip": "height",
+  ".vtm__node": "square",
+  ".vtm__list-row": "height",
+  ".vtm__back": "height",
+  ".vtm__mark": "square",
+  ".vtm__pill": "height",
 };
 
 describe("Learning's controls are 40px or more", () => {
@@ -339,7 +273,7 @@ describe("Learning's text is on the codex's scale", () => {
     ".vta__input",
     ".vts__input",
     ".vtq__input",
-    ".crs__find-input",
+    ".vtw__find-input",
   ])(
     "keeps the field %s at 16px, so iOS does not zoom on focus",
     (selector) => {
@@ -364,8 +298,6 @@ describe("Learning's text is on the codex's scale", () => {
     ".mcat-body__title",
     // The Learning vault prototypes' page titles (Oct 19 2026).
     ".cdx__title",
-    ".vm__index-title",
-    ".crs__title",
     ".qz__title",
   ])(
     "gives the title %s the display face at 800, upright, in its own capitalisation",
@@ -380,7 +312,7 @@ describe("Learning's text is on the codex's scale", () => {
   );
 
   it("sizes the page titles 30 and the masthead's room title 22", () => {
-    for (const sel of [".wk__index-title", ".wk__h1", ".lh__title", ".mcat-body__title", ".cdx__title", ".vm__index-title", ".crs__title", ".qz__title"]) {
+    for (const sel of [".wk__index-title", ".wk__h1", ".lh__title", ".mcat-body__title", ".cdx__title", ".qz__title"]) {
       expect(declared(typeRule(sel).body, "font-size"), sel).toBe(30);
     }
     expect(declared(typeRule(".wk__mast-title").body, "font-size")).toBe(22);
@@ -442,10 +374,10 @@ describe("Learning's text is on the codex's scale", () => {
     ".vta__btn",
     ".cdx__btn",
     ".cdx__more",
-    ".vm__btn",
-    ".vm__more",
-    ".crs__btn",
-    ".crs__more",
+    ".vtl__btn",
+    ".vtd__btn",
+    ".vtm__btn",
+    ".vtm__more",
   ])(
     "writes the button %s in 14px bold sentence case",
     (selector) => {

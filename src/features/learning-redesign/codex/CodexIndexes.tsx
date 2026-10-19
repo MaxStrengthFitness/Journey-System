@@ -1,12 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowRight, ChevronRight } from "lucide-react";
 import { accentStyle } from "../../wiki/categories";
+import { machineNodeId } from "../../learning-vault/graph";
 import { pageFor } from "../../learning-vault/pages";
 import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
 import type { VaultRoute } from "../../learning-vault/types";
 import { useCodex } from "./codex-context";
 import { chapterNumber, machineAccent, machineCategory, otherMachines, stepKind } from "./codex-model";
-import { BandHead, FactLine, KindGlyph, PageHead } from "./CodexBits";
+import { BandHead, FactLine, KindGlyph, LensSwitch, PageHead } from "./CodexBits";
+import { MapLens } from "./CodexMap";
 import { CodexFrame, CodexGone, CodexLoading } from "./CodexFrame";
 import { FloorList, MethodList, PathRows, PlayCard, PlaybookShelves, ReferencePair } from "./CodexShelves";
 import "./codex.css";
@@ -21,19 +23,48 @@ import "./codex.css";
  * category and its preset when one is set. Under them, the MSF machines this
  * floor does not have, so nothing in the Academy is out of reach; when the
  * floor could not be read, or has nothing on it, every MSF machine.
+ *
+ * The lens switch, Floor · Map: the floor is the default and the first thing
+ * shown; the Map is the Vault's, with the machines and what connects to them
+ * (the clinical flags that affect them, the topics and cue moments that talk
+ * about them), the studio's own machines drawn solid.
  */
+const CATALOG_MAP = ["machine", "clinical", "topic", "cue"] as const;
+
 export function CatalogIndex() {
-  const { data, studioName, open } = useCodex();
+  const { data, studioName, open, lensFor, rememberLens } = useCodex();
   const others = useMemo(
     () => otherMachines(data.machines, data.floor, data.floorState),
     [data.machines, data.floor, data.floorState],
   );
+  const [lens, setLens] = useState(() => (lensFor("catalog") === "map" ? "map" : "floor"));
+  const pickLens = (id: string) => {
+    setLens(id);
+    rememberLens("catalog", id);
+  };
+  // The studio's own machines are drawn solid on the map, the rest hollow.
+  const solid = useMemo(
+    () => (data.floor && data.floor.length > 0 ? new Set(data.floor.map((m) => machineNodeId(m.id))) : undefined),
+    [data.floor],
+  );
   return (
     <CodexFrame>
       <div className="cdx__index">
-        <PageHead title={`${studioName}'s floor`} />
-        <FloorList />
-        {others.machines.length > 0 && (
+        <PageHead title={lens === "map" ? "Machines and what connects" : `${studioName}'s floor`} />
+        <LensSwitch
+          label="How to look at the Catalog"
+          active={lens}
+          onPick={pickLens}
+          options={[
+            { id: "floor", label: "Floor" },
+            { id: "map", label: "Map" },
+          ]}
+        />
+        {lens === "map" && (
+          <MapLens lensKey="catalog" domains={[...CATALOG_MAP]} marked={solid} label="The map of the machines and what connects to them" />
+        )}
+        {lens === "floor" && <FloorList />}
+        {lens === "floor" && others.machines.length > 0 && (
           <section className="cdx__band" aria-labelledby="cdx-others">
             <BandHead id="cdx-others" title={others.every ? "Every MSF machine" : `Not on ${studioName}'s floor`} />
             <ul className="cdx__entries cdx__entries--quiet">
@@ -76,12 +107,32 @@ export function CatalogIndex() {
  * reference books, the playbooks on their shelves (drafts, said once), every
  * path, and the quiz.
  */
+const ACADEMY_MAP = ["module", "topic", "method", "equipment", "cue"] as const;
+
 export function AcademyIndex() {
-  const { data } = useCodex();
+  const { data, lensFor, rememberLens } = useCodex();
+  const [lens, setLens] = useState(() => (lensFor("academy") === "map" ? "map" : "chapters"));
+  const pickLens = (id: string) => {
+    setLens(id);
+    rememberLens("academy", id);
+  };
   return (
     <CodexFrame>
       <div className="cdx__index">
         <PageHead eyebrow="MSF Academy" title="The method" />
+        <LensSwitch
+          label="How to look at the Academy"
+          active={lens}
+          onPick={pickLens}
+          options={[
+            { id: "chapters", label: "Chapters" },
+            { id: "map", label: "Map" },
+          ]}
+        />
+        {lens === "map" ? (
+          <MapLens lensKey="academy" domains={[...ACADEMY_MAP]} label="The map of the method: modules, topics, words and cue moments" />
+        ) : (
+          <>
         <MethodList blurbs />
 
         <section className="cdx__band" aria-labelledby="cdx-reference">
@@ -103,6 +154,8 @@ export function AcademyIndex() {
         <div className="cdx__band">
           <PlayCard />
         </div>
+          </>
+        )}
       </div>
     </CodexFrame>
   );

@@ -32,7 +32,6 @@ import {
   versionFitsTrail,
   waitState,
   whoLine,
-  wordIndex,
 } from "./codex-model";
 
 const line = (key: string, text: string, kind: VaultSection["blocks"][number]["kind"] = "para") => ({ key, kind, text });
@@ -274,6 +273,23 @@ describe("tiers", () => {
       [3, "Full text", false],
     ]);
     expect(topicLayers(sections, say)[1].home).toBe("cueing");
+    // The Mix's bar: 1 In one minute · 2 Say it · 3 Lesson · 4 Full text.
+    expect(topicLayers(sections, say, true).map((l) => [l.n, l.id, l.title, l.partial])).toEqual([
+      [1, "minute", "In one minute", true],
+      [2, "say", "Say it", true],
+      [3, "lesson", "Lesson", true],
+      [4, "full", "Full text", false],
+    ]);
+    // A tier that would be empty is left out and the rest renumber by place.
+    expect(topicLayers(sections, [], true).map((l) => [l.n, l.id])).toEqual([
+      [1, "minute"],
+      [2, "lesson"],
+      [3, "full"],
+    ]);
+    expect(topicLayers([{ id: "o", title: "", blocks: [line("a", "One.")] }], [], true).map((l) => [l.n, l.id])).toEqual([
+      [1, "lesson"],
+      [2, "full"],
+    ]);
     // Say it left out: 1 · 2, never 1 · 4 (a bar that skips a number looks broken).
     expect(topicLayers(sections, []).map((l) => [l.n, l.id])).toEqual([
       [1, "minute"],
@@ -316,19 +332,6 @@ describe("the glossary", () => {
     expect(isEquipmentTerm(termSections(glossary, "Cam"))).toBe(true);
     expect(isEquipmentTerm(one)).toBe(false);
     expect(termSections(glossary, "nothing")).toEqual([]);
-  });
-
-  it("indexes the words by letter", () => {
-    expect(wordIndex(glossary)).toEqual([
-      {
-        letter: "C",
-        words: [
-          { term: "Concentric", equipment: false },
-          { term: "Cam", equipment: true },
-        ],
-      },
-    ]);
-    expect(wordIndex(null)).toEqual([]);
   });
 });
 

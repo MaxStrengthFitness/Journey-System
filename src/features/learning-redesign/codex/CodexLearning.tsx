@@ -5,6 +5,7 @@ import { routeForRef, sameRoute } from "../../learning-vault/routes";
 import { useVaultNav } from "../../learning-vault/useVaultNav";
 import { useVaultData } from "../../learning-vault/useVaultData";
 import { ConceptLayer } from "../../learning-vault/ui/ConceptLayer";
+import type { MapState } from "../../learning-vault/map/map-model";
 import { usePeekStack } from "../../learning-vault/ui/PeekSheet";
 import { useOptionalVault } from "../../learning-vault/ui/VaultProvider";
 import type { VaultRoute } from "../../learning-vault/types";
@@ -134,6 +135,18 @@ function CodexVisit({
   const rememberTier = useCallback((key: string, tier: string) => {
     tiers.current.set(key, tier);
   }, []);
+  // The lens each index was last read through (Floor / Map, Chapters / Map,
+  // Read / Drill these) and the map's own state: this visit only, never stored.
+  const lenses = useRef(new Map<string, string>());
+  const lensFor = useCallback((key: string) => lenses.current.get(key) ?? null, []);
+  const rememberLens = useCallback((key: string, lens: string) => {
+    lenses.current.set(key, lens);
+  }, []);
+  const maps = useRef(new Map<string, MapState>());
+  const mapFor = useCallback((key: string) => maps.current.get(key) ?? null, []);
+  const rememberMap = useCallback((key: string, state: MapState) => {
+    maps.current.set(key, state);
+  }, []);
 
   const { stack, push } = nav;
   const open = useCallback((r: VaultRoute) => push(resolveOpen(stack, r)), [push, stack]);
@@ -149,8 +162,24 @@ function CodexVisit({
   );
 
   const value = useMemo<CodexValue>(
-    () => ({ data, nav, open, peek, peekStack, crumbs, studioName, onSection, tierFor, rememberTier, phone }),
-    [data, nav, open, peek, peekStack, crumbs, studioName, onSection, tierFor, rememberTier, phone],
+    () => ({
+      data,
+      nav,
+      open,
+      peek,
+      peekStack,
+      crumbs,
+      studioName,
+      onSection,
+      tierFor,
+      rememberTier,
+      lensFor,
+      rememberLens,
+      mapFor,
+      rememberMap,
+      phone,
+    }),
+    [data, nav, open, peek, peekStack, crumbs, studioName, onSection, tierFor, rememberTier, lensFor, rememberLens, mapFor, rememberMap, phone],
   );
 
   return (

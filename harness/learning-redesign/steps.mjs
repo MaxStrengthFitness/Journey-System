@@ -1,8 +1,7 @@
 /**
  * THE INTERACTIONS shots.mjs photographs, per design.
  *
- * Each design keeps its own steps in steps-<design>.mjs (codex, vault,
- * course), so three design agents never edit one file. This file only
+ * The Mix (id "codex") keeps its steps in steps-codex.mjs. This file only
  * gathers them, with three shared starting steps for a design that has not
  * written its own file yet.
  *
@@ -59,20 +58,14 @@ async function load(design) {
 
 const loaded = {
   codex: await load("codex"),
-  vault: await load("vault"),
-  course: await load("course"),
 };
 
 export const steps = {
   codex: loaded.codex.steps,
-  vault: loaded.vault.steps,
-  course: loaded.course.steps,
 };
 
 export const quiz = {
   codex: loaded.codex.quiz,
-  vault: loaded.vault.quiz,
-  course: loaded.course.quiz,
 };
 
 export default steps;

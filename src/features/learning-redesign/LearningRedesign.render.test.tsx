@@ -38,7 +38,7 @@ vi.mock("./lazy", async () => {
 import type { Trainer } from "../../types";
 import { createSandboxStore } from "../learning-vault/markup-store";
 import type { VaultContextValue } from "../learning-vault/ui/VaultProvider";
-import { LearningRedesign } from "./LearningRedesign";
+import { LearningRedesign, sandboxSeed } from "./LearningRedesign";
 import type { ViewAs } from "./design";
 import type { RedesignId } from "./lazy";
 
@@ -128,18 +128,36 @@ describe("who is reading", () => {
 });
 
 describe("the sandbox", () => {
-  it("is made once and seeded with the sample, so a fresh prototype shows markup", async () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("starts EMPTY on a production build: no made-up marks by made-up people on a real studio", async () => {
+    vi.stubEnv("DEV", false);
+    await draw({});
+    expect(createSandboxStore).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(createSandboxStore).mock.calls[0][0]).toBeUndefined();
+    expect(vault().store.allMarkup()).toEqual([]);
+    expect(vault().store.submissions()).toEqual([]);
+  });
+
+  it("sandboxSeed gives the sample only to a development build", () => {
+    expect(sandboxSeed("solon", "Solon", false)).toBeUndefined();
+    expect(sandboxSeed("solon", "Solon", true)?.markup.some((m) => m.studioId === "solon")).toBe(true);
+  });
+
+  it("is made once and, on a development build, seeded with the sample so a fresh prototype shows markup", async () => {
     await draw({});
     expect(createSandboxStore).toHaveBeenCalledTimes(1);
     expect(vault().store.allMarkup().some((m) => m.studioId === "solon")).toBe(true);
   });
 
-  it("survives a switch between the designs: the same store, every mark kept", async () => {
+  it("survives a View as change: the same store, every mark kept", async () => {
     await draw({ design: "codex" });
     const first = vault().store;
-    await draw({ design: "vault" });
-    expect(host.querySelector('[data-screen="design"]')?.getAttribute("data-design")).toBe("vault");
-    await draw({ design: "course", viewAs: "trainer" });
+    await draw({ design: "codex", viewAs: "leader" });
+    expect(host.querySelector('[data-screen="design"]')?.getAttribute("data-design")).toBe("codex");
+    await draw({ design: "codex", viewAs: "trainer" });
     expect(vault().store).toBe(first);
     expect(createSandboxStore).toHaveBeenCalledTimes(1);
   });
@@ -157,8 +175,8 @@ describe("the sandbox", () => {
 
 describe("what the design is given", () => {
   it("the design props, and nothing of the bar's own", async () => {
-    await draw({ design: "course", viewAs: "leader" });
-    expect(last().design).toBe("course");
+    await draw({ design: "codex", viewAs: "leader" });
+    expect(last().design).toBe("codex");
     expect(Object.keys(last().props).sort()).toEqual(
       ["jump", "machines", "onJumpHandled", "onSection", "section", "studioId", "studioName"].sort(),
     );

@@ -1,0 +1,301 @@
+/* ====================================================================
+ * Drills — "What would you cue?" and an order drill (the packages
+ * conversation). Lifted from the Interactive Course (course.css's crs__
+ * rules, moved here as they were) into the shared parts, the Learning vault
+ * redesign, Oct 19 2026 (AJ picked the mix: the Codex as the base with the
+ * Course's cue drills). CueDrill.tsx; its lines are MarkedLine's (vtl__).
+ *
+ * Owns the vtd__ prefix and nothing else. Learning's tokens only (--wk-*,
+ * loaded by wiki.css, which CueDrill.tsx imports): no raw colour. Blue acts
+ * (Show the lines, the order's numbers); a spoken line takes the page's
+ * accent wash (lesson.css), never the act-blue; crimson is never used. Type
+ * at 12 / 14 / 17 / 22; buttons 14/700 in sentence case; every tap 44px or
+ * more; hover only inside (hover: hover); focus is the 2px ring; words
+ * wrap, never cut; motion is transform and opacity, once, only with
+ * (prefers-reduced-motion: no-preference).
+ * ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ *
+ * Buttons (Learning's raised button, .wk__btn, in this sheet's name)
+ * ------------------------------------------------------------------ */
+
+.vtd__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--wk-tap);
+  min-width: var(--wk-tap);
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.vtd__btn svg {
+  flex: none;
+}
+.vtd__btn:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.vtd__btn:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+}
+.vtd__btn:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.vtd__btn--primary {
+  border-color: var(--wk-live);
+  background: var(--wk-live);
+  color: var(--wk-live-on);
+  box-shadow: var(--wk-glow-live), var(--wk-solid-light);
+}
+.vtd__btn--quiet {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--wk-live-text);
+}
+.vtd__btn--big {
+  min-height: 52px;
+  padding: 0.625rem 1.25rem;
+}
+
+/* ------------------------------------------------------------------ *
+ * A drill card
+ * ------------------------------------------------------------------ */
+
+/* As tall as its own words; in a row of drills (a flex row) it fills its
+   place, so a revealed moment never stretches the closed ones beside it. */
+.vtd__drill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 0.625rem;
+  min-width: 0;
+  padding: 1.125rem 1.125rem 1.25rem;
+  border: 1px solid var(--wk-edge);
+  border-radius: var(--wk-radius-lg);
+  background: var(--wk-surface);
+  background-clip: padding-box;
+  box-shadow: var(--wk-elev-2), var(--wk-panel-highlight);
+}
+.vtd__kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wk-live-text);
+}
+.vtd__kicker svg {
+  flex: none;
+}
+.vtd__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--wk-ink);
+  overflow-wrap: anywhere;
+}
+.vtd__drill[data-size="large"] .vtd__title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+.vtd__eg {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--wk-ink-muted);
+}
+.vtd__eg svg {
+  flex: none;
+  margin-top: 2px;
+}
+/* The question, before the answer: a well inside the card. */
+.vtd__ask {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.vtd__bubble {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50% 50% 50% 8px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 0 0 1px var(--wk-edge-control);
+  color: var(--wk-live-text);
+}
+.vtd__prompt {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--wk-ink-2);
+}
+/* The revealed lines flow: one-word cues ("Good", "Nice") sit side by side,
+   in their order, and a long line takes a row of its own (a cue's bubble is
+   as wide as its words). The list takes the focus after a reveal. */
+.vtd__lines {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 12px;
+}
+.vtd__lines > li {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+.vtd__lines:focus {
+  outline: none;
+}
+.vtd__lines:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 4px;
+}
+.vtd__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.25rem;
+}
+
+/* ------------------------------------------------------------------ *
+ * The order drill: holes that fill one at a time
+ * ------------------------------------------------------------------ */
+
+.vtd__drill--order {
+  margin-top: 1rem;
+}
+.vtd__order {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.vtd__order-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 52px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: var(--wk-surface-2);
+  box-shadow: var(--wk-elev-0);
+}
+.vtd__order-step[data-shown] {
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-list);
+}
+.vtd__order-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-live-fill);
+  color: var(--wk-live-text);
+  font-family: var(--wk-font-display);
+  font-size: 17px;
+  font-weight: 800;
+}
+/* A step's line (MarkedLine with this class, its bullet dropped): it takes
+   the row beside its number. */
+.vtd__order-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-top: 0.25rem;
+}
+.vtd__order-hole {
+  align-self: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wk-ink-muted);
+}
+/* "A draft from Journey's notes…": said once, quietly, under the drill. */
+.vtd__draft {
+  max-width: var(--wk-measure);
+  margin: 0.5rem 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--wk-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ *
+ * Hover, where there is a pointer to hover with
+ * ------------------------------------------------------------------ */
+
+@media (hover: hover) {
+  .vtd__btn:not(:disabled):not(.vtd__btn--primary):hover {
+    border-color: var(--wk-live);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Motion: a drill's lines arrive one after another, a step rises into its
+ * hole. Transform and opacity only, once, never with reduced motion.
+ * ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .vtd__lines > li {
+    animation: vtd-rise 260ms ease-out both;
+  }
+  .vtd__order-step[data-shown] .vtd__order-line {
+    animation: vtd-rise 240ms ease-out both;
+  }
+}
+
+@keyframes vtd-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

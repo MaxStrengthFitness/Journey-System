@@ -8,9 +8,8 @@ import "./redesign.css";
  * (the Learning vault redesign, Oct 19 2026).
  *
  * A temporary control, and it should read as one: a quiet strip on the tray
- * (below the page, not part of the product), a "Prototype" tag, the four
- * designs as one segmented switch ([1 Codex | 2 Vault map | 3 Course |
- * Current]) and, while a prototype is on, "View as" [Trainer | Leader | Head
+ * (below the page, not part of the product), a "Prototype" tag, the two
+ * choices as one segmented switch ([Mix | Current]) and, while a prototype is on, "View as" [Trainer | Leader | Head
  * office]. Every option is a 44px target; the words wrap and are never cut;
  * at 820 wide it is one row, on a phone two.
  *
