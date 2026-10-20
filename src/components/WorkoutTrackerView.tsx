@@ -284,8 +284,8 @@ import { trackerScreen } from "../lib/tracker-screen";
 import {
   createMachineClocks,
   focusMachine,
+  leaveSeconds,
   machineTimeFields,
-  resetMachine,
   secondsOn,
   setPaused,
   type MachineClocks,
@@ -1318,19 +1318,38 @@ export function WorkoutTrackerView({
     }
   }, []);
 
-  /* When a machine's set is complete (weight, a count, a quality) and it
-     has no time yet, write its time. The seconds come from the machine's
-     own clock — the time it was the current machine, session pauses
-     excluded (src/lib/machine-clock.ts) — never from "everything since
-     the last machine". The trainer's stopwatch seconds still win for time
-     under load. */
+  /* TIME ON MACHINE IS WRITTEN WHEN THE MACHINE IS LEFT (the Now Bar pad
+     round, Oct 20 2026; AJ's pick, "When you leave it"). It used to be
+     written the moment the set was complete, and typing a count fills in the
+     quality (handleGridLiveChange), so the time was stamped on the FIRST
+     digit typed, the clock restarted from zero, and neither a correction nor
+     a return to the machine ever reached it.
+
+     Now it is written when the trainer leaves the machine (Next, a tap on
+     another machine, End Session): the whole time that machine was the
+     current one on this iPad, session pauses excluded (lib/machine-clock.ts),
+     revisits included, so each leave rewrites the total. `timeBase` holds
+     what was on the log before this iPad first wrote it (another iPad's
+     time, before Continue on this iPad), so a takeover adds to it rather than
+     replacing it. Only a complete set (weight, a count, a quality) gets a
+     time, as before; the trainer's stopwatch seconds still win for time
+     under load (machineTimeFields). */
+  const timeBase = React.useRef<Record<string, number>>({});
   useEffect(() => {
+    timeBase.current = {};
+  }, [currentSession?.id]);
+  const stampMachineTime = (mId: string) => {
     if (!currentSession) return;
     const sid = currentSession.id;
     const now = Date.now();
+    const onHere = secondsOn(machineClocks.current, mId, now);
 
-    const close = (mId: string, log: ExerciseLog | undefined, side?: "Left" | "Right") => {
-      if (!(log?.weight && (log?.reps || log?.seconds) && log?.repQuality && !log?.timeSpent)) return;
+    const close = (log: ExerciseLog | undefined, side?: "Left" | "Right") => {
+      if (!(log?.weight && (log?.reps || log?.seconds) && log?.repQuality)) return;
+      const baseKey = `${mId}_${side ?? ""}`;
+      const leave = leaveSeconds({ onHere, logged: log.timeSpent, base: timeBase.current[baseKey] });
+      if (!leave) return;
+      timeBase.current[baseKey] = leave.base;
       const manualSeconds = log.seconds ? parseFloat(log.seconds) : 0;
       const isStatic = !!(
         log.isStaticHold ||
@@ -1339,39 +1358,36 @@ export function WorkoutTrackerView({
       );
       const reps = parseInt(log.reps || "0");
       const fields = machineTimeFields({
-        onMachineSeconds: secondsOn(machineClocks.current, mId, now),
+        onMachineSeconds: leave.seconds,
         manualSeconds: Number.isFinite(manualSeconds) ? manualSeconds : 0,
         reps: Number.isFinite(reps) ? reps : 0,
         isStatic,
         now,
       });
       updateLogMultiple(sid, mId, fields, side);
-      resetMachine(machineClocks.current, mId, now);
-      delete machineStartedAt.current[mId];
     };
 
-    activeMachineIds.forEach((mId) => {
-      /*
-       * The one sided machine. This used to test `mId === "torso_rotation"`,
-       * the LEGACY MACHINE_DATABASE key - but the app's canonical id is
-       * "m-torso-rotation" (data/default-machines.ts), so the branch never
-       * fired, the _Left/_Right logs were never closed, and Torso Rotation was
-       * the only machine in the app with no timing data at all.
-       *
-       * isPerSideMachine() is the one answer to "does this machine record two
-       * sides" and accepts both ids plus the name - every other per-side
-       * decision in this file already goes through it (lines ~1348, ~2084).
-       * AJ confirmed Sep 22 that the machine is on a lot of floors, so this is
-       * a repair rather than a deletion.
-       */
-      if (isPerSideMachine({ id: mId })) {
-        close(mId, logs[`${sid}_${mId}_Left`], "Left");
-        close(mId, logs[`${sid}_${mId}_Right`], "Right");
-      } else {
-        close(mId, logs[`${sid}_${mId}`]);
-      }
-    });
-  }, [logs, currentSession, activeMachineIds]);
+    /*
+     * The one sided machine. This used to test `mId === "torso_rotation"`,
+     * the LEGACY MACHINE_DATABASE key - but the app's canonical id is
+     * "m-torso-rotation" (data/default-machines.ts), so the branch never
+     * fired, the _Left/_Right logs were never closed, and Torso Rotation was
+     * the only machine in the app with no timing data at all.
+     *
+     * isPerSideMachine() is the one answer to "does this machine record two
+     * sides" and accepts both ids plus the name - every other per-side
+     * decision in this file already goes through it. AJ confirmed Sep 22
+     * that the machine is on a lot of floors, so this is a repair rather
+     * than a deletion.
+     */
+    const logsNow = logsRef.current;
+    if (isPerSideMachine({ id: mId })) {
+      close(logsNow[`${sid}_${mId}_Left`], "Left");
+      close(logsNow[`${sid}_${mId}_Right`], "Right");
+    } else {
+      close(logsNow[`${sid}_${mId}`]);
+    }
+  };
 
   // Mirror the session's persisted pause state into local state, so per-machine
   // timing and the heartbeat also know the session is paused after a refresh.
@@ -3433,6 +3449,9 @@ export function WorkoutTrackerView({
       }).catch(console.error);
       setCurrentSession((prev) => (prev ? { ...prev, endTime: now } : prev));
     }
+    /* The machine in hand is left too: its time is written before the
+       pause below stops its clock (Oct 20 2026; time is written on leave). */
+    if (gridFocusMachineIdRef.current) stampMachineTime(gridFocusMachineIdRef.current);
     setIsPaused(true);
     setShowEndConfirmation(true);
   };
@@ -4961,12 +4980,22 @@ export function WorkoutTrackerView({
      act now — Next, a tap on a Today cell, a logged TSC — so this is a real
      signal about where the trainer is standing, which it was not while focus
      advanced by itself. */
+  const lastFocusRef = useRef<{ sessionId: string; machineId: string } | null>(null);
   useEffect(() => {
     gridFocusMachineIdRef.current = gridFocusMachineId ?? null;
     if (gridFocusMachineId) markMachineStarted(gridFocusMachineId);
     // The Now bar moved: the previous machine's clock stops, this one's runs.
     focusMachine(machineClocks.current, gridFocusMachineId ?? null);
-  }, [gridFocusMachineId, markMachineStarted]);
+    /* ...and the machine just left gets its time (Oct 20 2026): the whole
+       time it was the current one, now that its clock has stopped. */
+    const sessionId = currentSession?.id ?? null;
+    const prev = lastFocusRef.current;
+    if (prev && prev.sessionId === sessionId && prev.machineId !== gridFocusMachineId) {
+      stampMachineTime(prev.machineId);
+    }
+    lastFocusRef.current = sessionId && gridFocusMachineId ? { sessionId, machineId: gridFocusMachineId } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gridFocusMachineId, markMachineStarted, currentSession?.id]);
 
   /* --- what the Now bar reads. All derived from state that already
      existed for the grid; the bar adds no source of truth of its own. --- */

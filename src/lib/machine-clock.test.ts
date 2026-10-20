@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createMachineClocks,
   focusMachine,
+  leaveSeconds,
   machineTimeFields,
   resetMachine,
   secondsOn,
@@ -89,5 +90,24 @@ describe("machineTimeFields", () => {
   it("writes no per-rep figure for a hold, or with nothing to divide", () => {
     expect(machineTimeFields({ onMachineSeconds: 0, manualSeconds: 0, reps: 8, isStatic: false }).averageTimePerRep).toBeUndefined();
     expect(machineTimeFields({ onMachineSeconds: 90, manualSeconds: 60, reps: 0, isStatic: true }).averageTimePerRep).toBeUndefined();
+  });
+});
+
+describe("leaveSeconds: time is written when the machine is left (Oct 20 2026)", () => {
+  it("writes the whole time on this iPad on the first leave", () => {
+    expect(leaveSeconds({ onHere: 95, logged: undefined, base: undefined })).toEqual({ seconds: 95, base: 0 });
+  });
+
+  it("a revisit rewrites the total, never this iPad's own earlier write added twice", () => {
+    // First leave wrote 95 with base 0; the clock has run on to 120.
+    expect(leaveSeconds({ onHere: 120, logged: "95", base: 0 })).toEqual({ seconds: 120, base: 0 });
+  });
+
+  it("adds to another iPad's time after Continue on this iPad", () => {
+    expect(leaveSeconds({ onHere: 10, logged: "90", base: undefined })).toEqual({ seconds: 100, base: 90 });
+  });
+
+  it("writes nothing for a machine never current here that already has a time", () => {
+    expect(leaveSeconds({ onHere: 0, logged: "90", base: undefined })).toBeNull();
   });
 });

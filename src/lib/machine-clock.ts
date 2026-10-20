@@ -129,3 +129,29 @@ export function machineTimeFields(params: {
   }
   return fields;
 }
+
+/**
+ * The seconds to write when a machine is LEFT (the Now Bar pad round, Oct 20
+ * 2026; AJ's pick, "When you leave it"). Every leave rewrites the total: what
+ * was on the log before this iPad first wrote it (`base`, another iPad's time
+ * before Continue on this iPad) plus all the time the machine was current
+ * here. Null: nothing to write — the machine was never current on this iPad
+ * and already carries a time.
+ *
+ * Returns the base to keep for the next leave, so the tracker never reads its
+ * own earlier write back as someone else's time.
+ */
+export function leaveSeconds(params: {
+  /** Seconds the machine was current on this iPad (secondsOn). */
+  onHere: number;
+  /** The log's timeSpent as it stands, or undefined/"" when it has none. */
+  logged: string | undefined;
+  /** The base kept from this iPad's first write, or undefined before it. */
+  base: number | undefined;
+}): { seconds: number; base: number } | null {
+  const { onHere, logged, base } = params;
+  if (base === undefined && onHere === 0 && logged) return null;
+  const before = parseInt(logged || "0");
+  const kept = base ?? (Number.isFinite(before) ? before : 0);
+  return { seconds: kept + onHere, base: kept };
+}
