@@ -1,16 +1,17 @@
 /**
  * Learning on a page of its own, for the redesign round (the Learning vault
- * redesign, Oct 19 2026): the app's REAL LearningView, with its prototype bar
- * and the Mix, inside a stand-in of the shell AppContent draws it
+ * redesign, Oct 19 2026): the app's REAL LearningView (the Mix, everyone's
+ * Learning since Oct 20 2026, and today's pages behind its doors), inside a stand-in of the shell AppContent draws it
  * in (the header, <main>, the real bottom bar), with the real providers and
  * every database call answered by stubs/ instead.
  *
- *   ?design=codex|current            the Learning drawn (default: the
- *                                          one last picked here, else current)
+ *   ?design=codex|current                  codex: the Mix (the default); current:
+ *                                          today's pages, as a Mix door opens them
+ *                                          (a jump from outside opens the Mix, as
+ *                                          in the app)
  *   &view=learning|machine-anatomy|academy the masthead's section (default learning)
  *   &theme=light|dark                      (default light)
  *   &role=leader|trainer|admin             who is signed in (sample.ts; default leader)
- *   &viewAs=trainer|leader|head-office     the prototype bar's View as
  *   &machine=m-leg-press                   open that machine (a Learning jump)
  *   &ref=<LearningRef JSON, url-encoded>   open that page (a Learning jump), e.g.
  *        %7B%22kind%22%3A%22academy-topic%22%2C%22id%22%3A%22performance-gradual-load-up%22%7D
@@ -36,7 +37,6 @@ import { ToastProvider } from "../../src/contexts/ToastContext";
 import { UnsavedChangesProvider } from "../../src/features/unsaved-changes";
 import { LearningView, type LearningViewId } from "../../src/features/learning/LearningView";
 import { parseLearningRef, type LearningRef } from "../../src/features/learning/ref";
-import { parseDesign, parseViewAs } from "../../src/features/learning-redesign/design";
 import { AppBottomBar } from "../../src/components/AppBottomBar";
 import { GLOBAL_MACHINES, IS_ADMIN, STUDIO, STUDIO_ID, TRAINER } from "./sample";
 
@@ -52,8 +52,7 @@ try {
 
 const VIEWS: LearningViewId[] = ["learning", "machine-anatomy", "academy"];
 const START_VIEW: LearningViewId = VIEWS.find((v) => v === params.get("view")) ?? "learning";
-const DESIGN = parseDesign(params.get("design")) ?? undefined;
-const VIEW_AS = parseViewAs(params.get("viewAs"));
+const TODAY = params.get("design") === "current";
 
 function startJump(): LearningRef | null {
   const machine = params.get("machine");
@@ -102,8 +101,7 @@ function Shell() {
           jump={jump}
           onJumpHandled={clearJump}
           onOpenFloorEditor={() => {}}
-          initialDesign={DESIGN}
-          initialViewAs={VIEW_AS}
+          initialToday={TODAY}
         />
       </main>
       <AppBottomBar

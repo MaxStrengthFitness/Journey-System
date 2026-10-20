@@ -7,7 +7,7 @@ import { PLAYBOOK_DRAFT_LINE } from "../../learning-vault/playbooks";
 import type { VaultRoute } from "../../learning-vault/types";
 import { useCodex } from "./codex-context";
 import { chapterNumber, machineAccent, machineCategory, otherMachines, stepKind } from "./codex-model";
-import { BandHead, FactLine, KindGlyph, LensSwitch, PageHead } from "./CodexBits";
+import { BandHead, FactLine, KindGlyph, LensSwitch, PageHead, TodayDoorButton } from "./CodexBits";
 import { MapLens } from "./CodexMap";
 import { CodexFrame, CodexGone, CodexLoading } from "./CodexFrame";
 import { FloorList, MethodList, PathRows, PlayCard, PlaybookShelves, ReferencePair } from "./CodexShelves";
@@ -31,6 +31,10 @@ import "./codex.css";
  */
 const CATALOG_MAP = ["machine", "clinical", "topic", "cue"] as const;
 
+/** The two index pages, as their doors to today's Learning name them (today-door.ts). */
+const CATALOG_ROUTE: VaultRoute = { kind: "catalog" };
+const ACADEMY_ROUTE: VaultRoute = { kind: "academy" };
+
 export function CatalogIndex() {
   const { data, studioName, open, lensFor, rememberLens } = useCodex();
   const others = useMemo(
@@ -50,7 +54,9 @@ export function CatalogIndex() {
   return (
     <CodexFrame>
       <div className="cdx__index">
-        <PageHead title={lens === "map" ? "Machines and what connects" : `${studioName}'s floor`} />
+        <PageHead title={lens === "map" ? "Machines and what connects" : `${studioName}'s floor`}>
+          <TodayDoorButton route={CATALOG_ROUTE} />
+        </PageHead>
         <LensSwitch
           label="How to look at the Catalog"
           active={lens}
@@ -119,7 +125,9 @@ export function AcademyIndex() {
   return (
     <CodexFrame>
       <div className="cdx__index">
-        <PageHead eyebrow="MSF Academy" title="The method" />
+        <PageHead eyebrow="MSF Academy" title="The method">
+          <TodayDoorButton route={ACADEMY_ROUTE} />
+        </PageHead>
         <LensSwitch
           label="How to look at the Academy"
           active={lens}
@@ -140,11 +148,15 @@ export function AcademyIndex() {
           <ReferencePair />
         </section>
 
-        <section className="cdx__band" aria-labelledby="cdx-playbooks">
-          <BandHead id="cdx-playbooks" title="Playbooks" />
-          <p className="cdx__draft">{PLAYBOOK_DRAFT_LINE}</p>
-          <PlaybookShelves />
-        </section>
+        {/* Only the playbooks head office has read (playbooks/index.ts): none
+            yet, so no shelf. A draft among them still says so, once. */}
+        {data.playbooks.length > 0 && (
+          <section className="cdx__band" aria-labelledby="cdx-playbooks">
+            <BandHead id="cdx-playbooks" title="Playbooks" />
+            {data.playbooks.some((p) => p.status === "draft") && <p className="cdx__draft">{PLAYBOOK_DRAFT_LINE}</p>}
+            <PlaybookShelves />
+          </section>
+        )}
 
         <section className="cdx__band" aria-labelledby="cdx-all-paths">
           <BandHead id="cdx-all-paths" title="Paths" />

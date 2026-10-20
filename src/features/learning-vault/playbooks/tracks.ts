@@ -168,7 +168,7 @@ export const TRACKS: Track[] = [
         "consultation",
         "consultation-initial-consultation-script-tour-preliminary-co",
         "Initial Consultation Script - Tour, Preliminary Considerations, Demo Workout, Conclusion",
-        "The Academy's consult script. Its prices may not be your studio's, and its leftover-session and billing lines are out of date: use Talking about packages for those.",
+        "The Academy's consult script. Its prices may not be your studio's, and its leftover-session and billing lines are out of date.",
       ),
       play(FIRST_SESSIONS, "What the first visits look like."),
       play(PACKAGES_PAGE, "The packages, the guarantee, and what to do when money is the worry."),

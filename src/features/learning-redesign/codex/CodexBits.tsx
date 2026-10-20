@@ -28,7 +28,8 @@ import { ArticleBlocks } from "../../learning-vault/ui/ArticleBlocks";
 import { LinkedText } from "../../learning-vault/ui/LinkedText";
 import { useStudioMarkup, useVault } from "../../learning-vault/ui/VaultProvider";
 import { VersionToggle } from "../../learning-vault/ui/VersionToggle";
-import type { VaultFact, VaultPage, VaultSection, VaultTarget } from "../../learning-vault/types";
+import type { VaultFact, VaultPage, VaultRoute, VaultSection, VaultTarget } from "../../learning-vault/types";
+import { todayDoorFor, todayDoorLabel } from "../today-door";
 import { useCodex } from "./codex-context";
 import { groupReasons, hideReserved, nextLayer, pickLayer, stepKind, versionFitsTrail, type StepKind } from "./codex-model";
 import "./codex.css";
@@ -62,6 +63,9 @@ export function useVersionSlot(
   );
   const reserve = hideReserved({ studioOpen, canStrike: vault.viewer.canStrike, studioStruck });
   const width = useViewportWidth();
+  // Marking off (markup-on.ts): the studio's version and the MSF original
+  // read the same, so there is no switch and no room kept for one.
+  if (!vault.markup) return { actions: undefined, inline: null };
   const toggle = <VersionToggle struck={struck} />;
   const inRow = !phone && versionFitsTrail({ labels: crumbs.map((c) => c.label), struck: reserve, width });
   return inRow ? { actions: toggle, inline: null } : { actions: undefined, inline: <div className="cdx__version">{toggle}</div> };
@@ -84,6 +88,31 @@ function useViewportWidth(): number {
     return () => window.removeEventListener("resize", onResize);
   }, []);
   return width;
+}
+
+/**
+ * The door to today's Learning for the studio's tools this page does not
+ * have yet (today-door.ts): one quiet door under the title, named for what
+ * is behind it. Nothing on a page with no counterpart, or with no door given.
+ */
+export function TodayDoorButton({ route }: { route: VaultRoute }) {
+  const { openToday, data } = useCodex();
+  const door = todayDoorFor(route);
+  const label = door ? todayDoorLabel(door) : null;
+  if (!openToday || !door || !label) return null;
+  // A machine's door only for a machine on this floor (review, Oct 20 2026):
+  // today's Catalog opens any other on All MSF machines, where none of the
+  // studio's tools are, so the door's words would be wrong. A floor still
+  // loading, or unreadable, draws none.
+  if (door.kind === "machine" && !data.floor?.some((m) => m.id === door.id)) return null;
+  return (
+    <p className="cdx__today">
+      <button type="button" className="cdx__more" onClick={() => openToday(door)}>
+        {label}
+        <ChevronRight size={15} aria-hidden />
+      </button>
+    </p>
+  );
 }
 
 export function PageHead({

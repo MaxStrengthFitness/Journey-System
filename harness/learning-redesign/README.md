@@ -1,8 +1,8 @@
 # The Learning redesign harness (Oct 19 2026)
 
 Learning on a page of its own, photographed. It mounts the app's **real**
-`LearningView` (today's Learning, the prototype bar, and the three prototype
-designs of the Learning vault redesign) inside a stand-in of the app's shell
+`LearningView` (the Mix, everyone's Learning since Oct 20 2026, and today's
+pages behind its doors; marking is off, so no step marks a line) inside a stand-in of the app's shell
 (the navy header, `<main>`, the real bottom bar), for a made-up Solon with one
 signed-in person, Sam Lee. Nothing reaches a database: every import of
 `src/firebase` and `firebase/firestore` is answered by `stubs/` (the local
@@ -34,8 +34,8 @@ node harness/learning-redesign/shots.mjs codex --port 5261 --out C:\Users\austi\
   `<page>-portrait-light-tall.png` (the whole page), `-portrait-dark`,
   `-landscape-light` (1180x820) and `-phone-light` (390x844). Then the
   interactions in `steps.mjs`, as `step-<name>.png` and `step-<name>-tall.png`.
-- **What it prints:** each PNG with its size, how many rows the prototype bar
-  took, `SIDEWAYS SCROLL` if the page scrolls sideways, any tap that found
+- **What it prints:** each PNG with its size, how many rows the strip on today's
+  pages took, `SIDEWAYS SCROLL` if the page scrolls sideways, any tap that found
   nothing, and every page error at the end.
 - `--only <text>` keeps the shots whose name includes the text.
 - `--port` (or `LH_PORT`) picks the Vite port, default **5251**; two runs on
@@ -67,11 +67,10 @@ The address takes:
 
 | Parameter | Values | Default |
 | --- | --- | --- |
-| `design` | `codex` (the Mix), `current` | the one last picked here, else `current` |
+| `design` | `codex` (the Mix), `current` (today's pages, as a Mix door opens them; a jump from outside still opens the Mix, as in the app) | `codex` |
 | `view` | `learning` (Overview), `machine-anatomy` (Catalog), `academy` | `learning` |
 | `theme` | `light`, `dark` | `light` |
 | `role` | `leader` (Studio Leader), `trainer` (Life Transformer), `admin` (head office) | `leader` |
-| `viewAs` | `trainer`, `leader`, `head-office` (the bar's View as) | the real role |
 | `machine` | a machine id, `m-leg-press` | none |
 | `ref` | a Learning link as url-encoded JSON, e.g. `{"kind":"academy-topic","id":"performance-gradual-load-up"}` | none |
 | `empty=1`, `flag=0` | no roster; no flagged machine | |

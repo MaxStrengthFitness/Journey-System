@@ -49,7 +49,7 @@ async function mount(opts: { studioId?: string | null; studioName?: string; stru
   function Harness() {
     const [struck] = useState(opts.struck ?? 0);
     const body = (
-      <VaultProvider store={store} studio={studio} viewer={VIEWER}>
+      <VaultProvider markup store={store} studio={studio} viewer={VIEWER}>
         <VersionToggle struck={struck} />
         <State />
       </VaultProvider>

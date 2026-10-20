@@ -14,13 +14,6 @@
 import type { LearningRef } from "../learning/ref";
 
 /* ------------------------------------------------------------------ *
- * Designs
- * ------------------------------------------------------------------ */
-
-/** Which Learning the tab draws. "current" is today's, untouched. */
-export type LearningDesign = "codex" | "current";
-
-/* ------------------------------------------------------------------ *
  * Pages and blocks
  * ------------------------------------------------------------------ */
 
@@ -426,8 +419,13 @@ export interface PlaybookPage {
   title: string;
   lede: string;
   pillar: PillarId;
-  /** Written by Claude from Journey's business notes; head office has not read it yet. */
-  status: "draft";
+  /**
+   * "draft": written by Claude from Journey's business notes, and head office
+   * has not read it yet, so no reader sees it (playbooks/index.ts,
+   * SHOWN_PLAYBOOKS). "read": someone has read it for head office and set
+   * this in its file; it shows, with no draft line.
+   */
+  status: "draft" | "read";
   sections: { id: string; title: string; blocks: PlaybookBlock[] }[];
   related: { route: VaultRoute; title: string; why: string }[];
 }

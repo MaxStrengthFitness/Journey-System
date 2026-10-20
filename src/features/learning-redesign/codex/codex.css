@@ -82,6 +82,16 @@
   max-width: var(--wk-measure);
 }
 
+/* The door to today's Learning for the studio's tools (today-door.ts): one
+   quiet door under the title. Its words wrap; never cut. */
+.cdx__today {
+  margin: 0.75rem 0 0;
+}
+.cdx__today .cdx__more {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 .cdx__factline {
   display: flex;
   flex-wrap: wrap;

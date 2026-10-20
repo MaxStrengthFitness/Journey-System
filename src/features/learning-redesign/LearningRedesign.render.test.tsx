@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 /**
- * THE ROOT OF EVERY PROTOTYPE (the Learning vault redesign, Oct 19 2026):
- * who is reading (the real rules, then "View as"), and ONE sandbox per
- * studio that survives a switch between designs and starts again when the
- * studio changes. The design itself is stood in for by a screen that reads
- * the vault the way the real ones do.
+ * THE MIX'S ROOT (the Learning vault redesign, Oct 19 2026; everyone's
+ * Learning since Oct 20 2026): who is reading (the real rules), marking off,
+ * and ONE store per studio that starts empty and starts again when the
+ * studio changes. The Mix itself is stood in for by a screen that reads the
+ * vault the way the real one does.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
@@ -14,7 +14,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 const fx = vi.hoisted(() => ({
   isAdmin: false,
-  seen: [] as { design: string; props: Record<string, unknown>; vault: unknown }[],
+  seen: [] as { props: Record<string, unknown>; vault: unknown }[],
 }));
 
 vi.mock("../../firebase", () => ({ db: {}, auth: { currentUser: { uid: "uid-sam" } } }));
@@ -27,20 +27,18 @@ vi.mock("../learning-vault/markup-store", async (importOriginal) => {
 });
 vi.mock("./lazy", async () => {
   const { useVault } = await import("../learning-vault/ui/VaultProvider");
-  function LazyDesign({ design, ...props }: { design: string } & Record<string, unknown>) {
+  function LazyMix(props: Record<string, unknown>) {
     const vault = useVault();
-    fx.seen.push({ design, props, vault });
-    return <div data-screen="design" data-design={design} data-lens={vault.lens} />;
+    fx.seen.push({ props, vault });
+    return <div data-screen="design" data-lens={vault.lens} />;
   }
-  return { LazyDesign };
+  return { LazyMix };
 });
 
 import type { Trainer } from "../../types";
 import { createSandboxStore } from "../learning-vault/markup-store";
 import type { VaultContextValue } from "../learning-vault/ui/VaultProvider";
-import { LearningRedesign, sandboxSeed } from "./LearningRedesign";
-import type { ViewAs } from "./design";
-import type { RedesignId } from "./lazy";
+import { LearningRedesign } from "./LearningRedesign";
 
 let root: Root;
 let host: HTMLDivElement;
@@ -67,8 +65,6 @@ const onSection = () => {};
 const onJumpHandled = () => {};
 
 async function draw(opts: {
-  design?: RedesignId;
-  viewAs?: ViewAs | null;
   who?: Trainer | null;
   studioId?: string | null;
   studioName?: string;
@@ -76,8 +72,6 @@ async function draw(opts: {
   await act(async () => {
     root.render(
       <LearningRedesign
-        design={opts.design ?? "codex"}
-        viewAs={opts.viewAs ?? null}
         authTrainer={opts.who === undefined ? leader : opts.who}
         section="machine-anatomy"
         onSection={onSection}
@@ -113,13 +107,6 @@ describe("who is reading", () => {
     expect(vault().viewer.isHeadOffice).toBe(true);
   });
 
-  it("View as changes what they may do, never who they are", async () => {
-    await draw({ who: trainer, viewAs: "head-office" });
-    expect(vault().viewer).toEqual({ uid: "uid-sam", name: "Sam Lee", canStrike: true, canNote: true, isHeadOffice: true });
-    await draw({ who: leader, viewAs: "trainer" });
-    expect(vault().viewer).toEqual({ uid: "uid-sam", name: "Sam Lee", canStrike: false, canNote: true, isHeadOffice: false });
-  });
-
   it("nobody signed in reads the original, and may do nothing", async () => {
     await draw({ who: null, studioId: null, studioName: "This studio" });
     expect(vault().viewer).toMatchObject({ name: "", canStrike: false, canNote: false });
@@ -127,56 +114,42 @@ describe("who is reading", () => {
   });
 });
 
-describe("the sandbox", () => {
+describe("the store", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("starts EMPTY on a production build: no made-up marks by made-up people on a real studio", async () => {
+  it("starts EMPTY on a production build and on a development one: no sample marks while marking is off", async () => {
     vi.stubEnv("DEV", false);
     await draw({});
-    expect(createSandboxStore).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(createSandboxStore).mock.calls[0][0]).toBeUndefined();
+    vi.stubEnv("DEV", true);
+    await draw({ studioId: "willoughby", studioName: "Willoughby" });
+    expect(createSandboxStore).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(createSandboxStore).mock.calls) expect(call[0]).toBeUndefined();
     expect(vault().store.allMarkup()).toEqual([]);
     expect(vault().store.submissions()).toEqual([]);
   });
 
-  it("sandboxSeed gives the sample only to a development build", () => {
-    expect(sandboxSeed("solon", "Solon", false)).toBeUndefined();
-    expect(sandboxSeed("solon", "Solon", true)?.markup.some((m) => m.studioId === "solon")).toBe(true);
-  });
-
-  it("is made once and, on a development build, seeded with the sample so a fresh prototype shows markup", async () => {
+  it("tells the Mix that lines cannot be marked (AJ, Oct 20 2026: markup hidden until its Firestore round)", async () => {
     await draw({});
-    expect(createSandboxStore).toHaveBeenCalledTimes(1);
-    expect(vault().store.allMarkup().some((m) => m.studioId === "solon")).toBe(true);
+    expect(vault().markup).toBe(false);
   });
 
-  it("survives a View as change: the same store, every mark kept", async () => {
-    await draw({ design: "codex" });
-    const first = vault().store;
-    await draw({ design: "codex", viewAs: "leader" });
-    expect(host.querySelector('[data-screen="design"]')?.getAttribute("data-design")).toBe("codex");
-    await draw({ design: "codex", viewAs: "trainer" });
-    expect(vault().store).toBe(first);
-    expect(createSandboxStore).toHaveBeenCalledTimes(1);
-  });
-
-  it("starts again when the studio changes", async () => {
+  it("is made once while the studio stays, and again when it changes", async () => {
     await draw({ studioId: "solon", studioName: "Solon" });
     const solon = vault().store;
+    await draw({ studioId: "solon", studioName: "Solon", who: trainer });
+    expect(vault().store).toBe(solon);
     await draw({ studioId: "willoughby", studioName: "Willoughby" });
     expect(vault().store).not.toBe(solon);
     expect(vault().studio).toEqual({ id: "willoughby", name: "Willoughby" });
-    expect(vault().store.allMarkup().some((m) => m.studioId === "willoughby")).toBe(true);
     expect(createSandboxStore).toHaveBeenCalledTimes(2);
   });
 });
 
-describe("what the design is given", () => {
-  it("the design props, and nothing of the bar's own", async () => {
-    await draw({ design: "codex", viewAs: "leader" });
-    expect(last().design).toBe("codex");
+describe("what the Mix is given", () => {
+  it("LearningView's props, passed on whole, and nothing of a picker's", async () => {
+    await draw({});
     expect(Object.keys(last().props).sort()).toEqual(
       ["jump", "machines", "onJumpHandled", "onSection", "section", "studioId", "studioName"].sort(),
     );

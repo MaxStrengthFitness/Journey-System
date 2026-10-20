@@ -830,8 +830,13 @@ function playbookPage(route: Extract<VaultRoute, { kind: "playbook" }>, data: Va
     title: p.title,
     sections,
     facts: [],
-    draft: true,
-    related: p.related,
+    draft: p.status === "draft",
+    // Never a door to a playbook nobody may see yet (playbooks/index.ts):
+    // it would open as "This page has moved".
+    related: p.related.filter((r) => {
+      const to = r.route;
+      return to.kind !== "playbook" || data.playbooks.some((x) => x.id === to.id);
+    }),
   };
   if (p.lede.trim()) page.lede = p.lede.trim();
   const sources = playbookSourcesLine(p);

@@ -4,52 +4,35 @@ import { auth } from "../../firebase";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
 import { canWriteStudioPages, writesForStudioPerRules } from "../learning/permissions";
 import { createSandboxStore, type MarkupStore } from "../learning-vault/markup-store";
-import { sampleSeed } from "../learning-vault/sample";
+import { MARKUP_ON } from "../learning-vault/markup-on";
 import { VaultProvider } from "../learning-vault/ui/VaultProvider";
 import type { VaultViewer } from "../learning-vault/types";
 import type { DesignProps } from "./design-props";
-import { viewerFor, type ViewAs } from "./design";
-import { LazyDesign, type RedesignId } from "./lazy";
+import { LazyMix } from "./lazy";
 
 /**
- * THE ROOT OF EVERY PROTOTYPE DESIGN (the Learning vault redesign, Oct 19
- * 2026).
+ * THE MIX'S ROOT — every trainer's Learning since Oct 20 2026 (the Learning
+ * vault redesign, Oct 19 2026; AJ: "we can go ahead and stay with Mix").
  *
- * LearningView draws this in place of its three sections when a prototype is
- * picked on the bar; the masthead (and the comments around it) stay its own.
- * Here:
+ * LearningView draws this in place of today's three sections; the masthead
+ * (and the comments around it) stay its own. Here:
  *
  *   WHO IS READING. The real viewer, from the same rules the buttons mirror
  *   everywhere else in Learning: the Auth uid (never the trainer document's
  *   id), crossing out = canWriteStudioPages, notes = writesForStudioPerRules,
  *   head office's queue = an administrator (the Admins dashboard's own gate).
- *   "View as" on the bar then changes only what they may do (viewerFor).
+ *   None of it is drawn while marking is off (markup-on.ts).
  *
- *   THE SANDBOX. Nothing in the prototypes reads or writes Firestore: every
- *   mark goes to ONE in-memory store per studio, seeded with the sample
- *   (learning-vault/sample.ts) on a development build only, so a fresh
- *   prototype shows what markup looks like; a production build starts empty. It is held here, keyed by the studio, so it survives a switch
- *   between Mix and Current and starts again when the studio changes. It
- *   is gone when Learning closes, or when the bar goes back to Current.
+ *   THE STORE. Nothing reads or writes Firestore: marks would go to ONE
+ *   in-memory store per studio, which starts empty. While marking is off
+ *   nothing can be put in it; it is held here, keyed by the studio, for the
+ *   round that keeps marks for real (learning-vault/README.md).
  */
-/**
- * What the sandbox starts with. The sample marks (made-up crossed-out lines
- * and notes by sample people) are for the PC build and the harness only,
- * where a fresh prototype needs something to show; a production build starts
- * the sandbox empty, so nobody on a real studio ever sees made-up marks
- * attributed to people. (Review, Oct 19 2026.)
- */
-export function sandboxSeed(studioId: string | null, studioName: string, dev: boolean) {
-  return dev ? sampleSeed({ id: studioId ?? "this-studio", name: studioName }, new Date()) : undefined;
-}
-
 export interface LearningRedesignProps extends DesignProps {
-  design: RedesignId;
-  viewAs: ViewAs | null;
   authTrainer: Trainer | null;
 }
 
-export function LearningRedesign({ design, viewAs, authTrainer, ...props }: LearningRedesignProps) {
+export function LearningRedesign({ authTrainer, ...props }: LearningRedesignProps) {
   const { isAdmin } = useActiveStudio();
   const { studioId, studioName } = props;
   const uid = auth.currentUser?.uid ?? null;
@@ -59,28 +42,25 @@ export function LearningRedesign({ design, viewAs, authTrainer, ...props }: Lear
   const isHeadOffice = Boolean(isAdmin);
   const name = authTrainer?.fullName ?? "";
   const viewer = useMemo<VaultViewer>(
-    () => viewerFor({ uid, name, canStrike, canNote, isHeadOffice }, viewAs),
-    [uid, name, canStrike, canNote, isHeadOffice, viewAs],
+    () => ({ uid, name, canStrike, canNote, isHeadOffice }),
+    [uid, name, canStrike, canNote, isHeadOffice],
   );
 
-  // One sandbox per studio: made the first time, and again only when the
-  // studio changes (a lazy ref, so a design switch keeps every mark).
+  // One store per studio: made the first time, and again only when the
+  // studio changes (a lazy ref).
   const studioKey = studioId ?? "";
-  const sandbox = useRef<{ studioKey: string; store: MarkupStore } | null>(null);
-  if (sandbox.current === null || sandbox.current.studioKey !== studioKey) {
-    sandbox.current = {
-      studioKey,
-      store: createSandboxStore(sandboxSeed(studioId, studioName, import.meta.env.DEV)),
-    };
+  const held = useRef<{ studioKey: string; store: MarkupStore } | null>(null);
+  if (held.current === null || held.current.studioKey !== studioKey) {
+    held.current = { studioKey, store: createSandboxStore() };
   }
-  const store = sandbox.current.store;
+  const store = held.current.store;
 
   const studio = useMemo(() => ({ id: studioId, name: studioName }), [studioId, studioName]);
 
   return (
     // Keyed by the studio: another studio's version starts on its own lens.
-    <VaultProvider key={studioKey} store={store} studio={studio} viewer={viewer}>
-      <LazyDesign design={design} {...props} />
+    <VaultProvider key={studioKey} store={store} studio={studio} viewer={viewer} markup={MARKUP_ON}>
+      <LazyMix {...props} />
     </VaultProvider>
   );
 }

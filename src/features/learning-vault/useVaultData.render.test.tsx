@@ -91,7 +91,10 @@ vi.mock("./quiz/bank", () => ({ questionBank: builds.bank }));
 vi.mock("./playbooks", () => ({
   PILLARS: [{ id: "floor", title: "The floor and the protocol", blurb: "" }],
   PLAYBOOKS: [],
+  SHOWN_PLAYBOOKS: [],
+  PLAYBOOKS_DECK_SHOWN: false,
   TRACKS: [],
+  shownTracks: () => [],
 }));
 
 import { useVaultData, type VaultData } from "./useVaultData";

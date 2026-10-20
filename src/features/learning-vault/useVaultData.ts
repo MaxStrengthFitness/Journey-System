@@ -91,7 +91,7 @@ import { buildEntityIndex, type EntityIndex } from "./entities";
 import { floorCareOf, type VaultCare } from "./floor-care";
 import { buildVaultGraph, type GraphIndexFile } from "./graph";
 import graphIndexJson from "./graph-index.json";
-import { PILLARS, PLAYBOOKS, TRACKS } from "./playbooks";
+import { PILLARS, PLAYBOOKS_DECK_SHOWN, SHOWN_PLAYBOOKS, TRACKS, shownTracks } from "./playbooks";
 import { questionBank } from "./quiz/bank";
 import type { PillarId, PlaybookPage, QuizQuestion, Track, VaultGraph } from "./types";
 
@@ -155,6 +155,13 @@ const GRAPH_INDEX = graphIndexJson as unknown as GraphIndexFile;
 /** One empty list, so the data object keeps its identity while the machine chunks are on their way. */
 const NO_MACHINES: AcademyMachine[] = [];
 const DEFS: Record<string, MachineCatalogEntry> = MACHINE_DEFINITIONS;
+/**
+ * Only the playbooks head office has read, and the paths without the steps
+ * to the rest (playbooks/index.ts, AJ, Oct 20 2026). Everything below reads
+ * these, so a hidden playbook is in no shelf, path, map or quiz door.
+ */
+const PLAYBOOKS = SHOWN_PLAYBOOKS;
+const TRACKS_SHOWN = shownTracks(TRACKS, SHOWN_PLAYBOOKS, PLAYBOOKS_DECK_SHOWN);
 
 /** A key that changes only when a machine's id or name does, so a new array with the same machines rebuilds nothing. */
 function namesKeyOf(machines: readonly { id?: string; name?: string }[]): string {
@@ -342,7 +349,16 @@ export function useVaultData(opts: { studioId: string | null; machines: Machine[
   const quizBank = useMemo<QuizQuestion[] | null>(() => {
     if (!glossary || !cues || !scripts || !cards) return null;
     // The playbooks let a question drawn from docs/business open the page written from it.
-    return questionBank({ glossary, cues, scripts, cards, defs: DEFS, names: standardNames, playbooks: PLAYBOOKS });
+    return questionBank({
+      glossary,
+      cues,
+      scripts,
+      cards,
+      defs: DEFS,
+      names: standardNames,
+      playbooks: PLAYBOOKS,
+      floorDeck: PLAYBOOKS_DECK_SHOWN,
+    });
   }, [glossary, cues, scripts, cards, standardNames]);
 
   return useMemo<VaultData>(
@@ -363,7 +379,7 @@ export function useVaultData(opts: { studioId: string | null; machines: Machine[
       entities,
       graph,
       playbooks: PLAYBOOKS,
-      tracks: TRACKS,
+      tracks: TRACKS_SHOWN,
       pillars: PILLARS,
       quizBank,
       floorState,

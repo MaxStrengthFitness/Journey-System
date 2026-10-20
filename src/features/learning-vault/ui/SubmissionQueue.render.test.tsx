@@ -203,7 +203,7 @@ async function mount(opts: {
     root.render(
       <UnsavedChangesProvider>
         <Door onLeft={opts.onLeft ?? (() => {})} />
-        <VaultProvider store={store} studio={{ id: null, name: "Head office" }} viewer={opts.viewer ?? HEAD_OFFICE} now={() => NOW}>
+        <VaultProvider markup store={store} studio={{ id: null, name: "Head office" }} viewer={opts.viewer ?? HEAD_OFFICE} now={() => NOW}>
           <SubmissionQueue onOpen={onOpen} totalStudios={opts.totalStudios} />
         </VaultProvider>
       </UnsavedChangesProvider>,

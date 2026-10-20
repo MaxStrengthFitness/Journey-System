@@ -17,17 +17,9 @@ import { LearningHome } from "./LearningHome";
 import { LearningSearch } from "./LearningSearch";
 import { canWriteStudioPages } from "./permissions";
 import type { LearningRef } from "./ref";
-import type { LearningDesign } from "../learning-vault/types";
-import { DesignSwitcher } from "../learning-redesign/DesignSwitcher";
+import { TodayStrip } from "./TodayStrip";
 import { LearningRedesign } from "../learning-redesign/LearningRedesign";
-import {
-  mayPickPrototypes,
-  naturalViewAs,
-  rememberDesign,
-  rememberedDesign,
-  shownDesign,
-  type ViewAs,
-} from "../learning-redesign/design";
+import { onlyOnToday, type TodayDoor } from "../learning-redesign/today-door";
 import "./learning.css";
 
 /**
@@ -66,21 +58,25 @@ import "./learning.css";
  * OUTSIDE the tab (`jump`) does not ask again: AppContent's openLearning asked
  * before it set it.
  *
- * THE PROTOTYPE BAR (the Learning vault redesign, Oct 19 2026, this branch)
+ * THE MIX, AND A DOOR TO TODAY'S PAGES (the Mix for everyone, Oct 20 2026)
  * -------------------------------------------------------------------------
- * A strip above the masthead picks the Mix (the prototype), or today's
- * Learning ("Current", the default, so nothing changes for anyone who never
- * taps it). Only an administrator or the founder sees it, or anyone on a
- * development build (mayPickPrototypes): a trainer never does, and is on
- * today's Learning whatever the iPad last picked (review fix, Oct 19 2026).
- * With a prototype on, LearningRedesign is drawn in place of the three
- * sections, inside the same comments and masthead, and every door
- * above that would open a page here (search, a jump from outside) hands the
- * design that page as its `jump` instead. Picking a design or "View as" asks
- * the gate first and changes only inside the answer, like every door. The
- * Learning title on the Overview, or the section already on, asks too and
- * then sends the design `resetSignal` + 1: back to that section's front page
- * (today's Learning has nothing to do there, so it is unchanged).
+ * AJ, Oct 20 2026: "Switch everyone to the Mix now, with a door on each page
+ * to today's Learning for the studio tools, and move them in later." So
+ * every trainer opens on the Mix (LearningRedesign), drawn in place of the
+ * three sections inside the same comments and masthead; there is no picker
+ * and no "View as". A Mix page whose counterpart here holds a studio tool
+ * the Mix lacks (a machine's floor notes and set-up, the drawn floor, the
+ * studio's own pages, comments; learning-redesign/today-door.ts) carries
+ * one door; it asks the gate first and opens today's page in place, under
+ * TodayStrip, whose Back to Learning asks too and goes back to the Mix page
+ * the door was on.
+ *
+ * Every door into a page: search inside the tab stays where the trainer is
+ * (the Mix, or today's pages); a jump from OUTSIDE the tab (the bell, a
+ * note, an announcement) always opens the Mix, except a studio's own page,
+ * which only today's Academy draws (onlyOnToday). The Learning title on the
+ * Overview, or the section already on, sends the Mix `resetSignal` + 1:
+ * back to that section's front page.
  */
 
 export type LearningViewId = "learning" | "machine-anatomy" | "academy";
@@ -105,13 +101,8 @@ export interface LearningViewProps {
    * Arrange the floor.
    */
   onOpenFloorEditor?: (view?: "map" | "list" | "arrange") => void;
-  /**
-   * The prototype the tab opens on (the redesign's harness). Absent: the one
-   * last picked on this iPad, else today's Learning.
-   */
-  initialDesign?: LearningDesign;
-  /** Who a prototype reads as at first (the harness). Absent: the real viewer. */
-  initialViewAs?: ViewAs | null;
+  /** Opens on today's pages rather than the Mix (a harness, a test). Absent: the Mix. */
+  initialToday?: boolean;
 }
 
 export function LearningView({
@@ -123,10 +114,9 @@ export function LearningView({
   jump,
   onJumpHandled,
   onOpenFloorEditor,
-  initialDesign,
-  initialViewAs = null,
+  initialToday = false,
 }: LearningViewProps) {
-  const { activeStudioId, activeStudio, isAdmin } = useActiveStudio();
+  const { activeStudioId, activeStudio } = useActiveStudio();
 
   const [catalogJump, setCatalogJump] = useState<string | null>(null);
   const [catalogGroup, setCatalogGroup] = useState<string | null>(null);
@@ -134,19 +124,17 @@ export function LearningView({
   const [academyJump, setAcademyJump] = useState<AcademyJump | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  /* The prototype bar: who may see it, which Learning, as whom, and the page
-     a prototype is asked to open (its own `jump`, cleared once it has opened
-     it). */
-  const showPrototypes = mayPickPrototypes({ isAdmin, dev: import.meta.env.DEV });
-  const [picked, setDesign] = useState<LearningDesign>(() => initialDesign ?? rememberedDesign() ?? "current");
-  // Through the gate at every render: someone who may not pick is on
-  // today's Learning whatever was picked, and an administrator whose role
-  // arrives a moment late still gets theirs.
-  const design: LearningDesign = shownDesign(showPrototypes, picked);
-  const [viewAs, setViewAs] = useState<ViewAs | null>(initialViewAs);
+  /* Today's pages are on (a door was taken), and the section the Mix was on
+     when it went: the Mix stays MOUNTED, hidden, on that section (review,
+     Oct 20 2026), so Back to Learning finds it exactly as it was left, its
+     trail, its tier and its scroll, and nothing is rebuilt on a slow iPad
+     between clients. The page the Mix is asked to open is its own `jump`,
+     cleared once it has opened it. */
+  const [today, setToday] = useState(initialToday);
+  const [mixSection, setMixSection] = useState<LearningViewId | null>(null);
   const [designJump, setDesignJump] = useState<LearningRef | null>(null);
   const clearDesignJump = useCallback(() => setDesignJump(null), []);
-  /* A prototype asked back to its section's front page while already in the
+  /* The Mix asked back to its section's front page while already in the
      section (the title on the Overview, or the section already on): it goes
      up by one inside the leave gate's answer (DesignProps.resetSignal). */
   const [designReset, setDesignReset] = useState(0);
@@ -190,14 +178,64 @@ export function LearningView({
     [leave],
   );
 
-  /** Opens a page, without asking: for a jump someone has already asked about. */
-  const openRefNow = useCallback(
+  /** Today's pages at a door, without asking (the caller asked). */
+  const showToday = useCallback(
+    (door: TodayDoor) => {
+      setSearchOpen(false);
+      setToday(true);
+      setDesignJump(null);
+      setCatalogGroup(null);
+      setCatalogScope(null);
+      if (door.kind === "catalog") {
+        setCatalogJump(null);
+        onViewChange("machine-anatomy");
+      } else if (door.kind === "academy") {
+        setAcademyJump(null);
+        onViewChange("academy");
+      } else if (door.kind === "machine") {
+        setCatalogJump(door.id);
+        onViewChange("machine-anatomy");
+      } else {
+        setAcademyJump({ ref: door });
+        onViewChange("academy");
+      }
+    },
+    [onViewChange],
+  );
+
+  /** The Mix at a page, without asking: a fresh visit there. */
+  const showMix = useCallback(
     (ref: LearningRef) => {
       setSearchOpen(false);
-      if (design !== "current") {
-        // A prototype opens the page itself; the masthead moves to its section.
-        setDesignJump(ref);
-        onViewChange(ref.kind === "machine" ? "machine-anatomy" : "academy");
+      setToday(false);
+      setMixSection(null);
+      setCatalogJump(null);
+      setCatalogGroup(null);
+      setCatalogScope(null);
+      setAcademyJump(null);
+      setDesignJump(ref);
+      // The Mix opens the page itself; the masthead moves to its section.
+      onViewChange(ref.kind === "machine" ? "machine-anatomy" : "academy");
+    },
+    [onViewChange],
+  );
+
+  /**
+   * Opens a page, without asking: for a jump someone has already asked
+   * about. Inside the tab (search) it stays on whichever Learning is on;
+   * from outside it is the Mix. A studio's own page is today's only.
+   */
+  const openRefNow = useCallback(
+    (ref: LearningRef, from: "inside" | "outside") => {
+      setSearchOpen(false);
+      if (onlyOnToday(ref)) {
+        // The Mix waits where it is, for Back to Learning.
+        if (!today) setMixSection(view);
+        showToday(ref);
+        return;
+      }
+      if (!today || from === "outside") {
+        showMix(ref);
         return;
       }
       if (ref.kind === "machine") {
@@ -208,21 +246,47 @@ export function LearningView({
         onViewChange("academy");
       }
     },
-    [design, onViewChange],
+    [today, view, onViewChange, showToday, showMix],
   );
 
   /** The one door into a page, from inside the tab. */
   const openRef = useCallback(
-    (ref: LearningRef) => through(() => openRefNow(ref)),
+    (ref: LearningRef) => through(() => openRefNow(ref, "inside")),
     [through, openRefNow],
   );
 
   // From outside the tab: AppContent's openLearning asked before it set this.
   useEffect(() => {
     if (!jump) return;
-    openRefNow(jump);
+    openRefNow(jump, "outside");
     onJumpHandled();
   }, [jump, openRefNow, onJumpHandled]);
+
+  /* A Mix page's door to today's page, and today's Back to Learning: each
+     asks the gate first and changes only inside the answer. Back unhides
+     the Mix on the section it was on, exactly as it was left. */
+  const openToday = useCallback(
+    (door: TodayDoor) =>
+      through(() => {
+        setMixSection(view);
+        showToday(door);
+      }),
+    [through, showToday, view],
+  );
+  const backToLearning = useCallback(
+    () =>
+      through(() => {
+        setSearchOpen(false);
+        setToday(false);
+        setCatalogJump(null);
+        setCatalogGroup(null);
+        setCatalogScope(null);
+        setAcademyJump(null);
+        if (mixSection) onViewChange(mixSection);
+        setMixSection(null);
+      }),
+    [through, mixSection, onViewChange],
+  );
 
   const openCatalog = useCallback(
     (groupKey?: string) =>
@@ -242,26 +306,6 @@ export function LearningView({
     [through, onViewChange],
   );
 
-  /* The bar's two picks. Each asks the gate first (a design or a role that
-     goes away takes its open forms with it) and changes only inside the
-     answer. A jump not yet honoured is dropped with the Learning it was
-     meant for, so it can never fire later in another one. */
-  const pickDesign = useCallback(
-    (next: LearningDesign) =>
-      through(() => {
-        setDesign(next);
-        rememberDesign(next);
-        setDesignJump(null);
-        setCatalogJump(null);
-        setCatalogGroup(null);
-        setCatalogScope(null);
-        setAcademyJump(null);
-      }),
-    [through],
-  );
-  const pickViewAs = useCallback((next: ViewAs) => through(() => setViewAs(next)), [through]);
-  const shownViewAs = viewAs ?? naturalViewAs({ canStrike: canWritePages, isHeadOffice: Boolean(isAdmin) });
-
   const sections = useMemo<WikiSectionsValue>(
     () => ({
       title: "Learning",
@@ -273,8 +317,8 @@ export function LearningView({
       ],
       active: view,
       onSelect: (id) => {
-        // A prototype deep in this section's trail goes back to its root.
-        if (design !== "current" && id === view) {
+        // The Mix deep in this section's trail goes back to its root.
+        if (!today && id === view) {
           through(() => setDesignReset((n) => n + 1));
           return;
         }
@@ -282,7 +326,7 @@ export function LearningView({
         onViewChange(id as LearningViewId);
       },
       onHome: () => {
-        if (design !== "current" && view === "learning") {
+        if (!today && view === "learning") {
           through(() => setDesignReset((n) => n + 1));
           return;
         }
@@ -292,24 +336,22 @@ export function LearningView({
       onSearch: () => setSearchOpen(true),
       searchLabel: "Search Learning",
     }),
-    [view, onViewChange, design, through],
+    [view, onViewChange, today, through],
   );
 
   return (
     <CommentsProvider value={comments}>
     <WikiSectionsProvider value={sections}>
-      {showPrototypes && (
-        <DesignSwitcher design={design} onDesign={pickDesign} viewAs={shownViewAs} onViewAs={pickViewAs} />
-      )}
+      {today && <TodayStrip onBack={backToLearning} />}
       {/* Hidden, not unmounted, while search is open: closing search returns
           the trainer to the page they left, not to its section's index. */}
       <div className={searchOpen ? "lv__stash" : "lv__pass"}>
-        {design !== "current" ? (
+        {/* The Mix, mounted always; hidden (not unmounted) under today's
+            pages, held on the section it was on when a door was taken. */}
+        <div className={today ? "lv__stash" : "lv__pass"} data-mix={today ? "waiting" : "on"}>
           <LearningRedesign
-            design={design}
-            viewAs={viewAs}
             authTrainer={authTrainer}
-            section={view}
+            section={today ? (mixSection ?? view) : view}
             onSection={onViewChange}
             machines={machines}
             studioId={activeStudioId}
@@ -317,8 +359,10 @@ export function LearningView({
             jump={designJump}
             onJumpHandled={clearDesignJump}
             resetSignal={designReset}
+            onOpenToday={openToday}
           />
-        ) : (
+        </div>
+        {today && (
           <>
             {view === "learning" && (
               <LearningHome

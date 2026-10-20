@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import type { LearningRef } from "../../learning/ref";
 import type { LearningViewId } from "../../learning/LearningView";
 import type { VaultViewer } from "../../learning-vault/types";
+import type { TodayDoor } from "../today-door";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -129,11 +130,20 @@ let root: Root;
 const handled = vi.fn();
 const sectionChanges = vi.fn();
 
-function app(props: { section: LearningViewId; jump?: LearningRef | null; viewer?: VaultViewer; resetSignal?: number }) {
+function app(props: {
+  section: LearningViewId;
+  jump?: LearningRef | null;
+  viewer?: VaultViewer;
+  resetSignal?: number;
+  /** Lines can be marked (true unless given); false is the live Mix (markup-on.ts). */
+  markup?: boolean;
+  /** LearningView's door to today's pages; absent, the Mix draws no doors. */
+  onOpenToday?: (door: TodayDoor) => void;
+}) {
   const store = createSandboxStore(sampleSeed(STUDIO, new Date("2026-10-19T12:00:00Z")));
   return (
     <UnsavedChangesProvider>
-      <VaultProvider store={store} studio={STUDIO} viewer={props.viewer ?? LEADER}>
+      <VaultProvider store={store} studio={STUDIO} viewer={props.viewer ?? LEADER} markup={props.markup ?? true}>
         <CodexLearning
           section={props.section}
           onSection={sectionChanges}
@@ -143,6 +153,7 @@ function app(props: { section: LearningViewId; jump?: LearningRef | null; viewer
           jump={props.jump ?? null}
           onJumpHandled={handled}
           resetSignal={props.resetSignal}
+          onOpenToday={props.onOpenToday}
         />
       </VaultProvider>
     </UnsavedChangesProvider>
@@ -736,5 +747,121 @@ describe("the Mix", () => {
     await click(host.querySelector(".vtb__row"));
     expect(document.querySelector(".vtp")).toBeTruthy();
     expect(title()).toBe("LEG PRESS");
+  });
+});
+
+/*
+ * The Mix as every trainer gets it (Oct 20 2026). AJ: "markup hidden until
+ * its own Firestore round" and "playbooks hidden until head office reads
+ * them". The sample marks stay in the store here on purpose: even with marks
+ * in it, nothing of them, and no way to make one, may show.
+ */
+describe("the live Mix", () => {
+  const HEAD_OFFICE: VaultViewer = { ...LEADER, isHeadOffice: true };
+
+  it("a line is plain reading: no tap, no hint, no version switch, no marks, even for head office", async () => {
+    try {
+      localStorage.removeItem(LINE_HINT_KEY);
+    } catch {
+      /* no storage in this run */
+    }
+    resetLineHint();
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" }, viewer: HEAD_OFFICE, markup: false });
+    expect(title()).toBe("LEG PRESS");
+    expect(all("[data-vta-line]").length).toBeGreaterThan(0);
+    expect(all("[data-vta-line]").every((l) => l.hasAttribute("data-plain"))).toBe(true);
+    expect(all(".vta__toggle")).toHaveLength(0);
+    expect(all(".vta__tap-hint")).toHaveLength(0);
+    expect(host.querySelector(".cdx__version")).toBeNull();
+    expect(button("MSF original")).toBeUndefined();
+    expect(all(".vta__struck")).toHaveLength(0);
+    expect(all(".vta__notes")).toHaveLength(0);
+    expect(all(".vta__gutter")).toHaveLength(0);
+    // A tap on a line opens nothing.
+    await click(host.querySelector(".cdx__tierpanel [data-vta-line]"));
+    expect(all(".vta__panel")).toHaveLength(0);
+    expect(text()).not.toContain("Tell head office");
+    expect(text()).not.toContain("Ask in Teams");
+  });
+
+  it("head office has no queue's door: nothing can be sent to it", async () => {
+    await mount({ section: "learning", viewer: HEAD_OFFICE, markup: false });
+    expect(text()).not.toContain("Waiting for review");
+  });
+
+  it("with no playbook read by head office: no Playbooks shelf, no playbook step on a path, no playbooks deck", async () => {
+    const { shownTracks, TRACKS } = await import("../../learning-vault/playbooks");
+    knobs.__codexData = { playbooks: [], tracks: shownTracks(TRACKS, [], false), quizBank: null };
+    await mount({ section: "academy", markup: false });
+    expect(host.querySelector("#cdx-playbooks")).toBeNull();
+    expect(text()).not.toContain("A draft from Journey's notes");
+    expect(text()).not.toContain("The twenty minutes");
+    expect(button("The floor and the conversation")).toBeUndefined();
+    // The paths are still there, without their playbook steps.
+    expect(text()).toContain("Life Transformer 101");
+  });
+});
+
+/*
+ * The doors to today's Learning (Oct 20 2026). AJ: "Switch everyone to the
+ * Mix now, with a door on each page to today's Learning for the studio
+ * tools, and move them in later."
+ */
+describe("the doors to today's Learning", () => {
+  const doors = vi.fn();
+  beforeEach(() => doors.mockReset());
+  const door = (words: string) => button(words) ?? Array.from(host.querySelectorAll<HTMLButtonElement>(".cdx__today button")).find((b) => (b.textContent ?? "").includes(words));
+
+  it("a machine page has one, under its title, for the floor notes, the set-up and the history", async () => {
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" }, markup: false, onOpenToday: doors });
+    expect(title()).toBe("LEG PRESS");
+    const d = door("Floor notes, set-up and history");
+    expect(d).toBeTruthy();
+    expect(d!.closest(".cdx__head")).toBeTruthy();
+    await click(d);
+    expect(doors).toHaveBeenCalledWith({ kind: "machine", id: "m-leg-press" });
+  });
+
+  it("a machine not on this floor has none: today's Catalog would open it on All MSF machines, with no studio tools", async () => {
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-lumbar" }, markup: false, onOpenToday: doors });
+    expect(title()).not.toBe("");
+    expect(all(".cdx__today")).toHaveLength(0);
+    // Nor while the floor is unknown (still reading, or unreadable).
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    knobs.__codexData = { floor: null };
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" }, markup: false, onOpenToday: doors });
+    expect(all(".cdx__today")).toHaveLength(0);
+  });
+
+  it("the Catalog's front has one for the drawn floor, and the Academy's for the studio's own pages", async () => {
+    await mount({ section: "machine-anatomy", markup: false, onOpenToday: doors });
+    await click(door("Floor plan and body view"));
+    expect(doors).toHaveBeenLastCalledWith({ kind: "catalog" });
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await mount({ section: "academy", markup: false, onOpenToday: doors });
+    await click(door("Studio pages"));
+    expect(doors).toHaveBeenLastCalledWith({ kind: "academy" });
+  });
+
+  it("a topic has one for its comments", async () => {
+    await mount({
+      section: "academy",
+      jump: { kind: "academy-topic", id: "performance-speed-of-movement" },
+      markup: false,
+      onOpenToday: doors,
+    });
+    await click(door("Comments"));
+    expect(doors).toHaveBeenCalledWith(expect.objectContaining({ kind: "academy-topic", id: "performance-speed-of-movement" }));
+  });
+
+  it("the Overview has none, and no page has one when no door is given", async () => {
+    await mount({ section: "learning", markup: false, onOpenToday: doors });
+    expect(all(".cdx__today")).toHaveLength(0);
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await mount({ section: "machine-anatomy", jump: { kind: "machine", id: "m-leg-press" }, markup: false });
+    expect(all(".cdx__today")).toHaveLength(0);
   });
 });
