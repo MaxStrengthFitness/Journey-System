@@ -18,8 +18,9 @@
  * office queue. Whether a studio may cross out the Academy's own words is
  * decided with that round.
  *
- * The vault's own tests mount VaultProvider with markup on (its default), so
- * the parts stay held for the day this turns on.
+ * VaultProvider's `markup` is required, so no mount can forget it; the
+ * vault's own tests pass it on, so the parts stay held for the day this
+ * turns on.
  *
  * PURE MODULE: one constant.
  */

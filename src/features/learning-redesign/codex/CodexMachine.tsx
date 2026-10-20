@@ -21,7 +21,7 @@ import type { VaultPage, VaultRoute, VaultSection } from "../../learning-vault/t
 import type { MachineCatalogEntry } from "../../../types/machines";
 import { useCodex } from "./codex-context";
 import { PIECE_WORDS, bentoFacts, machineAccent, machineLayers, readNextOf, type CodexLayer } from "./codex-model";
-import { ArticleFoot, Blocks, DeeperDoor, PageHead, TierBar, useLayer, useVersionSlot } from "./CodexBits";
+import { ArticleFoot, Blocks, DeeperDoor, PageHead, TierBar, TodayDoorButton, useLayer, useVersionSlot } from "./CodexBits";
 import { CodexFrame, CodexGone, CodexWaiting } from "./CodexFrame";
 import "./codex.css";
 
@@ -133,6 +133,7 @@ function MachineArticle({ page, machineId, wanted }: { page: VaultPage; machineI
               <FloorStatus status={care} variant="banner" />
             </div>
           )}
+          <TodayDoorButton route={page.route} />
           {inline}
         </PageHead>
 

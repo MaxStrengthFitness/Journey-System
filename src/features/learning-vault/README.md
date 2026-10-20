@@ -16,10 +16,29 @@ so whichever one AJ picks, the behaviour is the same and only the furniture
 changes.
 
 **Nothing here reads or writes Firestore.** Every mark, note and submission goes
-to an in-memory sandbox store (`markup-store.ts`), seeded with sample marks
-(`sample.ts`) so a fresh prototype shows what markup looks like. The local
-`.env` points at production, so a prototype that wrote would write real
-records. Persisting is a separate round, after AJ picks (below).
+to an in-memory sandbox store (`markup-store.ts`); the sample marks
+(`sample.ts`) are for the tests and the harness. The local `.env` points at
+production, so a prototype that wrote would write real records. Persisting is a
+separate round (below).
+
+**The Mix for everyone (Oct 20 2026).** AJ picked the Mix and it is every
+trainer's Learning (`docs/rounds/2026-10-20-mix-for-everyone.md`), with two
+parts of this folder held back:
+
+- **Marking is off** (`markup-on.ts`, `MARKUP_ON = false`; AJ: "markup hidden
+  until its own Firestore round, cross-outs decided then"). `VaultProvider`
+  carries `markup` (required, so a mount that forgets it fails the typecheck;
+  these tests pass it on and still hold every rule); off, `ArticleBlocks` draws a line as plain words (no tap,
+  no hint, no gutter, `data-plain`), `useAppliedMarkup` lays no mark on any
+  line whatever the store holds, and the Mix draws no version switch and no
+  head office queue door. "Ask in Teams" goes too: its link opens a page only
+  once the Teams link round is live.
+- **A playbook shows only once head office has read it** (AJ: "playbooks
+  hidden until head office reads them"). `PlaybookPage.status` is `"draft"`
+  or `"read"`; `SHOWN_PLAYBOOKS` is the read ones (none yet), and
+  `useVaultData` builds the shelves, the paths (`shownTracks`), the graph, the
+  map and the quiz from them alone. The playbooks deck waits with them
+  (`PLAYBOOKS_DECK_SHOWN`; `questionBank`'s `floorDeck`).
 
 ## The parts
 

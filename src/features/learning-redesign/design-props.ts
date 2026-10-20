@@ -1,11 +1,11 @@
 /**
- * WHAT EVERY DESIGN IS GIVEN — the Learning vault redesign, Oct 19 2026.
+ * WHAT THE MIX IS GIVEN — the Learning vault redesign, Oct 19 2026; every
+ * trainer's Learning since Oct 20 2026.
  *
- * The prototype (the Mix: the Tactical Codex with the Course's lessons and the
- * Vault's map as a lens) mounts in the same place with the same props, inside
- * the same VaultProvider (studio markup, the viewer, the lens) and the same
- * masthead (LearningView's Overview / Catalog / Academy switch). A design is
- * a layout of shared pages, never a second copy of their words or rules.
+ * The Mix (the Tactical Codex with the Course's lessons and the Vault's map
+ * as a lens) mounts inside the VaultProvider (studio markup, the viewer, the
+ * lens) and LearningView's masthead (Overview / Catalog / Academy). It is a
+ * layout of shared pages, never a second copy of their words or rules.
  *
  * PURE MODULE: types only.
  */
@@ -13,6 +13,7 @@
 import type { Machine } from "../../types";
 import type { LearningRef } from "../learning/ref";
 import type { LearningViewId } from "../learning/LearningView";
+import type { TodayDoor } from "./today-door";
 
 export interface DesignProps {
   /** The masthead's section: Overview ("learning"), Catalog ("machine-anatomy"), Academy ("academy"). */
@@ -36,4 +37,10 @@ export interface DesignProps {
    * means anything; the first value (absent, or 0) asks for nothing.
    */
   resetSignal?: number;
+  /**
+   * Opens today's Learning at a door (today-door.ts), for the studio's tools
+   * the Mix does not have yet. LearningView asks the leave gate first.
+   * Absent (a harness, a test): the Mix draws no doors.
+   */
+  onOpenToday?: (door: TodayDoor) => void;
 }

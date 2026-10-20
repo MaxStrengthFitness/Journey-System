@@ -14,7 +14,7 @@
  *   clinical and substitutes), a line tapped on the Leg Press, a concept
  *   card and a nested one, the peek (from the bento's quick card and from a
  *   concept card), the quick card opened as its own page, a topic's "Say
- *   it" tier, the MSF original, a path, the glossary's word entry, two quiz
+ *   it" tier, a path, the glossary's word entry, two quiz
  *   questions, and head office's queue. Then the judges' last fixes
  *   (Oct 19 2026): CX out of service under its title, the Leg Press's
  *   flag in a substitute's peek, and the switch staying put on "MSF
@@ -37,11 +37,13 @@ const NEXT = (n) => Array.from({ length: n }, () => [{ tapSelector: ".vtl__deck-
 
 export const steps = [
   // The showpiece: each depth of the Leg Press.
+  // The Mix for everyone (Oct 20 2026): a machine's door to today's page, the
+  // strip over it, and Back to Learning.
+  { name: "today-door", query: MACHINE, actions: [{ tap: "Floor notes, set-up and history" }, { wait: 800 }] },
+  { name: "today-back", query: MACHINE, actions: [{ tap: "Floor notes, set-up and history" }, { wait: 800 }, { tap: "Back to Learning" }, { wait: 800 }] },
   { name: "machine-tier2", query: MACHINE, actions: [{ tapSelector: TIER(2) }, { wait: 500 }] },
   { name: "machine-tier3", query: MACHINE, actions: [{ tapSelector: TIER(3) }, { wait: 500 }] },
   { name: "machine-tier4", query: MACHINE, actions: [{ tapSelector: TIER(4) }, { wait: 500 }] },
-  // A line on the Leg Press, tapped: its actions open in place.
-  { name: "line-tapped", query: MACHINE, actions: [{ tapSelector: TIER(2) }, { wait: 400 }, { tapSelector: `.cdx__tierpanel ${LINE}` }, { wait: 400 }] },
   // A concept card, and a card inside it.
   { name: "concept-card", query: TOPIC, actions: [{ tapSelector: `.cdx__tierpanel ${TERM}` }, { wait: 500 }] },
   {
@@ -59,8 +61,6 @@ export const steps = [
   },
   // A topic's middle layer: the phrasebook's lines that use its words.
   { name: "topic-say-it", query: TOPIC, actions: [{ tap: "Say it" }, { wait: 500 }] },
-  // The MSF original, one tap away.
-  { name: "msf-original", query: MACHINE, actions: [{ tap: "MSF original" }, { wait: 400 }, { tapSelector: TIER(4) }, { wait: 400 }] },
   // A path, from the Overview.
   { name: "path", query: "&view=learning", actions: [{ tap: "Start Life Transformer 101" }, { wait: 500 }] },
   // A glossary word as its own entry.
@@ -80,9 +80,6 @@ export const steps = [
       { wait: 500 },
     ],
   },
-  // Head office's door and its queue.
-  { name: "head-office-home", query: "&view=learning&viewAs=head-office", actions: [{ wait: 300 }] },
-  { name: "head-office-queue", query: "&view=learning&viewAs=head-office", actions: [{ tap: "Waiting for review" }, { wait: 600 }] },
   // A phrasebook moment as its own entry, from the phrasebook's contents.
   { name: "cue-moment", query: `&view=academy&ref=${enc({ kind: "academy-cueing" })}`, actions: [{ tap: "where the stack does not touch" }, { wait: 500 }] },
   // Tier 3's clinical flag, peeked, from the machine's bento.
@@ -112,12 +109,6 @@ export const steps = [
   // The Overview's drill of the day, asked and then answered.
   { name: "mix-drill-of-the-day", query: "&view=learning", actions: [{ wait: 400 }] },
   { name: "mix-drill-of-the-day-revealed", query: "&view=learning", actions: [{ tap: "Show the Academy's lines" }, { wait: 700 }] },
-  // A medium trail, then the MSF original: the switch stays where it was.
-  {
-    name: "path-machine-original",
-    query: "&view=learning",
-    actions: [{ tap: "Start Life Transformer 101" }, { wait: 500 }, { tap: "Leg Press" }, { wait: 500 }, { tap: "MSF original" }, { wait: 400 }],
-  },
 ];
 
 /** The Codex's own way into the quiz: Quick ten, from the Overview's Play card. */

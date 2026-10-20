@@ -9,12 +9,12 @@
  *   name     the PNG's name: <out>/<design>/step-<name>.png (+ -tall.png)
  *   query    what follows "?design=<design>&theme=light" in the address
  *            (main.tsx lists the parameters: &view, &machine, &ref, &role,
- *            &viewAs, ...)
+ *            ...)
  *   actions  run in order after the page has settled:
  *              { tap: "words" }          the first button / link / [role=button]
  *                                        whose aria-label or words match (exact
  *                                        first, then "includes"; the page before
- *                                        the prototype bar)
+ *                                        the strip on today's pages)
  *              { tapSelector: "css" }    the first VISIBLE element matching a CSS
  *                                        selector (a list "a, b" is fine)
  *              { type: "words", into: "css" }   types into a field (React sees it)
@@ -37,7 +37,6 @@ export const TERM = "[data-vault-term], .vtc__term";
 
 /** The three interactions every design starts with. */
 export const common = () => [
-  { name: "line-tapped", query: MACHINE, actions: [{ tapSelector: LINE }, { wait: 400 }] },
   { name: "concept-card", query: TOPIC, actions: [{ tapSelector: TERM }, { wait: 500 }] },
   { name: "peek-sheet", query: TOPIC, actions: [{ tapSelector: TERM }, { wait: 400 }, { tap: "Peek" }, { wait: 600 }] },
 ];

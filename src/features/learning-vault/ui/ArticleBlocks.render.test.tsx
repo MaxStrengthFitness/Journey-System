@@ -165,6 +165,7 @@ function tree(opts: MountOpts) {
   return (
     <UnsavedChangesProvider>
       <VaultProvider
+        markup
         store={store}
         studio={SOLON}
         viewer={opts.viewer ?? LEADER}

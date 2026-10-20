@@ -1,6 +1,7 @@
 /**
- * LEARNING, PHOTOGRAPHED: the app's real LearningView with the redesign's
- * prototype bar (the Learning vault redesign, Oct 19 2026), for each design,
+ * LEARNING, PHOTOGRAPHED: the app's real LearningView (the Learning vault
+ * redesign, Oct 19 2026; the Mix for everyone since Oct 20 2026; "current" is
+ * today's pages, under the strip a Mix door opens them with), for each design,
  * from a made-up Solon (sample.ts), with no database (stubs/).
  *
  *   node harness/learning-redesign/shots.mjs [design|all] [--only text] [--port 5251] [--out dir]
@@ -179,8 +180,8 @@ const SCROLLER = `[...document.querySelectorAll(".wk__scroll")].find((s) => s.ge
 async function report(name, vp) {
   const facts = await evaluate(`(() => {
     const doc = document.documentElement;
-    const bar = document.querySelector(".ld");
-    // Rows of the prototype bar: a child starts a row when it sits below the last one.
+    const bar = document.querySelector(".lv__today");
+    // Rows of the strip on today's pages: a child starts a row when it sits below the last one.
     let rows = 0;
     let bottom = -Infinity;
     for (const r of bar ? [...bar.children].map((c) => c.getBoundingClientRect()).sort((a, b) => a.top - b.top) : []) {
@@ -193,7 +194,8 @@ async function report(name, vp) {
   if (facts.sideways) notes.push("SIDEWAYS SCROLL");
   if (facts.rows) notes.push(`bar ${facts.rows} row${facts.rows === 1 ? "" : "s"} ${facts.barH}px`);
   console.log(`  ${name}.png ${vp.width}x${vp.height}${notes.length ? " · " + notes.join(" · ") : ""}`);
-  return facts.rows > 0;
+  // The page was drawn (the caller checked): the Mix has no strip to count.
+  return true;
 }
 
 async function shoot(dir, name, vp) {
@@ -238,7 +240,7 @@ async function act(action) {
       const want = ${JSON.stringify(action.tap)};
       const name = (el) => (el.getAttribute("aria-label") || el.textContent || "").trim();
       const seen = [...document.querySelectorAll("button, a, [role=button]")].filter((el) => el.getClientRects().length > 0);
-      const pagePart = seen.filter((el) => !el.closest(".ld"));
+      const pagePart = seen.filter((el) => !el.closest(".lv__today"));
       const pick =
         pagePart.find((el) => name(el) === want) ?? pagePart.find((el) => name(el).includes(want)) ??
         seen.find((el) => name(el) === want) ?? seen.find((el) => name(el).includes(want));
@@ -318,7 +320,7 @@ try {
       const before = loads;
       for (const a of job.actions) await act(a);
       if (job.actions.length) await sleep(300);
-      const drawn = await evaluate("Boolean(window.__ready && document.querySelector('.ld'))");
+      const drawn = await evaluate("Boolean(window.__ready && document.querySelector('.wk__scroll'))");
       if (drawn && loads === before) {
         let ok = true;
         if (job.flat) ok = (await shoot(dir, job.name, job.vp)) && ok;

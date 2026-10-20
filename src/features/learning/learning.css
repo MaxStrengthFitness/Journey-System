@@ -16,6 +16,52 @@
 .lv__pass { display: contents; }
 .lv__stash { display: none; }
 
+/* The strip on today's Learning (the Mix for everyone, Oct 20 2026;
+   TodayStrip.tsx): on the tray above the masthead, a 44px Back to Learning
+   in the blue of a door, and what this place is for. Words wrap; never cut. */
+.lv__today {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 16px;
+  background: var(--wk-tray);
+  border-bottom: 1px solid var(--wk-divider);
+}
+.lv__today-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--wk-tap);
+  padding: 0 14px;
+  border: 1px solid var(--wk-border-strong);
+  border-radius: 12px;
+  background: var(--wk-raised);
+  box-shadow: var(--wk-elev-1), inset 0 1px 0 var(--wk-highlight);
+  color: var(--wk-live-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.lv__today-back:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--wk-press);
+}
+.lv__today-back:focus-visible {
+  outline: 2px solid var(--wk-focus-ring);
+  outline-offset: 2px;
+}
+.lv__today-words {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wk-ink-2);
+}
+
 /* ------------------------------------------------------------------ *
  * Hero
  * ------------------------------------------------------------------ */

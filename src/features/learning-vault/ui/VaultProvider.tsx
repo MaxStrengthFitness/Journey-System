@@ -66,11 +66,15 @@ export function VaultProvider(props: {
   now?: () => Date;
   newId?: (prefix: string) => string;
   initialLens?: MarkupLens;
-  /** Lines can be marked (markup-on.ts). On unless the caller says otherwise, as the vault's tests mount it. */
-  markup?: boolean;
+  /**
+   * Lines can be marked (markup-on.ts). Required, so a mount that forgets it
+   * fails the typecheck rather than turning marking on: the live Mix passes
+   * MARKUP_ON, a test that holds a marking rule passes true.
+   */
+  markup: boolean;
   children: ReactNode;
 }) {
-  const { store, studio, viewer, now, newId, initialLens, markup = true, children } = props;
+  const { store, studio, viewer, now, newId, initialLens, markup, children } = props;
   const studioId = studio.id || null;
   const studioName = (studio.name ?? "").trim() || "This studio";
 

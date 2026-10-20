@@ -81,7 +81,7 @@ function Queue() {
 async function mount(store: MarkupStore, studio: { id: string | null; name: string }, extra?: { initialLens?: "studio" | "original" }) {
   await act(async () => {
     root.render(
-      <VaultProvider store={store} studio={studio} viewer={VIEWER} initialLens={extra?.initialLens} newId={(p) => `${p}-1`}>
+      <VaultProvider markup store={store} studio={studio} viewer={VIEWER} initialLens={extra?.initialLens} newId={(p) => `${p}-1`}>
         <Lens />
         <LegPress />
         <Cueing />

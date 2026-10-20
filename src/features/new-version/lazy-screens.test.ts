@@ -27,9 +27,10 @@ const EXPECTED: Record<string, string> = {
   // Catalog's map (phase 3), whose Done goes back to the list. Not a
   // session's panel: their words are a screen's, with a Done (where="screen").
   "features/studio-map/lazy.tsx": 'kind="panel" where="screen"',
-  // The Learning vault redesign (Oct 19 2026): the Mix prototype,
-  // fetched the first time it is picked. It replaces the whole
-  // Learning screen under the masthead, so its boundary is a screen's.
+  // The Learning vault redesign (Oct 19 2026): the Mix, every trainer's
+  // Learning since Oct 20 2026, fetched the first time Learning opens. It
+  // replaces the whole Learning screen under the masthead, so its boundary
+  // is a screen's.
   "features/learning-redesign/lazy.tsx": 'kind="screen"',
 };
 

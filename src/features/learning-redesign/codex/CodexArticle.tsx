@@ -31,7 +31,18 @@ import {
   topicCueMoments,
   topicLayers,
 } from "./codex-model";
-import { ArticleFoot, Blocks, DeeperDoor, FactLine, LensSwitch, PageHead, TierBar, useLayer, useVersionSlot } from "./CodexBits";
+import {
+  ArticleFoot,
+  Blocks,
+  DeeperDoor,
+  FactLine,
+  LensSwitch,
+  PageHead,
+  TierBar,
+  TodayDoorButton,
+  useLayer,
+  useVersionSlot,
+} from "./CodexBits";
 import { CodexFrame, CodexGone, CodexWaiting } from "./CodexFrame";
 import "./codex.css";
 
@@ -88,6 +99,7 @@ function TopicArticle({ page, topicId }: { page: VaultPage; topicId: string }) {
       <article className="cdx__article">
         <PageHead eyebrow={page.eyebrow} title={page.title} lede={page.lede}>
           <FactLine facts={read} />
+          <TodayDoorButton route={page.route} />
           {inline}
         </PageHead>
 
@@ -203,6 +215,7 @@ function PlainArticle({ page }: { page: VaultPage }) {
         <PageHead eyebrow={page.eyebrow} kicker={kicker} title={piece ?? page.title} lede={page.lede} style={style}>
           {page.draft && <p className="cdx__draft">{PLAYBOOK_DRAFT_LINE}</p>}
           <FactLine facts={facts} />
+          <TodayDoorButton route={page.route} />
           {inline}
         </PageHead>
         <div className="cdx__tierpanel">

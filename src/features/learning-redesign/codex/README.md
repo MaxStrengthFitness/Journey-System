@@ -4,11 +4,29 @@ AJ picked this on Oct 19 2026: "Go with your recommended mix: the Codex as the
 base, plus the Course's lesson cards, scrubber, cue drills and glossary vault,
 and the Vault's map as a lens." The Course and the Vault designs are gone; what
 they made that was picked now lives in the shared parts and is mounted here.
-Mounted by `../lazy.tsx` (`CodexLearning`, the default export, takes
-`DesignProps`; the bar calls it "Mix", the id stays `codex`) inside
-LearningView's masthead and the round's `VaultProvider`. Nothing here reads or
-writes Firestore: every mark goes to the vault's in-memory sandbox, which a
-production build starts empty (the sample marks are for the PC build only).
+Mounted by `../lazy.tsx` (`LazyMix`; `CodexLearning`, the default export, takes
+`DesignProps`) inside LearningView's masthead and the round's `VaultProvider`.
+Nothing here reads or writes Firestore.
+
+**Since Oct 20 2026 it is every trainer's Learning** (AJ: "we can go ahead and
+stay with Mix"; `docs/rounds/2026-10-20-mix-for-everyone.md`). Three things
+changed here:
+
+- **Marking is off** (`learning-vault/markup-on.ts`): the vault's `markup` is
+  false, so a line is plain reading, `useVersionSlot` draws no version switch
+  and keeps no room for one, and the Overview has no head office queue door.
+  Everything below that says "a mark", "Tap a line to …", the version switch
+  or the queue describes the Mix with marking on, which waits for its own
+  Firestore round.
+- **A playbook shows only once head office has read it** (`SHOWN_PLAYBOOKS`):
+  none yet, so the Academy draws no Playbooks band, the paths lose their
+  playbook steps (`shownTracks`) and Play has no playbooks deck.
+- **The doors to today's pages** (`../today-door.ts`, `TodayDoorButton` in
+  `CodexBits.tsx`): one quiet door under the title of a machine page ("Floor
+  notes, set-up and history"), the Catalog's and the Academy's fronts ("Floor
+  plan and body view", "Studio pages"), and a topic, quick card, script or deep
+  dive ("Comments"). `CodexValue.openToday` is LearningView's handler, or null
+  (a harness or a test that gives none), which draws no door.
 
 ## What came from where
 

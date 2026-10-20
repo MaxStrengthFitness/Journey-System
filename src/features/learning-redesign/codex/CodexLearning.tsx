@@ -50,6 +50,7 @@ export default function CodexLearning({
   jump,
   onJumpHandled,
   resetSignal = 0,
+  onOpenToday,
 }: DesignProps) {
   const data = useVaultData({ studioId, machines });
   const vault = useOptionalVault();
@@ -96,6 +97,7 @@ export default function CodexLearning({
       data={data}
       studioName={name}
       onSection={onSection}
+      openToday={onOpenToday ?? null}
     />
   );
 }
@@ -106,12 +108,14 @@ function CodexVisit({
   data,
   studioName,
   onSection,
+  openToday,
 }: {
   root: VaultRoute;
   start: VaultRoute | null;
   data: CodexValue["data"];
   studioName: string;
   onSection: (id: LearningViewId) => void;
+  openToday: CodexValue["openToday"];
 }) {
   const nav = useVaultNav(root);
   const peekStack = usePeekStack();
@@ -178,8 +182,9 @@ function CodexVisit({
       mapFor,
       rememberMap,
       phone,
+      openToday,
     }),
-    [data, nav, open, peek, peekStack, crumbs, studioName, onSection, tierFor, rememberTier, lensFor, rememberLens, mapFor, rememberMap, phone],
+    [data, nav, open, peek, peekStack, crumbs, studioName, onSection, tierFor, rememberTier, lensFor, rememberLens, mapFor, rememberMap, phone, openToday],
   );
 
   return (

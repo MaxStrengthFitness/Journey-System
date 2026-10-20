@@ -8,6 +8,7 @@ import type { VaultData } from "../../learning-vault/useVaultData";
 import type { VaultNav } from "../../learning-vault/useVaultNav";
 import type { WikiCrumb } from "../../wiki";
 import type { MapState } from "../../learning-vault/map/map-model";
+import type { TodayDoor } from "../today-door";
 import { pieceLabel } from "./codex-model";
 
 /**
@@ -37,6 +38,8 @@ export interface CodexValue {
   mapFor: (key: string) => MapState | null;
   rememberMap: (key: string, state: MapState) => void;
   phone: boolean;
+  /** Today's Learning at a door, for the studio's tools (today-door.ts); null draws no doors. */
+  openToday: ((door: TodayDoor) => void) | null;
 }
 
 export const CodexContext = createContext<CodexValue | null>(null);
