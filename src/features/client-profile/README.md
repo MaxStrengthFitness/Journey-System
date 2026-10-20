@@ -146,6 +146,17 @@ medium-weight outline button competing with four equal-weight stat tiles.
   sunk tray in Geist 14/600 (12 on a phone, wrapping), and the codex's
   seven pages a RAISED bar (`profile-nav.css` `.psub`), the picked page
   solid blue with a glow.
+- **Last session and Next session open their lists (AJ, Oct 20 2026;
+  answers 1a 2b 3b).** Each tile is a button, like Top trainer, and opens a
+  panel under the tiles; one panel at a time, so opening one closes the
+  other. Last sessions: the last five finished sessions, newest first, each
+  "Started 4:06 PM · booked 4:00 PM" (the booked time only when Finish
+  matched a Mindbody booking, `bookingStartTime`; never guessed). A session
+  with no start on record (logged after, imported) says "No start time
+  recorded". Booked: the next five bookings still booked. No trainer on a
+  row (3b). Both read what the profile already holds, no new query or
+  index. The words are `session-lists.ts`; the panels `HeaderPanel` and
+  `SessionRows` in `ProfileHeader.tsx`.
 - **Logo.** `BrandTiles` — the three-tile mark (blue, orange, slate) at
   9px squares beside the studio name. The AppHeader's studio button also
   gained `min-w-0` + `ch`-based caps + `pe-[0.22em]`: the italic display face

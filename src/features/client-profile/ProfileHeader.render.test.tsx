@@ -409,3 +409,53 @@ describe("ProfileHeader's look (type and depth, phase 7)", () => {
     expect(avatar.some((k) => k.startsWith("ring-"))).toBe(false);
   });
 });
+
+/*
+ * Last session and Next session open their lists (AJ, Oct 20 2026; 1a 2b 3b):
+ * five rows each, the start and booked time on a past one, one panel at a time.
+ */
+describe("ProfileHeader's session lists", () => {
+  const plain = (s: string | null | undefined) => (s ?? "").replace(/[  ]/g, " ");
+  const tile = (el: HTMLElement, label: string) =>
+    [...el.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === label) ?? null;
+  const at = (iso: string) => ({ toMillis: () => new Date(iso).getTime() });
+
+  const sessions = [
+    { id: "s1", date: "2026-10-13", status: "Completed", startTime: at("2026-10-13T16:06:00-04:00"), bookingStartTime: at("2026-10-13T16:00:00-04:00") },
+    { id: "s2", date: "2026-10-08", status: "Completed" },
+  ] as never;
+  const scheduledSessions = [
+    { id: "b1", startTime: new Date("2026-10-21T16:00:00-04:00"), status: "Scheduled" },
+    { id: "b2", startTime: new Date("2026-10-23T16:00:00-04:00"), status: "Scheduled" },
+  ] as never;
+
+  it("taps Last session open to the last sessions, each with when it started", () => {
+    const el = mount(props({ sessions, scheduledSessions }));
+    const last = tile(el, "Show the last few sessions and the time each started")!;
+    expect(last).toBeTruthy();
+    act(() => last.click());
+    const list = el.querySelector('[data-testid="last-sessions"]')!;
+    const rows = [...list.querySelectorAll("li")].map((li) => plain(li.textContent));
+    expect(rows[0]).toContain("Started 4:06 PM · booked 4:00 PM");
+    expect(rows[1]).toContain("No start time recorded");
+  });
+
+  it("taps Next session open to the booked sessions, and one panel closes the other", () => {
+    const el = mount(props({ sessions, scheduledSessions }));
+    act(() => tile(el, "Show the last few sessions and the time each started")!.click());
+    act(() => tile(el, "Show the next few booked sessions")!.click());
+    expect(el.querySelector('[data-testid="last-sessions"]')).toBeNull();
+    const rows = [...el.querySelectorAll('[data-testid="next-sessions"] li')].map((li) => plain(li.textContent));
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("4:00 PM");
+    const close = [...el.querySelectorAll("button")].find((b) => b.textContent === "Close")!;
+    act(() => close.click());
+    expect(el.querySelector('[data-testid="next-sessions"]')).toBeNull();
+  });
+
+  it("is not a button when there is nothing to list", () => {
+    const el = mount(props());
+    expect(tile(el, "Show the last few sessions and the time each started")).toBeNull();
+    expect(tile(el, "Show the next few booked sessions")).toBeNull();
+  });
+});

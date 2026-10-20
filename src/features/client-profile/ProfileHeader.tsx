@@ -35,6 +35,7 @@ import { BrandTiles } from "./BrandTiles";
 import { headerContractWords, headerRenewalWords } from "./header-renewal";
 import { renewalOf } from "../renewals/auto-renew";
 import { bookedLabel, nextSessionHeadline } from "./next-session-tile";
+import { recentSessionRows, upcomingSessionRows, type SessionListRow } from "./session-lists";
 import { clientDisplayName, clientInitials, clientLegalName, goesByNickname } from "../../lib/client-name";
 import { sessionCountLabel } from "../../lib/history-claims";
 import { lateCancelCount } from "../../lib/late-cancels";
@@ -394,8 +395,13 @@ export function ProfileHeader({
   sync,
   renewal,
 }: ProfileHeaderProps) {
-  const [showTrainers, setShowTrainers] = useState(false);
+  // One panel under the tiles at a time: Last session, Next session (AJ, Oct
+  // 20 2026) or Top trainer. Opening one closes the other two.
+  const [openPanel, setOpenPanel] = useState<HeaderPanelKind | null>(null);
+  const togglePanel = (kind: HeaderPanelKind) => setOpenPanel((open) => (open === kind ? null : kind));
   const trainerRows = tallyRows(client.trainerTally, trainers);
+  const recentRows = recentSessionRows(sessions);
+  const upcomingRows = upcomingSessionRows(scheduledSessions);
   /* ---- last session ---- */
   const last = sessions.find((s) => s.status === "Completed") ?? sessions[0];
   const lastMs = last?.date ? parseSessionDate(last.date) : 0;
@@ -754,7 +760,15 @@ export function ProfileHeader({
           renewal={renewal}
         />
 
-        <Stat label="Last session" icon={<History />} sub={lastMs ? relativeDays(lastMs) ?? undefined : undefined}>
+        {/* Tap for the last few sessions and the time each started (AJ, Oct
+            20 2026; session-lists.ts). */}
+        <Stat
+          label="Last session"
+          icon={<History />}
+          sub={lastMs ? relativeDays(lastMs) ?? undefined : undefined}
+          onClick={recentRows.length > 0 ? () => togglePanel("last") : undefined}
+          ariaLabel={recentRows.length > 0 ? "Show the last few sessions and the time each started" : undefined}
+        >
           {lastLabel ?? <span className="text-muted-foreground font-medium">No sessions yet</span>}
         </Stat>
 
@@ -765,6 +779,8 @@ export function ProfileHeader({
             label already says what it is). */}
         <Stat
           label="Next session"
+          onClick={upcomingRows.length > 0 ? () => togglePanel("next") : undefined}
+          ariaLabel={upcomingRows.length > 0 ? "Show the next few booked sessions" : undefined}
           sub={
             nextDate ? (
               <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -793,7 +809,7 @@ export function ProfileHeader({
         <Stat
           label="Top trainer"
           icon={<UserCheck />}
-          onClick={trainerRows.length > 0 ? () => setShowTrainers((v) => !v) : undefined}
+          onClick={trainerRows.length > 0 ? () => togglePanel("trainers") : undefined}
           ariaLabel={trainerRows.length > 0 ? "Show every trainer who has trained this client" : undefined}
           sub={
             topTrainer.top
@@ -815,17 +831,18 @@ export function ProfileHeader({
           top of each other and the list covered the tiles. `col-span-full`
           with no named area lands it in a fresh implicit row, in normal
           flow, pushing everything below it down. */}
-      {showTrainers && trainerRows.length > 0 && (
-        // Information inside the card, so a well like the facts above it; a
-        // label over the list (14/700 in ink-2, it was 10px capitals) and a
-        // Close that is a 40px target (it was 32).
-        <div className="col-span-full mt-2 rounded-[12px] bg-(--well) shadow-(--elev-0) px-3 py-2" role="region" aria-label="Trainers who have trained this client">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[14px] font-bold text-ink-d2">Trained by</span>
-            <button type="button" className="text-[14px] font-bold text-muted-foreground hover:text-foreground min-h-10 px-3 -mr-2" onClick={() => setShowTrainers(false)}>
-              Close
-            </button>
-          </div>
+      {openPanel === "last" && recentRows.length > 0 && (
+        <HeaderPanel title="Last sessions" ariaLabel="This client's last few sessions" onClose={() => setOpenPanel(null)}>
+          <SessionRows rows={recentRows} testId="last-sessions" />
+        </HeaderPanel>
+      )}
+      {openPanel === "next" && upcomingRows.length > 0 && (
+        <HeaderPanel title="Booked" ariaLabel="This client's next few booked sessions" onClose={() => setOpenPanel(null)}>
+          <SessionRows rows={upcomingRows} testId="next-sessions" />
+        </HeaderPanel>
+      )}
+      {openPanel === "trainers" && trainerRows.length > 0 && (
+        <HeaderPanel title="Trained by" ariaLabel="Trainers who have trained this client" onClose={() => setOpenPanel(null)}>
           <ul className="divide-y divide-(--divider)">
             {trainerRows.map((t) => (
               <li key={t.key} className="flex items-center gap-3 py-1.5">
@@ -839,9 +856,46 @@ export function ProfileHeader({
               </li>
             ))}
           </ul>
-        </div>
+        </HeaderPanel>
       )}
     </header>
+  );
+}
+
+type HeaderPanelKind = "last" | "next" | "trainers";
+
+/**
+ * A panel under the tiles. Information inside the card, so a well like the
+ * facts above it; a label over the list (14/700 in ink-2, it was 10px
+ * capitals) and a Close that is a 40px target (it was 32).
+ */
+function HeaderPanel({ title, ariaLabel, onClose, children }: { title: string; ariaLabel: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="col-span-full mt-2 rounded-[12px] bg-(--well) shadow-(--elev-0) px-3 py-2" role="region" aria-label={ariaLabel}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[14px] font-bold text-ink-d2">{title}</span>
+        <button type="button" className="text-[14px] font-bold text-muted-foreground hover:text-foreground min-h-10 px-3 -mr-2" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** The day on the left, the time on the right; either wraps, never cut. */
+function SessionRows({ rows, testId }: { rows: readonly SessionListRow[]; testId: string }) {
+  return (
+    <ul className="divide-y divide-(--divider)" data-testid={testId}>
+      {rows.map((r) => (
+        <li key={r.key} className="flex flex-wrap items-center justify-between gap-x-3 py-1.5">
+          <span className="min-w-0 break-words text-[14px] font-semibold text-foreground">{r.day}</span>
+          <span className={cn("text-right text-[14px] tabular-nums", r.unknownTime ? "text-muted-foreground" : "text-ink-d2")}>
+            {r.time}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
