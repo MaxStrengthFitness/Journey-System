@@ -1,0 +1,134 @@
+/**
+ * MERGING TWO TRAINER RECORDS FOR ONE PERSON — the pure half of
+ * scripts/merge-trainer-records.ts (the sign-in email round, Oct 20 2026).
+ *
+ * Why: Kyle McManus and Kayla Sharratt each have an August record (an
+ * auto-id, Mindbody's staff id, every Mindbody booking pointing at it) and,
+ * since their first Microsoft sign-in, a record at their own uid that they
+ * sign in to and that nothing points at. AJ: "i need a way to fix Austin
+ * Kyle and Kayla so they are logging in and its logging into their profile
+ * linked with their clients and mindbody and all their notes and such."
+ *
+ * The record KEPT is always the one at the person's uid: the rules know the
+ * signed-in person only at trainers/{uid}. From the other it takes the
+ * Mindbody link (and anything it lacks that the old one has), every
+ * reference to the old id is repointed, and the old record becomes a
+ * tombstone pointing at the kept one (supersededByUid, the claim's own
+ * marker), with its staff id cleared so no sync ever sees two.
+ *
+ * "Bookings only" (--bookings-only) is AJ's own case: the gmail record stays
+ * his administrator account, and only what he coached moves to his trainer
+ * account.
+ */
+
+/** A field that stores a trainer DOCUMENT id (not an Auth uid). */
+export interface Reference {
+  collection: string;
+  field: string;
+}
+
+/**
+ * Where a trainer's document id is stored (the Oct 20 2026 sweep). Bookings
+ * first: `schedules.trainerId` decides the Hub's column (hub-schedule/
+ * columns.ts), and only today onward is rewritten by the next sync.
+ * `sessions.rollupTrainerId` is left alone on purpose: it is the counter
+ * the session was counted to (functions/src/trainerRollups.ts), and moving it
+ * would not move the count.
+ */
+export const BOOKING_REFERENCES: Reference[] = [{ collection: "schedules", field: "trainerId" }];
+
+export const SESSION_REFERENCES: Reference[] = [
+  { collection: "sessions", field: "trainerId" },
+  { collection: "sessions", field: "startedByTrainerId" },
+];
+
+export const OTHER_REFERENCES: Reference[] = [
+  { collection: "routines", field: "trainerId" },
+  { collection: "routineAdjustments", field: "trainerId" },
+  { collection: "progressReports", field: "trainerId" },
+  { collection: "clientFocuses", field: "trainerId" },
+  { collection: "clinicalIncidents", field: "reportedByTrainerId" },
+  { collection: "clients", field: "primaryTrainerId" },
+  { collection: "clients", field: "topTrainerId" },
+  { collection: "studios", field: "headTrainerId" },
+  { collection: "studios", field: "ownerId" },
+];
+
+export type Mode = "merge" | "bookings-only";
+
+export function referencesFor(mode: Mode): Reference[] {
+  return mode === "merge"
+    ? [...BOOKING_REFERENCES, ...SESSION_REFERENCES, ...OTHER_REFERENCES]
+    : [...BOOKING_REFERENCES, ...SESSION_REFERENCES];
+}
+
+type Doc = Record<string, unknown>;
+
+const text = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
+
+export interface MergeCheck {
+  ok: boolean;
+  reason?: string;
+}
+
+/** Refuses anything but an old record folding into the person's own uid record. */
+export function checkMerge(fromId: string, from: Doc | null, intoId: string, into: Doc | null, mode: Mode): MergeCheck {
+  if (!from) return { ok: false, reason: `trainers/${fromId} doesn't exist.` };
+  if (!into) return { ok: false, reason: `trainers/${intoId} doesn't exist.` };
+  if (fromId === intoId) return { ok: false, reason: "That is the same record twice." };
+  if (text(into.supersededByUid)) return { ok: false, reason: `trainers/${intoId} is itself merged away.` };
+  if (intoId.length !== 28 || (text(into.authUid) && text(into.authUid) !== intoId)) {
+    return { ok: false, reason: `trainers/${intoId} is not a signed-in account (the kept record must be at the person's uid).` };
+  }
+  if (into.isActive === false) return { ok: false, reason: `trainers/${intoId} is switched off.` };
+  if (mode === "merge") {
+    if (text(from.supersededByUid)) return { ok: false, reason: `trainers/${fromId} is already merged into ${text(from.supersededByUid)}.` };
+    const a = text(from.mindbodyStaffId);
+    const b = text(into.mindbodyStaffId);
+    if (a && b && a !== b) return { ok: false, reason: `They carry different Mindbody staff ids (${a} and ${b}): check they are one person.` };
+  }
+  return { ok: true };
+}
+
+/** What the kept record takes from the old one: only what it lacks. */
+export function keptPatch(from: Doc, into: Doc, fromId: string, mode: Mode): Doc {
+  const patch: Doc = {};
+  if (mode === "bookings-only") {
+    // Only the pointer, so screens that read claimedFromId count the old id as theirs.
+    if (!text(into.claimedFromId)) patch.claimedFromId = fromId;
+    return patch;
+  }
+  const staff = text(from.mindbodyStaffId);
+  if (staff && !text(into.mindbodyStaffId)) {
+    patch.mindbodyStaffId = staff;
+    patch.mindbodyLinked = true;
+  }
+  if (from.mindbody && typeof from.mindbody === "object" && !into.mindbody) patch.mindbody = from.mindbody;
+  for (const key of ["initials", "nickname", "photoUrl", "order", "brandColor"] as const) {
+    if (from[key] != null && from[key] !== "" && (into[key] == null || into[key] === "")) patch[key] = from[key];
+  }
+  const roster = (v: unknown) => (Array.isArray(v) ? (v as Doc[]) : []);
+  const kept = roster(into.kaizenRoster);
+  const extra = roster(from.kaizenRoster).filter((e) => !kept.some((k) => text(k.clientId) && text(k.clientId) === text(e.clientId)));
+  if (extra.length > 0) patch.kaizenRoster = [...kept, ...extra];
+  if (!text(into.claimedFromId)) patch.claimedFromId = fromId;
+  return patch;
+}
+
+/** What the old record becomes: a pointer at the kept one, holding no staff id. */
+export function tombstonePatch(from: Doc, intoId: string, nowIso: string): Doc {
+  return {
+    supersededByUid: intoId,
+    supersededAt: nowIso,
+    systemStatus: "superseded",
+    isVisibleOnCalendar: false,
+    ...(text(from.mindbodyStaffId) ? { mindbodyStaffId: "", mindbodyLinked: false, mergedMindbodyStaffId: text(from.mindbodyStaffId) } : {}),
+  };
+}
+
+/** Writes in Firestore's batch limit, leaving room. */
+export function chunks<T>(items: readonly T[], size = 400): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
