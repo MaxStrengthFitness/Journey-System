@@ -139,6 +139,7 @@ export function WaitingPage({ authTrainer, trainers, studios, onRefresh, onChang
                 canChangeRole
                 viewer={authTrainer}
                 viewerIsAdmin
+                people={trainers}
                 onDone={async () => {
                   setSelectedKey(null);
                   await onRefresh?.("trainers");

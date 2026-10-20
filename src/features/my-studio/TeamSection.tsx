@@ -6,6 +6,7 @@ import { ROLE_LABELS } from "../../types";
 import { AdminBadge, AdminEmpty, AdminInput, AdminNotice, AdminPanel, AdminRows } from "../admin/primitives";
 import { STATE_BADGE, STUDIO_TIER_ROLES, StaffEditor } from "../admin/staff/StaffEditor";
 import { useStaffRoster } from "../admin/staff/useStaffRoster";
+import { mindbodyOnly } from "../admin/staff/roster";
 import { isEveryStudioRole } from "../renewals/permissions";
 import { ProvisionalPanel } from "../admin/provisional/ProvisionalPanel";
 import { TeamPanel } from "../relay/team/TeamPanel";
@@ -235,6 +236,8 @@ function StaffPanel({
           // franchise partition, Oct 2026; edit-limits.ts).
           viewer={authTrainer ?? null}
           viewerIsAdmin={isEveryStudioRole(authTrainer)}
+          people={trainers}
+          mindbodyStaffOnly={mindbodyOnly(rows)}
           onDone={() => setSelectedKey(null)}
         />
       )}

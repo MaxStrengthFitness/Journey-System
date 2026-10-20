@@ -49,7 +49,7 @@ import {
   AdminTiles,
 } from "../primitives";
 import { ADMIN_TIER_ROLES, OWNER_TIER_ROLES, STATE_BADGE, StaffEditor } from "./StaffEditor";
-import type { StaffRow } from "./roster";
+import { mindbodyOnly, type StaffRow } from "./roster";
 import { useStaffRoster } from "./useStaffRoster";
 import { useOperationsScope } from "../scope-context";
 import { NAME_SEARCH_PROPS } from "../../../lib/name-search-input";
@@ -257,6 +257,8 @@ export function AdminStaffTab({
               // are locked, with one line saying why.
               viewer={reader}
               viewerIsAdmin={isAdmin}
+              people={trainers}
+              mindbodyStaffOnly={mindbodyOnly(rows)}
               onDone={async () => {
                 setSelectedKey(null);
                 await onRefresh?.("trainers");

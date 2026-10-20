@@ -31,10 +31,19 @@
  * Every write is to trainers/{uid}: setDoc at the AUTH UID on approval,
  * never addDoc (a random id is a profile its owner cannot write), and
  * updateDoc with only the fields on this form otherwise.
+ *
+ * WHICH EMAIL SIGNS IN AS WHOM (the sign-in email round, Oct 20 2026;
+ * features/sign-in-email/): "Signs in as" is Journey's address, with
+ * Mindbody's beside it and copied only by a tap. Saving an address another
+ * record holds moves it, after one question. On a record nobody has signed in
+ * as, the address also opens its claim, so the first sign-in moves the record
+ * to the person's uid. A request answers "Who is this?" first: an existing
+ * record is linked (nothing new is made), someone on Mindbody's staff list
+ * gets the account with their staff id, or a new person is approved as before.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { arrayRemove, arrayUnion, doc, setDoc, updateDoc } from "firebase/firestore";
+import { arrayRemove, arrayUnion, doc, setDoc, updateDoc, writeBatch } from "firebase/firestore";
 import { CircleUserRound, Link2, ShieldAlert, UserCheck } from "lucide-react";
 import { db } from "../../../firebase";
 import type { Studio, Trainer, UserRole } from "../../../types";
@@ -53,8 +62,16 @@ import {
   AdminSelect,
   ConfirmDialog,
 } from "../primitives";
-import { isStudioAccessRequest, requestStudioId, type StaffRow, type StaffState } from "./roster";
+import { isStudioAccessRequest, requestStudioId, type MindbodyStaff, type StaffRow, type StaffState } from "./roster";
 import { staffEditLimits } from "./edit-limits";
+import {
+  emailWrites,
+  looksLikeEmail,
+  neverSignedIn,
+  normalEmail,
+  whoIsThis,
+  type EmailWrite,
+} from "../../sign-in-email/sign-in-email";
 
 export const STATE_BADGE: Record<
   StaffState,
@@ -94,8 +111,20 @@ export interface StaffEditorProps {
   viewer?: Trainer | null;
   /** The company tier: nothing locked but an owner's role. */
   viewerIsAdmin?: boolean;
+  /**
+   * Everyone the viewer can see (the sign-in email round): who else holds an
+   * address, and who a request could be linked to. Empty: neither is checked.
+   */
+  people?: Trainer[];
+  /** Mindbody staff with no Journey record: the rest of "Who is this?". */
+  mindbodyStaffOnly?: MindbodyStaff[];
   onDone: () => Promise<void> | void;
 }
+
+const NO_PEOPLE: Trainer[] = [];
+const NO_STAFF: MindbodyStaff[] = [];
+/** "Who is this?" when the answer is nobody Journey or Mindbody knows. */
+const NEW_PERSON = "new";
 
 export function StaffEditor({
   row,
@@ -107,6 +136,8 @@ export function StaffEditor({
   grantStudioId = null,
   viewer = null,
   viewerIsAdmin = false,
+  people = NO_PEOPLE,
+  mindbodyStaffOnly = NO_STAFF,
   onDone,
 }: StaffEditorProps) {
   const { success: toastSuccess, error: toastError } = useToast();
@@ -122,6 +153,9 @@ export function StaffEditor({
   const [staffId, setStaffId] = useState(String(row.trainer?.mindbodyStaffId ?? ""));
   const [busy, setBusy] = useState(false);
   const [confirmApprove, setConfirmApprove] = useState(false);
+  /** The address moves from someone else: the writes, held until confirmed. */
+  const [pendingMove, setPendingMove] = useState<EmailWrite[] | null>(null);
+  const [who, setWho] = useState<string>(NEW_PERSON);
 
   useEffect(() => {
     setRole(row.role ?? "LifeTransformer");
@@ -151,6 +185,8 @@ export function StaffEditor({
   const homeLocked = limits.homeLocked || limits.readOnly;
   const emailLocked = limits.emailLocked || limits.readOnly;
   const grantShown = Boolean(grantStudioId) && !limits.grantHidden && !limits.readOnly;
+  // Mindbody's address: a reference beside Journey's, never its stand-in.
+  const mindbodyEmail = normalEmail(row.mindbody?.email);
 
   // The studio picker's Request Access comes from someone who already has an
   // account. Approving writes a WHOLE new trainers/{uid}, which would replace
@@ -159,13 +195,35 @@ export function StaffEditor({
   const askedFor = row.request ? requestStudioId(row.request) : null;
   const studioName = (id: string | null | undefined) => studios.find((s) => s.id === id)?.name;
 
+  /* ---- Who is this? (a sign-up only) ---------------------------------- */
+  const asking = row.state === "awaiting-approval" && !studioAccess && Boolean(row.request);
+  const choices = useMemo(() => {
+    if (!asking || !row.request) return [];
+    // Only records whose address this viewer may set: the rules' reach.
+    const linkable = people.filter((t) => {
+      const l = staffEditLimits({ viewer, target: t, viewerIsAdmin, studios });
+      return !l.readOnly && !l.emailLocked;
+    });
+    return whoIsThis(row.request, linkable, mindbodyStaffOnly);
+  }, [asking, row.request, people, mindbodyStaffOnly, viewer, viewerIsAdmin, studios]);
+  // The likeliest answer is offered, never assumed: only one with a reason.
+  // Keyed on a string, so a re-render never undoes the leader's own pick.
+  const suggested = choices[0]?.why ? choices[0].key : NEW_PERSON;
+  useEffect(() => {
+    setWho(suggested);
+  }, [row.key, suggested]);
+  const chosen = choices.find((c) => c.key === who) ?? null;
+  const linking = chosen?.kind === "record";
+
   const approve = async () => {
     const req = row.request;
     if (!req || studioAccess) return;
     if (!req.userId) {
-      toastError(
-        "No signed-in account is attached to this request. Ask them to sign in with Google first — the account is keyed on that.",
-      );
+      toastError("No signed-in account is attached to this request. Ask them to sign in first: the account is keyed on that.");
+      return;
+    }
+    if (chosen?.kind === "record") {
+      await link(chosen.id, chosen.name);
       return;
     }
     if (initials.trim().length < 2) {
@@ -191,6 +249,8 @@ export function StaffEditor({
         ...(grantStudioId && managesHere ? { managedStudioIds: [grantStudioId] } : {}),
         isVisibleOnCalendar: onCalendar,
         email: (req.email || "").trim().toLowerCase(),
+        // Someone on Mindbody's staff list: the account carries the link.
+        ...(chosen?.kind === "mindbody" ? { mindbodyStaffId: chosen.staffId, mindbodyLinked: true } : {}),
         authUid: req.userId,
         systemStatus: "active",
         createdAt: new Date().toISOString(),
@@ -210,13 +270,63 @@ export function StaffEditor({
     }
   };
 
-  const saveAccess = async () => {
+  /**
+   * The request is someone Journey already has: their address goes on that
+   * record and opens its claim, and the request is answered, in one batch.
+   * When they press Check again, sign-in finds the record by the address and
+   * moves it to their uid with its role, studios and Mindbody link. Nothing
+   * new is made.
+   */
+  const link = async (targetId: string, targetName: string) => {
+    const req = row.request;
+    const target = people.find((t) => t.id === targetId);
+    const mail = normalEmail(req?.email);
+    if (!req || !target) return;
+    if (!looksLikeEmail(mail)) {
+      toastError("This request has no email address to link. Ask them to sign in again.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const batch = writeBatch(db);
+      for (const w of emailWrites(target, mail, people)) batch.update(doc(db, "trainers", w.id), w.patch);
+      batch.update(doc(db, "access_requests", req.id), {
+        status: "Approved",
+        approvedTrainerId: targetId,
+        updatedAt: new Date().toISOString(),
+      });
+      await batch.commit();
+      toastSuccess(`Linked. When they press Check again, ${mail} opens ${targetName}'s account.`);
+      await onDone();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `trainers/${targetId}`);
+    } finally {
+      setBusy(false);
+      setConfirmApprove(false);
+    }
+  };
+
+  const saveAccess = async (moveConfirmed = false) => {
     const t = row.trainer;
     if (!t || limits.readOnly) return;
     if (!roleLocked && role !== t.role && !assignableRoles.includes(role)) {
       toastError(`You can't hand out ${ROLE_LABELS[role]} from here.`);
       return;
     }
+    // Who signs in as this record (features/sign-in-email): only when the
+    // address changed, so an initials save never reaches for the email's rule.
+    const mail = normalEmail(email);
+    const mailChanged = !emailLocked && mail !== normalEmail(t.email);
+    if (mailChanged && mail && !looksLikeEmail(mail)) {
+      toastError("That isn't a whole email address.");
+      return;
+    }
+    const writes = mailChanged ? emailWrites(t, mail, people) : [];
+    if (writes.length > 1 && !moveConfirmed) {
+      setPendingMove(writes);
+      return;
+    }
+    setPendingMove(null);
     setBusy(true);
     try {
       const patch: Record<string, unknown> = {
@@ -232,8 +342,7 @@ export function StaffEditor({
       }
       // A locked field is never in the patch (edit-limits.ts): the rules
       // refuse the whole write for one field out of reach.
-      const mail = email.trim().toLowerCase();
-      if (!emailLocked && mail !== (t.email ?? "").trim().toLowerCase()) patch.email = mail;
+      Object.assign(patch, writes[0]?.patch);
       const sid = staffId.trim();
       if (sid !== String(t.mindbodyStaffId ?? "").trim()) {
         patch.mindbodyStaffId = sid;
@@ -247,8 +356,14 @@ export function StaffEditor({
         if (managesHere && !had) patch.managedStudioIds = arrayUnion(grantStudioId);
         if (!managesHere && had) patch.managedStudioIds = arrayRemove(grantStudioId);
       }
-      await updateDoc(doc(db, "trainers", t.id), patch);
-      toastSuccess("Access updated.");
+      // One batch: this record, and the address cleared from whoever held it.
+      const batch = writeBatch(db);
+      batch.update(doc(db, "trainers", t.id), patch);
+      for (const w of writes.slice(1)) batch.update(doc(db, "trainers", w.id), w.patch);
+      await batch.commit();
+      toastSuccess(
+        writes.length > 1 ? `Access updated. ${mail} moved to ${t.fullName}.` : "Access updated.",
+      );
       await onDone();
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `trainers/${t.id}`);
@@ -288,17 +403,17 @@ export function StaffEditor({
       >
         {row.state === "mindbody-only" && (
           <AdminNotice tone="info">
-            {row.name} is in Mindbody, so their bookings already show on the schedule. They get an
-            account by signing in with the email Mindbody has for them — then they appear here for
-            approval. Nothing needs creating.
+            {row.name} is in Mindbody, so their bookings already show on the schedule. When they sign
+            in with their Microsoft address they wait here: choose them under Who is this? and the
+            account is made with their Mindbody link.
           </AdminNotice>
         )}
 
         {row.state === "placeholder" && (
           <AdminNotice tone="warn">
-            This profile was created by an admin before this person ever signed in, so it has a
-            random document id rather than their account id. They claim it automatically the first
-            time they sign in.
+            {row.trainer?.email
+              ? `Nobody has signed in as ${row.name} yet. Their first sign-in with ${row.trainer.email} opens this account.`
+              : `Nobody has signed in as ${row.name} yet. Set the address they sign in with below.`}
           </AdminNotice>
         )}
 
@@ -340,7 +455,39 @@ export function StaffEditor({
           </div>
         )}
 
-        {!studioAccess && (
+        {asking && choices.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <AdminField
+              label="Who is this?"
+              wide
+              hint={
+                chosen?.why
+                  ? `Suggested: ${chosen.why}. Check it before you approve.`
+                  : `They signed in as ${row.request?.email ?? "an address Journey doesn't know"}.`
+              }
+            >
+              <AdminSelect value={who} onChange={(e) => setWho(e.target.value)}>
+                <option value={NEW_PERSON}>A new person: make an account</option>
+                {choices.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.kind === "record" ? `${c.name}, already in Journey` : `${c.name}, on Mindbody's staff list`}
+                  </option>
+                ))}
+              </AdminSelect>
+            </AdminField>
+          </div>
+        )}
+
+        {linking && (
+          <div style={{ marginTop: 10 }}>
+            <AdminNotice tone="info">
+              Linking writes {row.request?.email} on {chosen?.name}'s record. Their role, studios and
+              Mindbody link stay as they are; change them afterwards if they need it.
+            </AdminNotice>
+          </div>
+        )}
+
+        {!studioAccess && !linking && (
           <div style={{ marginTop: 12 }}>
             <AdminGrid>
               <AdminField
@@ -389,15 +536,25 @@ export function StaffEditor({
                       placeholder="First and last name"
                     />
                   </AdminField>
-                  <AdminField label="Email" hint="The address they sign in with.">
+                  <AdminField label="Signs in as" hint={signInHint(row.trainer)}>
                     <AdminInput
                       type="email"
                       value={email}
                       readOnly={emailLocked}
                       disabled={limits.readOnly}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="name@example.com"
+                      placeholder="name@maxstrengthfitness.com"
                     />
+                    {mindbodyEmail && mindbodyEmail !== normalEmail(email) && (
+                      <p className="adm-hint" style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        Mindbody has {mindbodyEmail}
+                        {!emailLocked && !limits.readOnly && (
+                          <AdminButton variant="quiet" onClick={() => setEmail(mindbodyEmail)}>
+                            Use this
+                          </AdminButton>
+                        )}
+                      </p>
+                    )}
                   </AdminField>
                   <AdminField label="Mindbody Staff ID" hint="Links them to their Mindbody bookings. Blank: not linked.">
                     <AdminInput
@@ -455,7 +612,7 @@ export function StaffEditor({
               onClick={() => setConfirmApprove(true)}
             >
               <UserCheck className="w-3.5 h-3.5" />
-              Approve and create the account
+              {linking ? `Link to ${chosen?.name}` : "Approve and create the account"}
             </AdminButton>
           )}
 
@@ -483,15 +640,39 @@ export function StaffEditor({
 
       <ConfirmDialog
         open={confirmApprove}
-        title={`Give ${row.name} an account?`}
-        body={`They will sign in as ${ROLE_LABELS[role]} at ${studios.find((s) => s.id === homeStudioId)?.name ?? "the selected studio"}. Roles can be changed afterwards.`}
-        confirmLabel="Approve"
+        title={linking ? `Is this ${chosen?.name}?` : `Give ${row.name} an account?`}
+        body={
+          linking
+            ? `${row.request?.email} will sign in as ${chosen?.name}, with their role, studios and Mindbody link. Nothing new is made.`
+            : `They will sign in as ${ROLE_LABELS[role]} at ${studios.find((s) => s.id === homeStudioId)?.name ?? "the selected studio"}${chosen?.kind === "mindbody" ? `, linked to ${chosen.name} in Mindbody` : ""}. Roles can be changed afterwards.`
+        }
+        confirmLabel={linking ? "Link" : "Approve"}
         busy={busy}
         onCancel={() => setConfirmApprove(false)}
         onConfirm={() => void approve()}
       />
+
+      <ConfirmDialog
+        open={pendingMove !== null}
+        title="Move this address?"
+        body={`${normalEmail(email)} is on ${(pendingMove ?? [])
+          .slice(1)
+          .map((w) => w.name)
+          .join(" and ")}'s record. Saving moves it to ${row.name} and clears it there: only one person signs in with an address.`}
+        confirmLabel="Move it"
+        busy={busy}
+        onCancel={() => setPendingMove(null)}
+        onConfirm={() => void saveAccess(true)}
+      />
     </>
   );
+}
+
+/** What "Signs in as" means for this record (features/sign-in-email). */
+function signInHint(t: Trainer | undefined): string {
+  if (!t || !neverSignedIn(t)) return "The address on their account. They've signed in, so changing it doesn't move them.";
+  if (t.pendingClaim && t.email) return "Waiting for their first sign-in with this address.";
+  return "Their first Microsoft sign-in with this address opens this account. Check it with them: it isn't always their first name.";
 }
 
 function initialsFrom(name: string): string {

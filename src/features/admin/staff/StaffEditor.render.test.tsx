@@ -25,6 +25,14 @@ vi.mock("firebase/firestore", () => {
     updateDoc: async (target: { path: string }, data: Record<string, unknown>) => {
       writes.push({ path: target.path, data });
     },
+    // A save is one batch since the sign-in email round: each update lands at commit.
+    writeBatch: () => {
+      const held: Array<{ path: string; data: Record<string, unknown> }> = [];
+      return {
+        update: (target: { path: string }, data: Record<string, unknown>) => void held.push({ path: target.path, data }),
+        commit: async () => void writes.push(...held),
+      };
+    },
   };
 });
 vi.mock("../../../contexts/ToastContext", () => ({ useToast: () => ({ success: () => {}, error: () => {}, info: () => {} }) }));
@@ -141,7 +149,7 @@ describe("StaffEditor", () => {
       });
     };
     expect(field("Full name").value).toBe("Sam Lee");
-    expect(field("Email").value).toBe("sam@example.com");
+    expect(field("Signs in as").value).toBe("sam@example.com");
     await type(field("Full name"), "Samantha Lee");
     await type(field("Mindbody Staff ID"), "100000123");
     await act(async () => {
@@ -151,6 +159,130 @@ describe("StaffEditor", () => {
     expect(writes[0].path).toBe("trainers/uid-sam");
     expect(writes[0].data).toMatchObject({ fullName: "Samantha Lee", mindbodyStaffId: "100000123", mindbodyLinked: true });
     expect(writes[0].data).not.toHaveProperty("email");
+  });
+});
+
+/*
+ * WHICH EMAIL SIGNS IN AS WHOM (the sign-in email round, Oct 20 2026;
+ * features/sign-in-email). AJ: a sign-in must land on the person's own
+ * record, the one with their Mindbody id, never a new one.
+ */
+describe("StaffEditor: who signs in as whom", () => {
+  const august = (id: string, fullName: string, over: Record<string, unknown> = {}) =>
+    ({
+      id,
+      fullName,
+      initials: "XX",
+      role: "LifeTransformer",
+      primaryHomeStudioId: "westlake",
+      accessibleStudioIds: ["westlake"],
+      mindbodyStaffId: "100000059",
+      ...over,
+    }) as never;
+  const kayla = august("kaylaAugustRecord001", "Kayla Sharratt");
+  const kyle = august("kyleAugustRecord0001", "Kyle McManus", { email: "kyle@maxstrengthfitness.com", mindbodyStaffId: "100000071" });
+  const field = (el: Element, label: string) =>
+    [...el.querySelectorAll(".adm-field")].find((f) => f.querySelector("label")?.textContent?.startsWith(label));
+  const type = async (input: HTMLInputElement, value: string) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+  /** A button by its words: the exact words first (a dialog's "Link"), else the start of them. */
+  const press = async (el: Element, text: string) => {
+    const all = [...el.ownerDocument.querySelectorAll("button")];
+    const button = all.find((b) => b.textContent?.trim() === text) ?? all.find((b) => b.textContent?.trim().startsWith(text));
+    await act(async () => {
+      button!.click();
+    });
+  };
+
+  it("shows Mindbody's address beside Journey's, copies it only on a tap, and opens the claim on save", async () => {
+    const row = buildStaffRoster({
+      trainers: [kayla],
+      mindbodyStaff: [{ id: "100000059", fullName: "Kayla Sharratt", email: "Kayla@MaxStrengthFitness.com" }],
+      requests: [],
+      studioId: "westlake",
+    }).find((r) => r.trainer)!;
+    expect(row.email).toBeUndefined();
+    const el = await mount(row, { people: [kayla, kyle], viewerIsAdmin: true });
+    const box = field(el, "Signs in as")!;
+    expect((box.querySelector("input") as HTMLInputElement).value).toBe("");
+    expect(box.textContent).toContain("Mindbody has kayla@maxstrengthfitness.com");
+    await press(el, "Use this");
+    expect((box.querySelector("input") as HTMLInputElement).value).toBe("kayla@maxstrengthfitness.com");
+    await press(el, "Save access");
+    expect(writes).toHaveLength(1);
+    expect(writes[0].data).toMatchObject({ email: "kayla@maxstrengthfitness.com", pendingClaim: true });
+  });
+
+  it("asks before moving an address another person holds, then moves it in one batch", async () => {
+    const row = buildStaffRoster({ trainers: [kayla, kyle], mindbodyStaff: [], requests: [], studioId: "westlake" }).find(
+      (r) => r.trainer?.id === "kaylaAugustRecord001",
+    )!;
+    const el = await mount(row, { people: [kayla, kyle], viewerIsAdmin: true });
+    await type(field(el, "Signs in as")!.querySelector("input") as HTMLInputElement, "KYLE@maxstrengthfitness.com");
+    await press(el, "Save access");
+    expect(writes).toEqual([]);
+    expect(document.body.textContent).toContain("kyle@maxstrengthfitness.com is on Kyle McManus's record");
+    await press(el, "Move it");
+    expect(writes.map((w) => w.path)).toEqual(["trainers/kaylaAugustRecord001", "trainers/kyleAugustRecord0001"]);
+    expect(writes[0].data).toMatchObject({ email: "kyle@maxstrengthfitness.com", pendingClaim: true });
+    expect(writes[1].data).toEqual({ email: "" });
+  });
+
+  it("refuses half an address", async () => {
+    const row = buildStaffRoster({ trainers: [kayla], mindbodyStaff: [], requests: [], studioId: "westlake" }).find((r) => r.trainer)!;
+    const el = await mount(row, { people: [kayla], viewerIsAdmin: true });
+    await type(field(el, "Signs in as")!.querySelector("input") as HTMLInputElement, "kayla@");
+    await press(el, "Save access");
+    expect(writes).toEqual([]);
+  });
+
+  it("links a sign-in request to the record it suggests, making nothing new", async () => {
+    const austin = august("austinAugustRecord01", "Austin Jurgens", { mindbodyStaffId: "100000012" });
+    const row = buildStaffRoster({
+      trainers: [kayla, austin],
+      mindbodyStaff: [],
+      requests: [{ id: "uid-aj", fullName: "Austin Jurgens", email: "ajurgens@maxstrengthfitness.com", status: "Pending", userId: "uid-aj" }],
+      studioId: "westlake",
+    }).find((r) => r.request)!;
+    const el = await mount(row, { people: [kayla, austin], viewerIsAdmin: true });
+    const who = field(el, "Who is this?")!;
+    expect((who.querySelector("select") as HTMLSelectElement).value).toBe("t:austinAugustRecord01");
+    expect(who.textContent).toContain("Suggested: the address is their first initial and last name");
+    // Linking keeps the record's own role and studio: the approval fields step aside.
+    expect(field(el, "Role")).toBeUndefined();
+    await press(el, "Link to Austin Jurgens");
+    await press(el, "Link");
+    expect(writes).toEqual([
+      { path: "trainers/austinAugustRecord01", data: { email: "ajurgens@maxstrengthfitness.com", pendingClaim: true } },
+      { path: "access_requests/uid-aj", data: expect.objectContaining({ status: "Approved", approvedTrainerId: "austinAugustRecord01" }) },
+    ]);
+  });
+
+  it("approves someone on Mindbody's staff list into an account that carries their Mindbody id", async () => {
+    const dom = { id: "100000006", fullName: "Dominic Coduti" };
+    const row = buildStaffRoster({
+      trainers: [],
+      mindbodyStaff: [dom],
+      requests: [{ id: "uid-dom", fullName: "Dom C", email: "dcoduti@maxstrengthfitness.com", status: "Pending", userId: "uid-dom" }],
+      studioId: "westlake",
+    }).find((r) => r.request)!;
+    const el = await mount(row, { people: [], mindbodyStaffOnly: [dom], viewerIsAdmin: true });
+    expect((field(el, "Who is this?")!.querySelector("select") as HTMLSelectElement).value).toBe("mb:100000006");
+    await press(el, "Approve and create the account");
+    await press(el, "Approve");
+    expect(writes[0].path).toBe("trainers/uid-dom");
+    expect(writes[0].data).toMatchObject({ mindbodyStaffId: "100000006", mindbodyLinked: true, email: "dcoduti@maxstrengthfitness.com" });
+  });
+
+  it("suggests no one when nothing fits, and approves a new person as before", async () => {
+    const row = rowFor({ id: "r9", fullName: "Nia New", email: "nia@example.com", status: "Pending", userId: "uid-nia" });
+    const el = await mount(row, { people: [kayla], viewerIsAdmin: true });
+    expect((field(el, "Who is this?")!.querySelector("select") as HTMLSelectElement).value).toBe("new");
+    expect(buttons(el).some((b) => b.includes("Approve and create the account"))).toBe(true);
   });
 });
 

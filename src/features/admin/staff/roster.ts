@@ -240,7 +240,9 @@ export function buildStaffRoster(input: RosterInput): StaffRow[] {
       rows.push({
         key: `mb:${staff.id}`,
         name: nameOf(trainer.fullName, staff.fullName),
-        email: trainer.email || staff.email,
+        // Journey's own address only: Mindbody's is not who signs in (the sign-in
+        // email round, Oct 20 2026), and showing it here made it look as if it were.
+        email: trainer.email || undefined,
         initials: trainer.initials,
         role: trainer.role,
         homeStudioId: trainer.primaryHomeStudioId,
@@ -385,6 +387,11 @@ export interface RosterSummary {
   temporary: number;
   placeholders: number;
   duplicates: number;
+}
+
+/** Mindbody staff with no Journey record: the rest of a request's "Who is this?". */
+export function mindbodyOnly(rows: readonly StaffRow[]): MindbodyStaff[] {
+  return rows.flatMap((r) => (r.state === "mindbody-only" && r.mindbody ? [r.mindbody] : []));
 }
 
 export function summariseRoster(rows: StaffRow[]): RosterSummary {
