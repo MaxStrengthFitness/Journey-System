@@ -20,7 +20,8 @@ Sign-in finds a person by `trainers/{uid}`, then by the `email` stored on a reco
 - `sign-in-email.ts`: pure. `normalEmail`, `looksLikeEmail`, `neverSignedIn` (an auto-id of 20 characters, no `authUid`, not a tombstone or a Demo Mode trainer: the same test as the rules), `holdersOf`, `emailWrites`, `addressFits` (first initial and last name, first name, and three rarer patterns), `whoIsThis`.
 - `sign-in-email.test.ts`: the above.
 - The screen is `admin/staff/StaffEditor.tsx` (its render test has a "who signs in as whom" block); `admin/staff/roster.ts` gives `mindbodyOnly` and no longer shows Mindbody's address as a row's email.
-- The rule is `leaderLinksASignIn` in `firestore.rules` (`docs/ops/RULES-NOTES.md#leaderlinksasignin`), test 22b in `tests/firestore.rules.test.ts`.
+- `merge.ts`: Merge (the kept record's patch, the tombstone) for Admins → Team and `scripts/merge-trainer-records.ts`, which also moves every stored reference. `merge.test.ts`.
+- The Team screen is `admins/studios/StudioTeam.tsx` and `team-board.ts`; the Hub reads a merged record's bookings as the kept one's (`hub-schedule/columns.ts` `mergedAliases`).
 
 ## Why it is shaped this way
 
@@ -28,6 +29,8 @@ Sign-in finds a person by `trainers/{uid}`, then by the `email` stored on a reco
 - **Only when the address changes.** A save that only changes initials never sends `pendingClaim`, so it never reaches for the email's rule, which is stricter (every studio the person works at must be one you run).
 - **Who can be linked** is whoever's address this viewer may set (`staffEditLimits`: not read-only, email not locked), so the list never offers what the rules would refuse.
 - **One address, one person** is checked against the people this iPad can see. A leader can't see another studio's trainers (the trainer lock), so a holder there isn't found; sign-in still takes the first record by id.
+- **Administrators only.** AJ, the same afternoon: "Read-only for leaders". My Studio → Team shows the editor with `lockedReason` (nothing saves, nothing is approved); Admins → Studios → a studio → Team is where people are changed, merged and let in. The rules were left as master's: an administrator already may do all of it.
+- **Merge moves no bookings from the screen.** A booking stores its trainer's record id when synced; the Hub reads a merged record's id as the kept one's (`mergedAliases`), and the next sync rewrites today onward. The script moves them all, for a record with history.
 - **A suggestion is a reason, not a guess.** "Who is this?" starts on a person only when the address or the typed name fits them, and says which; otherwise it starts on "A new person".
 
 ## AJ's own records

@@ -978,10 +978,12 @@ the data files with esbuild's text loader, so that field comes back as the
 
 ### The sign-in email round (Oct 20 2026)
 
-`docs/DECISIONS.md#sign-in-email`; AJ: "1a 2a".
+`docs/DECISIONS.md#sign-in-email`; AJ: "Script today", "Read-only for leaders".
 
 - **Mindbody's staff email is not the sign-in address.** The roster used to show `trainer.email || staff.email`, so every row looked set up when Journey held no address at all. A row's email is Journey's only; Mindbody's is "Mindbody has …" in the editor.
-- **An email on an auto-id trainer record is not a link.** Sign-in finds the record by email and opens it, but the rules know the signed-in person only at `trainers/{uid}` (`callerTrainer`), so they hold no studio and every read past their own profile is refused. Link through the claim: `pendingClaim` with the address (`sign-in-email.ts` `emailWrites`), which a leader may now turn on within the email's reach (`leaderLinksASignIn`).
+- **An email on an auto-id trainer record is not a link.** Sign-in finds the record by email and opens it, but the rules know the signed-in person only at `trainers/{uid}` (`callerTrainer`), so they hold no studio and every read past their own profile is refused. Link through the claim: `pendingClaim` with the address (`sign-in-email.ts` `emailWrites`), which only an administrator turns on (the rules' `opensAClaim`).
+- **A booking keeps the trainer record it was synced with.** `schedules.trainerId` is written at sync time and only today onward is synced again, so moving a Mindbody staff id to another record leaves every past booking on the old one, and the Hub puts a booking whose id it doesn't know in Unassigned. Merge two records with Merge or `scripts/merge-trainer-records.ts`, never by moving the staff id alone; the Hub's `mergedAliases` reads the old id as the kept one's.
+- **Two live records carrying one Mindbody staff id match neither.** The webhook's `resolveTrainerAtStudio` wants exactly one and keeps the booking's old trainer otherwise; the pull takes the first. A merged-away record's staff id is cleared (`mergedMindbodyStaffId` keeps it).
 - **Sign-in takes the first record carrying an address, by id.** Two live records with one address is a coin toss; `emailWrites` moves an address rather than copying it.
 - **`npm run test:rules` from PowerShell:** a `-t` filter with an apostrophe or a `|` inside the quoted vitest command breaks PowerShell's parse and nothing runs; and a run that dies can leave the emulator's java holding 8080 ("port taken"). Run the whole file, and stop that java first.
 

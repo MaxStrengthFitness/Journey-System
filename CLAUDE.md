@@ -168,7 +168,7 @@ Each is the rule, in AJ's words wherever AJ gave them. **More** opens its full e
 - **A booking is done when Journey logged a session for that client that day** (AJ, Sep 24 2026). Bookings never come back Completed or No-Show — the sync and the webhook write Scheduled or Cancelled, and Mindbody's own marking stays manual — so read what happened to one through `src/lib/booking-state.ts`, never from `status` alone. `docs/rounds/2026-09-24-done-means-logged.md` is the round.
 - Firestore rules apply to whole documents: anything some roles must not see goes in its own document.
 - **An iPad holds its own studios' trainers** (Oct 18 2026; AJ: "1a 2a 3a"): the list and the rules read the people of the studios you work at or run, administrators everyone, a stranger one record by their own email; an id outside it says "a trainer from another studio". [More](docs/DECISIONS.md#the-trainer-lock)
-- **One address signs in as one person; a leader sets it** (AJ, Oct 20 2026; "1a 2a"): Mindbody's only by a tap; a request asks Who is this? [More](docs/DECISIONS.md#sign-in-email)
+- **One address signs in as one person; an administrator sets it on Admins → Team** (AJ, Oct 20 2026): leaders read-only; Merge two records [More](docs/DECISIONS.md#sign-in-email)
 - **Don't change the Mindbody integration, Cloud Functions or the Firestore structure without an explicit OK.**
 
 **How we work**
