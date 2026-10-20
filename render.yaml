@@ -36,8 +36,11 @@
 #   - maxShutdownDelaySeconds has no field in the dashboard, so the live
 #     service has Render's default until it is set through the API.
 #   - The web service has no MINDBODY_WEBHOOK_SECRET (only the switched-off
-#     test route reads it: leave it off), no VITE_MICROSOFT_TENANT_ID (so
-#     Microsoft sign-in uses /common: any Microsoft account), and no APP_URL (nothing reads it).
+#     test route reads it: leave it off) and no APP_URL (nothing reads it).
+#     VITE_MICROSOFT_TENANT_ID is Max Strength's tenant since Oct 20 2026, so
+#     Microsoft sign-in asks that tenant only. It is read at build time: a
+#     change needs a rebuild, and the app registration is single-tenant, so
+#     without it Microsoft refuses every sign-in.
 #   - Health check /healthz, PR previews off, edge caching "Common static
 #     files", one instance, failure notifications: as written here.
 #

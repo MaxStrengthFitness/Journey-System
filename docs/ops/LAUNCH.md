@@ -93,9 +93,13 @@ been imported since, and stay until the mass import (AJ, Oct 13 2026).
 8. **One unused index** costs a little on every task write:
    `taskInstances (status, localDate)`. Delete it in the Firebase console →
    Firestore → the named database → Indexes.
-9. **Outlook (Microsoft) sign-in** waits on Max Strength's IT admin approving
-   logins; Google sign-in works today. Strangers out (privacy Round 0) leaves
-   sign-in untouched.
+9. **Outlook (Microsoft) sign-in**: Max Strength's IT admin made the app
+   registration single-tenant and granted its permissions (Oct 20 2026), and
+   the web service has `VITE_MICROSOFT_TENANT_ID` since build 0934c64 (Oct 20,
+   9:02 ET). Left: a first sign-in on an iPad with an @maxstrengthfitness.com
+   account, and the IT admin's answers on who has no such account (before
+   Google sign-in is turned off) and on Conditional Access for the studio
+   iPads. Strangers out (privacy Round 0) leaves sign-in untouched.
 10. ~~**Strangers out**~~: live since Oct 15 2026 (10:09 ET): an account that
    signs in but was never let in reads nothing
    (`docs/rounds/2026-10-14-strangers-out.md`). Left: the check its log prints,
