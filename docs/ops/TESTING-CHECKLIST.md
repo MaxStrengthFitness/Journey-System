@@ -2969,7 +2969,7 @@ Round document: `docs/rounds/2026-10-05-speed.md`. Walk it the day after `ship-r
 
 **Sign-in first** (R14 changed how sign-in starts; it was never walked on a device):
 
-- [ ] **Google in a Safari tab.** Menu → Sign out. On the sign-in screen the buttons may say "Getting sign-in ready" for a moment (under a second on good Wi-Fi). Tap Continue with Google and choose the account: the sign-in window opens (it is NOT blocked) and you land on the greeting. *If it fails:* a blocked popup or a button that never wakes means the sign-in helper didn't warm up (`src/features/front-door/sign-in-ready.ts`, `src/lib/auth-boot.ts`); tell Claude which browser and what it said.
+- [ ] **Google in a Safari tab.** Menu → Sign out. On the sign-in screen the buttons may say "Getting sign-in ready" for a moment (under a second on good Wi-Fi). Tap Continue with Microsoft (or, for an administrator, the quiet Admin sign-in at the foot, which is Google) and choose the account: the sign-in window opens (it is NOT blocked) and you land on the greeting. *If it fails:* a blocked popup or a button that never wakes means the sign-in helper didn't warm up (`src/features/front-door/sign-in-ready.ts`, `src/lib/auth-boot.ts`); tell Claude which browser and what it said.
 - [ ] **Microsoft in a Safari tab.** Sign out again; Continue with Microsoft with the company account; you land on the greeting.
 - [ ] **Both again in the Home Screen app** (the Journey icon), then once each in desktop Chrome on the PC.
 - [ ] **Signed in stays signed in.** Close the Safari tab completely (and swipe the Home Screen app away), then open Journey again: it opens on the studio with no sign-in.

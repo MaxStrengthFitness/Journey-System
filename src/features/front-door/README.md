@@ -22,6 +22,21 @@ time. The brand colours are named once, in `front-door.css`; nothing else in
 the folder writes a colour. Every motion stops under Reduce Motion, and the
 door then opens at once (`prefersReducedMotion`).
 
+## Sign in: Microsoft for everyone, Google for administrators (Oct 20 2026)
+
+Microsoft sign-in went live on Oct 20 2026 (the app registration is
+single-tenant, `VITE_MICROSOFT_TENANT_ID` is Max Strength's tenant). AJ, the
+same day: "lets move the google sign in to be an admin sign in button at the
+bottom in a very quiet way so trainers dont think they can log in with
+google". So `LoginScreen` has ONE big button, Continue with Microsoft (with
+@maxstrengthfitness.com beside it), and Google is the foot's last line: a
+small, muted, underlined "Admin sign-in" (`fd-link--quiet`, still a 44px
+target), which says Google only to a screen reader ("Admin sign-in, with
+Google"). It is not a gate: anyone who signs in with Google is checked in like
+anyone else, and a stranger reads nothing until a leader lets them in
+(strangers out). Turning Google off entirely waits on Max Strength's IT admin
+saying who has no @maxstrengthfitness.com account.
+
 ## The rules it keeps
 
 - **Signed in is not "not on a team".** `useAuthInitialization` says where the

@@ -3,15 +3,21 @@
  * squares"; features/front-door/README.md).
  *
  * One job: get a known person in fast. The three squares assemble, one line
- * says what Journey is, and two buttons say who each is for. A sign-in that
- * didn't finish is said in plain words right under the buttons
+ * says what Journey is, and ONE button signs a trainer in: Microsoft, with
+ * their @maxstrengthfitness.com account. Google is the administrators' door,
+ * a quiet "Admin sign-in" at the foot (AJ, Oct 20 2026: "lets move the
+ * google sign in to be an admin sign in button at the bottom in a very quiet
+ * way so trainers dont think they can log in with google"). It is not a
+ * gate: whoever signs in with Google is still checked in like anyone else,
+ * and a stranger sees nothing until a leader lets them in. A sign-in that
+ * didn't finish is said in plain words right under the button
  * (features/front-door/sign-in-errors.ts). The line at the foot says which
  * studio this iPad opens, before anyone is signed in, so a trainer holding
  * the wrong iPad knows before they start. AppContent still owns the sign-in
  * itself (handleLogin, the error, the in-flight flag) and hands them in.
  */
 import { useEffect, useRef, useState } from "react";
-import { FrontDoorPane, GoogleMark, MicrosoftMark, Tiles, WarnIcon } from "../features/front-door/kit";
+import { FrontDoorPane, MicrosoftMark, Tiles, WarnIcon } from "../features/front-door/kit";
 import { MICROSOFT_DOMAIN } from "../features/front-door/sign-in-errors";
 import { deviceStudioLine, getDefaultStudioId, getDeviceStudio } from "../lib/default-studio";
 
@@ -63,21 +69,11 @@ export function LoginScreen({ isLoggingIn, loginError, onLogin, signInReady = tr
           <p className="fd-lede fd-center">
             The coaching record for Max Strength Fitness.
             <br />
-            Sign in with the account your studio added you with.
+            Sign in with your Max Strength account.
           </p>
         </div>
 
         <div className="fd-stack fd-rise fd-rise--3" style={{ marginTop: 32 }}>
-          <button
-            type="button"
-            className="fd-btn fd-btn--provider"
-            onClick={() => press("google")}
-            disabled={isLoggingIn || !signInReady}
-          >
-            <GoogleMark />
-            <span>Continue with Google</span>
-            {isLoggingIn && tried === "google" && <span className="fd-spin" aria-label="Signing in" />}
-          </button>
           <button
             type="button"
             className={`fd-btn fd-btn--provider${loginError && tried === "microsoft" ? " fd-btn--bad" : ""}`}
@@ -115,6 +111,16 @@ export function LoginScreen({ isLoggingIn, loginError, onLogin, signInReady = tr
           <p className="fd-small" style={{ maxWidth: 400, marginTop: 8 }}>
             New to the team? Sign in anyway. Journey will ask which studio you work at and pass it to its leaders.
           </p>
+          {/* The administrators' door: Google, quiet, last (see the header). */}
+          <button
+            type="button"
+            className="fd-link fd-link--quiet"
+            onClick={() => press("google")}
+            disabled={isLoggingIn || !signInReady}
+            aria-label={isLoggingIn && tried === "google" ? "Signing in with Google" : "Admin sign-in, with Google"}
+          >
+            {isLoggingIn && tried === "google" ? "Signing in…" : "Admin sign-in"}
+          </button>
         </footer>
       </main>
     </FrontDoorPane>

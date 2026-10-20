@@ -42,15 +42,26 @@ const buttonSaying = (host: HTMLElement, text: string) =>
     | undefined;
 
 describe("LoginScreen", () => {
-  it("draws both providers and sends each button to its own provider", async () => {
+  it("signs a trainer in with Microsoft, and keeps Google as the quiet admin door at the foot", async () => {
     const onLogin = vi.fn();
     const host = await mount(<LoginScreen isLoggingIn={false} loginError={null} onLogin={onLogin} />);
 
     expect(host.querySelector("h1")?.textContent).toBe("Journey");
-    const google = buttonSaying(host, "Continue with Google");
+    const google = buttonSaying(host, "Admin sign-in");
     const microsoft = buttonSaying(host, "Continue with Microsoft");
     expect(google).toBeDefined();
     expect(microsoft).toBeDefined();
+    // AJ, Oct 20 2026: "an admin sign in button at the bottom in a very quiet
+    // way so trainers dont think they can log in with google". One big
+    // button; the admin door is the foot's fine print, and says Google only
+    // to a screen reader.
+    expect(host.querySelectorAll(".fd-btn")).toHaveLength(1);
+    expect(host.textContent).not.toContain("Continue with Google");
+    expect(host.textContent).not.toContain("Google");
+    expect(google!.classList.contains("fd-link--quiet")).toBe(true);
+    expect(google!.closest("footer")).not.toBeNull();
+    expect(google!.getAttribute("aria-label")).toBe("Admin sign-in, with Google");
+    expect(microsoft!.compareDocumentPosition(google!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     await act(async () => google!.click());
     expect(onLogin).toHaveBeenLastCalledWith("google");
@@ -66,13 +77,32 @@ describe("LoginScreen", () => {
     );
 
     expect(host.textContent).toContain("Sign-in was cancelled.");
-    const google = buttonSaying(host, "Continue with Google")!;
+    const google = buttonSaying(host, "Admin sign-in")!;
     const microsoft = buttonSaying(host, "Continue with Microsoft")!;
     expect(google.disabled).toBe(true);
     expect(microsoft.disabled).toBe(true);
 
     await act(async () => google.click());
     expect(onLogin).not.toHaveBeenCalled();
+  });
+
+  it("says the admin door is signing in, in its own quiet words, once it was the one pressed", async () => {
+    const onLogin = vi.fn();
+    const host = await mount(<LoginScreen isLoggingIn={false} loginError={null} onLogin={onLogin} />);
+    await act(async () => buttonSaying(host, "Admin sign-in")!.click());
+    expect(onLogin).toHaveBeenCalledWith("google");
+    await act(async () => {
+      mounted[mounted.length - 1].root.render(
+        <StrictMode>
+          <LoginScreen isLoggingIn loginError={null} onLogin={onLogin} />
+        </StrictMode>,
+      );
+    });
+    const door = buttonSaying(host, "Signing in…")!;
+    expect(door.getAttribute("aria-label")).toBe("Signing in with Google");
+    expect(door.disabled).toBe(true);
+    // The Microsoft button shows no spinner for a Google sign-in.
+    expect(buttonSaying(host, "Continue with Microsoft")!.querySelector(".fd-spin")).toBeNull();
   });
 
   it("says which studio this iPad opens, before anyone signs in", async () => {
@@ -101,14 +131,14 @@ describe("LoginScreen before the popup sign-in is ready", () => {
     try {
       const onLogin = vi.fn();
       const host = await mount(<LoginScreen isLoggingIn={false} loginError={null} onLogin={onLogin} signInReady={false} />);
-      expect(buttonSaying(host, "Continue with Google")!.disabled).toBe(true);
+      expect(buttonSaying(host, "Admin sign-in")!.disabled).toBe(true);
       expect(buttonSaying(host, "Continue with Microsoft")!.disabled).toBe(true);
       expect(host.textContent).not.toContain("Getting sign-in ready");
       await act(async () => {
         vi.advanceTimersByTime(500);
       });
       expect(host.textContent).toContain("Getting sign-in ready");
-      await act(async () => buttonSaying(host, "Continue with Google")!.click());
+      await act(async () => buttonSaying(host, "Admin sign-in")!.click());
       expect(onLogin).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();

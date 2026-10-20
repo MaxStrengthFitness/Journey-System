@@ -119,6 +119,11 @@
   text-underline-offset: 3px;
   cursor: pointer;
 }
+.fd-link:disabled { opacity: 0.55; cursor: default; }
+/* The administrators' Google door on the sign-in screen (Oct 20 2026): the
+   foot's own small, muted words, still a 44px target, so a trainer reads it
+   as fine print and never as a second way in. */
+.fd-link--quiet { margin-top: 12px; font-size: 14px; font-weight: 500; color: var(--fd-muted); }
 
 .fd-chip {
   display: inline-flex;

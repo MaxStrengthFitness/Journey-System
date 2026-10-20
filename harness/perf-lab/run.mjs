@@ -681,7 +681,7 @@ async function signInUnmeasured(s, ctx) {
     await sleep(100);
     try {
       if (await s.ev(hubReady)) return;
-      if (await s.ev(`!!(window.__perfLab && ${byText("button", "Continue with Google")})`)) break;
+      if (await s.ev(`!!(window.__perfLab && ${byText("button", "Continue with Microsoft")})`)) break;
     } catch {
       /* loading */
     }
@@ -834,7 +834,7 @@ const SCENARIO_RUNS = {
         for (let i = 0; i < 600 && signInScreen < 0; i += 1) {
           await sleep(100);
           try {
-            signInScreen = await s.waitFor(`window.__perfLab && ${byText("button", "Continue with Google")}`, 200);
+            signInScreen = await s.waitFor(`window.__perfLab && ${byText("button", "Continue with Microsoft")}`, 200);
           } catch {
             /* the document is still being replaced */
           }
