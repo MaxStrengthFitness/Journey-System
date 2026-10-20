@@ -1341,6 +1341,38 @@ div.jg-today { cursor: default; }
   min-width: 0;
 }
 .jg-nb__id { display: inline-flex; align-items: center; gap: 8px; flex: none; min-width: 0; }
+/* Off today (the Now Bar pad round, Oct 20 2026; AJ: "a small button that is
+   hard to hit accidentally"): words in the muted ink with no box at rest, 40px
+   to tap, by the name and so far from Next and the pad; a tap asks once more.
+   Never crimson: red is rep quality's. */
+.jg-nb__off,
+.jg-nb__offbtn {
+  appearance: none;
+  flex: none;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border-radius: var(--jg-radius-sm);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.jg-nb__off { border: 1px solid transparent; background: transparent; color: var(--jg-ink-muted); }
+.jg-nb__off:active, .jg-nb__offbtn:active { transform: translateY(1px); }
+.jg-nb__offask { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.jg-nb__offq { font-size: 13px; font-weight: 650; color: var(--jg-ink); }
+.jg-nb__offbtn {
+  border: 1px solid var(--jg-control-edge);
+  background: var(--jg-raised);
+  box-shadow: var(--jg-elev-1), inset 0 1px 0 var(--jg-highlight);
+  color: var(--jg-ink);
+}
+.jg-nb__offbtn--yes { font-weight: 750; }
 .jg-nb__ord {
   flex: none;
   width: 22px;

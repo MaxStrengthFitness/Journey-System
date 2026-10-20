@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ChevronRight, Flag, Info, Minus, Pause, Play, Plus, RotateCcw, Ruler, ShieldAlert, SlidersHorizontal, X } from "lucide-react";
+import { ChevronRight, CircleMinus, Flag, Info, Minus, Pause, Play, Plus, RotateCcw, Ruler, ShieldAlert, SlidersHorizontal, X } from "lucide-react";
 import type { FlagLine } from "./session-flags";
 import {
   OUTCOME_GLOSS,
@@ -68,6 +68,16 @@ export interface SessionNowBarProps {
    */
   allDone?: boolean;
   onEndSession?: () => void;
+  /**
+   * Takes the machine in hand off TODAY's order (the Now Bar pad round, Oct
+   * 20 2026; AJ: "the ability to take a machine off the routine, a small
+   * button that is hard to hit accidentally"). A small quiet "Off today" by
+   * the machine's name, far from Next and the pad, and a second tap to
+   * confirm. Today only, as adding is: the Wrap-up decides what the routine
+   * keeps. Offered only while nothing is recorded on the machine today, so a
+   * set is never taken off with it; a machine with a set is Skipped instead.
+   */
+  onTakeOff?: (machineId: string) => void;
   /**
    * On the last machine the Next slot is not a dead end: it offers to add
    * another machine, because trainers do — a neck that hurts, an arm that
@@ -451,6 +461,7 @@ function SessionNowBarImpl({
   nextWraps = false,
   allDone = false,
   onEndSession,
+  onTakeOff,
   onMachineSeconds: onMachineSecondsProp,
   readMachineSeconds,
   machineClockRunning = false,
@@ -477,6 +488,9 @@ function SessionNowBarImpl({
   const [skipOpen, setSkipOpen] = useState(false);
   // The strip belongs to one machine; moving on closes it.
   useEffect(() => setSkipOpen(false), [machine?.id]);
+  /* "Off today" asks once more before it acts; the question belongs to one machine. */
+  const [takeOffAsk, setTakeOffAsk] = useState(false);
+  useEffect(() => setTakeOffAsk(false), [machine?.id]);
 
   /* --- the number pad (the Now Bar pad round, Oct 20 2026) ----------------
      The field in hand ("weight", the count "L", the right side's "R") and
@@ -740,6 +754,10 @@ function SessionNowBarImpl({
 
   const setup = setupButtonOf(machine);
   const noSet = v.outcome === "practice" || v.outcome === "skipped";
+  /* Nothing recorded here today: no count on either side, no Practice, no skip. */
+  const nothingRecorded =
+    !v.outcome && v.reps == null && v.seconds == null && v.repsR == null && v.secondsR == null;
+  const canTakeOff = !!onTakeOff && nothingRecorded;
 
   /** The count field for one side: a number and the unit it is counted in. */
   const countField = (side: "L" | "R") => {
@@ -826,6 +844,40 @@ function SessionNowBarImpl({
             {machine.name}
           </span>
         </span>
+
+        {/* Off today: small and quiet by the name, never near Next or the
+            pad, and a second tap to confirm (Oct 20 2026). */}
+        {canTakeOff &&
+          (takeOffAsk ? (
+            <span className="jg-nb__offask" role="group" aria-label={`Take ${machine.name} off today?`}>
+              <span className="jg-nb__offq">Take off today?</span>
+              <button
+                type="button"
+                className="jg-nb__offbtn jg-nb__offbtn--yes"
+                data-testid="nb-takeoff-yes"
+                onClick={() => {
+                  setTakeOffAsk(false);
+                  onTakeOff?.(machine.id);
+                }}
+              >
+                Take off
+              </button>
+              <button type="button" className="jg-nb__offbtn" onClick={() => setTakeOffAsk(false)}>
+                Keep
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="jg-nb__off"
+              data-testid="nb-takeoff"
+              aria-label={`Take ${machine.name} off today's order`}
+              onClick={() => setTakeOffAsk(true)}
+            >
+              <CircleMinus size={15} strokeWidth={2.4} aria-hidden="true" />
+              Off today
+            </button>
+          ))}
 
         {/* The settings, one button (the open session round, Oct 9 2026;
             AJ's "2a"): it opens the machine card on the first empty dial,

@@ -81,3 +81,39 @@ describe("The Now Bar's last line", () => {
     expect(rule).toContain("color: var(--jg-go-on)");
   });
 });
+
+describe("Off today: a small button, and a second tap (AJ, Oct 20 2026)", () => {
+  it("asks once more before it takes the machine off, and Keep leaves it", () => {
+    const onTakeOff = vi.fn();
+    const el = mount({ onTakeOff });
+    const off = el.querySelector<HTMLButtonElement>('[data-testid="nb-takeoff"]')!;
+    expect(off.textContent).toContain("Off today");
+    act(() => off.click());
+    expect(onTakeOff).not.toHaveBeenCalled();
+    expect(el.textContent).toContain("Take off today?");
+    const keep = Array.from(el.querySelectorAll("button")).find((b) => b.textContent === "Keep")!;
+    act(() => keep.click());
+    expect(onTakeOff).not.toHaveBeenCalled();
+    expect(el.querySelector('[data-testid="nb-takeoff"]')).not.toBeNull();
+
+    act(() => el.querySelector<HTMLButtonElement>('[data-testid="nb-takeoff"]')!.click());
+    act(() => el.querySelector<HTMLButtonElement>('[data-testid="nb-takeoff-yes"]')!.click());
+    expect(onTakeOff).toHaveBeenCalledWith("leg_press");
+  });
+
+  it("is not offered once anything is recorded on the machine today, so a set is never taken off with it", () => {
+    const withReps = mount({ onTakeOff: vi.fn(), value: { weight: 150, reps: 8, seconds: null, isTSC: false, quality: 2 } });
+    expect(withReps.querySelector('[data-testid="nb-takeoff"]')).toBeNull();
+    act(() => root?.unmount());
+    host?.remove();
+    const skipped = mount({ onTakeOff: vi.fn(), value: { weight: 150, reps: null, seconds: null, isTSC: false, quality: null, outcome: "skipped" } });
+    expect(skipped.querySelector('[data-testid="nb-takeoff"]')).toBeNull();
+  });
+
+  it("is 40px to tap and never crimson", () => {
+    const css = readFileSync(resolve(__dirname, "journey-grid.css"), "utf8");
+    const rule = css.match(/\n\.jg-nb__off,\n\.jg-nb__offbtn \{([^}]*)\}/)![1];
+    expect(rule).toContain("min-height: 40px");
+    expect(css.match(/\n\.jg-nb__off \{([^}]*)\}/)![1]).not.toContain("q-poor");
+  });
+});

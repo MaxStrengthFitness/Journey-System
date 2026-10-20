@@ -6578,6 +6578,14 @@ export function WorkoutTrackerView({
           }}
           allDone={gridAllDone}
           onEndSession={handleEndSessionPress}
+          /* Off today (Oct 20 2026): out of today's order only, and the bar
+             moves on to the next machine still to do. */
+          onTakeOff={(id) => {
+            flushAllLogWrites();
+            const after = nextToDo(activeMachineIds, id, gridMachineDone);
+            applySessionMachineIds(activeMachineIds.filter((m) => m !== id));
+            setFocusMachineOverride(after?.id ?? null);
+          }}
           /* Until today's list is on screen the empty bar offers nothing:
              an add then would be recorded as the session's whole list. */
           onAddMachine={todaySeeded ? () => setIsOrderSheetOpen(true) : undefined}
