@@ -74,6 +74,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | Learning, sharing machines, comments | `src/features/learning/` (the Mix: `learning-redesign/`), `src/features/machine-db/`, `src/features/comments/` |
 | Demo Mode | `src/features/demo-mode/` — the practice studio `demo-studio`, a real studio with no second code path |
 | The front door | `src/features/front-door/` — sign in, checking you in, the greeting, the studio picker; the boot report is `src/features/boot-timing/` |
+| Booked here, filed elsewhere | `src/features/home-studio/` — Today's row for a client filed at another studio |
 | Switching studio | `src/features/studio-switch/` — Switch studio from every screen, and a switch lets go of the client (`let-go.ts`) |
 | Sign-in email | `src/features/sign-in-email/` — Signs in as; Who is this? on a request |
 | Signing out | `src/features/sign-out/`; who may open Operations is `src/features/admin/operations-access.ts` |
@@ -98,12 +99,12 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | --- | --- | --- |
 | Install | `npm ci` | `npm install` fails with an `edgesOut` error |
 | Run locally | `npm run dev` | Port 3000 |
-| Typecheck | `npx tsc --noEmit` | **0** errors since Oct 18 2026; CI holds it there (`.github/typecheck-baseline.txt`). History by round: `docs/KNOWN-TRAPS.md#baselines` |
-| Tests | `npx vitest run src` | **16,274** passing in 983 files (Oct 20 2026, the admin sign-in). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
-| Build | `npx vite build` | Then `npm run check:bundle` (`scripts/check-bundle-budget.mjs`, a CI step since Oct 5 2026): the first screen at most 480 KB gzip, no charts, drag-and-drop or motion on it, and a PRODUCTION build (`NODE_ENV` unset or `production`; a `test` build ships React's development files and is refused). `src/first-screen.test.ts` names the import chain if the first screen reaches a heavy module |
+| Typecheck | `npx tsc --noEmit` | **0** errors since Oct 18 2026; CI holds it (`.github/typecheck-baseline.txt`). History: `docs/KNOWN-TRAPS.md#baselines` |
+| Tests | `npx vitest run src` | **16,274** passing in 983 files (Oct 20 2026). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap). Counts: `docs/KNOWN-TRAPS.md#baselines` |
+| Build | `npx vite build` | Then `npm run check:bundle` (a CI step): the first screen at most 480 KB gzip, no charts, drag-and-drop or motion on it, on a PRODUCTION build (`NODE_ENV` unset or `production`). `src/first-screen.test.ts` names the import chain if it reaches a heavy module |
 | Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken" means an old emulator still holds 8080 — stop it first. |
 
-**Deploy order:** `firebase deploy --only firestore:indexes` → `npm run test:rules` → `firebase deploy --only firestore:rules` → `git push origin master` → on Render, Manual Deploy on the web service and Manual Build on both cron jobs (the app goes live; see Environments). Rules go first when they only add access, so the running app is unaffected and the new one finds its rules waiting. If the rules tests fail, stop. Releases are shipped with a staged PowerShell script (`scripts/ship/ship-*.ps1`): `-Stage prepare`, then `-Stage golive`.
+**Deploy order:** `firebase deploy --only firestore:indexes` → `npm run test:rules` → `firebase deploy --only firestore:rules` → `git push origin master` → on Render, Manual Deploy on the web service and Manual Build on both cron jobs (the app goes live; see Environments). Rules go first when they only add access. If the rules tests fail, stop. Releases ship with a staged script (`scripts/ship/ship-*.ps1`): `-Stage prepare`, then `-Stage golive`.
 
 ## Decisions already made — don't change them without asking
 
@@ -169,6 +170,7 @@ Each is the rule, in AJ's words wherever AJ gave them. **More** opens its full e
 - Firestore rules apply to whole documents: anything some roles must not see goes in its own document.
 - **An iPad holds its own studios' trainers** (Oct 18 2026; AJ: "1a 2a 3a"): the list and the rules read the people of the studios you work at or run, administrators everyone, a stranger one record by their own email; an id outside it says "a trainer from another studio". [More](docs/DECISIONS.md#the-trainer-lock)
 - **One address signs in as one person; an administrator sets it on Admins → Team** (AJ, Oct 20 2026): leaders read-only; Merge two records [More](docs/DECISIONS.md#sign-in-email)
+- **A client booked here but filed at another studio is shown to its leaders, who file her** (AJ, Oct 20 2026); Mindbody is untouched. [More](docs/DECISIONS.md#home-studio-notice)
 - **Don't change the Mindbody integration, Cloud Functions or the Firestore structure without an explicit OK.**
 
 **How we work**

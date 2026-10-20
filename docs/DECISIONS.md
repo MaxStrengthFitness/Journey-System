@@ -296,6 +296,18 @@ The same afternoon (AJ: "we need to have ultimate control over user profiles fro
 
 **Auto-renew is decided in one place** (`src/features/renewals/auto-renew.ts`, Sep 25 2026): no answer under a coach's paid-in-full or banked-sessions lock; else Mindbody's contract flag, else a trainer's mark on the profile for that contract (`client.autoRenewMark`), else the package's answer, else the studio's (My Studio → Studio → Renewals; default ON — franchise studios have it on, the corporate studios turn it off). A contract the package table doesn't recognise gets no studio default. Single-client screens read `renewalOf(client)`. `docs/rounds/2026-09-25-auto-renew.md` is the round.
 
+### Home studio notice
+
+**A client booked at one studio and filed at another is shown to the studio's leaders, who file her where she trains** (AJ, Oct 20 2026: "allow studio leaders, head trainers and admins to ... see \"booked here but home studio x\" notice and allow them to pull the data over"; "take charge i trust you"). Meg Pauly trained at Strongsville, but Mindbody's Home location said westlake. A client event on the shared site 29068 names no location, so Journey filed her from that field, never moves an established client (it decides who may read the clinical record), and so she was absent from Strongsville's directory and unreadable to its leaders. A read-only sweep of the last 60 days found her the only one.
+
+- **Evidence, not a guess** (`functions/src/home-studio-logic.ts` `noEvidenceBecause`): live bookings at this studio in the last 30 days (and any ahead), none at the studio she is filed at, both on the same Mindbody site. A client who also trains at her filed studio, a visitor already approved to train here, a record on another site or in Demo Mode is never offered.
+- **Who:** an administrator, or a head trainer, studio leader, studio owner or franchise owner of that studio, or a trainer with the grant (`mayMoveClientsTo`, the rules' `trainerLeads`). Never Demo Mode.
+- **Two callables, because the rules stop a leader opening or editing a client filed elsewhere, on purpose** (`functions/src/homeStudio.ts`): `homeStudioNotices` lists names, counts and dates only, no clinical data; `moveClientHome` re-checks the evidence and writes `homeStudioId` and nothing else. The rules are unchanged. Nothing calls Mindbody, nothing runs on a timer, nothing pings anyone.
+- **One quiet row on Operations → Today** (`src/features/home-studio/`), drawn only when there is someone to move, with one confirmation. A failed read draws nothing, never a false all-clear. One ask per visit, kept half an hour, because the server reads a month of the studio's bookings.
+- **Mindbody is not changed** ("Never book a Mindbody visit"; Mindbody owns people): the row says to ask the front desk to set her Home location there too, or a later client update may disagree.
+
+**Where it lives:** `src/features/home-studio/` (its README); `functions/src/homeStudio.ts`, `home-studio-logic.ts`; `scripts/find-wrong-home-studio.ts` (read-only sweep) and `scripts/set-home-studio.ts` (one client, dry run by default).
+
 ## How we work
 
 ### Work goes to master

@@ -117,6 +117,7 @@ import { ReviewNotesDialog } from "./ReviewNotesDialog";
 import { useOverviewReads } from "./useOverviewReads";
 import { useTodaySessions } from "./useTodaySessions";
 import { AllClear, BriefEmpty, BriefSection, CountsLine, PageNote } from "./brief-pieces";
+import { HomeStudioNotice } from "../../home-studio/HomeStudioNotice";
 import { catchToday, dayStartMs, heldAgainst, leftWithNothingBooked, nightlyNote, nightlyRead, sinceYesterday } from "./brief";
 import type { OverviewLink } from "./OverviewPage";
 import { BriefHuddle } from "../team/HuddleSheet";
@@ -646,6 +647,9 @@ export function TodayBrief({ footer, homeSignal, studio, studios, today, now, me
       </CountsLine>
 
       {note && <PageNote text={note.text} why={note.why} door={note.kind === "unknown" ? undefined : door("mindbody", "Mindbody")} />}
+
+      {/* Booked here, filed at another studio (Meg Pauly, Oct 20 2026): drawn only when there is someone to move. */}
+      <HomeStudioNotice studioId={studioId} studioName={studio.name} authTrainer={authTrainer} tz={tz} />
 
       {canMark && marked.length > 0 && (
         <div className="ops-sec__card">

@@ -15,6 +15,9 @@ export {
 // Cost round (Sep 2026): mirrors trainers/{id}.role onto the auth token so
 // the rules' role checks stop reading the trainer document.
 export { syncTrainerClaims } from "./claims";
+// Oct 20 2026: a client filed at the wrong studio on a shared Mindbody site
+// (Meg Pauly). Leaders of the studio she trains at see her and move her.
+export { homeStudioNotices, moveClientHome } from "./homeStudio";
 
 admin.initializeApp();
 const db = getFirestore("ai-studio-32cbbdcc-6e08-4770-9665-867c68878efa");
