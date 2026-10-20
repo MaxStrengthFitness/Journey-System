@@ -21,6 +21,10 @@ import { createRoot, type Root } from "react-dom/client";
 const count = vi.hoisted(() => ({ moments: 0, rows: 0, cards: 0, criticalAsked: [] as string[][] }));
 
 vi.mock("../firebase", () => ({ db: {}, auth: { currentUser: { uid: "uid-ioreth" } } }));
+// The studio's "New, up to session" (Oct 20 2026): the app's own, no listener.
+vi.mock("../features/studio-settings/useStudioSettings", () => ({
+  useStudioSettings: () => ({ value: () => null, loading: false, failed: false }),
+}));
 vi.mock("../hooks/useHubCriticalNotes", () => {
   const LAURA = [
     { id: "n1", clientId: "laura", importance: "critical", body: "No overhead pressing.", occurredAt: "2026-09-20T12:00:00Z", effectiveUntil: null, resolvedAt: null, isArchived: false },

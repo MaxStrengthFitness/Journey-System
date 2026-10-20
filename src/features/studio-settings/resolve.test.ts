@@ -72,11 +72,11 @@ describe("resolveAll", () => {
     expect(broken.newMax.source).toBe("company");
     // Without the studio's layer, the app's New (10) and head office's Settling in (12) agree.
     const mixed = resolveAll({ studio: { newMax: 30 }, company: { settlingMax: 12 } });
-    expect([mixed.newMax.value, mixed.settlingMax.value]).toEqual([10, 12]);
+    expect([mixed.newMax.value, mixed.settlingMax.value]).toEqual([6, 12]);
     expect([mixed.newMax.source, mixed.settlingMax.source]).toEqual(["app", "company"]);
     // Broken at every layer: the app's own pair.
     const allBroken = resolveAll({ studio: { newMax: 30, settlingMax: 20 }, company: { newMax: 20, settlingMax: 12 } });
-    expect([allBroken.newMax.value, allBroken.settlingMax.value]).toEqual([10, 24]);
+    expect([allBroken.newMax.value, allBroken.settlingMax.value]).toEqual([6, 24]);
     expect(allBroken.newMax.source).toBe("app");
     const fine = resolveAll({ studio: { newMax: 5, settlingMax: 12 }, company: null });
     expect([fine.newMax.value, fine.settlingMax.value, fine.newMax.source]).toEqual([5, 12, "studio"]);

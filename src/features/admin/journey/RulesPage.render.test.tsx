@@ -115,9 +115,9 @@ describe("Setup → Rules", () => {
     expect(rule(el, "Drifting's least")?.textContent).toContain("waits at least 7 days");
     expect(rule(el, "Drifting's least")?.dataset.source).toBe("app");
     expect(rule(el, "Drifting's least")?.textContent).toContain("The app's default: neither Solon nor head office has set one.");
-    expect(rule(el, "New")?.textContent).toContain("sessions 1 to 10");
+    expect(rule(el, "New")?.textContent).toContain("sessions 1 to 6");
     expect(text).toContain("a client whose history is before Journey is never called new");
-    expect(rule(el, "Settling in")?.textContent).toContain("sessions 11 to 24");
+    expect(rule(el, "Settling in")?.textContent).toContain("sessions 7 to 24");
 
     // Operations looks; both doors go to where the numbers are set, and nothing here edits.
     expect(el.querySelector("input, select, textarea")).toBeNull();

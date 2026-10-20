@@ -89,6 +89,8 @@ export interface DayMomentsProps {
   fordFor?: (clientId: string) => readonly FordEntry[] | null;
   /** The nightly marks (`useHubMarks().allStarOf`): absent when they may not be spoken. */
   allStarOf?: (clientId: string) => AllStarMark | null;
+  /** The studio's "New, up to session" (`useStudioSettings().value("newMax")`): "New client!" up to it (AJ, Oct 20 2026). Absent: the app's. */
+  newMax?: number;
 }
 
 export interface DayMoments {
@@ -128,6 +130,7 @@ export function useDayMoments({
   criticalFor,
   fordFor,
   allStarOf,
+  newMax,
 }: DayMomentsProps): DayMoments {
   const today = studioTodayKey(now);
   const myIds = useMemo(() => myTrainerIds(authTrainer, uid ?? null), [authTrainer, uid]);
@@ -210,8 +213,9 @@ export function useDayMoments({
       // Mindbody's "not signed" flags a card only where the studio keeps its
       // waivers in Mindbody at all (hub fixes, Oct 1 2026; lib/client-waiver).
       waiversKeptInMindbody: keepsWaivers,
+      newMax,
     }),
-    [today, engineNow, schedules, index, clientsById, rowsById, studios, logged, marks, criticalFor, fordFor, allStarOf, myIds, myName, trainerNameOf, keepsWaivers],
+    [today, engineNow, schedules, index, clientsById, rowsById, studios, logged, marks, criticalFor, fordFor, allStarOf, myIds, myName, trainerNameOf, keepsWaivers, newMax],
   );
 
   /* The strip's dots: asked per day, remembered until the engine's input moves. */

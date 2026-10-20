@@ -59,7 +59,7 @@
  *     (phase 2; on the phone's list it stands as it did).
  */
 import { memo, type ComponentType } from "react";
-import { Activity, AlertTriangle, Award, Cake, Check, Circle, CloudOff, FileSignature, MessageCircle, Pause, RefreshCw, Sparkles, Undo2, X } from "lucide-react";
+import { Activity, AlertTriangle, Award, Cake, Check, Circle, CloudOff, FileSignature, Handshake, MessageCircle, Pause, RefreshCw, Sparkles, Undo2, X } from "lucide-react";
 import type { Client, WorkoutSession } from "../../types";
 import { isStaffBlock, type BookingMarks, type LoggedSessions } from "../../lib/booking-state";
 import { hubCardIsNow, hubCardRecedes, hubCardState, type HubCardState } from "../../lib/hub-card-state";
@@ -77,7 +77,8 @@ export const GLYPH: Record<MomentKind, ComponentType<{ size?: number; strokeWidt
   critical: AlertTriangle,
   waiver: FileSignature,
   pulse: Activity,
-  consult: Sparkles,
+  // A consult has its own mark (AJ, Oct 20 2026: "a specific one for consult").
+  consult: Handshake,
   "early-session": Sparkles,
   "first-with-trainer": Sparkles,
   back: Undo2,

@@ -149,6 +149,22 @@ describe("milestones: Operations' one list, only when the total may be quoted", 
 });
 
 describe("welcome", () => {
+  it("says New client! through the studio's \"New, up to session\", 6 unless the studio set its own (AJ, Oct 20 2026)", () => {
+    const clients = [
+      makeClient({ id: "sixth", sessionCount: 5, ...COMPLETE }),
+      makeClient({ id: "seventh", sessionCount: 6, ...COMPLETE }),
+    ];
+    const bookings = [makeBooking({ clientId: "sixth", start: today("15:00") }), makeBooking({ clientId: "seventh", start: today("16:00") })];
+    const isNew = (entries: RunSheetEntry[], id: string) => entries.find((e) => e.clientId === id)?.moments.some((m) => m.kind === "early-session");
+    const app = run(clients, bookings);
+    expect([isNew(app, "sixth"), isNew(app, "seventh")]).toEqual([true, false]);
+    const studio = run(clients, bookings, { newMax: 8 });
+    expect([isNew(studio, "sixth"), isNew(studio, "seventh")]).toEqual([true, true]);
+    // An unusable number falls back to the app's.
+    const broken = run(clients, bookings, { newMax: 0 });
+    expect([isNew(broken, "sixth"), isNew(broken, "seventh")]).toEqual([true, false]);
+  });
+
   it("a consultation, an early session and a first time with this trainer", () => {
     const entries = run(
       [
@@ -164,7 +180,8 @@ describe("welcome", () => {
     );
     const by = (id: string) => entries.find((e) => e.clientId === id);
     expect(by("consult")?.moments[0]).toMatchObject({ family: "welcome", kind: "consult" });
-    expect(by("second")?.moments.find((m) => m.kind === "early-session")?.chip).toBe("2nd session");
+    expect(by("second")?.moments.find((m) => m.kind === "early-session")?.chip).toBe("New client!");
+    expect(by("second")?.sessionNumber).toBe(2);
     expect(by("second")?.moments.some((m) => m.kind === "first-with-trainer")).toBe(false);
     expect(by("newtrainer")?.moments.find((m) => m.kind === "first-with-trainer")?.chip).toBe("First with Pippin");
   });

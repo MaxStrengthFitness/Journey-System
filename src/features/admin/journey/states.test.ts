@@ -32,7 +32,7 @@ const input = (extra: Partial<JourneyInput> = {}): JourneyInput => ({
 
 describe("the lines", () => {
   it("takes the app's own lines from the settings' registry, and nowhere else", () => {
-    expect(APP_LINES).toEqual({ driftMultiple: 2, driftMinDays: 7, lapsedDays: 45, inactiveDays: 90, newMax: 10, settlingMax: 24 });
+    expect(APP_LINES).toEqual({ driftMultiple: 2, driftMinDays: 7, lapsedDays: 45, inactiveDays: 90, newMax: 6, settlingMax: 24 });
   });
 
   it("drifts at twice her usual gap, never under a week", () => {
