@@ -8,7 +8,8 @@
  * my trainer account", and "2a" to switching off the two leftovers at Solon.
  *
  * WHAT IT WRITES, four documents, each only the fields named:
- *   trainers/2GIp…  jurgensaj@gmail.com, Admin: the administrator only. Its
+ *   trainers/2GIp…  jurgensaj@gmail.com, Admin: the administrator only, named
+ *                   "Admin Account" (AJ, later the same day). Its
  *                   Mindbody staff id comes off (100000012 → ""), so
  *                   Strongsville's bookings stop pointing at it. Its role,
  *                   studios and the 9 sessions under it stay.
@@ -36,12 +37,13 @@
  * USAGE (PowerShell, from the project folder, where .env and
  * service-account.json are):
  *   npx tsx scripts/aj-accounts-oct20.ts                       what it would change
- *   npx tsx scripts/aj-accounts-oct20.ts --commit --expect 4   write it
+ *   npx tsx scripts/aj-accounts-oct20.ts --commit --expect N   write it
  * --expect is the number of documents the dry run says it will write.
  */
 
 import { connectFirestore, flag, hasFlag, writeReport } from "./lib/admin.ts";
 import { switchOffPatch } from "../src/features/sign-out/account-off.ts";
+import { generateSearchTokens } from "../src/lib/utils.ts";
 
 const ADMIN_UID = "2GIpJh7FZkaFNu5z4diiKO1MsM02";
 const BY = { uid: ADMIN_UID, name: "Austin Jurgens" };
@@ -59,9 +61,11 @@ function steps(nowIso: string): Step[] {
   return [
     {
       id: ADMIN_UID,
-      what: "jurgensaj@gmail.com: administrator only",
+      what: "jurgensaj@gmail.com: administrator only, named Admin Account",
       expect: { email: "jurgensaj@gmail.com", role: "Admin" },
-      set: { mindbodyStaffId: "", mindbodyLinked: false },
+      // AJ, Oct 20 2026: "Lets just rename my gmail to Admin Account and make
+      // that an exception": no second "Austin Jurgens" on any list.
+      set: { mindbodyStaffId: "", mindbodyLinked: false, fullName: "Admin Account", initials: "AA", searchTokens: generateSearchTokens("Admin Account") },
     },
     {
       id: "3mARuqFyLxeOHZkSiW6dhbD1XdQ2",

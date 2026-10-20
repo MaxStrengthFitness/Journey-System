@@ -30,6 +30,8 @@ Sign-in finds a person by `trainers/{uid}`, then by the `email` stored on a reco
 - **Who can be linked** is whoever's address this viewer may set (`staffEditLimits`: not read-only, email not locked), so the list never offers what the rules would refuse.
 - **One address, one person** is checked against the people this iPad can see. A leader can't see another studio's trainers (the trainer lock), so a holder there isn't found; sign-in still takes the first record by id.
 - **Administrators only.** AJ, the same afternoon: "Read-only for leaders". My Studio → Team shows the editor with `lockedReason` (nothing saves, nothing is approved); Admins → Studios → a studio → Team is where people are changed, merged and let in. The rules were left as master's: an administrator already may do all of it.
+- **Linking moves the record now, written by the administrator** (`movedRecord`, Oct 20 2026): a claim at the person's next sign-in can't carry Admin and didn't run for Mike Palko. A record someone signs in to that is merged away is switched off (`tombstonePatch` with `switchOff`).
+- **A shared Mindbody staff id is one person** (`team-board.ts`): the sync matches neither of two records carrying it, and the bookings go to Unassigned. Two accounts people sign in to pair only on that, never on a name.
 - **Merge moves no bookings from the screen.** A booking stores its trainer's record id when synced; the Hub reads a merged record's id as the kept one's (`mergedAliases`), and the next sync rewrites today onward. The script moves them all, for a record with history.
 - **A suggestion is a reason, not a guess.** "Who is this?" starts on a person only when the address or the typed name fits them, and says which; otherwise it starts on "A new person".
 

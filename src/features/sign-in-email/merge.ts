@@ -124,15 +124,82 @@ export function keptPatch(from: Doc, into: Doc, fromId: string, mode: Mode): Doc
   return patch;
 }
 
-/** What the old record becomes: a pointer at the kept one, holding no staff id. */
-export function tombstonePatch(from: Doc, intoId: string, nowIso: string): Doc {
+/**
+ * Someone signs in as this record: it is at their uid (a Firebase Auth uid is
+ * 28 characters, an auto-id 20) or carries their authUid.
+ */
+export function isSignedInRecord(id: string, d: Doc): boolean {
+  return id.length === 28 || (text(d.authUid) !== "" && text(d.authUid) === id);
+}
+
+/**
+ * What the old record becomes: a pointer at the kept one, holding no staff
+ * id. When someone signs in AS it (Mike Palko's gmail, Oct 20 2026), it is
+ * also switched off, so that sign-in is refused with a sentence instead of
+ * opening a record nothing points at any more (AJ: "Switch it off").
+ */
+export function tombstonePatch(
+  from: Doc,
+  intoId: string,
+  nowIso: string,
+  switchOff?: { fromId: string; by: { uid: string; name: string } },
+): Doc {
   return {
     supersededByUid: intoId,
     supersededAt: nowIso,
     systemStatus: "superseded",
     isVisibleOnCalendar: false,
     ...(text(from.mindbodyStaffId) ? { mindbodyStaffId: "", mindbodyLinked: false, mergedMindbodyStaffId: text(from.mindbodyStaffId) } : {}),
+    ...(from.pendingClaim === true ? { pendingClaim: false } : {}),
+    ...(switchOff && isSignedInRecord(switchOff.fromId, from)
+      ? { isActive: false, switchedOffAt: nowIso, switchedOffBy: { uid: switchOff.by.uid, name: switchOff.by.name.trim().slice(0, 80) || "An administrator" } }
+      : {}),
   };
+}
+
+/** What never travels to the record at someone's uid: who it was, and dead credentials. */
+const NOT_CARRIED = [
+  "id",
+  "pendingClaim",
+  "supersededByUid",
+  "supersededAt",
+  "systemStatus",
+  "authUid",
+  "email",
+  "claimedFromId",
+  "claimedAt",
+  "mergedFromIds",
+  "mergedMindbodyStaffId",
+  "isActive",
+  "switchedOffAt",
+  "switchedOffBy",
+  // Trainer PINs were removed in Sep 2026; the rules refuse a record that
+  // still carries pinHash (isValidTrainer).
+  "pin",
+  "pinHash",
+  "requiresPinReset",
+];
+
+/**
+ * The record written at a person's sign-in uid, made from the profile they
+ * already have (an administrator linking a sign-in to it, or the script):
+ * the same role, studios, Mindbody link and roster, signed in as `email`,
+ * pointing back at where it came from. Nothing waits for them to sign in
+ * again, and it works for any role: a claim can't hand anyone Admin
+ * (selfCreatedRoleIsAllowed), an administrator's write can.
+ */
+export function movedRecord(source: Doc, sourceId: string, uid: string, opts: { email: string; nowIso: string; fullName?: string }): Doc {
+  const out: Doc = {};
+  for (const [k, v] of Object.entries(source)) if (!NOT_CARRIED.includes(k) && v !== undefined) out[k] = v;
+  out.authUid = uid;
+  out.email = opts.email.trim().toLowerCase();
+  out.claimedFromId = sourceId;
+  out.claimedAt = opts.nowIso;
+  out.mergedFromIds = [sourceId];
+  out.systemStatus = "active";
+  if (text(out.mindbodyStaffId)) out.mindbodyLinked = true;
+  if (opts.fullName && opts.fullName.trim()) out.fullName = opts.fullName.trim().replace(/\s+/g, " ");
+  return out;
 }
 
 /** Writes in Firestore's batch limit, leaving room. */

@@ -45,7 +45,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { arrayRemove, arrayUnion, doc, setDoc, updateDoc, writeBatch } from "firebase/firestore";
 import { CircleUserRound, Link2, ShieldAlert, UserCheck } from "lucide-react";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import type { Studio, Trainer, UserRole } from "../../../types";
 import { ROLE_LABELS } from "../../../types";
 import { useToast } from "../../../contexts/ToastContext";
@@ -66,12 +66,14 @@ import { isStudioAccessRequest, requestStudioId, type MindbodyStaff, type StaffR
 import { staffEditLimits } from "./edit-limits";
 import {
   emailWrites,
+  holdersOf,
   looksLikeEmail,
   neverSignedIn,
   normalEmail,
   whoIsThis,
   type EmailWrite,
 } from "../../sign-in-email/sign-in-email";
+import { movedRecord, tombstonePatch } from "../../sign-in-email/merge";
 
 export const STATE_BADGE: Record<
   StaffState,
@@ -225,7 +227,9 @@ export function StaffEditor({
       const l = staffEditLimits({ viewer, target: t, viewerIsAdmin, studios });
       return !l.readOnly && !l.emailLocked;
     });
-    return whoIsThis(row.request, linkable, mindbodyStaffOnly);
+    // An administrator may also link to an account someone already signs in
+    // as (Mike Palko's gmail admin record, Oct 20 2026).
+    return whoIsThis(row.request, linkable, mindbodyStaffOnly, { includeSignedIn: viewerIsAdmin });
   }, [asking, row.request, people, mindbodyStaffOnly, viewer, viewerIsAdmin, studios]);
   // The likeliest answer is offered, never assumed: only one with a reason.
   // Keyed on a string, so a re-render never undoes the leader's own pick.
@@ -307,17 +311,36 @@ export function StaffEditor({
       toastError("This request has no email address to link. Ask them to sign in again.");
       return;
     }
+    if (!req.userId) {
+      toastError("No signed-in account is attached to this request. Ask them to sign in first: the account is keyed on that.");
+      return;
+    }
     setBusy(true);
     try {
+      // The record moves to their sign-in NOW (Oct 20 2026): written at
+      // trainers/{uid} with its role, studios and Mindbody link, the old one
+      // left as a pointer (switched off when someone signed in as it). A
+      // claim at their next sign-in can't carry Admin, and Mike Palko's
+      // never ran: the rules know a person only at trainers/{uid}.
+      const nowIso = new Date().toISOString();
+      const uid = req.userId;
+      const moved = movedRecord(target as never, targetId, uid, { email: mail, nowIso });
+      if (!moved.initials) moved.initials = initialsFrom(target.fullName || req.fullName || "") || "XX";
       const batch = writeBatch(db);
-      for (const w of emailWrites(target, mail, people)) batch.update(doc(db, "trainers", w.id), w.patch);
+      batch.set(doc(db, "trainers", uid), moved);
+      batch.update(
+        doc(db, "trainers", targetId),
+        tombstonePatch(target as never, uid, nowIso, { fromId: targetId, by: { uid: auth.currentUser?.uid ?? viewer?.id ?? "", name: viewer?.fullName ?? "" } }),
+      );
+      // One address, one person: anyone else still holding it lets it go.
+      for (const other of holdersOf(mail, people, targetId)) if (other.id !== uid) batch.update(doc(db, "trainers", other.id), { email: "" });
       batch.update(doc(db, "access_requests", req.id), {
         status: "Approved",
-        approvedTrainerId: targetId,
-        updatedAt: new Date().toISOString(),
+        approvedTrainerId: uid,
+        updatedAt: nowIso,
       });
       await batch.commit();
-      toastSuccess(`Linked. When they press Check again, ${mail} opens ${targetName}'s account.`);
+      toastSuccess(`Linked. ${mail} now opens ${targetName}'s account: they press Check again.`);
       await onDone();
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `trainers/${targetId}`);
@@ -499,7 +522,11 @@ export function StaffEditor({
                 <option value={NEW_PERSON}>A new person: make an account</option>
                 {choices.map((c) => (
                   <option key={c.key} value={c.key}>
-                    {c.kind === "record" ? `${c.name}, already in Journey` : `${c.name}, on Mindbody's staff list`}
+                    {c.kind === "record"
+                      ? c.signsInAs
+                        ? `${c.name}, already in Journey (signs in as ${c.signsInAs})`
+                        : `${c.name}, already in Journey`
+                      : `${c.name}, on Mindbody's staff list`}
                   </option>
                 ))}
               </AdminSelect>
@@ -510,8 +537,10 @@ export function StaffEditor({
         {linking && (
           <div style={{ marginTop: 10 }}>
             <AdminNotice tone="info">
-              Linking writes {row.request?.email} on {chosen?.name}'s record. Their role, studios and
-              Mindbody link stay as they are; change them afterwards if they need it.
+              Linking moves {chosen?.name}'s record to this sign-in now, with their role, studios and Mindbody
+              link.{chosen?.kind === "record" && chosen.signsInAs
+                ? ` Their sign-in as ${chosen.signsInAs} is switched off: one person, one account.`
+                : ""}
             </AdminNotice>
           </div>
         )}
@@ -707,7 +736,7 @@ export function StaffEditor({
         title={linking ? `Is this ${chosen?.name}?` : `Give ${row.name} an account?`}
         body={
           linking
-            ? `${row.request?.email} will sign in as ${chosen?.name}, with their role, studios and Mindbody link. Nothing new is made.`
+            ? `${row.request?.email} will sign in as ${chosen?.name}, with their role, studios and Mindbody link.${chosen?.kind === "record" && chosen.signsInAs ? ` Their sign-in as ${chosen.signsInAs} is switched off.` : ""} The old record is kept as a pointer.`
             : `They will sign in as ${ROLE_LABELS[role]} at ${studios.find((s) => s.id === homeStudioId)?.name ?? "the selected studio"}${chosen?.kind === "mindbody" ? `, linked to ${chosen.name} in Mindbody` : ""}. Roles can be changed afterwards.`
         }
         confirmLabel={linking ? "Link" : "Approve"}

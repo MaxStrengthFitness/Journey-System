@@ -41,7 +41,7 @@ import { ProvisionalPanel } from "../../admin/provisional/ProvisionalPanel";
 import { useStaffRoster } from "../../admin/staff/useStaffRoster";
 import { ADMIN_TIER_ROLES, StaffEditor } from "../../admin/staff/StaffEditor";
 import { mindbodyOnly, type MindbodyStaff, type StaffRow } from "../../admin/staff/roster";
-import { keptPatch, tombstonePatch } from "../../sign-in-email/merge";
+import { isSignedInRecord, keptPatch, tombstonePatch } from "../../sign-in-email/merge";
 import { HqRow, HqRows, HqStatus } from "../kit";
 import { roleLabel } from "./role-change";
 import { RoleDialog } from "./RoleDialog";
@@ -126,7 +126,11 @@ export function StudioTeam({
       const batch = writeBatch(db);
       const patch = keptPatch(old as never, kept as never, old.id, "merge");
       if (Object.keys(patch).length) batch.update(doc(db, "trainers", kept.id), patch);
-      batch.update(doc(db, "trainers", old.id), tombstonePatch(old as never, kept.id, nowIso));
+      // Someone signs in as the other record (Mike Palko's gmail): switched off with it.
+      batch.update(
+        doc(db, "trainers", old.id),
+        tombstonePatch(old as never, kept.id, nowIso, { fromId: old.id, by: { uid: authTrainer.id, name: authTrainer.fullName || "" } }),
+      );
       await batch.commit();
       await record(
         `Merged ${old.fullName || "a record"}'s older record into the one ${kept.fullName || "they"} sign in to.`,
@@ -196,6 +200,10 @@ export function StudioTeam({
     );
   };
 
+  // Both records of a pair are listed when neither (or both) is signed in to: each row keeps itself.
+  const bothListed = (e: TeamEntry) => Boolean(e.mergeWith && board.some((x) => x.trainer.id === e.mergeWith!.id));
+  const signsIn = (t: Trainer | null) => Boolean(t && isSignedInRecord(t.id, t as never));
+
   const actions = (e: TeamEntry) => {
     const t = e.trainer;
     const name = t.fullName || "this person";
@@ -211,7 +219,7 @@ export function StudioTeam({
         {e.mergeWith ? (
           <AdminButton size="sm" variant="primary" busy={busy === t.id} disabled={busy !== null} onClick={() => setPending({ kind: "merge", entry: e })}>
             <Merge className="w-3.5 h-3.5" />
-            Merge
+            {bothListed(e) ? "Keep this one" : "Merge"}
           </AdminButton>
         ) : null}
         {e.linkTo ? (
@@ -361,17 +369,17 @@ export function StudioTeam({
         open={pending !== null}
         title={
           pending?.kind === "merge"
-            ? `Merge ${pending.entry.trainer.fullName}'s two records?`
+            ? `Keep "${pending.entry.trainer.fullName}" and merge the other into it?`
             : `Link ${pending?.entry.trainer.fullName ?? ""} to Mindbody?`
         }
         body={
           pending?.kind === "merge"
-            ? `Keeps the record ${pending.entry.trainer.fullName} signs in to (${pending.entry.trainer.email || "no address"}). It takes the Mindbody link${pending.entry.mergeWith?.mindbodyStaffId ? ` (staff ${pending.entry.mergeWith.mindbodyStaffId})` : ""}, and the Hub shows the other record's bookings as theirs. The other record is kept as a pointer, never deleted.`
+            ? `Keeps "${pending.entry.trainer.fullName}" (${pending.entry.trainer.email || "no address"}). It takes the Mindbody link${pending.entry.mergeWith?.mindbodyStaffId ? ` (staff ${pending.entry.mergeWith.mindbodyStaffId})` : ""}, and the Hub shows "${pending.entry.mergeWith?.fullName}"'s bookings as theirs. That record is kept as a pointer, never deleted${signsIn(pending.entry.mergeWith) ? `, and its sign-in as ${pending.entry.mergeWith?.email || "another account"} is switched off` : ""}.`
             : pending?.kind === "link"
               ? `${pending.entry.trainer.fullName}'s bookings with ${pending.entry.linkTo?.fullName} (Mindbody staff ${pending.entry.linkTo?.id}) come to them from the next sync.`
               : ""
         }
-        confirmLabel={pending?.kind === "merge" ? "Merge" : "Link"}
+        confirmLabel={pending?.kind === "merge" ? "Merge them" : "Link"}
         busy={busy !== null}
         onCancel={() => setPending(null)}
         onConfirm={() => {

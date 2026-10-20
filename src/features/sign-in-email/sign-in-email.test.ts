@@ -98,7 +98,7 @@ describe("Who is this?", () => {
   it("puts the likeliest first, offers only people who never signed in, and keeps the rest by name", () => {
     const list = whoIsThis({ email: "ksharratt@maxstrengthfitness.com", fullName: "Kayla S" }, [kyle, austin, kayla, tomb, demo]);
     expect(list.map((c) => c.name)).toEqual(["Kayla Sharratt", "Kyle McManus"]);
-    expect(list[0]).toEqual({ kind: "record", key: `t:${kayla.id}`, id: kayla.id, name: "Kayla Sharratt", why: "the address is their first initial and last name" });
+    expect(list[0]).toEqual({ kind: "record", key: `t:${kayla.id}`, id: kayla.id, name: "Kayla Sharratt", signsInAs: null, why: "the address is their first initial and last name" });
     expect(list[1].why).toBeNull();
   });
 
@@ -115,5 +115,14 @@ describe("Who is this?", () => {
     const list = whoIsThis({ email: "dcoduti@maxstrengthfitness.com", fullName: "Dom" }, [kayla], staff);
     expect(list.map((c) => c.key)).toEqual(["mb:100000006", `t:${kayla.id}`, "mb:100000059"]);
     expect(list[0]).toEqual({ kind: "mindbody", key: "mb:100000006", staffId: "100000006", name: "Dominic Coduti", why: "the address is their first initial and last name" });
+  });
+
+
+  it("offers an administrator the accounts people already sign in as, never the requester's own", () => {
+    const mike = { id: uid(5), fullName: "Michael Palko", email: "palko.jr@gmail.com", authUid: uid(5) };
+    const request = { email: "mike@maxstrengthfitness.com", fullName: "Mike Palko", userId: uid(6) };
+    expect(whoIsThis(request, [mike, { id: uid(6), fullName: "Mike Palko" }]).map((c) => c.name)).toEqual([]);
+    const list = whoIsThis(request, [mike, { id: uid(6), fullName: "Mike Palko" }], [], { includeSignedIn: true });
+    expect(list).toEqual([{ kind: "record", key: `t:${uid(5)}`, id: uid(5), name: "Michael Palko", signsInAs: "palko.jr@gmail.com", why: "the same last name" }]);
   });
 });

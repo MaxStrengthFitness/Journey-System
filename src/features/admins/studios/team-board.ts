@@ -75,19 +75,30 @@ export function teamBoard(input: {
   const staffById = new Map(mindbodyStaff.map((s) => [String(s.id), s]));
   const linkedStaff = new Set(here.map((t) => String(t.mindbodyStaffId ?? "")).filter(Boolean));
 
-  // One person on two records: a signed-in record and one nobody signs in
-  // as, with the same name. The signed-in one is kept (the rules know a
-  // person only at their uid).
+  // One person on two records: the same name, or the same Mindbody staff id
+  // (Mike Palko, Oct 20 2026: "Michael Palko" and "Mike Palko Strongsville"
+  // both carried 100000062, so the sync matched neither and his bookings
+  // went to Unassigned). Two different staff ids are two people.
+  const staffOf = (t: Trainer) => String(t.mindbodyStaffId ?? "").trim();
+  // Two accounts people sign in to pair only on a shared staff id, never on a
+  // name: AJ keeps a gmail administrator account and a trainer account, both
+  // "Austin Jurgens", on purpose.
+  const samePerson = (a: Trainer, b: Trainer) =>
+    !(staffOf(a) && staffOf(b) && staffOf(a) !== staffOf(b)) &&
+    ((staffOf(a) !== "" && staffOf(a) === staffOf(b)) ||
+      (!(signedIn(a) && signedIn(b)) && nameKey(a.fullName) !== "" && nameKey(a.fullName) === nameKey(b.fullName)));
   const pairOf = new Map<string, Trainer>();
-  for (const kept of here.filter((t) => signedIn(t) && !isSwitchedOff(t))) {
-    const old = here.find(
-      (o) => o.id !== kept.id && !signedIn(o) && !isSwitchedOff(o) && nameKey(o.fullName) && nameKey(o.fullName) === nameKey(kept.fullName),
-    );
-    if (old && !(kept.mindbodyStaffId && old.mindbodyStaffId && String(kept.mindbodyStaffId) !== String(old.mindbodyStaffId))) {
-      pairOf.set(kept.id, old);
-      pairOf.set(old.id, kept);
+  const live = here.filter((t) => !isSwitchedOff(t) && !isRotationName(t.fullName));
+  for (const a of live) {
+    if (pairOf.has(a.id)) continue;
+    const b = live.find((o) => o.id !== a.id && !pairOf.has(o.id) && samePerson(a, o));
+    if (b) {
+      pairOf.set(a.id, b);
+      pairOf.set(b.id, a);
     }
   }
+  const why = (a: Trainer, b: Trainer) =>
+    staffOf(a) && staffOf(a) === staffOf(b) ? `both linked to Mindbody staff ${staffOf(a)}` : "the same name";
 
   const entries: TeamEntry[] = [];
   for (const t of here) {
@@ -112,14 +123,25 @@ export function teamBoard(input: {
     }
     const pair = pairOf.get(t.id);
     if (pair) {
-      // Listed once, on the record kept: Merge folds the other in.
-      if (!signedIn(t)) continue;
-      entries.push({
-        ...base,
-        group: "needs",
-        mergeWith: pair,
-        note: `Two records: the one they sign in to, and ${pair.mindbodyStaffId ? `one linked to Mindbody (staff ${pair.mindbodyStaffId})` : "an older one"}. Merge keeps this one.`,
-      });
+      // One signs in and one doesn't: listed once, on the record they sign in
+      // to, and Merge folds the other in. Otherwise both are listed, each
+      // with "Keep this one": an administrator chooses.
+      if (signedIn(t) !== signedIn(pair)) {
+        if (!signedIn(t)) continue;
+        entries.push({
+          ...base,
+          group: "needs",
+          mergeWith: pair,
+          note: `Two records: the one they sign in to, and ${pair.mindbodyStaffId ? `one linked to Mindbody (staff ${pair.mindbodyStaffId})` : "an older one"}. Merge keeps this one.`,
+        });
+      } else {
+        entries.push({
+          ...base,
+          group: "needs",
+          mergeWith: pair,
+          note: `Also on the record "${pair.fullName}" (${why(t, pair)})${signedIn(pair) ? `, which signs in as ${pair.email || "another account"}` : ""}. Keep this one folds that one in${signedIn(pair) ? " and switches its sign-in off" : ""}.`,
+        });
+      }
       continue;
     }
     if (signedIn(t) && !staffId && onTheFloor(t)) {

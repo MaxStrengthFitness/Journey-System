@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkMerge, chunks, keptPatch, referencesFor, tombstonePatch } from "./merge";
+import { checkMerge, chunks, isSignedInRecord, keptPatch, movedRecord, referencesFor, tombstonePatch } from "./merge";
 
 const UID = "6bCBnGXtYFYm0w7WL3UDXL2OcKE2";
 const OLD = "Taz36HFLtuHGMbfi35I2";
@@ -63,5 +63,52 @@ describe("merging Kyle's two records (Oct 20 2026)", () => {
 
   it("writes in batches under Firestore's limit", () => {
     expect(chunks(Array.from({ length: 1001 }, (_, i) => i)).map((c) => c.length)).toEqual([400, 400, 201]);
+  });
+});
+
+describe("Mike Palko: two records, one Mindbody staff id, a gmail and a Microsoft sign-in (Oct 20 2026)", () => {
+  const MS = "HIhHKfQvfEejx6BFmCn1Jj2lHpH2";
+  const GMAIL = "exPWcA8QoVbnLyKNRjVEvP2WXGm2";
+  const admin = {
+    fullName: "Michael Palko",
+    role: "Admin",
+    email: "palko.jr@gmail.com",
+    mindbodyStaffId: "100000062",
+    pin: "",
+    pinHash: "",
+    requiresPinReset: false,
+    accessibleStudioIds: ["s1", "s2"],
+    brandColor: "#F06C22",
+    initials: "MP",
+  };
+
+  it("builds his Microsoft record from his admin profile, without who it was or a dead PIN", () => {
+    const rec = movedRecord(admin, GMAIL, MS, { email: "Mike@MaxStrengthFitness.com", nowIso: "T", fullName: " Mike  Palko " });
+    expect(rec).toEqual({
+      fullName: "Mike Palko",
+      role: "Admin",
+      mindbodyStaffId: "100000062",
+      mindbodyLinked: true,
+      accessibleStudioIds: ["s1", "s2"],
+      brandColor: "#F06C22",
+      initials: "MP",
+      authUid: MS,
+      email: "mike@maxstrengthfitness.com",
+      claimedFromId: GMAIL,
+      claimedAt: "T",
+      mergedFromIds: [GMAIL],
+      systemStatus: "active",
+    });
+  });
+
+  it("switches the gmail account off as it merges, and never an auto-id record nobody signs in to", () => {
+    const by = { uid: "aj", name: "Austin Jurgens" };
+    expect(tombstonePatch(admin, MS, "T", { fromId: GMAIL, by })).toMatchObject({ supersededByUid: MS, isActive: false, switchedOffBy: by, mindbodyStaffId: "" });
+    const strongsville = { fullName: "Mike Palko Strongsville", pendingClaim: true, mindbodyStaffId: "100000062" };
+    const t = tombstonePatch(strongsville, MS, "T", { fromId: "bLHaTfGn3wljCywdS8N5", by });
+    expect(t).toMatchObject({ pendingClaim: false, supersededByUid: MS });
+    expect(t).not.toHaveProperty("isActive");
+    expect(isSignedInRecord(GMAIL, admin)).toBe(true);
+    expect(isSignedInRecord("bLHaTfGn3wljCywdS8N5", strongsville)).toBe(false);
   });
 });

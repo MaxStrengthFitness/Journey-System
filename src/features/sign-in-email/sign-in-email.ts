@@ -124,7 +124,15 @@ export function addressFits(email: string, fullName: string | null | undefined):
  * their Mindbody staff id on it).
  */
 export type WhoChoice =
-  | { kind: "record"; key: string; id: string; name: string; why: string | null }
+  | {
+      kind: "record";
+      key: string;
+      id: string;
+      name: string;
+      why: string | null;
+      /** Someone signs in as it already (offered to an administrator): linking switches that sign-in off. */
+      signsInAs?: string | null;
+    }
   | { kind: "mindbody"; key: string; staffId: string; name: string; why: string | null };
 
 /**
@@ -133,25 +141,36 @@ export type WhoChoice =
  * has signed in as come before Mindbody staff at the same fit.
  */
 export function whoIsThis(
-  request: { email?: string | null; fullName?: string | null },
+  request: { email?: string | null; fullName?: string | null; userId?: string | null },
   records: readonly Person[],
   mindbodyStaff: readonly { id: string; fullName?: string | null; displayName?: string | null }[] = [],
+  /**
+   * Also offer records someone already signs in as (an administrator: Mike
+   * Palko's gmail admin record, Oct 20 2026). Linking moves that record to
+   * the new sign-in and switches the old one off.
+   */
+  opts: { includeSignedIn?: boolean } = {},
 ): WhoChoice[] {
   const typed = nameParts(request.fullName);
   const judge = (fullName: string) => {
     const fit = request.email ? addressFits(request.email, fullName) : null;
     const theirs = nameParts(fullName);
     const sameName = Boolean(typed.first && typed.first === theirs.first && (!typed.last || typed.last === theirs.last));
+    // Mike for Michael: the same last name is a weaker reason, still said.
+    const sameLast = !sameName && typed.last.length > 2 && typed.last === theirs.last;
     return {
-      score: (fit ? 2 : 0) + (sameName ? 1 : 0),
-      why: fit ? `the address is their ${fit}` : sameName ? "the same name" : null,
+      score: (fit ? 4 : 0) + (sameName ? 2 : 0) + (sameLast ? 1 : 0),
+      why: fit ? `the address is their ${fit}` : sameName ? "the same name" : sameLast ? "the same last name" : null,
     };
   };
   const scored = [
-    ...records.filter(neverSignedIn).map((t) => {
-      const name = t.fullName ?? "";
-      return { choice: { kind: "record" as const, key: `t:${t.id}`, id: t.id, name, ...judge(name) }, rank: 0 };
-    }),
+    ...records
+      .filter((t) => !isGone(t) && t.id !== request.userId && (neverSignedIn(t) || opts.includeSignedIn))
+      .map((t) => {
+        const name = t.fullName ?? "";
+        const signsInAs = neverSignedIn(t) ? null : normalEmail(t.email) || "another account";
+        return { choice: { kind: "record" as const, key: `t:${t.id}`, id: t.id, name, signsInAs, ...judge(name) }, rank: 0 };
+      }),
     ...mindbodyStaff.map((s) => {
       const name = (s.fullName || s.displayName || "").trim();
       return { choice: { kind: "mindbody" as const, key: `mb:${s.id}`, staffId: s.id, name, ...judge(name) }, rank: 1 };

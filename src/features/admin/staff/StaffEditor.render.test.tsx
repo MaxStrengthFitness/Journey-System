@@ -30,6 +30,7 @@ vi.mock("firebase/firestore", () => {
       const held: Array<{ path: string; data: Record<string, unknown> }> = [];
       return {
         update: (target: { path: string }, data: Record<string, unknown>) => void held.push({ path: target.path, data }),
+        set: (target: { path: string }, data: Record<string, unknown>) => void held.push({ path: target.path, data }),
         commit: async () => void writes.push(...held),
       };
     },
@@ -240,7 +241,7 @@ describe("StaffEditor: who signs in as whom", () => {
     expect(writes).toEqual([]);
   });
 
-  it("links a sign-in request to the record it suggests, making nothing new", async () => {
+  it("links a sign-in request to the record it suggests by moving that record to the sign-in now", async () => {
     const austin = august("austinAugustRecord01", "Austin Jurgens", { mindbodyStaffId: "100000012" });
     const row = buildStaffRoster({
       trainers: [kayla, austin],
@@ -256,10 +257,21 @@ describe("StaffEditor: who signs in as whom", () => {
     expect(field(el, "Role")).toBeUndefined();
     await press(el, "Link to Austin Jurgens");
     await press(el, "Link");
-    expect(writes).toEqual([
-      { path: "trainers/austinAugustRecord01", data: { email: "ajurgens@maxstrengthfitness.com", pendingClaim: true } },
-      { path: "access_requests/uid-aj", data: expect.objectContaining({ status: "Approved", approvedTrainerId: "austinAugustRecord01" }) },
-    ]);
+    expect(writes.map((w) => w.path)).toEqual(["trainers/uid-aj", "trainers/austinAugustRecord01", "access_requests/uid-aj"]);
+    expect(writes[0].data).toMatchObject({
+      fullName: "Austin Jurgens",
+      mindbodyStaffId: "100000012",
+      mindbodyLinked: true,
+      primaryHomeStudioId: "westlake",
+      email: "ajurgens@maxstrengthfitness.com",
+      authUid: "uid-aj",
+      claimedFromId: "austinAugustRecord01",
+    });
+    expect(writes[0].data).not.toHaveProperty("pendingClaim");
+    // Nobody signed in as the August record: a pointer, not switched off.
+    expect(writes[1].data).toMatchObject({ supersededByUid: "uid-aj", mindbodyStaffId: "" });
+    expect(writes[1].data).not.toHaveProperty("isActive");
+    expect(writes[2].data).toMatchObject({ status: "Approved", approvedTrainerId: "uid-aj" });
   });
 
   it("approves someone on Mindbody's staff list into an account that carries their Mindbody id", async () => {
@@ -319,6 +331,27 @@ describe("StaffEditor: who signs in as whom", () => {
     const el = await mount(row, { people: [kayla], viewerIsAdmin: true });
     expect((field(el, "Who is this?")!.querySelector("select") as HTMLSelectElement).value).toBe("new");
     expect(buttons(el).some((b) => b.includes("Approve and create the account"))).toBe(true);
+  });
+
+  it("lets an administrator link a new sign-in to an account someone signs in as, switching that one off (Mike Palko)", async () => {
+    const gmailUid = "mikeGmailUid0000000000000000";
+    const admin = { id: gmailUid, fullName: "Michael Palko", initials: "MP", primaryHomeStudioId: "westlake", accessibleStudioIds: ["westlake"], authUid: gmailUid, email: "palko.jr@gmail.com", role: "Admin", mindbodyStaffId: "100000062", pinHash: "" } as never;
+    const row = buildStaffRoster({
+      trainers: [admin],
+      mindbodyStaff: [],
+      requests: [{ id: "uid-mike", fullName: "Mike Palko", email: "mike@maxstrengthfitness.com", status: "Pending", userId: "uid-mike" }],
+      studioId: "westlake",
+    }).find((r) => r.request)!;
+    const el = await mount(row, { people: [admin], viewerIsAdmin: true, viewer: { id: "uid-aj", fullName: "Austin Jurgens", role: "Admin" } as never });
+    const who = field(el, "Who is this?")!;
+    expect((who.querySelector("select") as HTMLSelectElement).value).toBe(`t:${gmailUid}`);
+    expect(who.textContent).toContain("Michael Palko, already in Journey (signs in as palko.jr@gmail.com)");
+    expect(el.textContent).toContain("Their sign-in as palko.jr@gmail.com is switched off");
+    await press(el, "Link to Michael Palko");
+    await press(el, "Link");
+    expect(writes[0]).toMatchObject({ path: "trainers/uid-mike", data: { role: "Admin", mindbodyStaffId: "100000062", email: "mike@maxstrengthfitness.com" } });
+    expect(writes[0].data).not.toHaveProperty("pinHash");
+    expect(writes[1]).toMatchObject({ path: `trainers/${gmailUid}`, data: { supersededByUid: "uid-mike", isActive: false, switchedOffBy: { name: "Austin Jurgens" } } });
   });
 });
 
@@ -460,4 +493,5 @@ describe("StaffEditor offers only what the viewer may save", () => {
       expect(writes[0].data).not.toHaveProperty("managedStudioIds");
     });
   }
+
 });

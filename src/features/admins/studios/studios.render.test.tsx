@@ -371,8 +371,8 @@ describe("a studio's team: one person, two records", () => {
     expect(texts(el, ".hq-row__name").filter((n) => n.startsWith("Kyle McManus"))).toHaveLength(1);
     expect(el.textContent).toContain("one linked to Mindbody (staff 100000071)");
     await click(button(el, "Merge"));
-    expect(document.body.textContent).toContain("Merge Kyle McManus's two records?");
-    const confirm = [...document.querySelectorAll<HTMLButtonElement>("button")].filter((b) => (b.textContent ?? "").trim() === "Merge").pop();
+    expect(document.body.textContent).toContain("Keep \"Kyle McManus\" and merge the other into it?");
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => (b.textContent ?? "").trim() === "Merge them");
     await click(confirm);
     const batch = writes.filter((w) => w.op === "batch-update");
     expect(batch.map((w) => w.path)).toEqual([`trainers/${kyleUid}`, "trainers/kyleAugustRecord0001"]);

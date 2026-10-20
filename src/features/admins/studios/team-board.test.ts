@@ -76,4 +76,24 @@ describe("a studio's staff, organised (Oct 20 2026)", () => {
   it("names Mindbody staff Journey has no record of", () => {
     expect(mindbodyNotInJourney([kyleOld, austin, nia], staff).map((s) => s.fullName)).toEqual(["Sam Lee", "Trainer Two"]);
   });
+
+  it("pairs two records sharing a Mindbody staff id under different names (Mike Palko)", () => {
+    const gmail = t({ id: uid("mikeGmail"), fullName: "Michael Palko", email: "palko.jr@gmail.com", authUid: uid("mikeGmail"), role: "Admin", mindbodyStaffId: "100000062" });
+    const strongsville = t({ id: auto("mikeOld"), fullName: "Mike Palko Strongsville", mindbodyStaffId: "100000062", email: "mike@maxstrengthfitness.com", pendingClaim: true });
+    const b = teamBoard({ trainers: [gmail, strongsville], studioId: S, mindbodyStaff: [], mindbodyRead: false });
+    expect(b).toHaveLength(1);
+    expect(b[0]).toMatchObject({ group: "needs", trainer: { id: gmail.id }, mergeWith: { id: strongsville.id } });
+  });
+
+  it("lists both when both are signed in to, each to keep, and says the other's sign-in goes", () => {
+    const gmail = t({ id: uid("mikeGmail"), fullName: "Michael Palko", email: "palko.jr@gmail.com", authUid: uid("mikeGmail"), mindbodyStaffId: "100000062" });
+    const ms = t({ id: uid("mikeMs"), fullName: "Mike Palko", email: "mike@maxstrengthfitness.com", authUid: uid("mikeMs"), mindbodyStaffId: "100000062" });
+    const b = teamBoard({ trainers: [gmail, ms], studioId: S, mindbodyStaff: [], mindbodyRead: false });
+    expect(b.map((e) => [e.trainer.fullName, e.mergeWith?.fullName])).toEqual([
+      ["Michael Palko", "Mike Palko"],
+      ["Mike Palko", "Michael Palko"],
+    ]);
+    expect(b[1].note).toContain("both linked to Mindbody staff 100000062");
+    expect(b[1].note).toContain("signs in as palko.jr@gmail.com");
+  });
 });
