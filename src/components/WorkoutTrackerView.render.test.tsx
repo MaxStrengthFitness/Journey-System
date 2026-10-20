@@ -3256,10 +3256,13 @@ describe("the floor on day one, the tracker's own gates (Oct 9 2026)", () => {
     expect(named, "the session names the routine once it is known").toHaveLength(1);
     // The routine's machine first, and the one the trainer added is kept after it, never dropped.
     expect(named[0].data.sessionMachineIds).toEqual(["m-leg-press", "sm-solon-rear-delt"]);
-    // Today's list is on screen: the last machine offers Add another machine, enabled.
-    const another = [...host.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.includes("Add another machine"));
-    expect(another, "Add another machine on the last machine").toBeTruthy();
-    expect(another!.disabled).toBe(false);
+    // Today's list is on screen. The rear delt in hand is the last machine,
+    // and the leg press above it is still to do, so Next goes back round to
+    // it (the Now Bar pad round, Oct 20 2026) where it used to offer Add
+    // another machine.
+    const next = host.querySelector<HTMLButtonElement>(".jg-nb__next");
+    expect(next?.textContent, "Next goes back to the machine not done").toContain("Back to");
+    expect(next!.disabled).toBe(false);
   });
 
   it("until today's list is read, the empty bar offers nothing to add (an add would be recorded as the whole list)", async () => {

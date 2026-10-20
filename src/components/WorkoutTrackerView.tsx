@@ -57,6 +57,7 @@ import { logDocId } from "../lib/exercise-log-id";
 import { keepPendingEdits, pendingLogEdits } from "../lib/pending-log-edits";
 import { sendsAtOnce } from "../features/journey-grid/send-at-once";
 import { stableHistory } from "../features/journey-grid/stable-history";
+import { everyMachineDone, nextToDo } from "../features/journey-grid/next-machine";
 import { useSendState } from "../features/session-record/useSendState";
 import { SendStatusStrip } from "../features/session-record/SendStatusStrip";
 import { finishedElsewhereAtTap, settleOrQueue } from "../features/session-record/finish-wait";
@@ -5007,11 +5008,31 @@ export function WorkoutTrackerView({
     const i = gridFocusMachineId ? activeMachineIds.indexOf(gridFocusMachineId) : -1;
     return i >= 0 ? i + 1 : undefined;
   }, [activeMachineIds, gridFocusMachineId]);
-  const gridNextRow = useMemo(() => {
-    const i = gridFocusMachineId ? activeMachineIds.indexOf(gridFocusMachineId) : -1;
-    const nextId = activeMachineIds[i + 1];
-    return nextId ? gridRows.find((r) => r.machine.id === nextId) : undefined;
-  }, [activeMachineIds, gridFocusMachineId, gridRows]);
+  /* Next is the next machine still to do, going round from the bottom of
+     today's order to the top (the Now Bar pad round, Oct 20 2026; AJ: "it
+     should wrap the now bar back to any machines not performed"). Done is
+     the same test that seeds the first machine in hand. With every machine
+     done the bar offers End Session and Add another machine. */
+  const gridMachineDone = React.useCallback(
+    (id: string) => {
+      const v = gridLiveValues[id];
+      if (v?.outcome === "practice" || v?.outcome === "skipped") return true;
+      return !!v && !!(v.isTSC ? v.seconds : v.reps) && !!v.quality;
+    },
+    [gridLiveValues],
+  );
+  const gridNext = useMemo(
+    () => nextToDo(activeMachineIds, gridFocusMachineId, gridMachineDone),
+    [activeMachineIds, gridFocusMachineId, gridMachineDone],
+  );
+  const gridNextRow = useMemo(
+    () => (gridNext ? gridRows.find((r) => r.machine.id === gridNext.id) : undefined),
+    [gridNext, gridRows],
+  );
+  const gridAllDone = useMemo(
+    () => everyMachineDone(activeMachineIds, gridMachineDone),
+    [activeMachineIds, gridMachineDone],
+  );
   /* "Started 2:21 PM" on the session bar — the second thing a trainer
      checks when two iPads sit side by side (the first is the name). */
   const sessionStartedLabel = useMemo(() => {
@@ -6550,10 +6571,13 @@ export function WorkoutTrackerView({
           onCommit={flushAllLogWrites}
           step={2}
           nextName={gridNextRow?.machine.name}
+          nextWraps={!!gridNext?.wraps}
           onNext={() => {
             flushAllLogWrites();
             if (gridNextRow) setFocusMachineOverride(gridNextRow.machine.id);
           }}
+          allDone={gridAllDone}
+          onEndSession={handleEndSessionPress}
           /* Until today's list is on screen the empty bar offers nothing:
              an add then would be recorded as the session's whole list. */
           onAddMachine={todaySeeded ? () => setIsOrderSheetOpen(true) : undefined}

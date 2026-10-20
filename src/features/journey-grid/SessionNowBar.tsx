@@ -1120,11 +1120,30 @@ function SessionNowBarImpl({
       {/* --- line 3 · what is next --------------------------------------
           On the last machine this used to go dim and read "Last machine" — a
           dead end in the loudest slot on the bar. Now it offers the one thing
-          a trainer might still want to do here. End Session stays at the top
-          of the screen, where a thumb reaching for this cannot hit it. */}
-      {nextName ? (
+          a trainer might still want to do here. End Session joins it only
+          once every machine is done (Oct 20 2026); until then it stays at the
+          top of the screen, where a thumb reaching for Next cannot hit it. */}
+      {allDone && onEndSession ? (
+        /* Every machine done (the Now Bar pad round, Oct 20 2026; AJ's "End
+           Session leads"): End Session first, orange with navy words, the
+           session bar's Finish brought down to where the thumb already is;
+           Add another machine quieter beside it, and the plan's next one
+           when there is one. It opens the same confirm, which never refuses. */
+        <div className="jg-nb__done">
+          <button type="button" className="jg-nb__finish" data-testid="nb-end" onClick={onEndSession}>
+            <Flag size={17} strokeWidth={2.5} aria-hidden="true" />
+            End session
+          </button>
+          <button type="button" className="jg-nb__addmore" onClick={onAddMachine} disabled={!onAddMachine}>
+            <Plus size={16} strokeWidth={2.5} aria-hidden="true" />
+            Add another machine
+          </button>
+          {planOffer}
+        </div>
+      ) : nextName ? (
         <button type="button" className="jg-nb__next" onClick={onNext}>
-          <span className="jg-nb__nextlbl">Next</span>
+          {/* "Back to" when Next has gone round to a machine above this one. */}
+          <span className="jg-nb__nextlbl">{nextWraps ? "Back to" : "Next"}</span>
           <span className="jg-nb__nextname">{nextName}</span>
           <ChevronRight size={17} strokeWidth={2.5} />
         </button>
