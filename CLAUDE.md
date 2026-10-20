@@ -38,10 +38,10 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The Hub's Opportunities layer | `src/features/hub-opportunities/` (the Run-sheet: the day's moments, Get to know, All stars) |
 | The Active Session's grid and Now Bar | `src/features/journey-grid/` |
 | The session record | `src/features/session-record/` — never lose or block a session: Finish counted once, the watching iPad, Continue on this iPad, a session left open cleared by anyone at the studio |
-| The open session | `src/features/open-session/` — a session started before its client is chosen: Start, Who's this? and Assign's one batch, the settings held until then (`heldSetup`; Oct 9 2026) |
-| A new client's first session and a routine's plan | `src/features/routine-plan/` (the plan, starting routines, B, focus, Can't do); also read both round documents it names. **Start from a routine…** in the session's corner lays one on today's list and writes no routine (`start-from.ts`, Oct 9 2026) |
+| The open session | `src/features/open-session/` — a session started before its client is chosen (`heldSetup`) |
+| A new client's first session and a routine's plan | `src/features/routine-plan/` (the plan, starting routines, B, focus, Can't do); also read both round documents it names. **Start from a routine…** is `start-from.ts` |
 | The routine builder | `src/features/ab-builder/` — Programming → Routines: A and B in one builder |
-| The machine menu | `src/features/machine-menu/` — one card for a client on one machine, from the session and the profile. The Now Bar's **Set up** opens it on the first empty dial, on the number pad (`journey-grid/setup-button.ts`, Oct 9 2026) |
+| The machine menu | `src/features/machine-menu/` — one card for a client on one machine, from the session and the profile; the Now Bar's **Set up** is `journey-grid/setup-button.ts` |
 | Machine fit | `src/features/machine-fit/` (predictive set-up, Programming → Setup, the Kaizen report); Operations → Machine fit is `src/features/admin/machine-fit/` |
 | Machine totals | `src/features/machine-totals/` — a client's machine maps in their own document |
 | The Dial and Loudness | `src/features/rating/` — the ONE rating control and the ONE loudness control. Read `scales.ts` first |
@@ -52,7 +52,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | The client profile | `src/features/client-profile/` (the four tabs) and `src/features/client-codex/` |
 | Client history and past-session entry | `src/features/client-history/` — Activity Archive's Calendar and Sessions, the session pop-up, Log past session |
 | The FileMaker import | `src/features/filemaker-import/` and `scripts/import-filemaker.ts` (dry run by default): a client's FileMaker history written as finished sessions. **Production writes are switched off** (`PRODUCTION_IMPORT_READY`) until the reset, the full export and AJ's go |
-| The progress report | `src/features/progress-report/` — the five-step conversation; one printed page (`ReportSheet`) and the client's view on screen (`ReportScreen`), both from `sheet-from-report.ts` (Oct 13 2026) |
+| The progress report | `src/features/progress-report/` — the five-step conversation; one printed page (`ReportSheet`) and the client's view on screen (`ReportScreen`), both from `sheet-from-report.ts` |
 | The Client Directory | `src/features/client-directory/` |
 | The briefing and the Wrap-up | `src/features/briefing/`; the Wrap-up is `src/components/WrapUpScreen.tsx` |
 | The packages screen | `src/features/packages/` |
@@ -67,11 +67,11 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | My Profile | `src/features/trainer-profile/` |
 | The Machine Catalog | `src/features/catalog/` (Learning → Catalog: the floor, the body, All MSF machines) |
 | The studio map and the machine's card | `src/features/studio-map/` (the floor drawn to size, a machine tapped to open) and `src/features/machine-card/` (Learn · Clean · Maintain · Set up, one card from every door) |
-| FileMaker floors | `src/features/filemaker-floors/` and `scripts/build-floors-from-filemaker.ts` — westlake's and Willoughby's floors from FileMaker's charts (Oct 12 2026) |
+| FileMaker floors | `src/features/filemaker-floors/` and `scripts/build-floors-from-filemaker.ts` — westlake's and Willoughby's floors from FileMaker's charts |
 | The Machine Codex and Compare | `src/features/machine-codex/`; Compare is `src/features/admin/machines/compare/` |
 | Machines: the catalog editor and a studio's own | `src/features/admin/machines/`. **`src/lib/machine-template.ts` is the template boundary**; `src/data/machine-definitions.ts` is generated from `docs/msf-academy/`. A machine becoming the standard is `src/features/admin/catalog/review.ts` |
 | Machine trends | `src/features/machine-trends/` (Learning → Catalog → a machine → How it's used) |
-| Learning, sharing machines, comments | `src/features/learning/`, `src/features/machine-db/`, `src/features/comments/` |
+| Learning, sharing machines, comments | `src/features/learning/` (the Mix: `learning-redesign/`), `src/features/machine-db/`, `src/features/comments/` |
 | Demo Mode | `src/features/demo-mode/` — the practice studio `demo-studio`, a real studio with no second code path |
 | The front door | `src/features/front-door/` — sign in, checking you in, the greeting, the studio picker; the boot report is `src/features/boot-timing/` |
 | Switching studio | `src/features/studio-switch/` — Switch studio from every screen, and a switch lets go of the client (`let-go.ts`) |
@@ -98,7 +98,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | Install | `npm ci` | `npm install` fails with an `edgesOut` error |
 | Run locally | `npm run dev` | Port 3000 |
 | Typecheck | `npx tsc --noEmit` | **0** errors since Oct 18 2026; CI holds it there (`.github/typecheck-baseline.txt`). History by round: `docs/KNOWN-TRAPS.md#baselines` |
-| Tests | `npx vitest run src` | **16,241** passing in 978 files (Oct 19 2026, the seat belt merged). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
+| Tests | `npx vitest run src` | **16,237** passing in 979 files (Oct 20 2026, the Mix for everyone). Run it as `TZ=America/New_York npx vitest run --dir src --testTimeout=30000` (the date trap; the timeout for a loaded PC). Counts by round: `docs/KNOWN-TRAPS.md#baselines` |
 | Build | `npx vite build` | Then `npm run check:bundle` (`scripts/check-bundle-budget.mjs`, a CI step since Oct 5 2026): the first screen at most 480 KB gzip, no charts, drag-and-drop or motion on it, and a PRODUCTION build (`NODE_ENV` unset or `production`; a `test` build ships React's development files and is refused). `src/first-screen.test.ts` names the import chain if the first screen reaches a heavy module |
 | Rules tests | `npm run test:rules` | Needs JDK 21. "Port taken" means an old emulator still holds 8080 — stop it first. |
 
@@ -136,6 +136,7 @@ Each is the rule, in AJ's words wherever AJ gave them. **More** opens its full e
 - **A Critical note marks the Hub card** (AJ, Sep 24 2026): the red triangle only, for every trainer (dismissals ignored), from one live read of the day's booked clients' Critical notes, never a cached count (`src/lib/hub-critical-notes.ts`). [More](docs/DECISIONS.md#critical-notes-on-the-hub)
 - **Get to know is read once per studio visit and never on the grid** (AJ, Sep 28 2026: "all yes"). One read of the studio's FORD per visit; the card shows the glyph alone ("Something to ask about"), and the words are in the peek and the list. All stars is the nightly job's word, said only while it is less than three days old. [More](docs/DECISIONS.md#get-to-know)
 - **The Catalog is the floor first** (AJ, Sep 27 2026: "take the pick but use our anatomy of muscles model and i feel like we can clean up how much text we have"). It opens on the studio's own floor in the walking order; a movement takes the Academy's name and each unit keeps its floor name; it shows only Out of service and Flagged, read from Relay; trainers don't see how many floors have a machine. [More](docs/DECISIONS.md#the-catalog)
+- **Learning is the Mix, with doors to today's pages** (AJ, Oct 20 2026: "a door on each page to today's Learning for the studio tools"). Marking is off; playbooks wait for head office. [More](docs/DECISIONS.md#learning-is-the-mix)
 - **Only administrators edit a standard machine; a studio's edits make its own copy** (AJ, Oct 15 2026: "i just want admins to be the only one to edit a machine that is set as the standard but studios do get their own variations if they choose to edit or change"). The rules hold it. A machine is marked Standard on its own page in the catalog editor; there is no "Restore standard machines". [More](docs/DECISIONS.md#standard-machines)
 - **Briefing is strictly pre-session; Wrap-up is post-session** (AJ, Sep 27 2026). **The Wrap-up round** (AJ, Oct 18 2026: a note "for next time or just a note to the profile and where its going to be filed to"; "n1 a n2 a n3 a"): one note box at Finish and on the Wrap-up says Goes to (Profile only · Next time · Critical, or Just for me), What it's for, and where it lands; End Session's starts at Next time. A sore spot after the session is a Health note at Next time. Today's machines once, each with its gain. The confetti stays. [More](docs/DECISIONS.md#briefing-and-wrap-up)
 - **The client profile's four tabs are ordered by depth** (AJ, Sep 27 2026): Journey · Programming · Notes & Profile · Activity Archive, from the floor's glance down to the whole record. "Don't reorder, merge or add a tab without asking." `PROFILE_TABS` is the order, and `profile-nav.test.ts` holds it. [More](docs/DECISIONS.md#profile-tabs)
