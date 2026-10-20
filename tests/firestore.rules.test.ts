@@ -8620,6 +8620,48 @@ describe("the franchise partition: an owner runs their own studios and no other"
     await assertSucceeds(updateDoc(doc(ctx("adminP"), "trainers", "trainerA"), { pendingClaim: true }));
   });
 
+  // 22b. The sign-in email round (Oct 20 2026; AJ "1a").
+  it("lets a leader link someone who has never signed in, and nothing more", async () => {
+    const august = "augustRecordAtA00001"; // an auto-id: 20 characters
+    const elsewhere = "augustRecordAtB00001";
+    const signedIn = "augustRecordAtA00002";
+    const adminRecord = "augustRecordAtA00003";
+    const twoStudios = "augustRecordAtA00004";
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      const noEmail = (role: string, home: string, over: Record<string, unknown> = {}) => {
+        const { email: _e, ...rest } = person("x", role, home, over);
+        return rest;
+      };
+      await setDoc(doc(db, "trainers", august), noEmail("LifeTransformer", A));
+      await setDoc(doc(db, "trainers", elsewhere), noEmail("LifeTransformer", B));
+      await setDoc(doc(db, "trainers", signedIn), noEmail("LifeTransformer", A, { authUid: "someUid" }));
+      await setDoc(doc(db, "trainers", adminRecord), noEmail("Admin", A));
+      await setDoc(doc(db, "trainers", twoStudios), noEmail("LifeTransformer", A, { accessibleStudioIds: [A, B] }));
+    });
+    const link = { email: "kayla@maxstrengthfitness.com", pendingClaim: true };
+    const leader = ctx("leaderA");
+    await assertSucceeds(updateDoc(doc(leader, "trainers", august), link));
+    // No email on the write or the record: nobody could claim it.
+    await assertFails(updateDoc(doc(leader, "trainers", elsewhere), { pendingClaim: true }));
+    // Out of reach: another studio, a signed-in account, an administrator, a second studio the leader doesn't run.
+    await assertFails(updateDoc(doc(leader, "trainers", elsewhere), link));
+    await assertFails(updateDoc(doc(leader, "trainers", signedIn), link));
+    await assertFails(updateDoc(doc(leader, "trainers", adminRecord), link));
+    await assertFails(updateDoc(doc(leader, "trainers", twoStudios), link));
+    // A trainer, not a leader.
+    await assertFails(updateDoc(doc(ctx("demotedLeader"), "trainers", august), link));
+    // And the claim it opens works: the person signs in with that email.
+    const kayla = testEnv.authenticatedContext("kaylaUid", { email: "kayla@maxstrengthfitness.com" }).firestore();
+    let linked: Record<string, unknown> = {};
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      linked = (await getDoc(doc(context.firestore(), "trainers", august))).data() ?? {};
+    });
+    expect(linked).toMatchObject(link);
+    const { pendingClaim: _p, ...claimed } = linked;
+    await assertSucceeds(setDoc(doc(kayla, "trainers", "kaylaUid"), { ...claimed, claimedFromId: august, claimedAt: "2026-10-20T15:00:00.000Z", authUid: "kaylaUid" }));
+  });
+
   // 23.
   it("keeps switching an account off or on to administrators", async () => {
     const off = { isActive: false, switchedOffAt: "2026-10-10T15:00:00.000Z", switchedOffBy: { uid: "x", name: "X" } };

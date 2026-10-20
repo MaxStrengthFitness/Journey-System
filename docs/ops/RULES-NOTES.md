@@ -831,6 +831,33 @@ Only what this write changes is checked, so an ordinary edit (the
 calendar switch, initials) pays for almost none of it.
 ```
 
+<a id="leaderlinksasignin"></a>
+### `function leaderLinksASignIn`
+
+```text
+A LEADER LINKS SOMEONE WHO HAS NEVER SIGNED IN (sign-in email round,
+Oct 20 2026; AJ "1a": leaders and administrators assign a person's
+sign-in email). Most real trainer documents were made in August under
+an auto-id, with no email. The rules know the signed-in person only
+by trainers/{their uid} (callerTrainer), so writing an email on the
+auto-id record is not enough: they would open it holding no studio.
+Marking it pendingClaim makes their first sign-in with that email
+copy it to trainers/{uid} (the claim, selfCreateIsAClaim) with its
+role, studios and Mindbody staff id.
+
+opensAClaim stays refused for everyone else. A leader may turn it on
+only where they could already change the email:
+  - an auto-id (20 characters; a uid is 28) with no authUid and no
+    tombstone: a record nobody has signed in as, never an account;
+  - the email it will be claimed by is on the write;
+  - they lead its home (trainerLeads), its role is one they could
+    hand out, it owns no studio, and every studio it works at is one
+    they run (the same reach as othersDocChangeAllowed's email).
+The claim copies what the record already says, so this hands the
+claimer nothing the leader could not have written on it anyway.
+Evaluated only when the write turns pendingClaim on.
+```
+
 <a id="ownstrainerdoc"></a>
 ### `function ownsTrainerDoc`
 

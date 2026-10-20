@@ -1166,11 +1166,25 @@ service cloud.firestore {
        email (selfCreateIsAClaim), and the claim copies its role and every
        studio list, ownedStudioIds included. Only an approver's create and
        an administrator make one; an update by anyone else never turns
-       pendingClaim on. The claim's own tombstone (claim.ts tombstone())
+       pendingClaim on, but for a leader linking someone who has never
+       signed in (leaderLinksASignIn). The claim's own tombstone (claim.ts tombstone())
        writes supersededByUid, never pendingClaim. */
     function opensAClaim() {
       return request.resource.data.get('pendingClaim', false) == true
           && resource.data.get('pendingClaim', false) != true;
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#leaderlinksasignin
+    function leaderLinksASignIn(trainerId, r, t) {
+      let d = request.resource.data;
+      return trainerId.size() == 20
+          && !('authUid' in resource.data)
+          && resource.data.get('supersededByUid', null) == null
+          && d.get('email', '') is string && d.get('email', '') != ''
+          && trainerLeads(r, t, resource.data.get('primaryHomeStudioId', null))
+          && mayHandOut(r, recordRoleOf(resource.data))
+          && idListOf(resource.data, 'ownedStudioIds').size() == 0
+          && worksOnlyWhereILead(resource.data, ledStudios(r, t));
     }
 
     // Why: docs/ops/RULES-NOTES.md#ownstrainerdoc
@@ -1212,7 +1226,7 @@ service cloud.firestore {
         (roleIsSuper(r) && !derived) ||
         ( !derived &&
           !writesForeignRoster(trainerId) &&
-          !opensAClaim() &&
+          (!opensAClaim() || leaderLinksASignIn(trainerId, r, t)) &&
           // Your own document: never its access fields, whatever your role
           // (only an administrator changes their own -- the clause above).
           // Someone else's: you lead their home studio, and the change is
