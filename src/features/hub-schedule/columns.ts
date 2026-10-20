@@ -39,6 +39,8 @@ export const UNASSIGNED_ID = "__unassigned__";
 
 export interface ColumnTrainer {
   id?: string;
+  claimedFromId?: string | null;
+  mergedFromIds?: readonly string[] | null;
   isVisibleOnCalendar?: boolean;
   primaryHomeStudioId?: string | null;
   accessibleStudioIds?: string[] | null;
@@ -70,10 +72,14 @@ export function columnIdOf(
   b: ColumnBooking,
   trainerIds: ReadonlySet<string>,
   staffIds: Readonly<Record<string, string>> = {},
+  aliases: Readonly<Record<string, string>> = {},
 ): string | null {
   const fallback = isStaffBlock(b) ? null : UNASSIGNED_ID;
   if (isRotationName(b.trainerName)) return fallback;
-  const trainerId = idOf(b.trainerId);
+  const stored = idOf(b.trainerId);
+  // A booking synced before its trainer's two records were merged still names
+  // the old one: it is the kept record's (mergedAliases).
+  const trainerId = stored && !trainerIds.has(stored) && aliases[stored] ? aliases[stored] : stored;
   if (trainerId) return trainerIds.has(trainerId) ? trainerId : fallback;
   const staffId = idOf(b.mindbodyStaffId);
   if (staffId) {
@@ -83,6 +89,26 @@ export function columnIdOf(
     if (matches.length === 1) return matches[0];
   }
   return fallback;
+}
+
+/**
+ * A merged trainer's old ids, each to the record kept (the sign-in email
+ * round, Oct 20 2026): `claimedFromId` (the claim, or a merge) and
+ * `mergedFromIds`. Bookings store the trainer's id when they are synced, and
+ * only today onward is synced again, so without this a merged trainer's past
+ * bookings would fall into Unassigned.
+ */
+export function mergedAliases(
+  trainers: readonly { id?: string; claimedFromId?: string | null; mergedFromIds?: readonly string[] | null }[],
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const t of trainers) {
+    if (!t.id) continue;
+    for (const old of [t.claimedFromId, ...(t.mergedFromIds ?? [])]) {
+      if (typeof old === "string" && old && old !== t.id) out[old] = String(t.id);
+    }
+  }
+  return out;
 }
 
 /**
@@ -133,9 +159,10 @@ export function planColumns<T extends ColumnTrainer>(input: {
   const byId = new Map<string, T>();
   for (const t of trainers) if (t.id) byId.set(String(t.id), t);
   const ids = new Set(byId.keys());
+  const aliases = mergedAliases(trainers);
 
   const here = (b: ColumnBooking) => !studioId || !b.studioId || b.studioId === studioId;
-  const columnOf = input.bookings.map((b) => (here(b) ? columnIdOf(b, ids, staffIds) : null));
+  const columnOf = input.bookings.map((b) => (here(b) ? columnIdOf(b, ids, staffIds, aliases) : null));
 
   const booked = new Set<string>();
   let unassigned = 0;

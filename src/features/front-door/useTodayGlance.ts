@@ -25,6 +25,7 @@ import { db } from "../../firebase";
 import { endOfStudioDay, startOfStudioDay } from "../../lib/studio-time";
 import type { Studio, Trainer } from "../../types";
 import { staffIdsAt } from "../standing-week/check";
+import { mergedAliases } from "../hub-schedule/columns";
 import { todayGlance, type GlanceBooking, type TodayGlance } from "./today-glance";
 
 export interface TodayGlanceRead {
@@ -82,6 +83,7 @@ export function useTodayGlance(
             trainerId: myId,
             trainerIds: new Set(trainers.map((t) => String(t.id))),
             staffIds: staffIdsAt(trainers as any, siteId),
+            aliases: mergedAliases(trainers as any),
           },
           now,
         ),

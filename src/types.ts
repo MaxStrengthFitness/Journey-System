@@ -321,6 +321,13 @@ export interface Trainer {
   /** On the claimed document: where it came from, for the migration. */
   claimedFromId?: string | null;
   claimedAt?: string;
+  /**
+   * Older records folded into this one (Merge, the sign-in email round, Oct
+   * 20 2026). A booking that still names one is this person's (mergedAliases).
+   */
+  mergedFromIds?: string[];
+  /** On a merged-away record: the Mindbody staff id it carried. */
+  mergedMindbodyStaffId?: string;
   authUid?: string;
   /**
    * SWITCHED OFF (Oct 2 2026): a former trainer's account, switched off by an

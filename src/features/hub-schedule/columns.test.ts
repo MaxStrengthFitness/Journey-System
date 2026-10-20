@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UNASSIGNED_ID, columnIdOf, orderColumnsBySessions, planColumns, staffLabel, worksHereOnCalendar } from "./columns";
+import { UNASSIGNED_ID, columnIdOf, mergedAliases, orderColumnsBySessions, planColumns, staffLabel, worksHereOnCalendar } from "./columns";
 
 const t = (id: string, extra: Record<string, unknown> = {}) => ({ id, primaryHomeStudioId: "westlake", ...extra });
 const CHRIS_A = t("t-chris-a");
@@ -115,5 +115,22 @@ describe("orderColumnsBySessions (Oct 3 2026)", () => {
   it("runs yours, then Unassigned, then the other booked columns, then the empty ones", () => {
     const order = orderColumnsBySessions([col("a", 3), col("me", 2, true), col("b", 0), col(UNASSIGNED_ID, 1)]);
     expect(order.map((c) => c.id)).toEqual(["me", UNASSIGNED_ID, "a", "b"]);
+  });
+});
+
+describe("a merged trainer's bookings (the sign-in email round, Oct 20 2026)", () => {
+  const kyle = { id: "uid-kyle", claimedFromId: "augustKyle", isVisibleOnCalendar: true, primaryHomeStudioId: "s" };
+  it("puts a booking that still names the old record in the kept person's column", () => {
+    const aliases = mergedAliases([kyle, { id: "uid-kayla", mergedFromIds: ["augustKayla", "olderKayla"] }]);
+    expect(aliases).toEqual({ augustKyle: "uid-kyle", augustKayla: "uid-kayla", olderKayla: "uid-kayla" });
+    const ids = new Set(["uid-kyle", "uid-kayla"]);
+    expect(columnIdOf({ trainerId: "augustKyle", trainerName: "Kyle McManus" }, ids, {}, aliases)).toBe("uid-kyle");
+    expect(columnIdOf({ trainerId: "olderKayla", trainerName: "Kayla Sharratt" }, ids, {}, aliases)).toBe("uid-kayla");
+    expect(columnIdOf({ trainerId: "someoneElse", trainerName: "X Y" }, ids, {}, aliases)).toBe(UNASSIGNED_ID);
+  });
+  it("does it in the day's plan too", () => {
+    const plan = planColumns({ trainers: [kyle], bookings: [{ trainerId: "augustKyle", trainerName: "Kyle McManus", studioId: "s" }], studioId: "s" });
+    expect(plan.columnOf).toEqual(["uid-kyle"]);
+    expect(plan.unassigned).toBe(0);
   });
 });

@@ -37,12 +37,18 @@ const NEXT_GRACE_MS = 10 * 60 * 1000;
 
 export function todayGlance(
   bookings: readonly GlanceBooking[],
-  me: { trainerId: string; trainerIds: ReadonlySet<string>; staffIds: Readonly<Record<string, string>> },
+  me: {
+    trainerId: string;
+    trainerIds: ReadonlySet<string>;
+    staffIds: Readonly<Record<string, string>>;
+    /** A merged trainer's old ids (hub-schedule/columns.ts mergedAliases). */
+    aliases?: Readonly<Record<string, string>>;
+  },
   now: Date,
 ): TodayGlance {
   const real = bookings.filter((b) => b.status !== "Cancelled" && !isStaffBlock(b));
   const mineRows = real
-    .filter((b) => columnIdOf(b as never, me.trainerIds, me.staffIds) === me.trainerId)
+    .filter((b) => columnIdOf(b as never, me.trainerIds, me.staffIds, me.aliases) === me.trainerId)
     .map((b) => ({ at: toDate(b.startTime as never), clientName: (b.clientName ?? "").trim() }))
     .filter((b): b is { at: Date; clientName: string } => b.at !== null)
     .sort((a, b) => a.at.getTime() - b.at.getTime());

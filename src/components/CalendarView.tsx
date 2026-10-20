@@ -9,7 +9,7 @@ import { LoadingMark } from "./LoadingMark";
 import { RelayStrip } from "../features/relay/board/RelayStrip";
 import { RoomBar, RoomSwitch, type RoomSwitchOption } from "../features/rooms";
 import { HubNotice } from "../features/hub-schedule/HubGrid";
-import { UNASSIGNED_ID, columnIdOf, worksHereOnCalendar } from "../features/hub-schedule/columns";
+import { UNASSIGNED_ID, columnIdOf, mergedAliases, worksHereOnCalendar } from "../features/hub-schedule/columns";
 import { trainerDayFrame, weeksByTrainer } from "../features/hub-schedule/off-hours";
 import type { Span } from "../features/hub-schedule/grid-model";
 import { staffIdsAt } from "../features/standing-week/check";
@@ -345,12 +345,13 @@ export function CalendarView({
     [trainers],
   );
   const staffIds = useMemo(() => staffIdsAt(trainers as any, mindbodySiteId ?? null), [trainers, mindbodySiteId]);
+  const aliases = useMemo(() => mergedAliases(trainers as any), [trainers]);
   const whoseBooking = React.useCallback(
     (s: any): string | null => {
-      const column = columnIdOf(s, trainerIdSet, staffIds);
+      const column = columnIdOf(s, trainerIdSet, staffIds, aliases);
       return column === null || column === UNASSIGNED_ID ? null : column;
     },
-    [trainerIdSet, staffIds],
+    [trainerIdSet, staffIds, aliases],
   );
 
   /* The team at this studio, and a guest whose bookings here are theirs by id. */
