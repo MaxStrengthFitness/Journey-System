@@ -976,6 +976,15 @@ the data files with esbuild's text loader, so that field comes back as the
 - **A read taken away ships app first, rules second** (as the franchise partition did). An iPad on the old build asks for every trainer; once the new rules are live that ask is refused and the iPad shows "Firestore Action Failed" and stale names until it loads the new build. The rules wait for Render's boot report.
 - **The emulator's `array-contains-any` proof is only as good as the seed.** A rules test that asserts a scoped query succeeds proves the rule accepts the SHAPE; whether the right people come back is the merged ids (`idsOf` in the test), which the test checks too. Keep both when adding a query.
 
+### The sign-in email round (Oct 20 2026)
+
+`docs/DECISIONS.md#sign-in-email`; AJ: "1a 2a".
+
+- **Mindbody's staff email is not the sign-in address.** The roster used to show `trainer.email || staff.email`, so every row looked set up when Journey held no address at all. A row's email is Journey's only; Mindbody's is "Mindbody has …" in the editor.
+- **An email on an auto-id trainer record is not a link.** Sign-in finds the record by email and opens it, but the rules know the signed-in person only at `trainers/{uid}` (`callerTrainer`), so they hold no studio and every read past their own profile is refused. Link through the claim: `pendingClaim` with the address (`sign-in-email.ts` `emailWrites`), which a leader may now turn on within the email's reach (`leaderLinksASignIn`).
+- **Sign-in takes the first record carrying an address, by id.** Two live records with one address is a coin toss; `emailWrites` moves an address rather than copying it.
+- **`npm run test:rules` from PowerShell:** a `-t` filter with an apostrophe or a `|` inside the quoted vitest command breaks PowerShell's parse and nothing runs; and a run that dies can leave the emulator's java holding 8080 ("port taken"). Run the whole file, and stop that java first.
+
 <a id="tooling"></a>
 
 ## React, tests, dates and tooling

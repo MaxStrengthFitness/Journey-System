@@ -75,6 +75,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 | Demo Mode | `src/features/demo-mode/` — the practice studio `demo-studio`, a real studio with no second code path |
 | The front door | `src/features/front-door/` — sign in, checking you in, the greeting, the studio picker; the boot report is `src/features/boot-timing/` |
 | Switching studio | `src/features/studio-switch/` — Switch studio from every screen, and a switch lets go of the client (`let-go.ts`) |
+| Sign-in email | `src/features/sign-in-email/` — Signs in as; Who is this? on a request |
 | Signing out | `src/features/sign-out/`; who may open Operations is `src/features/admin/operations-access.ts` |
 | Unsaved changes | `src/features/unsaved-changes/` — the one registry and the one leave question |
 | A new version after a deploy | `src/features/new-version/` |
@@ -88,7 +89,7 @@ One line per area. **Read the folder's `README.md` before changing anything in i
 
 - **Production** Firebase project `gen-lang-client-0731527386`, named database `ai-studio-32cbbdcc-6e08-4770-9665-867c68878efa`. The project id inside `firebase-applet-config.json` is not the live one.
 - The local `.env` points at **production**, so local writes change real client records.
-- The live app is a Render web service (`maxstrength-app-beta.onrender.com`). **A push to `master` does NOT deploy it (checked Oct 6 2026).** Render has no access to the repo (its build log says "we don't have access to your repo" and clones it as a public one), so no push reaches it: every deploy is AJ pressing **Manual Deploy** on the web service and **Manual Build** on BOTH cron jobs (`journey-cron-renewals`, `journey-cron-leaderboards`). A cron left out keeps running its old commit. Installing Render's GitHub app on the repo, which only its owner `MaxStrengthFitness` can do, brings push-to-deploy back for all three; then change these words. Cloud Functions and Firestore rules deploy separately with the Firebase CLI.
+- The live app is a Render web service (`maxstrength-app-beta.onrender.com`). **A push to `master` does NOT deploy it.** Render can't read the repo (its build log says so), so no push reaches it: every deploy is AJ pressing **Manual Deploy** on the web service and **Manual Build** on BOTH cron jobs (`journey-cron-renewals`, `journey-cron-leaderboards`). A cron left out keeps running its old commit. Installing Render's GitHub app on the repo, which only its owner `MaxStrengthFitness` can do, brings push-to-deploy back for all three; then change these words. Cloud Functions and Firestore rules deploy separately with the Firebase CLI.
 - Four studios on two Mindbody sites: westlake, Strongsville and Willoughby share site **29068** (locations 3, 5, 4); Solon is site **5746957** (location 1). The schedule pull-sync runs one studio at a time.
 
 ## Commands
@@ -167,6 +168,7 @@ Each is the rule, in AJ's words wherever AJ gave them. **More** opens its full e
 - **A booking is done when Journey logged a session for that client that day** (AJ, Sep 24 2026). Bookings never come back Completed or No-Show — the sync and the webhook write Scheduled or Cancelled, and Mindbody's own marking stays manual — so read what happened to one through `src/lib/booking-state.ts`, never from `status` alone. `docs/rounds/2026-09-24-done-means-logged.md` is the round.
 - Firestore rules apply to whole documents: anything some roles must not see goes in its own document.
 - **An iPad holds its own studios' trainers** (Oct 18 2026; AJ: "1a 2a 3a"): the list and the rules read the people of the studios you work at or run, administrators everyone, a stranger one record by their own email; an id outside it says "a trainer from another studio". [More](docs/DECISIONS.md#the-trainer-lock)
+- **One address signs in as one person; a leader sets it** (AJ, Oct 20 2026; "1a 2a"): Mindbody's only by a tap; a request asks Who is this? [More](docs/DECISIONS.md#sign-in-email)
 - **Don't change the Mindbody integration, Cloud Functions or the Firestore structure without an explicit OK.**
 
 **How we work**
@@ -181,7 +183,7 @@ Each is the rule, in AJ's words wherever AJ gave them. **More** opens its full e
 
 ## Known traps - they live in `docs/KNOWN-TRAPS.md`
 
-The traps are this project's scar tissue: what broke, why, and the rule that came out of it. They moved out of this file in the beta-prep trim (Sep 17 2026), word for word, because this file is read in full at the start of every session and the traps had grown to 28 KB of it. **Before you touch an area, read its section there. Add new traps there, not here.**
+The traps are this project's scar tissue: what broke, why, and the rule that came out of it. **Before you touch an area, read its section there. Add new traps there, not here.**
 
 | If you are about to touch... | Read this section of `docs/KNOWN-TRAPS.md` |
 | --- | --- |
