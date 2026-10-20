@@ -118,6 +118,16 @@ export interface StaffEditorProps {
   people?: Trainer[];
   /** Mindbody staff with no Journey record: the rest of "Who is this?". */
   mindbodyStaffOnly?: MindbodyStaff[];
+  /**
+   * The studio site's whole Mindbody staff list (Admins → Team): the Mindbody
+   * link is picked from it by name, never typed. Empty: the typed box.
+   */
+  mindbodyStaff?: MindbodyStaff[];
+  /**
+   * Shown, never saved, with this one line (AJ, Oct 20 2026: My Studio → Team
+   * is read-only for leaders; administrators change people on Admins → Team).
+   */
+  lockedReason?: string | null;
   onDone: () => Promise<void> | void;
 }
 
@@ -138,6 +148,8 @@ export function StaffEditor({
   viewerIsAdmin = false,
   people = NO_PEOPLE,
   mindbodyStaffOnly = NO_STAFF,
+  mindbodyStaff = NO_STAFF,
+  lockedReason = null,
   onDone,
 }: StaffEditorProps) {
   const { success: toastSuccess, error: toastError } = useToast();
@@ -149,6 +161,7 @@ export function StaffEditor({
     Boolean(grantStudioId && row.trainer?.managedStudioIds?.includes(grantStudioId)),
   );
   const [fullName, setFullName] = useState(row.trainer?.fullName ?? "");
+  const [nickname, setNickname] = useState(row.trainer?.nickname ?? "");
   const [email, setEmail] = useState(row.trainer?.email ?? "");
   const [staffId, setStaffId] = useState(String(row.trainer?.mindbodyStaffId ?? ""));
   const [busy, setBusy] = useState(false);
@@ -164,6 +177,7 @@ export function StaffEditor({
     setOnCalendar(row.trainer?.isVisibleOnCalendar ?? true);
     setManagesHere(Boolean(grantStudioId && row.trainer?.managedStudioIds?.includes(grantStudioId)));
     setFullName(row.trainer?.fullName ?? "");
+    setNickname(row.trainer?.nickname ?? "");
     setEmail(row.trainer?.email ?? "");
     setStaffId(String(row.trainer?.mindbodyStaffId ?? ""));
   }, [row, activeStudioId, lockHomeStudio, grantStudioId]);
@@ -180,13 +194,20 @@ export function StaffEditor({
     () => staffEditLimits({ viewer, target: row.trainer ?? null, viewerIsAdmin, studios }),
     [viewer, row.trainer, viewerIsAdmin, studios],
   );
-  const roleLocked = (!canChangeRole && row.state !== "awaiting-approval") || limits.roleLocked || limits.readOnly;
+  const readOnly = limits.readOnly || Boolean(lockedReason);
+  const roleLocked = (!canChangeRole && row.state !== "awaiting-approval") || limits.roleLocked || readOnly;
   const roleOutOfReach = Boolean(row.role && !assignableRoles.includes(row.role));
-  const homeLocked = limits.homeLocked || limits.readOnly;
-  const emailLocked = limits.emailLocked || limits.readOnly;
-  const grantShown = Boolean(grantStudioId) && !limits.grantHidden && !limits.readOnly;
+  const homeLocked = limits.homeLocked || readOnly;
+  const emailLocked = limits.emailLocked || readOnly;
+  const grantShown = Boolean(grantStudioId) && !limits.grantHidden && !readOnly;
   // Mindbody's address: a reference beside Journey's, never its stand-in.
   const mindbodyEmail = normalEmail(row.mindbody?.email);
+  // The same for the name: Mindbody's whole name when it differs (a nickname is Journey's own).
+  const mindbodyName = (row.mindbody?.fullName ?? "").trim().replace(/\s+/g, " ");
+  const staffChoices = useMemo(
+    () => [...mindbodyStaff].sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [mindbodyStaff],
+  );
 
   // The studio picker's Request Access comes from someone who already has an
   // account. Approving writes a WHOLE new trainers/{uid}, which would replace
@@ -308,7 +329,7 @@ export function StaffEditor({
 
   const saveAccess = async (moveConfirmed = false) => {
     const t = row.trainer;
-    if (!t || limits.readOnly) return;
+    if (!t || readOnly) return;
     if (!roleLocked && role !== t.role && !assignableRoles.includes(role)) {
       toastError(`You can't hand out ${ROLE_LABELS[role]} from here.`);
       return;
@@ -340,6 +361,8 @@ export function StaffEditor({
         patch.fullName = name;
         patch.searchTokens = generateSearchTokens(name);
       }
+      const nick = nickname.trim().replace(/\s+/g, " ");
+      if (nick !== (t.nickname ?? "").trim()) patch.nickname = nick;
       // A locked field is never in the patch (edit-limits.ts): the rules
       // refuse the whole write for one field out of reach.
       Object.assign(patch, writes[0]?.patch);
@@ -449,13 +472,19 @@ export function StaffEditor({
           </div>
         )}
 
-        {!studioAccess && limits.reason && (
+        {lockedReason && (
+          <div style={{ marginTop: 10 }}>
+            <AdminNotice tone="info">{lockedReason}</AdminNotice>
+          </div>
+        )}
+
+        {!studioAccess && !lockedReason && limits.reason && (
           <div style={{ marginTop: 10 }}>
             <AdminNotice tone="info">{limits.reason}</AdminNotice>
           </div>
         )}
 
-        {asking && choices.length > 0 && (
+        {asking && !lockedReason && choices.length > 0 && (
           <div style={{ marginTop: 12 }}>
             <AdminField
               label="Who is this?"
@@ -531,9 +560,28 @@ export function StaffEditor({
                   <AdminField label="Full name">
                     <AdminInput
                       value={fullName}
-                      disabled={limits.readOnly}
+                      disabled={readOnly}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="First and last name"
+                    />
+                    {mindbodyName && mindbodyName !== fullName.trim().replace(/\s+/g, " ") && (
+                      <p className="adm-hint" style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        Mindbody has {mindbodyName}
+                        {!readOnly && (
+                          <AdminButton variant="quiet" onClick={() => setFullName(mindbodyName)}>
+                            Use this
+                          </AdminButton>
+                        )}
+                      </p>
+                    )}
+                  </AdminField>
+                  <AdminField label="Nickname" hint="What the team calls them, shown beside their name. Blank: none.">
+                    <AdminInput
+                      value={nickname}
+                      disabled={readOnly}
+                      maxLength={40}
+                      onChange={(e) => setNickname(e.target.value)}
+                      placeholder="e.g. AJ"
                     />
                   </AdminField>
                   <AdminField label="Signs in as" hint={signInHint(row.trainer)}>
@@ -541,14 +589,14 @@ export function StaffEditor({
                       type="email"
                       value={email}
                       readOnly={emailLocked}
-                      disabled={limits.readOnly}
+                      disabled={readOnly}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@maxstrengthfitness.com"
                     />
                     {mindbodyEmail && mindbodyEmail !== normalEmail(email) && (
                       <p className="adm-hint" style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         Mindbody has {mindbodyEmail}
-                        {!emailLocked && !limits.readOnly && (
+                        {!emailLocked && !readOnly && (
                           <AdminButton variant="quiet" onClick={() => setEmail(mindbodyEmail)}>
                             Use this
                           </AdminButton>
@@ -557,13 +605,29 @@ export function StaffEditor({
                     )}
                   </AdminField>
                   <AdminField label="Mindbody Staff ID" hint="Links them to their Mindbody bookings. Blank: not linked.">
-                    <AdminInput
-                      inputMode="numeric"
-                      disabled={limits.readOnly}
-                      value={staffId}
-                      onChange={(e) => setStaffId(e.target.value.replace(/[^0-9]/g, ""))}
-                      placeholder="e.g. 100000123"
-                    />
+                    {staffChoices.length > 0 ? (
+                      // Picked from Mindbody's own list by name (Admins → Team):
+                      // a typed number can't be checked against anyone.
+                      <AdminSelect value={staffId} disabled={readOnly} onChange={(e) => setStaffId(e.target.value)}>
+                        <option value="">Not linked</option>
+                        {staffId && !staffChoices.some((s) => String(s.id) === staffId) && (
+                          <option value={staffId}>Staff {staffId} (not on this studio's Mindbody list)</option>
+                        )}
+                        {staffChoices.map((s) => (
+                          <option key={s.id} value={String(s.id)}>
+                            {s.fullName} · {s.id}
+                          </option>
+                        ))}
+                      </AdminSelect>
+                    ) : (
+                      <AdminInput
+                        inputMode="numeric"
+                        disabled={readOnly}
+                        value={staffId}
+                        onChange={(e) => setStaffId(e.target.value.replace(/[^0-9]/g, ""))}
+                        placeholder="e.g. 100000123"
+                      />
+                    )}
                   </AdminField>
                 </>
               )}
@@ -571,14 +635,14 @@ export function StaffEditor({
                 <AdminInput
                   value={initials}
                   maxLength={4}
-                  disabled={limits.readOnly}
+                  disabled={readOnly}
                   onChange={(e) => setInitials(e.target.value)}
                 />
               </AdminField>
               <AdminField label="Calendar" hint="Whether they appear on the studio schedule.">
                 <AdminSelect
                   value={onCalendar ? "yes" : "no"}
-                  disabled={limits.readOnly}
+                  disabled={readOnly}
                   onChange={(e) => setOnCalendar(e.target.value === "yes")}
                 >
                   <option value="yes">Shown on the schedule</option>
@@ -604,7 +668,7 @@ export function StaffEditor({
         )}
 
         <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {row.state === "awaiting-approval" && !studioAccess && (
+          {row.state === "awaiting-approval" && !studioAccess && !lockedReason && (
             <AdminButton
               variant="hero"
               busy={busy}
@@ -616,13 +680,13 @@ export function StaffEditor({
             </AdminButton>
           )}
 
-          {row.trainer && !limits.readOnly && (
+          {row.trainer && !readOnly && (
             <AdminButton variant="primary" busy={busy} onClick={() => void saveAccess()}>
               Save access
             </AdminButton>
           )}
 
-          {row.trainer && !limits.readOnly && row.mindbody && row.matchedBy !== "staffId" && (
+          {row.trainer && !readOnly && row.mindbody && row.matchedBy !== "staffId" && (
             <AdminButton variant="quiet" busy={busy} onClick={() => void linkToMindbody()}>
               <Link2 className="w-3.5 h-3.5" />
               Confirm the Mindbody link
@@ -630,7 +694,7 @@ export function StaffEditor({
           )}
         </div>
 
-        {row.trainer && !limits.readOnly && row.mindbody && row.matchedBy !== "staffId" && (
+        {row.trainer && !readOnly && row.mindbody && row.matchedBy !== "staffId" && (
           <p className="adm-hint" style={{ marginTop: 8 }}>
             Matched on {row.matchedBy === "email" ? "email address" : "name"} rather than a stored
             staff id. Confirming writes the id, which is what makes the match survive a rename.

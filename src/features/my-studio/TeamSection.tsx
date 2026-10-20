@@ -238,6 +238,13 @@ function StaffPanel({
           viewerIsAdmin={isEveryStudioRole(authTrainer)}
           people={trainers}
           mindbodyStaffOnly={mindbodyOnly(rows)}
+          // Read-only for the studio's leaders (AJ, Oct 20 2026): people are
+          // changed by an administrator, on Admins → Studios → Team.
+          lockedReason={
+            isEveryStudioRole(authTrainer)
+              ? null
+              : "An administrator changes people, their sign-in address and their Mindbody link on Admins → Studios → Team. Ask head office."
+          }
           onDone={() => setSelectedKey(null)}
         />
       )}

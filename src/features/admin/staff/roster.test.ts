@@ -441,3 +441,25 @@ describe("All my studios is the reader's studios (voice review follow-up, Sep 27
     expect(build({ trainers: [trainer({ id: "p", pendingClaim: true })], mindbodyChecked: false })[0].state).toBe("placeholder");
   });
 });
+
+describe("one person, one row (Oct 20 2026)", () => {
+  it("lists a person once when several Mindbody staff entries carry their email", () => {
+    const jeff = trainer({ id: "jeff", fullName: "Jeff Tomaszewski", email: "jeff@maxstrengthfitness.com" });
+    const rows = build({
+      trainers: [jeff],
+      mindbodyStaff: [
+        staff({ id: "1", fullName: "Jeff Tomaszewski", email: "jeff@maxstrengthfitness.com" }),
+        staff({ id: "2", fullName: "Jeff T", email: "jeff@maxstrengthfitness.com" }),
+        staff({ id: "3", fullName: "Jeff Tomaszewski (Owner)", email: "Jeff@MaxStrengthFitness.com" }),
+      ],
+    });
+    expect(rows.filter((r) => r.trainer?.id === "jeff")).toHaveLength(1);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("shows a row's email as Journey's only, never Mindbody's", () => {
+    const rows = build({ trainers: [trainer({ id: "t1", mindbodyStaffId: "9" })], mindbodyStaff: [staff({ id: "9", email: "marina@maxstrengthfitness.com" })] });
+    expect(rows[0].email).toBeUndefined();
+    expect(rows[0].mindbody?.email).toBe("marina@maxstrengthfitness.com");
+  });
+});

@@ -37,7 +37,7 @@
  */
 
 import { connectFirestore, flag, hasFlag, writeReport } from "./lib/admin.ts";
-import { checkMerge, chunks, keptPatch, referencesFor, tombstonePatch, type Mode } from "./lib/merge-trainer-core.ts";
+import { checkMerge, chunks, keptPatch, referencesFor, tombstonePatch, type Mode } from "../src/features/sign-in-email/merge.ts";
 
 function stop(message: string): never {
   console.error(`\nSTOPPED: ${message}`);

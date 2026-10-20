@@ -278,6 +278,42 @@ describe("StaffEditor: who signs in as whom", () => {
     expect(writes[0].data).toMatchObject({ mindbodyStaffId: "100000006", mindbodyLinked: true, email: "dcoduti@maxstrengthfitness.com" });
   });
 
+  it("is read-only for a leader on My Studio → Team: no Save, no approval, one line saying who changes it", async () => {
+    const row = buildStaffRoster({ trainers: [kayla], mindbodyStaff: [], requests: [], studioId: "westlake" }).find((r) => r.trainer)!;
+    const el = await mount(row, { people: [kayla], lockedReason: "An administrator changes people on Admins → Studios → Team." });
+    expect(el.textContent).toContain("An administrator changes people on Admins → Studios → Team.");
+    expect(buttons(el).some((b) => b.includes("Save access"))).toBe(false);
+    expect((field(el, "Signs in as")!.querySelector("input") as HTMLInputElement).disabled).toBe(true);
+    const req = rowFor({ id: "r8", fullName: "Nia New", email: "nia@example.com", status: "Pending", userId: "uid-nia" });
+    act(() => root?.unmount());
+    host?.remove();
+    const el2 = await mount(req, { people: [kayla], lockedReason: "Ask head office." });
+    expect(buttons(el2).some((b) => b.includes("Approve"))).toBe(false);
+    expect(field(el2, "Who is this?")).toBeUndefined();
+  });
+
+  it("keeps a nickname, offers Mindbody's name, and picks the Mindbody link from Mindbody's list", async () => {
+    const row = buildStaffRoster({
+      trainers: [kayla],
+      mindbodyStaff: [{ id: "100000059", fullName: "Kayla Sharratt-Lee" }],
+      requests: [],
+      studioId: "westlake",
+    }).find((r) => r.trainer)!;
+    const staffList = [
+      { id: "100000059", fullName: "Kayla Sharratt-Lee" },
+      { id: "100000071", fullName: "Kyle McManus" },
+    ];
+    const el = await mount(row, { people: [kayla], viewerIsAdmin: true, mindbodyStaff: staffList });
+    expect(field(el, "Full name")!.textContent).toContain("Mindbody has Kayla Sharratt-Lee");
+    await type(field(el, "Nickname")!.querySelector("input") as HTMLInputElement, "  KK ");
+    const pick = field(el, "Mindbody Staff ID")!.querySelector("select") as HTMLSelectElement;
+    expect([...pick.options].map((o) => o.textContent)).toEqual(["Not linked", "Kayla Sharratt-Lee · 100000059", "Kyle McManus · 100000071"]);
+    expect(pick.value).toBe("100000059");
+    await press(el, "Save access");
+    expect(writes[0].data).toMatchObject({ nickname: "KK" });
+    expect(writes[0].data).not.toHaveProperty("mindbodyStaffId");
+  });
+
   it("suggests no one when nothing fits, and approves a new person as before", async () => {
     const row = rowFor({ id: "r9", fullName: "Nia New", email: "nia@example.com", status: "Pending", userId: "uid-nia" });
     const el = await mount(row, { people: [kayla], viewerIsAdmin: true });

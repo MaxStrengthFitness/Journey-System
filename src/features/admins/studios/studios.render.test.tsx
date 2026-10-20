@@ -80,6 +80,7 @@ vi.mock("firebase/firestore", () => {
 import { UnsavedChangesProvider } from "../../unsaved-changes";
 import { StudiosRoom } from "./StudiosRoom";
 import { StudioPage } from "./StudioPage";
+import { StudioTeam } from "./StudioTeam";
 import type { FranchiseNetwork, Studio, Trainer } from "../../../types";
 
 const tz = "America/New_York";
@@ -220,7 +221,9 @@ describe("a studio's page", () => {
     expect(texts(el, ".hq-row__name")).toEqual(["Ada AdminSystem Administrator · you", "BeregondLife Transformer", "GlorfindelStudio Leader"]);
     expect(el.textContent).toContain("Owned by Círdan (Franchise Owner)");
     expect(el.textContent).toContain("Also works here");
-    expect(el.textContent).toContain("Linked to Mindbody staff");
+    // The sign-in email round (Oct 20 2026): grouped, Glorfindel on Mindbody but not signed in yet.
+    expect(el.textContent).toContain("On Mindbody, not signed in yet");
+    expect(el.textContent).toContain("Mindbody: staff 100");
     await click(button(el, "Floor"));
     expect(el.querySelector(".hq-tab--on")?.textContent).toBe("Floor");
     await click(button(el, "Activity"));
@@ -345,5 +348,35 @@ describe("a studio's page", () => {
     await click(button(document, "Keep it"));
     expect(document.querySelector('[aria-label="Delete Westlake?"]')).toBeNull();
     expect(writes).toEqual([]);
+  });
+});
+
+/*
+ * THE SIGN-IN EMAIL ROUND (Oct 20 2026): one person on two records is
+ * listed once, under Needs fixing, and Merge folds the older record into
+ * the one they sign in to in one batch.
+ */
+describe("a studio's team: one person, two records", () => {
+  const kyleOld = { id: "kyleAugustRecord0001", fullName: "Kyle McManus", initials: "KM", primaryHomeStudioId: "westlake", accessibleStudioIds: ["westlake"], activeGuestStudioIds: [], mindbodyStaffId: "100000071" };
+  const kyleUid = "kyleSignedInUid000000000000a";
+  const kyleNew = { id: kyleUid, authUid: kyleUid, fullName: "Kyle McManus", initials: "KM", role: "LifeTransformer", email: "kyle@maxstrengthfitness.com", primaryHomeStudioId: "westlake", accessibleStudioIds: ["westlake"], activeGuestStudioIds: [] };
+
+  it("lists Kyle once under Needs fixing and merges on confirm", async () => {
+    const el = await mount(
+      <UnsavedChangesProvider>
+        <StudioTeam studio={studios[0]} studios={studios} trainers={[admin, kyleOld, kyleNew] as unknown as Trainer[]} clients={[]} authTrainer={admin} />
+      </UnsavedChangesProvider>,
+    );
+    expect(el.textContent).toContain("Needs fixing");
+    expect(texts(el, ".hq-row__name").filter((n) => n.startsWith("Kyle McManus"))).toHaveLength(1);
+    expect(el.textContent).toContain("one linked to Mindbody (staff 100000071)");
+    await click(button(el, "Merge"));
+    expect(document.body.textContent).toContain("Merge Kyle McManus's two records?");
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>("button")].filter((b) => (b.textContent ?? "").trim() === "Merge").pop();
+    await click(confirm);
+    const batch = writes.filter((w) => w.op === "batch-update");
+    expect(batch.map((w) => w.path)).toEqual([`trainers/${kyleUid}`, "trainers/kyleAugustRecord0001"]);
+    expect(batch[0].data).toMatchObject({ mindbodyStaffId: "100000071", mindbodyLinked: true, claimedFromId: "kyleAugustRecord0001", mergedFromIds: ["kyleAugustRecord0001"] });
+    expect(batch[1].data).toMatchObject({ supersededByUid: kyleUid, mindbodyStaffId: "", mergedMindbodyStaffId: "100000071" });
   });
 });

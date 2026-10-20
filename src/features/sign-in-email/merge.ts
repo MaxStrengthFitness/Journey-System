@@ -1,6 +1,13 @@
 /**
- * MERGING TWO TRAINER RECORDS FOR ONE PERSON — the pure half of
+ * MERGING TWO TRAINER RECORDS FOR ONE PERSON — the pure half of Merge on
+ * Admins → Studios → Team (team-board.ts) and of the one-off
  * scripts/merge-trainer-records.ts (the sign-in email round, Oct 20 2026).
+ *
+ * The screen writes two documents (the kept record, the tombstone) and moves
+ * no bookings: the Hub reads a booking naming a merged record as the kept
+ * one's (hub-schedule/columns.ts mergedAliases), and the next sync rewrites
+ * today onward. The script also moves every stored reference, for a record
+ * with history behind it.
  *
  * Why: Kyle McManus and Kayla Sharratt each have an August record (an
  * auto-id, Mindbody's staff id, every Mindbody booking pointing at it) and,
@@ -112,6 +119,8 @@ export function keptPatch(from: Doc, into: Doc, fromId: string, mode: Mode): Doc
   const extra = roster(from.kaizenRoster).filter((e) => !kept.some((k) => text(k.clientId) && text(k.clientId) === text(e.clientId)));
   if (extra.length > 0) patch.kaizenRoster = [...kept, ...extra];
   if (!text(into.claimedFromId)) patch.claimedFromId = fromId;
+  const merged = Array.isArray(into.mergedFromIds) ? (into.mergedFromIds as string[]) : [];
+  if (!merged.includes(fromId)) patch.mergedFromIds = [...merged, fromId];
   return patch;
 }
 

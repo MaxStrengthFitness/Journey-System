@@ -53,7 +53,7 @@ function isGone(t: Person): boolean {
 
 /**
  * Nobody has signed in as this record: an auto-id (20 characters; a sign-in
- * uid is 28) with no authUid. The rules' leaderLinksASignIn asks the same.
+ * uid is 28) with no authUid.
  */
 export function neverSignedIn(t: Person): boolean {
   return t.id.length === 20 && !t.authUid && !isGone(t);

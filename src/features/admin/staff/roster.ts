@@ -235,6 +235,11 @@ export function buildStaffRoster(input: RosterInput): StaffRow[] {
           : null;
 
     const trainer = matches[0];
+    // One person, one row (Oct 20 2026: Jeff Tomaszewski was listed three
+    // times, matched by his email to three Mindbody staff entries). A match
+    // by email or name to someone already listed adds nothing; only a stored
+    // staff id is a link of its own.
+    if (trainer && matchedBy !== "staffId" && claimed.has(trainer.id)) continue;
     if (trainer) {
       for (const t of matches) claimed.add(t.id);
       rows.push({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkMerge, chunks, keptPatch, referencesFor, tombstonePatch } from "../../scripts/lib/merge-trainer-core";
+import { checkMerge, chunks, keptPatch, referencesFor, tombstonePatch } from "./merge";
 
 const UID = "6bCBnGXtYFYm0w7WL3UDXL2OcKE2";
 const OLD = "Taz36HFLtuHGMbfi35I2";
@@ -23,6 +23,7 @@ describe("merging Kyle's two records (Oct 20 2026)", () => {
       initials: "KM",
       order: 4,
       claimedFromId: OLD,
+      mergedFromIds: [OLD],
     });
     expect(keptPatch(oldKyle, { ...newKyle, initials: "KY", claimedFromId: "x" }, OLD, "merge")).not.toHaveProperty("initials");
   });
