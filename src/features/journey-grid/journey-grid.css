@@ -1936,6 +1936,118 @@ div.jg-today { cursor: default; }
   white-space: normal;
   overflow-wrap: anywhere;
 }
+/* Every machine done (the Now Bar pad round, Oct 20 2026; AJ's "End Session
+   leads"): End Session in the logo orange with navy words, the session bar's
+   Finish on the Now Bar, and Add another machine quieter beside it. Its own
+   class, never .jg-nb__next, so the portrait rule below never paints it
+   blue. It opens the same End Session confirm. */
+.jg-nb__done {
+  grid-area: next;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.jg-nb__finish {
+  appearance: none;
+  flex: 1 1 auto;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: var(--jg-radius-sm);
+  background: var(--jg-go);
+  color: var(--jg-go-on);
+  box-shadow: var(--jg-glow-go), var(--jg-go-light);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.jg-nb__finish:active { transform: translateY(1px); box-shadow: var(--jg-press); }
+.jg-nb__finish:focus-visible { outline: 2px solid var(--jg-focus-ring); outline-offset: 1px; }
+.jg-nb__done .jg-nb__next--plan { flex: 1 1 100%; }
+.jg-nb__done .jg-nb__addmore { flex: none; }
+.jg-nb--side .jg-nb__done { flex-direction: column; align-items: stretch; }
+
+/* ---- the number pad (the Now Bar pad round, Oct 20 2026) --------------- *
+   One row of keys over the app's bottom bar and only over it (AJ's "Opens
+   on tap"): as tall as that bar (56px, 80px from 640px wide) plus the home
+   indicator's inset, so the Now Bar and the grid above never move. Keys are
+   the bar's raised controls on their 3:1 edge; Done is blue, as every Save
+   is; nothing here is orange. */
+.jg-pad {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  box-sizing: border-box;
+  min-height: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: var(--jg-surface-2);
+  border-top: 2px solid var(--jg-hero);
+  box-shadow: var(--jg-dock);
+  font-family: var(--jg-font);
+  display: flex;
+  align-items: center;
+}
+.jg-pad__keys {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.jg-pad__key {
+  appearance: none;
+  flex: 1 1 0;
+  min-width: 40px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 4px;
+  border: 1px solid var(--jg-control-edge);
+  border-radius: var(--jg-radius-sm);
+  background: var(--jg-raised);
+  box-shadow: var(--jg-elev-1), inset 0 1px 0 var(--jg-highlight);
+  color: var(--jg-ink);
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.jg-pad__key:active { background: var(--jg-surface-3); transform: translateY(1px); box-shadow: var(--jg-press); }
+.jg-pad__key--switch,
+.jg-pad__key--done { flex: 1.6 1 0; font-size: 15px; }
+.jg-pad__key--switch { color: var(--jg-live-text); border-color: var(--jg-live); }
+.jg-pad__key--done {
+  border-color: var(--jg-live);
+  background: var(--jg-live);
+  color: var(--jg-live-on);
+  box-shadow: var(--jg-glow-live), var(--jg-solid-light);
+}
+.jg-pad__key--done:active { background: var(--jg-live); }
+@media (min-width: 640px) {
+  .jg-pad { min-height: calc(80px + env(safe-area-inset-bottom, 0px)); padding-left: 16px; padding-right: 16px; }
+  .jg-pad__key { height: 60px; font-size: 22px; }
+  .jg-pad__key--switch,
+  .jg-pad__key--done { font-size: 16px; }
+}
+
 @media (max-width: 899px) {
   .jg-nb--bar .jg-nb__controls .jg-nb__sp { display: none; }
   .jg-nb--bar .jg-nb__controls { gap: 8px 10px; }

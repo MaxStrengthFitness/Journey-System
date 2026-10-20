@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ChevronRight, Info, Minus, Pause, Play, Plus, RotateCcw, Ruler, ShieldAlert, SlidersHorizontal, X } from "lucide-react";
+import { ChevronRight, Flag, Info, Minus, Pause, Play, Plus, RotateCcw, Ruler, ShieldAlert, SlidersHorizontal, X } from "lucide-react";
 import type { FlagLine } from "./session-flags";
 import {
   OUTCOME_GLOSS,
@@ -15,6 +15,8 @@ import type { HistoryCoverage } from "../../lib/prior-history";
 import { gainWords, progressFromSets } from "../machine-menu/progress-figure";
 import type { StartingRangeSlot } from "../routine-plan/session-plan";
 import { notSetWords, setupButtonOf } from "./setup-button";
+import { padKey, padText, padValue, type PadKey } from "./now-pad";
+import { NowPad } from "./NowPad";
 import "./journey-grid.css";
 
 /* ------------------------------------------------------------------ *
@@ -50,6 +52,22 @@ export interface SessionNowBarProps {
   /** Next machine in the routine, and the handler that advances to it. */
   nextName?: string;
   onNext?: () => void;
+  /**
+   * The next machine still to do sits ABOVE this one in today's order: Next
+   * has gone round from the bottom of the list (the Now Bar pad round, Oct
+   * 20 2026; AJ: "it should wrap the now bar back to any machines not
+   * performed"). The slot says "Back to" in place of "Next".
+   */
+  nextWraps?: boolean;
+  /**
+   * Every machine in today's order is done (a count, Practice or Skipped):
+   * the last line offers End Session, orange and first, with Add another
+   * machine quieter beside it (AJ, Oct 20 2026: "both end session and add
+   * machines should pop up in the now bar"). End Session opens the same
+   * confirm as the session bar's Finish; it is never a second way to finish.
+   */
+  allDone?: boolean;
+  onEndSession?: () => void;
   /**
    * On the last machine the Next slot is not a dead end: it offers to add
    * another machine, because trainers do — a neck that hurts, an arm that
@@ -430,6 +448,9 @@ function SessionNowBarImpl({
   step = 2,
   nextName,
   onNext,
+  nextWraps = false,
+  allDone = false,
+  onEndSession,
   onMachineSeconds: onMachineSecondsProp,
   readMachineSeconds,
   machineClockRunning = false,
@@ -456,6 +477,44 @@ function SessionNowBarImpl({
   const [skipOpen, setSkipOpen] = useState(false);
   // The strip belongs to one machine; moving on closes it.
   useEffect(() => setSkipOpen(false), [machine?.id]);
+
+  /* --- the number pad (the Now Bar pad round, Oct 20 2026) ----------------
+     The field in hand ("weight", the count "L", the right side's "R") and
+     its text while the pad types into it: the text, not the number, so
+     "62." can be on its way to 62.5. The first key after arriving replaces
+     the number (now-pad.ts). */
+  type PadField = "weight" | "L" | "R";
+  const [padField, setPadField] = useState<PadField | null>(null);
+  const [padDraft, setPadDraft] = useState("");
+  const padFresh = useRef(true);
+  const fieldRefs = useRef<Record<PadField, HTMLInputElement | null>>({ weight: null, L: null, R: null });
+  /* The pad belongs to one machine, as the skip strip does: moving on lets
+     go of the field, which sends what was typed. */
+  useEffect(() => {
+    const el = padField ? fieldRefs.current[padField] : null;
+    if (el && document.activeElement === el) el.blur();
+    setPadField(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [machine?.id]);
+  /* Reps ↔ Sec switched with the pad open: the count field now holds the
+     other number, so the pad starts again from it. */
+  const isTSCNow = !!value?.isTSC;
+  const padFieldRef = useRef<PadField | null>(null);
+  padFieldRef.current = padField;
+  useEffect(() => {
+    const cur = padFieldRef.current;
+    if (cur !== "L" && cur !== "R") return;
+    const val = cur === "R" ? (isTSCNow ? value?.secondsR : value?.repsR) : isTSCNow ? value?.seconds : value?.reps;
+    setPadDraft(padText(val));
+    padFresh.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTSCNow]);
+  /* The count field gone (Practice, a skip, the skip strip): the pad goes
+     with it, since an unmounted field never says it was left. */
+  const countGone = skipOpen || value?.outcome === "practice" || value?.outcome === "skipped";
+  useEffect(() => {
+    if (countGone) setPadField((cur) => (cur === "weight" && !skipOpen ? cur : null));
+  }, [countGone, skipOpen]);
 
   /* --- what to expect: the last set and the best set ---------------------
      No progression cue. The bar used to say "▲ Up" against the last set;
@@ -498,7 +557,13 @@ function SessionNowBarImpl({
 
   const bump = (dir: 1 | -1) => {
     if (!machine) return;
-    onChange(machine.id, { weight: Math.max(0, (weight ?? 0) + dir * step) });
+    const next = Math.max(0, (weight ?? 0) + dir * step);
+    onChange(machine.id, { weight: next });
+    // The pad open on the weight shows the stepped number, and the next key replaces it.
+    if (padField === "weight") {
+      setPadDraft(padText(next));
+      padFresh.current = true;
+    }
   };
 
   /* Leaving a typed field sends what was typed; Enter leaves the field. The
@@ -509,6 +574,62 @@ function SessionNowBarImpl({
   };
   const enterLeaves = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") e.currentTarget.blur();
+  };
+
+  /* --- the pad's fields: the order Switch walks, and what each one writes. */
+  const padFields: PadField[] = sides ? ["weight", "L", "R"] : ["weight", "L"];
+  const storedOf = (f: PadField): number | null | undefined =>
+    f === "weight" ? weight : f === "R" ? (v.isTSC ? v.secondsR : v.repsR) : v.isTSC ? v.seconds : v.reps;
+  const patchOf = (f: PadField, n: number | null): Partial<LiveSet> =>
+    f === "weight"
+      ? { weight: n }
+      : f === "R"
+        ? v.isTSC ? { secondsR: n } : { repsR: n }
+        : v.isTSC ? { seconds: n } : { reps: n };
+  const padLabelOf = (f: PadField): string => {
+    if (f === "weight") return "Weight";
+    const unit = v.isTSC ? "Sec" : "Reps";
+    if (!sides) return unit;
+    return f === "R" ? `Right ${unit.toLowerCase()}` : `Left ${unit.toLowerCase()}`;
+  };
+  /** A field arrived on (a tap, the Switch key, a hardware Tab): the pad opens on it. */
+  const arrive = (f: PadField, el: HTMLInputElement) => {
+    setPadField(f);
+    setPadDraft(padText(storedOf(f)));
+    padFresh.current = true;
+    el.select();
+  };
+  /** A field left: what was typed is sent, and the pad closes unless another field took over. */
+  const leave = (f: PadField) => {
+    commit();
+    setPadField((cur) => (cur === f ? null : cur));
+  };
+  /** Typed on a hardware keyboard: the text follows it, and the pad's next key adds to it. */
+  const typed = (f: PadField, raw: string) => {
+    if (!machine) return;
+    const clean = raw.replace(/[^\d.]/g, "");
+    if (padField === f) {
+      setPadDraft(clean);
+      padFresh.current = false;
+    }
+    onChange(machine.id, patchOf(f, parseNum(raw)));
+  };
+  const pressKey = (key: PadKey) => {
+    if (!machine || !padField) return;
+    const text = padKey(padDraft, key, { fresh: padFresh.current, decimal: padField === "weight" });
+    padFresh.current = false;
+    setPadDraft(text);
+    onChange(machine.id, patchOf(padField, padValue(text)));
+  };
+  const switchField = () => {
+    if (!padField) return;
+    const next = padFields[(padFields.indexOf(padField) + 1) % padFields.length];
+    fieldRefs.current[next]?.focus();
+  };
+  const padDone = () => {
+    const el = padField ? fieldRefs.current[padField] : null;
+    if (el) el.blur();
+    else setPadField(null);
   };
 
   /* Tapping the mark that is on takes it OFF — back to plain "completed"
@@ -631,28 +752,35 @@ function SessionNowBarImpl({
             {side}
           </span>
         )}
+        {/* inputMode "none": the Now Bar's own pad types here, never the
+            iPad's keyboard (the Now Bar pad round, Oct 20 2026). */}
         <input
-          className="jg-nb__outin"
+          ref={(el) => {
+            fieldRefs.current[side] = el;
+          }}
+          className={`jg-nb__outin ${padField === side ? "is-padded" : ""}`}
           type="text"
-          inputMode="numeric"
+          inputMode="none"
           aria-label={`${sides ? (side === "R" ? "Right side " : "Left side ") : ""}${
             v.isTSC ? "seconds under tension" : "reps to failure"
           }`}
           placeholder={ghost || "–"}
-          value={val ?? ""}
-          onChange={(e) => {
-            const n = parseNum(e.target.value);
-            if (side === "R") onChange(machine.id, v.isTSC ? { secondsR: n } : { repsR: n });
-            else onChange(machine.id, v.isTSC ? { seconds: n } : { reps: n });
-          }}
-          onFocus={(e) => e.currentTarget.select()}
-          onBlur={commit}
+          value={padField === side ? padDraft : (val ?? "")}
+          onChange={(e) => typed(side, e.target.value)}
+          onFocus={(e) => arrive(side, e.currentTarget)}
+          onBlur={() => leave(side)}
           onKeyDown={enterLeaves}
         />
         {v.isTSC && side === "L" && (
           <Stopwatch
             machineId={machine.id}
-            onStop={(seconds) => onChange(machine.id, { isTSC: true, seconds })}
+            onStop={(seconds) => {
+              onChange(machine.id, { isTSC: true, seconds });
+              if (padField === "L") {
+                setPadDraft(padText(seconds));
+                padFresh.current = true;
+              }
+            }}
           />
         )}
       </div>
@@ -837,16 +965,19 @@ function SessionNowBarImpl({
               </button>
               <div className="jg-nb__wwrap">
                 <input
-                  className="jg-nb__weight"
+                  ref={(el) => {
+                    fieldRefs.current.weight = el;
+                  }}
+                  className={`jg-nb__weight ${padField === "weight" ? "is-padded" : ""}`}
                   type="text"
-                  inputMode="decimal"
+                  inputMode="none"
                   aria-label="Weight in pounds"
-                  value={weight ?? ""}
+                  value={padField === "weight" ? padDraft : (weight ?? "")}
                   placeholder="–"
                   size={3}
-                  onChange={(e) => onChange(machine.id, { weight: parseNum(e.target.value) })}
-                  onFocus={(e) => e.currentTarget.select()}
-                  onBlur={commit}
+                  onChange={(e) => typed("weight", e.target.value)}
+                  onFocus={(e) => arrive("weight", e.currentTarget)}
+                  onBlur={() => leave("weight")}
                   onKeyDown={enterLeaves}
                 />
                 <span className="jg-nb__lb" aria-hidden="true">
@@ -968,6 +1099,22 @@ function SessionNowBarImpl({
           <span className="jg-nb__flagtext">{flagLine.text}</span>
           {flagLine.more > 0 && <span className="jg-nb__flagmore">+{flagLine.more}</span>}
         </button>
+      )}
+
+      {/* --- the pad, over the app's bottom bar while a field is in hand -- */}
+      {padField && !skipOpen && (padField === "weight" || !noSet) && (padField !== "R" || sides) && (
+        <NowPad
+          label={padLabelOf(padField)}
+          decimal={padField === "weight"}
+          onKey={pressKey}
+          switchLabel={
+            noSet
+              ? undefined
+              : padLabelOf(padFields[(padFields.indexOf(padField) + 1) % padFields.length])
+          }
+          onSwitch={switchField}
+          onDone={padDone}
+        />
       )}
 
       {/* --- line 3 · what is next --------------------------------------

@@ -255,6 +255,8 @@ const CONTROLS = [
   [".jg-order__find", "solid", "the routine sheet's Find"],
   [".jg-order__add", "dashed", "the routine sheet's add from the floor"],
   [".jg-keypop", "solid", "the Key"],
+  // The Now Bar's own number pad (the Now Bar pad round, Oct 20 2026).
+  [".jg-pad__key", "solid", "the Now Bar's number pad keys"],
   [".jg-keypop__close", "solid", "the Key's Close"],
   [".jg-btn", "solid", "the grid's button"],
   [".jg-seg2", "solid", "the rail's two-way switch"],

@@ -418,6 +418,9 @@ describe("the grid lifts as one panel and the Now Bar docks", () => {
         '.jg[data-live="true"] .jg-cell.is-latest',
         ".jg-today",
         ".jg-keypop",
+        /* The Now Bar's number pad (Oct 20 2026), fixed over the app's
+           bottom bar (z-30), on document.body. */
+        ".jg-pad",
         ".jg-order__row.is-dragging",
         ".jg-look .jg-cell:not(.jg-cell--none):not(.jg-cell--nr):not(.jg-cell--skipped)::before",
         ".jg-look .jg-cell__w",
