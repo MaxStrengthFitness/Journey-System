@@ -171,9 +171,10 @@ export const SETTINGS: readonly SettingDef[] = [
     kind: "count",
     min: 1,
     max: 50,
-    appDefault: 10,
-    help: "A client is New until this session, counted from the client's whole history, never from Journey's alone.",
-    readers: ["features/admin/journey/states.ts"],
+    // 6, not 10 (AJ, Oct 20 2026): one line for New on Operations and "New client!" on the Hub.
+    appDefault: 6,
+    help: "A client is New until this session, counted from the client's whole history (the consult included), never from Journey's alone. The Hub's cards say \"New client!\" up to it too.",
+    readers: ["features/admin/journey/states.ts", "features/hub-opportunities/moments-today.ts"],
   },
   {
     key: "settlingMax",

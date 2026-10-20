@@ -35,6 +35,7 @@ import { LoadBoundary } from "../features/new-version/LoadBoundary";
 import { LoadingArea } from "./LoadingMark";
 import type { HubLayer } from "../features/hub-opportunities/LayerSwitch";
 import { useDayMoments } from "../features/hub-opportunities/use-day-moments";
+import { useStudioSettings } from "../features/studio-settings/useStudioSettings";
 import { useHubFord } from "../features/hub-opportunities/use-hub-ford";
 import { useHubMarks } from "../features/hub-opportunities/use-hub-marks";
 import { markNoShow, takeBackNoShow, useBookingMarks } from "../features/admin/attention/booking-marks";
@@ -597,6 +598,8 @@ export function ClientsView({
    * list reads (features/hub-opportunities). The cards, their marks and the
    * list can never disagree. No read per card.
    */
+  // "New client!" up to the studio's "New, up to session" (AJ, Oct 20 2026).
+  const hubNewMax = useStudioSettings(activeStudioId || null).value("newMax") ?? undefined;
   const dayMoments = useDayMoments({
     day: selectedKey,
     now: currentTime,
@@ -613,6 +616,7 @@ export function ClientsView({
     criticalFor: criticalNotes.notesFor,
     fordFor: hubFord.fordFor,
     allStarOf: hubMarks.allStarOf,
+    newMax: hubNewMax,
   });
 
   /** The day's usual service: a card names its own only when it isn't this one. */

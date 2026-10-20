@@ -14,7 +14,7 @@
  *     every glyph are explained in words in the peek, never in a hover.
  *   - A glyph may carry a WORD beside it on a roomy card, but only a word
  *     that is fine to say with the client standing at the iPad: "100th",
- *     "turns 80", "1st session", "back", "Consult". A Pulse flag, a waiver or
+ *     "turns 80", "New client!", "back", "Consult". A Pulse flag, a waiver or
  *     a renewal talk is a glyph alone; its words live in the peek and the
  *     list, which a trainer opens on purpose (rule 9: a shared screen shows
  *     little).
@@ -87,7 +87,8 @@ export function sayableWord(m: Moment, { yours = false }: SayableOptions = {}): 
       // "100th today" on the list; the card sits on its own day already.
       return m.chip.replace(/ today$/, "");
     case "early-session":
-      return m.chip === "First session" ? "1st session" : m.chip;
+      // "New client!" (AJ, Oct 20 2026); which session it is, is the corner's #.
+      return m.chip;
     case "consult":
       return "Consult";
     case "back":
@@ -189,12 +190,13 @@ export function bookingSessionNumber(
  * card said what session number they were on in a very subtle manner").
  * "#43" in the card's top-right, beside the name, in quiet ink — only where
  * the number may be quoted (`bookingSessionNumber`, through history-claims'
- * rule), from #4 (1–3 are the Welcome glyph's to say), and not when the
- * milestone glyph already says it ("100th"). Otherwise nothing: never a
- * placeholder. It used to ride on the second line after the time.
+ * rule), from #1 (AJ, Oct 20 2026: a new client "should still list their
+ * session count"), and not when the milestone glyph already says it
+ * ("100th"). Otherwise nothing: never a placeholder. It used to ride on the
+ * second line after the time.
  */
 export function cornerNumber(sessionNumber: number | null | undefined, marks: Pick<CardMarks, "glyphs">): string | null {
-  if (typeof sessionNumber !== "number" || !Number.isFinite(sessionNumber) || sessionNumber <= 3) return null;
+  if (typeof sessionNumber !== "number" || !Number.isFinite(sessionNumber) || sessionNumber < 1) return null;
   if (marks.glyphs.some((g) => g.kind === "milestone")) return null;
   return `#${Math.trunc(sessionNumber)}`;
 }

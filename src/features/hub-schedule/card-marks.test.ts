@@ -38,10 +38,10 @@ describe("the card's marks", () => {
   });
 
   it("chooses by the Key's order, then puts a mark that can say a word first", () => {
-    const early = m({ kind: "early-session", family: "welcome", chip: "First session" });
+    const early = m({ kind: "early-session", family: "welcome", chip: "New client!" });
     const marks = cardMarks([waiver, early]);
     expect(marks.glyphs.map((g) => g.kind)).toEqual(["early-session", "waiver"]);
-    expect(marks.glyphs[0].word).toBe("1st session");
+    expect(marks.glyphs[0].word).toBe("New client!");
     // The choosing is still the Key's: a third mark folds, whatever its word.
     expect(cardMarks([waiver, pulse, early]).glyphs.map((g) => g.kind)).toEqual(["waiver", "pulse"]);
   });
@@ -52,7 +52,7 @@ describe("the card's marks", () => {
   });
 
   it("keeps each glyph's place in the Key's order as its rank, though a worded one is drawn first (the narrow cards round)", () => {
-    const early = m({ kind: "early-session", family: "welcome", chip: "First session" });
+    const early = m({ kind: "early-session", family: "welcome", chip: "New client!" });
     const marks = cardMarks([critical, waiver, early, renew]);
     // Drawn with the word first; ranked as the Key has them, the triangle apart.
     expect(marks.glyphs.map((g) => [g.kind, g.rank])).toEqual([
@@ -71,8 +71,7 @@ describe("only sayable words beside a glyph (a client stands at the iPad)", () =
   it("says a milestone, a decade birthday, an early session, a consult and a return", () => {
     expect(sayableWord(milestone)).toBe("100th");
     expect(sayableWord(decade)).toBe("turns 80");
-    expect(sayableWord(m({ kind: "early-session", family: "welcome", chip: "First session" }))).toBe("1st session");
-    expect(sayableWord(m({ kind: "early-session", family: "welcome", chip: "3rd session" }))).toBe("3rd session");
+    expect(sayableWord(m({ kind: "early-session", family: "welcome", chip: "New client!" }))).toBe("New client!");
     expect(sayableWord(m({ kind: "consult", family: "welcome", chip: "Consultation" }))).toBe("Consult");
     expect(sayableWord(back)).toBe("back");
   });
@@ -138,10 +137,13 @@ describe("the day's usual service (AJ's Mindbody screenshots: it repeated on eve
 });
 
 describe("her number in the corner (AJ, Oct 1 2026: \"in a very subtle manner\")", () => {
-  it("says #N from 4, only where it may be quoted, and never a placeholder", () => {
+  it("says #N from 1, a new client's too, only where it may be quoted, and never a placeholder", () => {
     expect(cornerNumber(43, cardMarks([]))).toBe("#43");
     expect(cornerNumber(4, cardMarks([]))).toBe("#4");
-    expect(cornerNumber(3, cardMarks([]))).toBeNull();
+    // AJ, Oct 20 2026: a new client "should still list their session count".
+    expect(cornerNumber(2, cardMarks([m({ kind: "early-session", family: "welcome", chip: "New client!" })]))).toBe("#2");
+    expect(cornerNumber(1, cardMarks([]))).toBe("#1");
+    expect(cornerNumber(0, cardMarks([]))).toBeNull();
     expect(cornerNumber(null, cardMarks([]))).toBeNull();
     expect(cornerNumber(undefined, cardMarks([]))).toBeNull();
     expect(cornerNumber(Number.NaN, cardMarks([]))).toBeNull();

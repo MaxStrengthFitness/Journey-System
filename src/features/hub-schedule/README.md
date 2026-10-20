@@ -159,6 +159,18 @@ Phase 4 is **the guard and the docs**. `src/lib/names-wrap.test.ts`, the app's n
 
 Each was checked by breaking the stylesheet on purpose (fifteen ways, from an ellipsis on the state word to initials on a card with no profile): every one fails the file. `docs/DECISIONS.md` has the amended decision ([Names are never truncated](../../../docs/DECISIONS.md#names-are-never-truncated), a level-4 entry beside Hub card states until the ship-time pass), Type and depth's narrow name, and AJ's Oct 1 corner number moving to the peek on a narrow card; `docs/KNOWN-TRAPS.md` → Layout and CSS has the rule for the next part a card gains (a word moves only with a stand-in in the same block and its words in `spokenCard`) and four at once parked.
 
+### New client! and Consult (AJ, Oct 20 2026)
+
+"1st session" is gone. A consult has its own mark (the handshake, "Consult");
+a client in their first sessions says **New client!** (the sparkle), up to the
+studio's **New, up to session** (`newMax`, My Studio → Studio), the same line
+Operations draws for New. Its app default went from 10 to 6. The consult counts
+as session 1 ("because its still time in the studio"). The corner number now
+shows from #1, so a new client's card still says which session it is. Only a
+number that may be quoted (`canClaimMilestone`) ever makes a client New.
+`moments-today.ts` (`newMaxOf`, `NEW_CLIENT_CHIP`), `card-marks.ts`
+(`cornerNumber`), the Key in `DayHeader.tsx`. The Key's wider rehaul is parked.
+
 ## Reads
 
 Beyond what the Hub already streams: **one listener on the studio's standing weeks** (`useStandingWeeks`, `studios/{s}/standingWeeks`, for the hatching) and **the studio's package table** (`useRenewalSettings`, one document, for the peek's Package line — the read the profile and the directory make). No per-client query, no Mindbody call, no new index, no write.

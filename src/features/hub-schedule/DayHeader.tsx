@@ -41,6 +41,7 @@ import {
   Circle,
   Eye,
   FileSignature,
+  Handshake,
   KeyRound,
   ListChecks,
   MessageCircle,
@@ -282,7 +283,8 @@ const MARKS: ReadonlyArray<{ family: MomentFamily; icon: Icon; name: string; mea
   { family: "read-first", icon: AlertTriangle, name: "Read first", means: "A Critical note that matters today. The only red mark." },
   { family: "watch", icon: FileSignature, name: "No waiver signed", means: "Mindbody has no signed liability waiver (its red “nw” corner). It never stops a session." },
   { family: "watch", icon: Activity, name: "Pulse flag", means: "The last Pulse check scored red where the reference flags it." },
-  { family: "welcome", icon: Sparkles, name: "New", means: "A consultation, sessions 1 to 3, or a first time with this trainer." },
+  { family: "welcome", icon: Handshake, name: "Consult", means: "A new client's consultation. It counts as their first session." },
+  { family: "welcome", icon: Sparkles, name: "New client!", means: "The first 6 sessions, or the studio's own number (My Studio → Studio), or a first time with this trainer." },
   { family: "welcome", icon: Undo2, name: "Back after a break", means: "About 3 or more sessions missed at the client's own pace." },
   { family: "celebrate", icon: Award, name: "Milestone", means: "The 50th, 100th, 150th… session." },
   { family: "celebrate", icon: Cake, name: "Birthday", means: "Within a week either side. A decade is said aloud." },
@@ -392,7 +394,7 @@ export function KeySheet({ open, onClose }: { open: boolean; onClose: () => void
         </ul>
         <p className="hd-key-note">
           <strong>#43</strong> in a card’s top-right corner is the session this booking will be, shown only where Journey holds the
-          whole story or someone wrote the rest down. Sessions 1 to 3 are the Welcome mark’s to say.
+          whole story or someone wrote the rest down. A new client has it too.
         </p>
         <h3 className="hd-key-h">On the grid</h3>
         <ul className="hd-key-list">

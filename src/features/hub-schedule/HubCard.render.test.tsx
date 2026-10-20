@@ -13,7 +13,7 @@
  * and adds the round's own: the marks come from the Hub's one engine (the
  * same moments the Opportunities list reads), the Pulse flag is a plum glyph,
  * "No waiver signed" is a plum glyph, the clinical dot is gone, the name is
- * the floor name whole, the number shows from #4 and only when it may be
+ * the floor name whole, the number shows from #1 and only when it may be
  * quoted, and Mindbody's "Unavailable" is time that isn't a session.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -303,9 +303,9 @@ describe("the card's words and marks come from the Hub's one engine", () => {
     expect(mount({ hm: "15:00", who: judy }).card.querySelector(".hs-card-name")?.textContent).toBe("Judy Sackville-Baggins");
   });
 
-  it("shows her number from #4, and only when it may be quoted; 1 to 3 are the Welcome glyph's to say", () => {
+  it("shows her number from #1, a new client's too, and only when it may be quoted (AJ, Oct 20 2026)", () => {
     expect(mount({ hm: "15:00", sessionNumber: 264 }).text).toContain("#264");
-    expect(mount({ hm: "15:00", sessionNumber: 2 }).text).not.toContain("#2");
+    expect(mount({ hm: "15:00", sessionNumber: 2 }).text).toContain("#2");
     expect(mount({ hm: "15:00", sessionNumber: null }).text).not.toContain("#");
   });
 
@@ -439,7 +439,6 @@ describe("your own column, in words", () => {
 
   it("shows no number, and no placeholder, where it may not be quoted", () => {
     expect(mount({ hm: "15:00", sessionNumber: null }).card.querySelector(".hs-card-num")).toBeNull();
-    expect(mount({ hm: "15:00", sessionNumber: 3 }).card.querySelector(".hs-card-num")).toBeNull();
   });
 });
 

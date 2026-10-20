@@ -356,6 +356,26 @@ export interface MomentsTodayInput {
    * `schedules` and `tz`.
    */
   index?: BookingIndex;
+  /**
+   * The studio's "New, up to session" (`newMax`, useStudioSettings): a client
+   * is "New client!" on the Hub through this session, the same line
+   * Operations draws for New (AJ, Oct 20 2026). Absent: NEW_CLIENT_SESSIONS.
+   */
+  newMax?: number;
+}
+
+/**
+ * The app's own "New, up to session" (studio-settings registry `newMax`),
+ * for an input that doesn't carry the studio's. AJ, Oct 20 2026: "a client
+ * is in their first 6 sessions"; the consult counts, "because its still time
+ * in the studio".
+ */
+export const NEW_CLIENT_SESSIONS = 6;
+
+/** The input's "New, up to session", or the app's when it is missing or unusable. */
+export function newMaxOf(input: Pick<MomentsTodayInput, "newMax">): number {
+  const n = input.newMax;
+  return typeof n === "number" && Number.isFinite(n) && n >= 1 ? Math.trunc(n) : NEW_CLIENT_SESSIONS;
 }
 
 /**
@@ -477,6 +497,9 @@ function sessionWords(n: number): string {
   return `${ordinal(n)} session`;
 }
 
+/** The Welcome chip for a client in their first sessions (AJ, Oct 20 2026); the number is the card's corner and the list's sentence. */
+export const NEW_CLIENT_CHIP = "New client!";
+
 function coverageOf(row: DirectoryRow | undefined): HistoryCoverage {
   return row?.coverage ?? "unknown";
 }
@@ -546,7 +569,7 @@ export function buildEntry(bookings: ScheduleEntry[], input: MomentsTodayInput, 
     const milestone = claim && sessionNumber !== null && SESSION_MILESTONES.includes(sessionNumber);
     if (sessionNumber !== null) {
       const n = sessionNumber;
-      const early = claim && n <= 3;
+      const early = claim && n <= newMaxOf(input);
       facts.sessions = {
         sentence: milestone ? `${ordinal(n)} session${isToday ? " today" : ""}` : early ? sessionWords(n) : (sessionNumberWords(n, totals.basis, { explain: true }) ?? `#${n}`),
         bucket: milestone ? "milestone" : early ? "new" : n < 50 ? "building" : "regulars",
@@ -580,8 +603,10 @@ export function buildEntry(bookings: ScheduleEntry[], input: MomentsTodayInput, 
     /* ---- Welcome ---- */
     const consult = /consult/i.test(booking.serviceName || "") || (!!client.requiresConsultation && !client.consultationCompleted);
     if (consult) moments.push({ family: "welcome", kind: "consult", chip: "Consultation", sentence: "A consultation." });
-    if (!consult && claim && sessionNumber !== null && sessionNumber <= 3) {
-      moments.push({ family: "welcome", kind: "early-session", chip: sessionWords(sessionNumber), sentence: `${sessionNumber === 1 ? "First" : ordinal(sessionNumber)} session.` });
+    // New client! (AJ, Oct 20 2026): sessions 1 to the studio's "New, up to
+    // session", the consult counted as one. A consult keeps its own mark.
+    if (!consult && claim && sessionNumber !== null && sessionNumber <= newMaxOf(input)) {
+      moments.push({ family: "welcome", kind: "early-session", chip: NEW_CLIENT_CHIP, sentence: `New client: ${sessionWords(sessionNumber).toLowerCase()}.` });
     }
     // First time with this trainer: only when Journey holds her whole story,
     // so the tally is every session she has had.

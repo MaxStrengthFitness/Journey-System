@@ -334,8 +334,9 @@ export function TodayBrief({ footer, homeSignal, studio, studios, today, now, me
       myIds,
       myName: authTrainer.fullName ?? null,
       trainerNameOf,
+      newMax: lines.newMax,
     });
-  }, [weekUnread, trainers, authTrainer, uid, week.entries, clients, today, settled, tz, studios, studioId, packageIndex, own.critical, logged.logged]);
+  }, [weekUnread, trainers, authTrainer, uid, week.entries, clients, today, settled, tz, studios, studioId, packageIndex, own.critical, logged.logged, lines.newMax]);
   const catchRows = useMemo(() => (dayEntries ? catchToday(dayEntries, settled.getTime(), tz) : null), [dayEntries, settled, tz]);
   const leftRows = useMemo(
     () => (weekUnread ? null : leftWithNothingBooked({ clients, weekEntries: week.entries, logged: logged.logged, today, now: settled, tz, readAt: week.readAt })),

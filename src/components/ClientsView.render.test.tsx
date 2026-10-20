@@ -22,6 +22,10 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 vi.mock("../firebase", () => ({ db: {}, auth: { currentUser: { uid: "uid-ioreth" } } }));
+// The studio's "New, up to session" (Oct 20 2026): the app's own, no listener.
+vi.mock("../features/studio-settings/useStudioSettings", () => ({
+  useStudioSettings: () => ({ value: () => null, loading: false, failed: false }),
+}));
 /*
  * The header search's name query beyond the studio list (the only read here
  * that builds a query itself): the server answers with nobody by default; a
