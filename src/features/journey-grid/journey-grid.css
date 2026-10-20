@@ -1373,6 +1373,10 @@ div.jg-today { cursor: default; }
   color: var(--jg-ink);
 }
 .jg-nb__offbtn--yes { font-weight: 750; }
+/* At the end of the machine's line, after the settings, in the portrait bar
+   (whose head orders its pieces) and in the landscape column alike. */
+.jg-nb__off, .jg-nb__offask { margin-left: auto; }
+.jg-nb--bar .jg-nb__off, .jg-nb--bar .jg-nb__offask { order: 2; }
 .jg-nb__ord {
   flex: none;
   width: 22px;

@@ -177,7 +177,7 @@ const PAYS_AN_INSET: Record<string, { uses: number; reason: string }> = {
   "components/WorkoutTrackerView.tsx": { uses: 2, reason: "the Pulse slide-over: full height, over the bottom bar" },
   "components/journal/SessionJournalSidebar.tsx": { uses: 2, reason: "the notes slide-over: full height, over the bottom bar" },
   "features/journey-grid/SessionFlagsSheet.tsx": { uses: 2, reason: "the watch-outs slide-over: full height, over the bottom bar" },
-  "features/journey-grid/journey-grid.css": { uses: 1, reason: "the routine order sheet: a dialog pinned to the bottom edge" },
+  "features/journey-grid/journey-grid.css": { uses: 4, reason: "the routine order sheet: a dialog pinned to the bottom edge; the Now Bar's number pad over the bottom bar (its height, its padding, its height from 640px; Oct 20 2026)" },
   "features/front-door/kit.tsx": { uses: 1, reason: "the front door's pane (sign in, checking you in, the greeting, the studio picker, the access request): before the shell exists" },
   "components/CreateClientModal.tsx": { uses: 4, reason: "new-client onboarding: a fixed layer at the true edge, returned before the shell exists or portalled over an open session" },
   "features/packages/packages.css": { uses: 2, reason: "the packages sheet: a full-screen dialog, both edges" },

@@ -845,40 +845,6 @@ function SessionNowBarImpl({
           </span>
         </span>
 
-        {/* Off today: small and quiet by the name, never near Next or the
-            pad, and a second tap to confirm (Oct 20 2026). */}
-        {canTakeOff &&
-          (takeOffAsk ? (
-            <span className="jg-nb__offask" role="group" aria-label={`Take ${machine.name} off today?`}>
-              <span className="jg-nb__offq">Take off today?</span>
-              <button
-                type="button"
-                className="jg-nb__offbtn jg-nb__offbtn--yes"
-                data-testid="nb-takeoff-yes"
-                onClick={() => {
-                  setTakeOffAsk(false);
-                  onTakeOff?.(machine.id);
-                }}
-              >
-                Take off
-              </button>
-              <button type="button" className="jg-nb__offbtn" onClick={() => setTakeOffAsk(false)}>
-                Keep
-              </button>
-            </span>
-          ) : (
-            <button
-              type="button"
-              className="jg-nb__off"
-              data-testid="nb-takeoff"
-              aria-label={`Take ${machine.name} off today's order`}
-              onClick={() => setTakeOffAsk(true)}
-            >
-              <CircleMinus size={15} strokeWidth={2.4} aria-hidden="true" />
-              Off today
-            </button>
-          ))}
-
         {/* The settings, one button (the open session round, Oct 9 2026;
             AJ's "2a"): it opens the machine card on the first empty dial,
             on the number pad, and Save closes it with Undo. They were
@@ -922,6 +888,40 @@ function SessionNowBarImpl({
             )}
           </button>
         )}
+
+        {/* Off today: small and quiet at the end of the machine's line, never
+            near Next or the pad, and a second tap to confirm (Oct 20 2026). */}
+        {canTakeOff &&
+          (takeOffAsk ? (
+            <span className="jg-nb__offask" role="group" aria-label={`Take ${machine.name} off today?`}>
+              <span className="jg-nb__offq">Take off today?</span>
+              <button
+                type="button"
+                className="jg-nb__offbtn jg-nb__offbtn--yes"
+                data-testid="nb-takeoff-yes"
+                onClick={() => {
+                  setTakeOffAsk(false);
+                  onTakeOff?.(machine.id);
+                }}
+              >
+                Take off
+              </button>
+              <button type="button" className="jg-nb__offbtn" onClick={() => setTakeOffAsk(false)}>
+                Keep
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="jg-nb__off"
+              data-testid="nb-takeoff"
+              aria-label={`Take ${machine.name} off today's order`}
+              onClick={() => setTakeOffAsk(true)}
+            >
+              <CircleMinus size={15} strokeWidth={2.4} aria-hidden="true" />
+              Off today
+            </button>
+          ))}
 
         <span className="jg-nb__sp" />
 

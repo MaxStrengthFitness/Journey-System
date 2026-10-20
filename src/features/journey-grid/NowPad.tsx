@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import { ArrowRight, Check, Delete } from "lucide-react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { PAD_DIGITS, type PadKey } from "./now-pad";
+import "./journey-grid.css";
 
 /**
  * THE NOW BAR'S NUMBER PAD (the Now Bar pad round, Oct 20 2026; AJ's
