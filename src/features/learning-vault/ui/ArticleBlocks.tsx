@@ -197,7 +197,9 @@ export function useAppliedMarkup(
 ): AppliedMarkup & { studioLens: boolean } {
   const vault = useVault();
   const markup = useStudioMarkup(target.key);
-  const studioLens = vault.lens === "studio" && vault.studio.id !== null;
+  // Marking off (markup-on.ts): every page reads as the MSF original, so no
+  // mark, however it got into the store, is laid on a line or counted.
+  const studioLens = vault.markup && vault.lens === "studio" && vault.studio.id !== null;
   return useMemo(
     () => ({
       ...applyMarkup(sections, studioLens ? markup : null, {
@@ -268,7 +270,10 @@ function ArticleBody({
   // The gutter wherever the page has a studio's version, in either version
   // (see the prop): empty on the MSF original, so the lens never slides the
   // words or the Stop well sideways; never in a peek.
-  const gutter = annotate === "gutter" && !compact && studioId !== null;
+  // Marking off (markup-on.ts): a line is plain reading, with no tap, no
+  // hint and no gutter for markers there can never be.
+  const marking = vault.markup;
+  const gutter = marking && annotate === "gutter" && !compact && studioId !== null;
   const drawn: "inline" | "gutter" = gutter ? "gutter" : "inline";
   const { canStrike, canNote } = vault.viewer;
 
@@ -320,7 +325,7 @@ function ArticleBody({
     const [si, bi] = selected.split(".").map(Number);
     return applied.sections[si]?.blocks[bi] ?? null;
   }, [selected, applied.sections]);
-  const offered = selectedBlock
+  const offered = selectedBlock && marking
     ? lineActions({ studioLens, canStrike, canNote, struck: Boolean(selectedBlock.strike) })
     : [];
   const formShown: FormKind | null = form !== null && offered.includes(form) ? form : null;
@@ -626,7 +631,7 @@ function ArticleBody({
   // well, after its label's run (never between a label and its lines), else
   // above the first section (hintSpot).
   const hintWords =
-    tapHint && !compact && !hintSeen
+    marking && tapHint && !compact && !hintSeen
       ? lineHintWords(lineActions({ studioLens, canStrike, canNote, struck: false }))
       : null;
   const spot = hintWords ? hintSpot(applied.sections) : null;
@@ -640,7 +645,7 @@ function ArticleBody({
 
   const renderLine = (block: MarkedBlock, unit: string, section: VaultSection, showLabel: boolean) => {
     if (!isMarkableKind(block.kind)) return renderHeading(block, unit);
-    const isOpen = selected === unit;
+    const isOpen = marking && selected === unit;
     const strike = studioLens ? block.strike : undefined;
     const notes = studioLens ? block.notes : [];
     const told = answers.get(block.key) ?? [];
@@ -663,10 +668,15 @@ function ArticleBody({
             data-kind={block.kind}
             data-vta-line=""
             data-selected={isOpen ? "" : undefined}
-            onClick={(e) => {
-              if (insideControl(e.target, e.currentTarget) || selectingText(e.currentTarget)) return;
-              select(unit);
-            }}
+            data-plain={marking ? undefined : ""}
+            onClick={
+              marking
+                ? (e) => {
+                    if (insideControl(e.target, e.currentTarget) || selectingText(e.currentTarget)) return;
+                    select(unit);
+                  }
+                : undefined
+            }
           >
             {label &&
               (showLabel ? (
@@ -686,19 +696,22 @@ function ArticleBody({
             </span>
             {/* The line's one real control, after its words (a screen reader
                 hears the line, its terms, then this). Laid over the line and
-                untouchable: a finger taps the line itself. */}
-            <button
-              type="button"
-              ref={(el) => {
-                if (el) toggleRefs.current.set(unit, el);
-                else toggleRefs.current.delete(unit);
-              }}
-              className="vta__toggle"
-              aria-label="Actions for this line"
-              aria-expanded={isOpen}
-              aria-controls={isOpen ? panelId : undefined}
-              onClick={() => select(unit)}
-            />
+                untouchable: a finger taps the line itself. None while
+                marking is off: a line with nothing to offer is just words. */}
+            {marking && (
+              <button
+                type="button"
+                ref={(el) => {
+                  if (el) toggleRefs.current.set(unit, el);
+                  else toggleRefs.current.delete(unit);
+                }}
+                className="vta__toggle"
+                aria-label="Actions for this line"
+                aria-expanded={isOpen}
+                aria-controls={isOpen ? panelId : undefined}
+                onClick={() => select(unit)}
+              />
+            )}
           </div>
           {/* The reason belongs to the line's words, so it sits right under
               them; the actions come next, then the notes. */}
@@ -808,7 +821,7 @@ function ArticleBody({
           );
         })
       )}
-      {studioLens && showOrphans && <OrphanMarks target={target} orphans={applied.orphans} headingLevel={headingLevel} />}
+      {marking && studioLens && showOrphans && <OrphanMarks target={target} orphans={applied.orphans} headingLevel={headingLevel} />}
     </div>
   );
 }

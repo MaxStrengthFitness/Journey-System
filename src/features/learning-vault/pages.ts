@@ -830,7 +830,7 @@ function playbookPage(route: Extract<VaultRoute, { kind: "playbook" }>, data: Va
     title: p.title,
     sections,
     facts: [],
-    draft: true,
+    draft: p.status === "draft",
     related: p.related,
   };
   if (p.lede.trim()) page.lede = p.lede.trim();

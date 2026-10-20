@@ -90,6 +90,44 @@ export const PLAYBOOKS: PlaybookPage[] = [
  */
 export const PLAYBOOK_DRAFT_LINE = "A draft from Journey's notes, waiting for head office to read it.";
 
+/**
+ * THE PLAYBOOKS A READER SEES (the Mix for everyone, Oct 20 2026). AJ:
+ * "playbooks hidden until head office reads them." A page shows once its
+ * file says `status: "read"`, set by whoever reads it for head office (AJ or
+ * Jeff); until then it is kept here and tested, and drawn nowhere: not on the
+ * Academy's shelves, not in a path, not on the map, not as a quiz answer's
+ * door. Today that is none of them.
+ */
+export const SHOWN_PLAYBOOKS: PlaybookPage[] = PLAYBOOKS.filter((p) => p.status === "read");
+
+/**
+ * The quiz's playbooks deck ("The floor and the conversation") asks about
+ * the same business notes the playbooks were written from, so it waits with
+ * them: it shows once any playbook does.
+ */
+export const PLAYBOOKS_DECK_SHOWN = SHOWN_PLAYBOOKS.length > 0;
+
+/**
+ * The paths as a reader sees them: a step that opens a playbook nobody may
+ * see yet is left out, so is a step to the playbooks deck while it waits, and
+ * a path left with no step at all is left out with them. Nothing else about a
+ * path changes (its order, its words).
+ */
+export function shownTracks(tracks: readonly Track[], shown: readonly PlaybookPage[], deckShown: boolean): Track[] {
+  const ids = new Set(shown.map((p) => p.id));
+  const out: Track[] = [];
+  for (const t of tracks) {
+    const steps = t.steps.filter((s) => {
+      if (s.route.kind === "playbook") return ids.has(s.route.id);
+      if (s.route.kind === "quiz" && s.route.deck === "playbooks") return deckShown;
+      return true;
+    });
+    if (steps.length === 0) continue;
+    out.push(steps.length === t.steps.length ? t : { ...t, steps });
+  }
+  return out;
+}
+
 const PLAYBOOK_BY_ID = new Map(PLAYBOOKS.map((p) => [p.id, p]));
 const TRACK_BY_ID = new Map(TRACKS.map((t) => [t.id, t]));
 

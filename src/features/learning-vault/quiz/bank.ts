@@ -47,6 +47,12 @@ export interface QuestionBankInput {
   names: (machineId: string) => string;
   /** The Life Transformer playbooks, so a question from docs/business can open the page written from it. */
   playbooks?: PlaybookPage[] | null;
+  /**
+   * Whether the playbooks deck (FLOOR_QUESTIONS, from Journey's business
+   * notes) is dealt at all. It waits with the playbooks until head office has
+   * read them (playbooks/index.ts, PLAYBOOKS_DECK_SHOWN). Dealt unless false.
+   */
+  floorDeck?: boolean;
 }
 
 /** "docs/business/the-floor.md:22-31" → the path and the lines it cites. */
@@ -106,7 +112,7 @@ export function questionBank(input: QuestionBankInput): QuizQuestion[] {
     ...machineQuestions(input.defs, input.cards, names),
     ...ACADEMY_QUESTIONS,
     ...HUTCHINS_QUESTIONS.map((q) => withRoute(q, hutchinsRoute)),
-    ...FLOOR_QUESTIONS.map((q) => withRoute(q, floorRoute(q.support))),
+    ...(input.floorDeck === false ? [] : FLOOR_QUESTIONS.map((q) => withRoute(q, floorRoute(q.support)))),
   ];
 
   // One question per id: the first one wins, so a built question never

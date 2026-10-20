@@ -140,11 +140,15 @@ export function AcademyIndex() {
           <ReferencePair />
         </section>
 
-        <section className="cdx__band" aria-labelledby="cdx-playbooks">
-          <BandHead id="cdx-playbooks" title="Playbooks" />
-          <p className="cdx__draft">{PLAYBOOK_DRAFT_LINE}</p>
-          <PlaybookShelves />
-        </section>
+        {/* Only the playbooks head office has read (playbooks/index.ts): none
+            yet, so no shelf. A draft among them still says so, once. */}
+        {data.playbooks.length > 0 && (
+          <section className="cdx__band" aria-labelledby="cdx-playbooks">
+            <BandHead id="cdx-playbooks" title="Playbooks" />
+            {data.playbooks.some((p) => p.status === "draft") && <p className="cdx__draft">{PLAYBOOK_DRAFT_LINE}</p>}
+            <PlaybookShelves />
+          </section>
+        )}
 
         <section className="cdx__band" aria-labelledby="cdx-all-paths">
           <BandHead id="cdx-all-paths" title="Paths" />

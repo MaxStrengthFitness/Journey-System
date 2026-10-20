@@ -300,6 +300,17 @@
   }
 }
 
+/* Marking off (markup-on.ts): a line with nothing to offer is just words,
+   so it neither points nor lights up under a mouse. */
+.vta__line[data-plain] {
+  cursor: auto;
+}
+@media (hover: hover) {
+  .vta__line[data-plain]:hover {
+    background-color: transparent;
+  }
+}
+
 /* ── The studio's marks: a reason, what it does instead, a note ──────── */
 
 .vta__mark {

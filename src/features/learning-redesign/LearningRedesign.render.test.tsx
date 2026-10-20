@@ -146,10 +146,16 @@ describe("the sandbox", () => {
     expect(sandboxSeed("solon", "Solon", true)?.markup.some((m) => m.studioId === "solon")).toBe(true);
   });
 
-  it("is made once and, on a development build, seeded with the sample so a fresh prototype shows markup", async () => {
+  it("is made once, and starts EMPTY even on a development build while marking is off (markup-on.ts)", async () => {
     await draw({});
     expect(createSandboxStore).toHaveBeenCalledTimes(1);
-    expect(vault().store.allMarkup().some((m) => m.studioId === "solon")).toBe(true);
+    expect(vi.mocked(createSandboxStore).mock.calls[0][0]).toBeUndefined();
+    expect(vault().store.allMarkup()).toEqual([]);
+  });
+
+  it("tells the design that lines cannot be marked (AJ, Oct 20 2026: markup hidden until its Firestore round)", async () => {
+    await draw({});
+    expect(vault().markup).toBe(false);
   });
 
   it("survives a View as change: the same store, every mark kept", async () => {
@@ -168,7 +174,6 @@ describe("the sandbox", () => {
     await draw({ studioId: "willoughby", studioName: "Willoughby" });
     expect(vault().store).not.toBe(solon);
     expect(vault().studio).toEqual({ id: "willoughby", name: "Willoughby" });
-    expect(vault().store.allMarkup().some((m) => m.studioId === "willoughby")).toBe(true);
     expect(createSandboxStore).toHaveBeenCalledTimes(2);
   });
 });

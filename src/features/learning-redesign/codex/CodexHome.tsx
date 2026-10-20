@@ -28,7 +28,8 @@ import "./codex.css";
  *   Play        the quiz, beside "What would you cue?" (the drill of the day)
  *
  * Head office sees its queue's door first: it is the one thing on this page
- * that is waiting for someone.
+ * that is waiting for someone. Not while marking is off (markup-on.ts):
+ * nothing can be sent to it.
  */
 export function CodexHome() {
   const { data, studioName, onSection } = useCodex();
@@ -38,7 +39,7 @@ export function CodexHome() {
   return (
     <CodexFrame>
       <div className="cdx__home">
-        {vault.viewer.isHeadOffice && (
+        {vault.markup && vault.viewer.isHeadOffice && (
           <section className="cdx__band cdx__band--first" aria-label="Head office">
             <HeadOfficeDoor />
           </section>

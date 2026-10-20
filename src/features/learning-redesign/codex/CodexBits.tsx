@@ -62,6 +62,9 @@ export function useVersionSlot(
   );
   const reserve = hideReserved({ studioOpen, canStrike: vault.viewer.canStrike, studioStruck });
   const width = useViewportWidth();
+  // Marking off (markup-on.ts): the studio's version and the MSF original
+  // read the same, so there is no switch and no room kept for one.
+  if (!vault.markup) return { actions: undefined, inline: null };
   const toggle = <VersionToggle struck={struck} />;
   const inRow = !phone && versionFitsTrail({ labels: crumbs.map((c) => c.label), struck: reserve, width });
   return inRow ? { actions: toggle, inline: null } : { actions: undefined, inline: <div className="cdx__version">{toggle}</div> };

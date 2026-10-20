@@ -31,6 +31,12 @@ export interface VaultContextValue {
   store: MarkupStore;
   studio: { id: string | null; name: string };
   viewer: VaultViewer;
+  /**
+   * Whether a line can be marked at all (cross out, note, tell head office,
+   * ask in Teams). Off on the live Learning until the marks have somewhere
+   * to be kept (markup-on.ts).
+   */
+  markup: boolean;
   lens: MarkupLens;
   setLens: (l: MarkupLens) => void;
   showCrossed: boolean;
@@ -60,9 +66,11 @@ export function VaultProvider(props: {
   now?: () => Date;
   newId?: (prefix: string) => string;
   initialLens?: MarkupLens;
+  /** Lines can be marked (markup-on.ts). On unless the caller says otherwise, as the vault's tests mount it. */
+  markup?: boolean;
   children: ReactNode;
 }) {
-  const { store, studio, viewer, now, newId, initialLens, children } = props;
+  const { store, studio, viewer, now, newId, initialLens, markup = true, children } = props;
   const studioId = studio.id || null;
   const studioName = (studio.name ?? "").trim() || "This studio";
 
@@ -88,6 +96,7 @@ export function VaultProvider(props: {
       store,
       studio: { id: studioId, name: studioName },
       viewer: { uid, name: viewerName, canStrike, canNote, isHeadOffice },
+      markup,
       lens,
       setLens,
       showCrossed,
@@ -95,7 +104,7 @@ export function VaultProvider(props: {
       now: now ?? realNow,
       newId: newId ?? makeId,
     }),
-    [store, studioId, studioName, uid, viewerName, canStrike, canNote, isHeadOffice, lens, setLens, showCrossed, setShown, now, newId, makeId],
+    [store, studioId, studioName, uid, viewerName, canStrike, canNote, isHeadOffice, markup, lens, setLens, showCrossed, setShown, now, newId, makeId],
   );
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;

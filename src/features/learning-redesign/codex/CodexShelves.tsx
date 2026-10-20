@@ -4,6 +4,7 @@ import { readingTime } from "../../learning/home";
 import { presetLine, presetOf } from "../../machine-codex/format";
 import { accentStyle } from "../../wiki/categories";
 import { DECKS, DECK_ACCENT, playableDecks } from "../../learning-vault/quiz/decks";
+import { PLAYBOOKS_DECK_SHOWN } from "../../learning-vault/playbooks";
 import { strikeSignals } from "../../learning-vault/submissions";
 import { FloorStatus } from "../../learning-vault/ui/FloorStatus";
 import { queueLead } from "../../learning-vault/ui/SubmissionQueue";
@@ -302,8 +303,13 @@ export function PlaybookShelves() {
 export function PlayCard() {
   const { data, open } = useCodex();
   const headId = useId();
+  // While the bank is on its way every deck shows, except the playbooks deck
+  // while the playbooks wait for head office (it has no questions then).
   const decks = useMemo(
-    () => (data.quizBank ? playableDecks(data.quizBank) : DECKS).filter((d) => d.id !== "mixed"),
+    () =>
+      (data.quizBank ? playableDecks(data.quizBank) : DECKS.filter((d) => d.id !== "playbooks" || PLAYBOOKS_DECK_SHOWN)).filter(
+        (d) => d.id !== "mixed",
+      ),
     [data.quizBank],
   );
   return (

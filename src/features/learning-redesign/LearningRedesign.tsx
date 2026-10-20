@@ -4,6 +4,7 @@ import { auth } from "../../firebase";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
 import { canWriteStudioPages, writesForStudioPerRules } from "../learning/permissions";
 import { createSandboxStore, type MarkupStore } from "../learning-vault/markup-store";
+import { MARKUP_ON } from "../learning-vault/markup-on";
 import { sampleSeed } from "../learning-vault/sample";
 import { VaultProvider } from "../learning-vault/ui/VaultProvider";
 import type { VaultViewer } from "../learning-vault/types";
@@ -70,7 +71,8 @@ export function LearningRedesign({ design, viewAs, authTrainer, ...props }: Lear
   if (sandbox.current === null || sandbox.current.studioKey !== studioKey) {
     sandbox.current = {
       studioKey,
-      store: createSandboxStore(sandboxSeed(studioId, studioName, import.meta.env.DEV)),
+      // No sample marks while marking is off (markup-on.ts): nothing could show them.
+      store: createSandboxStore(MARKUP_ON ? sandboxSeed(studioId, studioName, import.meta.env.DEV) : undefined),
     };
   }
   const store = sandbox.current.store;
@@ -79,7 +81,7 @@ export function LearningRedesign({ design, viewAs, authTrainer, ...props }: Lear
 
   return (
     // Keyed by the studio: another studio's version starts on its own lens.
-    <VaultProvider key={studioKey} store={store} studio={studio} viewer={viewer}>
+    <VaultProvider key={studioKey} store={store} studio={studio} viewer={viewer} markup={MARKUP_ON}>
       <LazyDesign design={design} {...props} />
     </VaultProvider>
   );
