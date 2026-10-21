@@ -707,6 +707,11 @@
   color: var(--eq-ink-2);
 }
 
+/* A missing Age or Height: a dash in the muted ink, not "Not on file" down the whole column. */
+.cd-cell[data-state="unknown"] .cd-val-dash {
+  color: var(--eq-ink-muted);
+}
+
 .cd-sub {
   font-size: 13px;
   color: var(--eq-ink-muted);

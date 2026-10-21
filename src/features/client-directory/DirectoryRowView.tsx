@@ -78,6 +78,7 @@ export function Cell({
   sorted,
   label,
   extra = false,
+  dash = false,
 }: {
   value: string;
   sub: string | null;
@@ -86,6 +87,8 @@ export function Cell({
   sorted: boolean;
   label: string;
   extra?: boolean;
+  /** A missing value draws as a quiet dash; the words stay for a screen reader (Oct 20 2026). */
+  dash?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const explain = !!reason && (state === "unknown" || state === "before-journey" || state === "nothing-recorded" || state === "none");
@@ -107,10 +110,15 @@ export function Cell({
             i
           </span>
         </button>
+      ) : dash ? (
+        <span className="cd-val cd-val-dash">
+          <span aria-hidden="true">{"—"}</span>
+          <span className="sr-only">{value}</span>
+        </span>
       ) : (
         <span className="cd-val">{value}</span>
       )}
-      {sub && <span className="cd-sub">{sub}</span>}
+      {sub &&<span className="cd-sub">{sub}</span>}
       {open && reason && <span className="cd-reason">{reason}</span>}
     </div>
   );
@@ -213,9 +221,20 @@ function DirectoryRowViewInner({
       {wide.has("total") && (
         <Cell extra label="Total" value={row.total.text} sub={row.total.sub} reason={row.total.reason} state={row.total.state} sorted={sortKey === "total"} />
       )}
-      {wide.has("age") && <Cell extra label="Age" value={row.age.text} sub={null} reason={null} state={row.age.value === null ? "unknown" : "known"} sorted={sortKey === "age"} />}
+      {wide.has("age") && (
+        <Cell extra dash={row.age.value === null} label="Age" value={row.age.text} sub={null} reason={null} state={row.age.value === null ? "unknown" : "known"} sorted={sortKey === "age"} />
+      )}
       {wide.has("height") && (
-        <Cell extra label="Height" value={row.height.text} sub={null} reason={null} state={row.height.inches === null ? "unknown" : "known"} sorted={sortKey === "height"} />
+        <Cell
+          extra
+          dash={row.height.inches === null}
+          label="Height"
+          value={row.height.text}
+          sub={null}
+          reason={null}
+          state={row.height.inches === null ? "unknown" : "known"}
+          sorted={sortKey === "height"}
+        />
       )}
       {showStart && (
         <div>
