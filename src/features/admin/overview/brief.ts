@@ -114,6 +114,9 @@ export function renewalUnknownCount(n: NightlyRead): number {
 
 export type WeekReadState = "ready" | "loading" | "failed" | "offline";
 
+/** Names shown per group behind the note's Why. */
+const NOTE_NAMES = 3;
+
 export type NightlyNoteKind = "not-live" | "no-record" | "stale" | "unknown";
 
 export interface NightlyNote {
@@ -137,7 +140,8 @@ export interface NightlyNote {
  *   no-record   it has come, and nothing has been written yet
  *   stale       nothing changed for NIGHTLY_STALE_DAYS: the job most likely
  *               hasn't run
- *   unknown     the record is fresh, but some clients can't be placed
+ *   unknown     the record is fresh, but some clients have no renewal timing:
+ *               no record from last night, or Mindbody data it can't place
  *
  * Null when there is nothing to say (no clients, or every one judged).
  */
@@ -174,12 +178,16 @@ export function nightlyNote(
       why: "The job rebuilds every client's record each night, so at a working studio something changes every night. Three quiet days means it most likely hasn't run.",
     };
   }
-  const ids = [...n.missing, ...n.unknownData];
-  if (ids.length === 0) return null;
+  const total = n.missing.length + n.unknownData.length;
+  if (total === 0) return null;
+  // Two groups, each with who it is (Oct 20 2026): the note is about renewal
+  // timing, which is not the Journey page's visit rhythm.
+  const group = (label: string, ids: string[]) =>
+    ids.length === 0 ? "" : `${label} (${ids.length}): ${names(ids.slice(0, NOTE_NAMES))}${ids.length > NOTE_NAMES ? ` and ${ids.length - NOTE_NAMES} more` : ""}. `;
   return {
     kind: "unknown",
-    text: `${ids.length === 1 ? "One client" : `${ids.length} clients`} can't be judged yet.`,
-    why: `No renewal record from last night, or not enough Mindbody data for one: ${names(ids.slice(0, 6))}${ids.length > 6 ? ", and more" : ""}. Their renewal timing and rhythm are unknown, and they're never counted as on track or steady.`,
+    text: `${total === 1 ? "One client has" : `${total} clients have`} no renewal timing yet.`,
+    why: `${group("No record from last night", n.missing)}${group("Mindbody data Journey can't place", n.unknownData)}Until then they're never counted as on track or steady.`,
   };
 }
 

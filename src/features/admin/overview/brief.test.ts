@@ -62,11 +62,26 @@ describe("the nightly record, said once", () => {
     expect(note?.text).toBe("The nightly record last changed Sun, Sep 20, so nobody is called slipping until it runs again.");
   });
 
-  it("on a fresh record, only the clients it couldn't place, by name behind Why", () => {
+  it("on a fresh record, no renewal timing: two groups, each by name behind Why", () => {
     const note = nightlyNote(read({ missing: ["c"], unknownData: ["b"] }), { name: "Solon" }, today, names);
     expect(note?.kind).toBe("unknown");
-    expect(note?.text).toBe("2 clients can't be judged yet.");
-    expect(note?.why).toContain(": c, b.");
+    expect(note?.text).toBe("2 clients have no renewal timing yet.");
+    expect(note?.why).toBe("No record from last night (1): c. Mindbody data Journey can't place (1): b. Until then they're never counted as on track or steady.");
+  });
+
+  it("says one client in the singular, and only the group that has anyone", () => {
+    const note = nightlyNote(read({ unknownData: ["b"] }), { name: "Solon" }, today, names);
+    expect(note?.text).toBe("One client has no renewal timing yet.");
+    expect(note?.why).not.toContain("No record from last night");
+    expect(note?.why).toContain("Mindbody data Journey can't place (1): b.");
+  });
+
+  it("names three per group and counts the rest", () => {
+    const many = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
+    const note = nightlyNote(read({ missing: many("m", 14), unknownData: many("u", 37) }), { name: "Solon" }, today, names);
+    expect(note?.text).toBe("51 clients have no renewal timing yet.");
+    expect(note?.why).toContain("No record from last night (14): m1, m2, m3 and 11 more.");
+    expect(note?.why).toContain("Mindbody data Journey can't place (37): u1, u2, u3 and 34 more.");
   });
 
   it("says nothing when there is nothing to say", () => {
