@@ -429,15 +429,18 @@ export function ClientDirectory({
   /* ---- the grid's columns ---- */
   const showGutter = !!marks;
   const showStart = view === "today" && !!onStartSession;
-  const base = [showGutter ? "24px" : null, "40px", "minmax(0, 1fr)", "minmax(96px, 120px)", "minmax(112px, 140px)", "minmax(84px, 104px)"];
+  // The name column has a floor (Oct 20 2026): the fixed columns used to take
+  // everything and "Beverly Snyder" wrapped with room to spare in the others.
+  const NAME_COL = "minmax(200px, 1fr)";
+  const base = [showGutter ? "24px" : null, "40px", NAME_COL, "minmax(88px, 108px)", "minmax(100px, 124px)", "minmax(76px, 92px)"];
   const tailCol = showStart ? "auto" : null;
   const cols = [...base, tailCol].filter(Boolean).join(" ");
   const colsWide = [
     ...base,
-    wide.has("renews") ? "minmax(96px, 112px)" : null,
-    wide.has("total") ? "96px" : null,
-    wide.has("age") ? "52px" : null,
-    wide.has("height") ? "64px" : null,
+    wide.has("renews") ? "minmax(88px, 104px)" : null,
+    wide.has("total") ? "100px" : null,
+    wide.has("age") ? "44px" : null,
+    wide.has("height") ? "56px" : null,
     tailCol,
   ]
     .filter(Boolean)
