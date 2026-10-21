@@ -209,7 +209,8 @@ export function RunSheet({ day, entries, onOpenProfile, onStartSession, request 
   const [memory, setMemory] = useState<Remembered>(readMemory);
   const [reversed, setReversed] = useState(false);
   const [openKey, setOpenKey] = useState<string | null>(null);
-  const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
+  // The sections the trainer has flipped from how they start (folded or open).
+  const [flipped, setFlipped] = useState<Set<string>>(() => new Set());
   useEffect(() => writeMemory(memory), [memory]);
   // A new day starts with every row closed.
   useEffect(() => setOpenKey(null), [day]);
@@ -227,6 +228,12 @@ export function RunSheet({ day, entries, onOpenProfile, onStartSession, request 
   const filtered = useMemo(() => (filter === "all" ? scoped : scoped.filter((e) => hasFamily(e, filter))), [scoped, filter]);
   const sections = useMemo(() => runSections(filtered, memory.sort, reversed), [filtered, memory.sort, reversed]);
   const sortMeta = RUN_SORTS.find((s) => s.id === memory.sort)!;
+  // After the last booking "Earlier today" is all there is: it starts open, not a closed header over a blank screen (Oct 20 2026).
+  const onlyFolded = sections.length > 0 && sections.every((s) => s.folded);
+  // The filter row is only worth a row when there is a family to filter on besides All.
+  const familyFilters = FILTERS.filter((f) => f.id !== "all" && counts[f.id] > 0);
+  // "Time: earliest first." says nothing a clock doesn't; the other sorts, and a reversal, still say it.
+  const sortSentence = memory.sort !== "time" || reversed;
   const unreadCritical = scoped.filter((e) => e.criticalUnknown).length;
   const unreadFord = scoped.filter((e) => e.askUnknown).length;
 
@@ -268,27 +275,32 @@ export function RunSheet({ day, entries, onOpenProfile, onStartSession, request 
         </div>
       </div>
 
-      <div className="ho-filters" role="group" aria-label="Show">
-        {FILTERS.filter((f) => f.id === "all" || counts[f.id] > 0).map((f) => (
-          <button key={f.id} type="button" className="ho-filter" aria-pressed={filter === f.id} onClick={() => setMemory((m) => ({ ...m, filter: f.id }))}>
-            {`${f.label} ${counts[f.id]}`}
-          </button>
-        ))}
-      </div>
+      {familyFilters.length > 0 && (
+        <div className="ho-filters" role="group" aria-label="Show">
+          {FILTERS.filter((f) => f.id === "all" || counts[f.id] > 0).map((f) => (
+            <button key={f.id} type="button" className="ho-filter" aria-pressed={filter === f.id} onClick={() => setMemory((m) => ({ ...m, filter: f.id }))}>
+              {`${f.label} ${counts[f.id]}`}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <p className="ho-line">
-        {`${sortMeta.label}: ${reversed ? "reversed" : sortMeta.words}. `}
-        {memory.scope === "mine" ? `${mineDefinition("clients")} ` : ""}
-        {unreadCritical > 0 ? `Couldn\u2019t check ${unreadCritical === 1 ? "one client\u2019s" : `${unreadCritical} clients\u2019`} critical notes \u2014 their briefings show them. ` : ""}
-        {unreadFord > 0 ? `Couldn\u2019t check FORD for ${unreadFord === 1 ? "one client" : `${unreadFord} clients`}, so something to ask about may be missing.` : ""}
-      </p>
+      {(sortSentence || memory.scope === "mine" || unreadCritical > 0 || unreadFord > 0) && (
+        <p className="ho-line">
+          {sortSentence ? `${sortMeta.label}: ${reversed ? "reversed" : sortMeta.words}. ` : ""}
+          {memory.scope === "mine" ? `${mineDefinition("clients")} ` : ""}
+          {unreadCritical > 0 ? `Couldn\u2019t check ${unreadCritical === 1 ? "one client\u2019s" : `${unreadCritical} clients\u2019`} critical notes \u2014 their briefings show them. ` : ""}
+          {unreadFord > 0 ? `Couldn\u2019t check FORD for ${unreadFord === 1 ? "one client" : `${unreadFord} clients`}, so something to ask about may be missing.` : ""}
+        </p>
+      )}
 
       <div className="ho-scroll" role="region" aria-label="Clients booked on this day">
         {sections.length === 0 ? (
           <p className="ho-empty">{memory.scope === "mine" ? "Nobody of yours is booked on this day." : "Nobody is booked on this day."}</p>
         ) : (
           sections.map((section) => {
-            const folded = section.folded && !unfolded.has(section.id);
+            const startsFolded = section.folded && !(onlyFolded && section.id === "earlier");
+            const folded = startsFolded !== flipped.has(section.id);
             return (
               <section key={section.id} aria-label={`${section.label}, ${section.entries.length}`}>
                 {section.folded ? (
@@ -297,10 +309,10 @@ export function RunSheet({ day, entries, onOpenProfile, onStartSession, request 
                     className="ho-sechead"
                     aria-expanded={!folded}
                     onClick={() =>
-                      setUnfolded((prev) => {
+                      setFlipped((prev) => {
                         const next = new Set(prev);
-                        if (folded) next.add(section.id);
-                        else next.delete(section.id);
+                        if (next.has(section.id)) next.delete(section.id);
+                        else next.add(section.id);
                         return next;
                       })
                     }

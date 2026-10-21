@@ -177,6 +177,41 @@ describe("RunSheet", () => {
   });
 });
 
+describe("RunSheet: the after-hours and calmer-controls cleanup (Oct 20 2026)", () => {
+  it("after the last booking, Earlier today is the only section and starts open; a tap folds it", async () => {
+    const { host } = await mount({ now: eastern(TODAY, "20:00") });
+    const head = button(host, ".ho-sechead", "Earlier today");
+    expect(head?.getAttribute("aria-expanded")).toBe("true");
+    expect(rows(host)).toEqual(["ruth", "harold", "arwen"]);
+    await click(head);
+    expect(rows(host)).toEqual([]);
+    expect(button(host, ".ho-sechead", "Earlier today")?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("in the daytime nothing starts open that did not before", async () => {
+    const { host } = await mount();
+    expect(button(host, ".ho-sechead", "Earlier today")).toBeUndefined();
+    expect(rows(host)).toEqual(["ruth", "harold", "arwen"]);
+  });
+
+  it("the filter row is not drawn when only All exists", async () => {
+    const { host } = await mount({ clients: [makeClient({ id: "ruth", firstName: "Ruth", lastName: "Alvarez" })], schedules: [schedules[0]] });
+    expect(host.querySelectorAll(".ho-filter").length).toBe(0);
+    expect(host.querySelectorAll(".ho-row").length).toBe(1);
+  });
+
+  it("the sort sentence is said only when the sort is not Time, or after a reversal", async () => {
+    const { host } = await mount();
+    expect(host.querySelector(".ho-line")).toBeNull();
+    await click(button(host, ".ho-seg-btn", "Sessions"));
+    expect(host.querySelector(".ho-line")?.textContent).toContain("Sessions:");
+    await click(button(host, ".ho-seg-btn", "Time"));
+    expect(host.querySelector(".ho-line")).toBeNull();
+    await click(button(host, ".ho-seg-btn", "Time"));
+    expect(host.querySelector(".ho-line")?.textContent).toContain("Time: reversed.");
+  });
+});
+
 describe("RunSheet: All stars (wave 2 hub)", () => {
   it("is a section after Regulars on the Sessions sort, and her opened row says it with its proof", async () => {
     const { host } = await mount({ allStarOf: (id) => (id === "arwen" ? { clientId: id, weeksIn: 25, perWeek: 2 } : null) });
