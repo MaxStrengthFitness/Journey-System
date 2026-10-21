@@ -46,7 +46,12 @@ import { fileURLToPath } from "node:url";
 // groups), 456.9 KB in 8 files after it. The budget sits a little above that,
 // under the blueprint's 500, so an ordinary round has room and a stylesheet
 // or a vendor library leaking onto the first screen (each 20-40 KB) fails.
-export const BUDGET_GZIP_KB = 480;
+//
+// Raised 480 to 490 on Oct 20 2026 (AJ: "it feels fine so sure"). 8cb4505a, the
+// Hub's "New client!", reads the studio's "New, up to session" setting, so the
+// studio-settings code (registry, resolve, store) joined the first screen:
+// 479.7 to 483.0 KB. A real feature, not a leak; 7 KB of room is left.
+export const BUDGET_GZIP_KB = 490;
 
 // Files that must never be on the first screen, whatever the total: each is a
 // library only lazy screens use (recharts leaked onto the login screen
