@@ -70,6 +70,9 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
+  /* The avatar and the name sit in the middle of the column (Oct 21 2026;
+     AJ: "the header for our name should be in the middle of the box"). */
+  justify-content: center;
   gap: 8px;
   min-width: 0;
   padding: 6px 10px;
@@ -86,7 +89,7 @@ button.hs-colhead {
   border-left: 0;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -130,6 +133,8 @@ button.hs-colhead:focus-visible {
 .hs-colname {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   min-width: 0;
   line-height: 1.2;
 }
@@ -143,6 +148,7 @@ button.hs-colhead:focus-visible {
 .hs-colname strong {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   font-family: var(--font-display);
   font-size: 17px;

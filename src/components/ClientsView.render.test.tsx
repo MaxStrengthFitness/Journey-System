@@ -283,15 +283,13 @@ describe("the Hub", () => {
     expect(cols[0].querySelectorAll(".hs-off")).toHaveLength(0);
   });
 
-  it("shows the week with each day's count, and the list's own chips", () => {
+  it("shows the week with each day's count, and no chips (Oct 21 2026: the marks are on the cards)", () => {
     const { el } = mount();
     const days = [...el.querySelectorAll<HTMLElement>(".hd-day")];
     expect(days[0].textContent).toBe("Mon 285");
     expect(days[0].getAttribute("aria-selected")).toBe("true");
     expect(days[1].textContent).toBe("Tue 291");
-    // Once, in the command bar (Oct 3 2026).
-    expect([...el.querySelectorAll(".hd-bar .hd-chip")].map((c) => c.textContent)).toEqual(["Celebrate 1", "Welcome 2", "Watch 1"]);
-    expect(el.querySelectorAll(".hd-chip")).toHaveLength(3);
+    expect(el.querySelectorAll(".hd-chip")).toHaveLength(0);
   });
 
   it("opens a card's peek on a tap, and Escape closes it", () => {
@@ -312,14 +310,6 @@ describe("the Hub", () => {
     act(() => [...document.querySelectorAll<HTMLButtonElement>(".hp-btn")].find((b) => b.textContent?.includes("Start session"))!.click());
     expect(calls.selected).toEqual(["estella"]);
     expect(calls.views).toEqual(["workouts"]);
-  });
-
-  it("lights a family's cards and dims the rest", () => {
-    const { el } = mount();
-    act(() => [...el.querySelectorAll<HTMLButtonElement>(".hd-chip")].find((c) => c.textContent?.startsWith("Watch"))!.click());
-    expect(el.querySelector(".hd-spot-words")?.textContent).toBe("Showing 1 to watch: 1 waiver to sign on the grid");
-    expect(cardOf(el, "Estella Bolger")?.dataset.dim).toBeUndefined();
-    expect(cardOf(el, "Belladonna Took")?.dataset.dim).toBe("true");
   });
 
   it("reads your own column in words: the focus column, its head, and its cards", () => {
@@ -756,17 +746,12 @@ describe("the Hub: Get to know", () => {
     expect(hub.fordCalls[hub.fordCalls.length - 1]).toBeNull();
   });
 
-  it("puts the ✎ alone on her card \u2014 FORD's words nowhere on the grid \u2014 and lights it from the chips", () => {
+  it("puts the ✎ alone on her card — FORD's words nowhere on the grid", () => {
     hub.details = { laura: [MATHOM] };
     const { el } = mount();
     const card = cardOf(el, "Laura Grubb")!;
     expect(card.querySelector('.hs-g[data-family="get-to-know"]')?.getAttribute("aria-label")).toBe("Something to ask about");
     expect(el.querySelector(".hs-scroll")?.innerHTML).not.toContain("mathom");
-    expect([...el.querySelectorAll(".hd-bar .hd-chip")].map((c) => c.textContent)).toEqual(["Celebrate 1", "Welcome 2", "Watch 1", "Get to know 1"]);
-    act(() => [...el.querySelectorAll<HTMLButtonElement>(".hd-chip")].find((c) => c.textContent?.startsWith("Get to know"))!.click());
-    expect(el.querySelector(".hd-spot-words")?.textContent).toBe("Showing 1 to ask about on the grid");
-    expect(cardOf(el, "Laura Grubb")?.dataset.dim).toBeUndefined();
-    expect(cardOf(el, "Belladonna Took")?.dataset.dim).toBe("true");
   });
 
   it("says what to ask about in the peek and on the Opportunities list", async () => {

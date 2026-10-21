@@ -72,13 +72,11 @@ describe("the week and the doors", () => {
     expect(days[0].getAttribute("aria-label")).toBe("Sun 27, nothing booked");
   });
 
-  it("offers Today only when you are on another day, and moves the day", () => {
-    expect(btn(header().el, "Today")).toBeUndefined();
-    act(() => root?.unmount());
+  it("has no Today button: the week is the next seven days, so a day is one tap", () => {
     const { el, calls } = header({ selected: "2026-09-29" });
-    act(() => btn(el, "Today")!.click());
-    act(() => el.querySelectorAll<HTMLButtonElement>(".hd-day")[2].click());
-    expect(calls.day).toEqual(["2026-09-28", "2026-09-29"]);
+    expect(btn(el, "Today")).toBeUndefined();
+    act(() => el.querySelectorAll<HTMLButtonElement>(".hd-day")[1].click());
+    expect(calls.day).toEqual(["2026-09-28"]);
   });
 
   it("makes Tasks a door, with its count, and never a grey 0 while they load", () => {
@@ -92,7 +90,7 @@ describe("the week and the doors", () => {
 
   it("opens the Key", () => {
     const { el, calls } = header();
-    act(() => btn(el, "Key")!.click());
+    act(() => el.querySelector<HTMLButtonElement>("button[aria-label^=\"Key\"]")!.click());
     expect(calls.key).toBe(1);
   });
 });
@@ -227,47 +225,25 @@ describe("the Key", () => {
   });
 });
 
-describe("the chips, with Get to know (wave 2 hub)", () => {
-  it("draws the chips in the bar, Get to know after the others, and lights its cards", () => {
-    const spots: string[] = [];
-    const { el } = header({
-      chips: [
-        { id: "read-first", label: "Read first", count: 1 },
-        { id: "celebrate", label: "Celebrate", count: 3 },
-        { id: "get-to-know", label: "Get to know", count: 2 },
-      ],
-      onSpot: (f) => spots.push(f),
-    });
-    // One command bar (Oct 3 2026): the layers, the chips, then the tools, on one surface.
-    const bar = el.querySelector(".hd-bar")!;
-    expect([...bar.children].map((c) => c.className)).toEqual(["hl-switch", "hd-rule", "hd-chips", "hd-gap", "hd-rule hd-rule--tools", "hd-tools"]);
-    expect([...el.querySelectorAll(".hd-chip")].map((c) => c.textContent)).toEqual(["Read first 1", "Celebrate 3", "Get to know 2"]);
-    // The word can hide when the bar is narrow; a screen reader always hears it.
-    expect(el.querySelectorAll(".hd-chip")[1].getAttribute("aria-label")).toBe("Celebrate: 3. Light them up on the grid");
-    expect(el.querySelectorAll(".hd-chip")[2].querySelector(".hd-fam")?.getAttribute("data-family")).toBe("get-to-know");
-    act(() => btn(el, "Get to know")!.click());
-    expect(spots).toEqual(["get-to-know"]);
-  });
-
-  it("draws no chips, and no hairline for them, on a day without any", () => {
-    const { el } = header({ chips: [], onSpot: () => {} });
+describe("the one line (Oct 21 2026)", () => {
+  it("is the layer switch, the week and the Key, with no chips", () => {
+    const { el } = header();
+    const line = el.querySelector(".hd-line")!;
+    expect([...line.children].map((c) => c.className.split(" ")[0])).toEqual(["hd-bar", "hd-week", "hd-tools"]);
     expect(el.querySelector(".hd-chips")).toBeNull();
-    expect(el.querySelectorAll(".hd-bar .hd-rule")).toHaveLength(1);
   });
 });
 
 describe("on a phone, the minimalist mode (Oct 19 2026)", () => {
-  it("keeps the layers, Today and Tasks, and draws no chips and no Key", () => {
+  it("keeps the layers and Tasks, and draws no chips, no Key and no Today", () => {
     const { el, calls } = header({
       phone: true,
       selected: "2026-09-29",
-      chips: [{ id: "celebrate", label: "Celebrate", count: 1 }],
-      onSpot: () => {},
     });
     expect(el.querySelector(".hd")?.getAttribute("data-phone")).toBe("true");
     expect(el.querySelector(".hd-chips")).toBeNull();
     expect(btn(el, "Key")).toBeUndefined();
-    expect(btn(el, "Today")).toBeDefined();
+    expect(btn(el, "Today")).toBeUndefined();
     expect(btn(el, "Tasks")).toBeDefined();
     act(() => btn(el, "Tasks")!.click());
     expect(calls.tasks).toBe(1);

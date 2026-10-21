@@ -55,7 +55,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { LayerSwitch, type HubLayer } from "../hub-opportunities/LayerSwitch";
 import type { MomentFamily } from "../hub-opportunities/moments-today";
-import type { StripDay, SummaryChip } from "./day-summary";
+import type { StripDay } from "./day-summary";
 import type { HubFocus } from "./focus";
 import type { DayReadState } from "../../lib/schedule-window";
 import "./hub-card.css";
@@ -81,24 +81,6 @@ function FamilyIcon({ family }: { family: MomentFamily }) {
   );
 }
 
-/**
- * The family chips, in the bar: a tap lights that family's cards on the grid.
- * The icon and the count always; the word when the bar has room (an iPad on
- * its side), and always for a screen reader.
- */
-function SpotChips({ chips, onSpot }: { chips: ReadonlyArray<SummaryChip>; onSpot: (family: MomentFamily) => void }) {
-  return (
-    <div className="hd-chips" role="group" aria-label="Light them up on the grid">
-      {chips.map((c) => (
-        <button key={c.id} type="button" className="hd-chip" data-family={c.id} onClick={() => onSpot(c.id)} aria-label={`${c.label}: ${c.count}. Light them up on the grid`}>
-          <FamilyIcon family={c.id} />
-          <span className="hd-chip-word">{c.label}</span> <span className="hd-chip-n">{c.count}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export interface DayHeaderProps {
   layer: HubLayer;
   onLayer: (next: HubLayer) => void;
@@ -112,12 +94,6 @@ export interface DayHeaderProps {
   onOpenTasks?: () => void;
   onOpenKey: () => void;
   /**
-   * The family chips, in the bar (Schedule only, and not while one is lit).
-   * Absent or empty: none.
-   */
-  chips?: ReadonlyArray<SummaryChip>;
-  onSpot?: (family: MomentFamily) => void;
-  /**
    * A phone (the phone minimalist round, Oct 19 2026; AJ: "get rid of a lot
    * of the features on the screen"): the layers and the tools on one row, no
    * chips and no Key. The marks' words are in the peek; the counts are the
@@ -126,66 +102,75 @@ export interface DayHeaderProps {
   phone?: boolean;
 }
 
-export function DayHeader({ layer, onLayer, days, selected, onSelectDay, openTasks, onOpenTasks, onOpenKey, chips, onSpot, phone = false }: DayHeaderProps) {
-  const today = days.find((d) => d.isToday);
-  const hasChips = Boolean(chips && chips.length > 0 && onSpot && !phone);
+export function DayHeader({ layer, onLayer, days, selected, onSelectDay, openTasks, onOpenTasks, onOpenKey, phone = false }: DayHeaderProps) {
+  const tasksButton = onOpenTasks ? (
+    <button type="button" className="hd-btn" onClick={onOpenTasks} aria-label={openTasks ? `Tasks: ${openTasks} open. Opens Relay` : "Tasks. Opens Relay"}>
+      <ListChecks size={16} aria-hidden />
+      <span className="hd-btn-word">{"Tasks"}</span>
+      {openTasks ? <strong className="hd-count">{openTasks}</strong> : null}
+    </button>
+  ) : null;
+  const weekDays = (
+    <div className="hd-week" role="tablist" aria-label="Pick a day">
+      {days.map((d) => (
+        <button
+          key={d.key}
+          type="button"
+          role="tab"
+          className="hd-day"
+          aria-selected={d.key === selected}
+          data-today={d.isToday ? "true" : "false"}
+          aria-label={[`${d.weekday} ${d.date}`, d.isToday ? "today" : null, d.count ? `${d.count} booked` : "nothing booked", d.celebrate ? "something to celebrate" : null]
+            .filter(Boolean)
+            .join(", ")}
+          onClick={() => onSelectDay(d.key)}
+        >
+          <span className="hd-day-name">
+            {`${d.weekday} `}
+            <strong>{d.date}</strong>
+          </span>
+          <span className="hd-day-count">
+            {d.count ?? ""}
+            {d.celebrate && <span className="hd-dot" />}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+  // ONE LINE (AJ, Oct 21 2026: the bar and the week "take almost a fourth of
+  // the screen just to get to the schedule"). The layer switch, the week, and
+  // the Key as an icon (no Today: the week is the next seven days, today is the first). No chips: the marks are on the cards, the
+  // Key says what they mean. Tasks live in My Studio → Relay.
+  if (!phone) {
+    return (
+      <div className="hd" data-phone={undefined}>
+        <div className="hd-line">
+          <div className="hd-bar">
+            <LayerSwitch value={layer} onChange={onLayer} />
+          </div>
+          {weekDays}
+          <div className="hd-tools">
+            {tasksButton}
+            <button type="button" className="hd-btn hd-btn--icon" onClick={onOpenKey} aria-label="Key: what the marks mean" title="Key">
+              <KeyRound size={16} aria-hidden />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="hd" data-phone={phone ? "true" : undefined}>
-      {/* ONE COMMAND BAR (AJ, Oct 3 2026, direction B): where you are, what is
-          in front of you today, and the tools, on one surface split by
-          hairlines. It never wraps: the chips give up room and scroll first. */}
+    <div className="hd" data-phone="true">
+      {/* The phone keeps its two rows: the layers and Today, then the week. */}
       <div className="hd-bar">
         <LayerSwitch value={layer} onChange={onLayer} />
-        {hasChips && <span className="hd-rule" aria-hidden />}
-        {hasChips && <SpotChips chips={chips!} onSpot={onSpot!} />}
         <span className="hd-gap" aria-hidden />
         <span className="hd-rule hd-rule--tools" aria-hidden />
         <div className="hd-tools">
-          {today && today.key !== selected && (
-            <button type="button" className="hd-btn" onClick={() => onSelectDay(today.key)}>
-              Today
-            </button>
-          )}
-          {onOpenTasks && (
-            <button type="button" className="hd-btn" onClick={onOpenTasks} aria-label={openTasks ? `Tasks: ${openTasks} open. Opens Relay` : "Tasks. Opens Relay"}>
-              <ListChecks size={16} aria-hidden />
-              <span className="hd-btn-word">{"Tasks"}</span>
-              {openTasks ? <strong className="hd-count">{openTasks}</strong> : null}
-            </button>
-          )}
-          {!phone && (
-            <button type="button" className="hd-btn" onClick={onOpenKey} aria-label="Key: what the marks mean">
-              <KeyRound size={16} aria-hidden />
-              <span className="hd-btn-word">{"Key"}</span>
-            </button>
-          )}
+          {tasksButton}
         </div>
       </div>
-      <div className="hd-week" role="tablist" aria-label="Pick a day">
-        {days.map((d) => (
-          <button
-            key={d.key}
-            type="button"
-            role="tab"
-            className="hd-day"
-            aria-selected={d.key === selected}
-            data-today={d.isToday ? "true" : "false"}
-            aria-label={[`${d.weekday} ${d.date}`, d.isToday ? "today" : null, d.count ? `${d.count} booked` : "nothing booked", d.celebrate ? "something to celebrate" : null]
-              .filter(Boolean)
-              .join(", ")}
-            onClick={() => onSelectDay(d.key)}
-          >
-            <span className="hd-day-name">
-              {`${d.weekday} `}
-              <strong>{d.date}</strong>
-            </span>
-            <span className="hd-day-count">
-              {d.count ?? ""}
-              {d.celebrate && <span className="hd-dot" />}
-            </span>
-          </button>
-        ))}
-      </div>
+      {weekDays}
     </div>
   );
 }

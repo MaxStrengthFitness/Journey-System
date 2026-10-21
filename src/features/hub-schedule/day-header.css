@@ -93,6 +93,20 @@
   transform: translateY(1px);
 }
 
+/* ONE LINE (Oct 21 2026; AJ: the bar and the week "take almost a fourth of
+   the screen"): the layer switch, the week, then Today and the Key. It wraps
+   only when the width can't hold all three (the week keeps 380px). */
+.hd-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hd-line .hd-bar { flex: none; }
+.hd-line .hd-week { flex: 1 1 380px; }
+.hd-line .hd-tools { flex: none; }
+.hd-btn--icon { width: 40px; padding: 0; justify-content: center; }
+
 .hd-rule {
   flex: none;
   width: 1px;

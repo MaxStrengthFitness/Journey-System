@@ -16,7 +16,6 @@ import { useHubCriticalNotes } from "../hooks/useHubCriticalNotes";
 // Import the hook file directly, not the studio-tasks barrel (index.ts).
 // ClientsView is in the initial bundle; pulling the barrel in here would drag
 // the whole Studio Hub UI in with it and defeat AppContent's lazy import.
-import { useStudioTasks } from "../features/studio-tasks/useStudioTasks";
 import { dayTitle, loggingFrom, pickDay, shownDay, stripFrom } from "../features/hub-schedule/hub-day";
 import { UNASSIGNED_ID, orderColumnsBySessions, planColumns, staffLabel } from "../features/hub-schedule/columns";
 import { staffIdsAt } from "../features/standing-week/check";
@@ -55,9 +54,8 @@ import { mayReadWeeks } from "../features/standing-week/present";
 import { weekdayOf } from "../features/client-history/model";
 import { DayHeader, DaySummary, KeySheet } from "../features/hub-schedule/DayHeader";
 import { Peek } from "../features/hub-schedule/Peek";
-import { countsByDay, spotWords, stripDays, summaryChips } from "../features/hub-schedule/day-summary";
+import { countsByDay, spotWords, stripDays } from "../features/hub-schedule/day-summary";
 import { hasFamily, type FilterId, type MomentFamily } from "../features/hub-opportunities/moments-today";
-import { rememberMyStudioSection } from "../features/my-studio/section-memory";
 import { bookingSessionNumber, cardMarks, cardRestWords, isNewToJourney, usualServiceOf } from "../features/hub-schedule/card-marks";
 import { yourDay } from "../features/hub-schedule/your-day";
 import { nextHalfHour, stripOpen } from "../features/hub-schedule/next-half-hour";
@@ -888,13 +886,6 @@ export function ClientsView({
    * schedule keeps every vertical pixel it had.
    * ------------------------------------------------------------------ */
 
-  /** Open task rows for the SELECTED day, studio list + this trainer's own. */
-  const { counts: taskCounts, loading: tasksLoading } = useStudioTasks(activeStudioId || null, {
-    ownerId: auth.currentUser?.uid ?? null,
-    dateKey: selectedKey,
-  });
-  const openTaskCount = tasksLoading ? null : Math.max(0, taskCounts.total - taskCounts.done);
-
   /*
    * THE TOP (calm Hub round, Sep 28 2026; AJ: the top bar "is very jumbled").
    * The week with each day's count and a dot for a day to celebrate, then on
@@ -911,7 +902,6 @@ export function ClientsView({
     return out;
   }, [dayMoments.celebratesOn, stripKeysKey]);
   const strip = stripDays(stripKeys, todayKey, bookingCounts, (key) => celebrateDays.has(key));
-  const chips = summaryChips(dayMoments.entries);
   const spotKeys = activeSpot
     ? gridBlocks
         .filter((b) => {
@@ -1037,15 +1027,9 @@ export function ClientsView({
               days={strip}
               selected={gridDayKey}
               onSelectDay={(key) => setPickedDay(pickDay(key, studioToday))}
-              openTasks={openTaskCount}
-              onOpenTasks={() => {
-                rememberMyStudioSection("relay");
-                setView("studio-tasks");
-              }}
+              openTasks={null}
               onOpenKey={() => setKeyOpen(true)}
               phone={isPhone}
-              chips={layer === "schedule" && !activeSpot && !isPhone ? chips : undefined}
-              onSpot={(family) => setSpot({ day: gridDayKey, family, next: 0 })}
             />
             {layer === "schedule" && (
               <DaySummary

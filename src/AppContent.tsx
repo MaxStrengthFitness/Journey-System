@@ -1480,23 +1480,6 @@ export default function AppContent({
       {/* On a phone the header keeps the bell (and the reminders that ring
           it); Refresh, the theme, feedback and Settings are in the avatar
           menu, so the studio's name keeps its room. */}
-      {!isPhone && (
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleRefreshSchedule}
-        disabled={isRefreshingSchedule}
-        title={isRefreshingSchedule ? "Syncing schedule…" : "Refresh schedule"}
-        aria-label="Refresh schedule"
-        className={headerIconClass}
-      >
-        <RefreshCw
-          className={`w-5 h-5 sm:w-6 sm:h-6 ${isRefreshingSchedule ? "animate-spin" : ""}`}
-        />
-      </Button>
-      )}
-      {!isPhone && <ThemeToggle className={headerIconClass} />}
-      {!isPhone && <FeedbackButton className={headerIconClass} />}
       {/* Rings the bell when one of your own Planner reminders comes due. */}
       <PlannerReminders authTrainer={authTrainer ?? null} />
       <NotificationBell
@@ -1543,18 +1526,6 @@ export default function AppContent({
           });
         }}
       />
-      {!isPhone && (
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setCurrentView("trainer-hub")}
-        className={`${headerIconClass} ${currentView === "trainer-hub" ? "text-chrome-ink" : ""}`}
-        title="Trainer Settings"
-        aria-label="Trainer Settings"
-      >
-        <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
-      </Button>
-      )}
     </div>
   );
 
@@ -1645,34 +1616,37 @@ export default function AppContent({
                 <CalendarIcon className="w-4 h-4 text-primary" />
                 Calendar
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => menuNavigate(() => setCurrentView("trainer-hub"))}
-                className="rounded-xl flex items-center gap-3 p-3 min-h-11 text-[14px] font-semibold cursor-pointer"
-              >
-                <Settings className="w-4 h-4 text-muted-foreground" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={isRefreshingSchedule}
-                onClick={() => {
-                  setTrainerMenuOpen(false);
-                  void handleRefreshSchedule();
-                }}
-                className="rounded-xl flex items-center gap-3 p-3 min-h-11 text-[14px] font-semibold cursor-pointer"
-              >
-                <RefreshCw className={`w-4 h-4 text-muted-foreground ${isRefreshingSchedule ? "animate-spin" : ""}`} />
-                {isRefreshingSchedule ? "Syncing schedule…" : "Refresh schedule"}
-              </DropdownMenuItem>
-              <div className="flex items-center gap-2 px-3 py-1">
-                <ThemeToggle className={menuIconClass} />
-                <FeedbackButton className={menuIconClass} />
-                <span className="text-[12px] font-semibold text-muted-foreground">
-                  Theme · Feedback
-                </span>
-              </div>
-              <DropdownMenuSeparator className="my-2 bg-border" />
             </>
           )}
+          {/* Settings, Refresh, the theme and Feedback live here on every
+              screen size (AJ, Oct 21 2026: a lighter header). */}
+          <DropdownMenuItem
+            onClick={() => menuNavigate(() => setCurrentView("trainer-hub"))}
+            className="rounded-xl flex items-center gap-3 p-3 min-h-11 text-[14px] font-semibold cursor-pointer"
+          >
+            <Settings className="w-4 h-4 text-muted-foreground" />
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={isRefreshingSchedule}
+            onClick={() => {
+              setTrainerMenuOpen(false);
+              void handleRefreshSchedule();
+            }}
+            className="rounded-xl flex items-center gap-3 p-3 min-h-11 text-[14px] font-semibold cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 text-muted-foreground ${isRefreshingSchedule ? "animate-spin" : ""}`} />
+            {isRefreshingSchedule ? "Syncing schedule…" : "Refresh schedule"}
+          </DropdownMenuItem>
+          <div className="flex items-center gap-2 px-3 py-1">
+            <ThemeToggle className={menuIconClass} />
+            <FeedbackButton className={menuIconClass} />
+            <span className="text-[12px] font-semibold text-muted-foreground">
+              Theme · Feedback
+            </span>
+          </div>
+          <DropdownMenuSeparator className="my-2 bg-border" />
+
           <DropdownMenuLabel className="text-[14px] font-bold px-3 py-2 text-ink-d2">
             Active profile
           </DropdownMenuLabel>
