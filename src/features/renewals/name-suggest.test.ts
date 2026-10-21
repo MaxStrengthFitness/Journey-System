@@ -7,8 +7,38 @@ import type { RenewalNamesSeen } from "./types";
 const settings = DEFAULT_RENEWAL_SETTINGS;
 const key = (name: string, kind?: "contract" | "pricing-option") => {
   const s = suggestName(name, settings, kind);
-  return s === null ? null : s.kind === "extra" ? "extra" : s.packageKey;
+  return s === null ? null : s.kind === "package" ? s.packageKey : s.kind;
 };
+
+describe("suggestName: month-to-month (AJ, Oct 21 2026)", () => {
+  it("suggests month-to-month for prices, session packs and a few sessions", () => {
+    for (const n of ["Session $46", "Session $70", "2 x Week- Session Pack | Couples Option", "1 x Week- Session Pack", "Month-to-Month Package", "4 Sessions", "8 Sessions", "16 Sessions"]) {
+      expect(key(n, "contract")).toBe("m2m");
+    }
+  });
+  it("never suggests it for a package, wellness, a consult or an extra", () => {
+    expect(key("48 Sessions Part A", "contract")).toBe("trial");
+    expect(key("1x Week-Wellness Session Pack", "contract")).toBeNull();
+    expect(key("12 Sessions Wellness Part A", "contract")).toBeNull();
+    expect(key("Free Initial Consultation")).toBeNull();
+    expect(key("Session Comp")).toBe("extra");
+    expect(key("1 x Week Monthly Package", "contract")).toBeNull();
+  });
+  it("words and target", () => {
+    expect(suggestionWords({ kind: "m2m" })).toBe("Month-to-month");
+    expect(suggestionTarget({ kind: "m2m" })).toBe("__m2m__");
+  });
+  it("a name on the month-to-month list is no longer waiting, and one confirmed lands in the list", () => {
+    const seen = { names: { a: { name: "8 Sessions", kind: "pricing-option" as const, clients: 5 }, b: { name: "Session $46", kind: "pricing-option" as const, clients: 1 } } };
+    const waiting = waitingNames(seen, settings);
+    expect(waiting.map((w) => w.name)).toEqual(["Session $46"]);
+    const form = settingsToForm(settings);
+    const patch = assignNameInForm(form, "Session $46", "__m2m__");
+    const { settings: saved } = formToSettings({ ...form, ...patch });
+    expect(buildPackageNameIndex(saved).isMonthToMonth("session $46")).toBe(true);
+    expect(nameWontFitInForm(form, "Session $46", "__m2m__")).toBe(false);
+  });
+});
 
 describe("suggestName on Strongsville's real names (Oct 6 2026)", () => {
   it("reads sessions and months against the studio's own table", () => {
@@ -57,8 +87,9 @@ describe("suggestName on Strongsville's real names (Oct 6 2026)", () => {
     expect(key("Free Intro Session")).toBeNull();
     expect(key("Single Session")).toBeNull();
     expect(key("Consultation")).toBeNull();
-    expect(key("Month to Month Unlimited")).toBeNull();
-    expect(key("8 Sessions")).toBeNull(); // one payment's worth is no package
+    // Never a package; since Oct 21 2026 (AJ) both are month-to-month.
+    expect(key("Month to Month Unlimited")).toBe("m2m");
+    expect(key("8 Sessions")).toBe("m2m");
     expect(key("SV 12 Months/48 Sessions")).toBeNull(); // the two disagree
     expect(key("48 Sessions / 96 Sessions")).toBeNull();
     expect(key("Personal Training")).toBeNull();

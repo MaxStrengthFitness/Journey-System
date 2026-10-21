@@ -191,13 +191,13 @@ export function namesSeenFrom(clients: Client[]): RenewalNamesSeen["names"] {
   return names;
 }
 
-/** Only the names that no package (or the extra-sessions list) claims. */
+/** Only the names that no package (nor the extra-sessions or month-to-month list) claims. */
 export function unmatchedNames(
   names: RenewalNamesSeen["names"],
   index: PackageNameIndex,
 ): RenewalNamesSeen["names"][string][] {
   return Object.values(names)
-    .filter((n) => !index.tierFor(n.name) && !index.isExtraSessions(n.name))
+    .filter((n) => !index.tierFor(n.name) && !index.isExtraSessions(n.name) && !index.isMonthToMonth(n.name))
     .sort((a, b) => b.clients - a.clients);
 }
 

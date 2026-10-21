@@ -42,7 +42,21 @@ export type NameSuggestion =
       paidInFull: boolean;
       rollOver: boolean;
     }
-  | { kind: "extra" };
+  | { kind: "extra" }
+  | { kind: "m2m" };
+
+/**
+ * Month-to-month by its shape (AJ's names, Oct 21 2026): "Session $49", a
+ * session pack ("2 x Week-Session Pack"), "Month-to-Month Package", or a few
+ * sessions on their own ("8 Sessions"). Wellness coaching's packs are their
+ * own product, never suggested.
+ */
+const M2M_PRICE = /^sessions? \$\d{2,3}(?:\.\d{2})?$/;
+const M2M_PACK = /\bsession[\s-]*pack\b/;
+const M2M_WORDS = /\bmonth[\s-]*to[\s-]*month\b|\bm2m\b/;
+const M2M_FEW = /^(\d{1,2}) sessions?$/;
+const M2M_FEW_MAX = 16;
+const WELLNESS = /\bwellness\b|\bnutrition\b/;
 
 const EXTRA = /\b(?:comp|comped|complimentary|free|won|winner|prize|bonus|gift(?:ed)?|referral)\b/;
 const UNSURE = /\b(?:intro(?:ductory)?|consult(?:ation)?|assessment|evaluation|drop[\s-]?in|single|guest|gift\s*card|month[\s-]*to[\s-]*month|m2m|unlimited)\b/;
@@ -67,6 +81,13 @@ export function suggestName(
   // Slashes and dashes split "6 Months/48 Sessions"; normalise the rest as the index does.
   const text = normalizeMindbodyName(name).replace(/[/_|]+/g, " ");
   if (!text) return null;
+  if (!WELLNESS.test(text)) {
+    if (M2M_PRICE.test(text) || M2M_PACK.test(text) || M2M_WORDS.test(text)) return { kind: "m2m" };
+    const few = text.match(M2M_FEW);
+    if (few && Number(few[1]) <= M2M_FEW_MAX && !settings.packages.some((t) => t.sessions === Number(few[1]))) {
+      return { kind: "m2m" };
+    }
+  }
   if (UNSURE.test(text)) return null;
   const sessions = numbers(SESSIONS, text);
   const months = numbers(MONTHS, text);
@@ -98,6 +119,7 @@ export function suggestName(
 /** "The Trial · paid in full", "Life Transformed · sessions roll over", "Extra sessions (complimentary or won)". */
 export function suggestionWords(s: NameSuggestion): string {
   if (s.kind === "extra") return "Extra sessions (complimentary or won)";
+  if (s.kind === "m2m") return "Month-to-month";
   return [s.label, s.paidInFull ? "paid in full" : null, s.rollOver ? "sessions roll over" : null]
     .filter(Boolean)
     .join(" · ");
@@ -105,7 +127,7 @@ export function suggestionWords(s: NameSuggestion): string {
 
 /** Where a suggestion goes in the settings form (`settings-form.ts` assignNameInForm's target). */
 export function suggestionTarget(s: NameSuggestion): string {
-  return s.kind === "extra" ? "__extra__" : s.packageKey;
+  return s.kind === "extra" ? "__extra__" : s.kind === "m2m" ? "__m2m__" : s.packageKey;
 }
 
 export interface WaitingName {
@@ -134,7 +156,7 @@ export function waitingNames(seen: Pick<RenewalNamesSeen, "names"> | null | unde
     const key = normalizeMindbodyName(name);
     if (!key || met.has(key)) continue;
     met.add(key);
-    if (index.tierFor(name) || index.isExtraSessions(name)) continue;
+    if (index.tierFor(name) || index.isExtraSessions(name) || index.isMonthToMonth(name)) continue;
     const kind = entry.kind === "contract" ? "contract" : "pricing-option";
     out.push({
       name,

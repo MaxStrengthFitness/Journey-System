@@ -87,6 +87,16 @@ export interface RenewalSettings {
    * sessions ("Session Comp"). Their sessions count toward sessions left.
    */
   extraSessionNames: string[];
+  /**
+   * Contracts and pricing options that mean a client is MONTH-TO-MONTH (AJ,
+   * Oct 21 2026: "4 Sessions", "8 Sessions", "1 x Week- Session Pack",
+   * "Month-to-Month Package", "Session $49"…). A month-to-month client is
+   * left out of every renewal count — no sessions left, no end date, no
+   * running low — and every screen says "M2M" instead (engine.ts
+   * `monthToMonthOf`). Absent means the studio never saved one: Max
+   * Strength's list (`DEFAULT_MONTH_TO_MONTH_NAMES`).
+   */
+  monthToMonthNames: string[];
 }
 
 /**

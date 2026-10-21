@@ -451,6 +451,22 @@ export function RenewalSettingsPanel({
       </AdminPanel>
 
       <AdminPanel
+        title="Month-to-month"
+        subtitle="Contracts and pricing options for clients who go month to month. They show as M2M, and they're left out of renewals and running low."
+        icon={<Tag className="w-4 h-4" />}
+      >
+        <AdminField label="Names in Mindbody" hint="One per line." wide htmlFor="renewals-m2m">
+          <AdminTextarea
+            id="renewals-m2m"
+            rows={4}
+            value={form.value.m2mNamesText}
+            disabled={!canEdit}
+            onChange={(e) => form.setField("m2mNamesText", e.target.value)}
+          />
+        </AdminField>
+      </AdminPanel>
+
+      <AdminPanel
         title="Names seen in Mindbody"
         subtitle="Contract and pricing-option names found on this studio's clients that no package claims yet. Until one is matched, its clients show 'package not recognized'. A confirmed suggestion is matched when you save."
         flush
@@ -471,7 +487,7 @@ export function RenewalSettingsPanel({
         {didntFit.length > 0 && (
           <AdminNotice tone="warn">
             {didntFit.length === 1 ? "This name didn't fit" : "These names didn't fit"}: {didntFit.join(", ")}. A package holds
-            at most {MAX_NAMES_PER_PACKAGE} Mindbody names and the extra sessions {MAX_EXTRA_SESSION_NAMES}; remove one
+            at most {MAX_NAMES_PER_PACKAGE} Mindbody names, and the extra-sessions and month-to-month lists {MAX_EXTRA_SESSION_NAMES} each; remove one
             that no longer sells to make room.
           </AdminNotice>
         )}
@@ -481,7 +497,7 @@ export function RenewalSettingsPanel({
           </AdminEmpty>
         ) : unmatched.length === 0 ? (
           <AdminEmpty title="Every name is matched">
-            All the names the nightly job found belong to a package or the extra-sessions list.
+            All the names the nightly job found belong to a package, the extra-sessions list or month-to-month.
           </AdminEmpty>
         ) : (
           <AdminRows>
@@ -525,6 +541,7 @@ export function RenewalSettingsPanel({
                           </option>
                         ))}
                         <option value="__extra__">Extra sessions</option>
+                        <option value="__m2m__">Month-to-month</option>
                       </AdminSelect>
                     </span>
                   ) : undefined

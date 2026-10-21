@@ -11,6 +11,7 @@
 
 import {
   MAX_EXTRA_SESSION_NAMES,
+  MAX_MONTH_TO_MONTH_NAMES,
   MAX_NAMES_PER_PACKAGE,
   SETTING_LABELS,
   SETTING_LIMITS,
@@ -51,6 +52,8 @@ export interface RenewalSettingsForm {
   packagesRenewAutomatically: "" | "yes" | "no";
   packages: PackageRowForm[];
   extraNamesText: string;
+  /** Month-to-month names, one per line (Oct 21 2026). */
+  m2mNamesText: string;
 }
 
 const NUMBER_FIELDS = Object.keys(SETTING_LIMITS) as Array<keyof typeof SETTING_LIMITS>;
@@ -88,6 +91,7 @@ export function settingsToForm(s: RenewalSettings): RenewalSettingsForm {
       s.packagesRenewAutomatically === true ? "yes" : s.packagesRenewAutomatically === false ? "no" : "",
     packages: s.packages.map(packageToRow),
     extraNamesText: s.extraSessionNames.join("\n"),
+    m2mNamesText: s.monthToMonthNames.join("\n"),
   };
 }
 
@@ -151,6 +155,7 @@ export function formToSettings(form: RenewalSettingsForm): {
         : {}),
     packages: form.packages.map(rowToPackage),
     extraSessionNames: parseNames(form.extraNamesText, MAX_EXTRA_SESSION_NAMES),
+    monthToMonthNames: parseNames(form.m2mNamesText, MAX_MONTH_TO_MONTH_NAMES),
   };
   const problems = validateRenewalSettings(settings);
   for (const key of NUMBER_FIELDS) {
@@ -184,6 +189,7 @@ export function settingsPatchFromForm(
   for (const key of Object.keys(patch) as Array<keyof RenewalSettingsForm>) {
     if (key === "packages") out.packages = parsed.packages;
     else if (key === "extraNamesText") out.extraSessionNames = parsed.extraSessionNames;
+    else if (key === "m2mNamesText") out.monthToMonthNames = parsed.monthToMonthNames;
     else if (key === "payAsYouGoCountsAs") out.payAsYouGoCountsAs = parsed.payAsYouGoCountsAs;
     else if (key === "pauseDuringAwayEvents") out.pauseDuringAwayEvents = parsed.pauseDuringAwayEvents;
     else if (key === "packagesRenewAutomatically") {
@@ -205,14 +211,21 @@ export function settingsPatchFromForm(
  * False when the name is already in the list (adding it changes nothing).
  */
 export function nameWontFitInForm(form: RenewalSettingsForm, name: string, target: string): boolean {
-  const text = target === "__extra__" ? form.extraNamesText : form.packages.find((r) => r.key === target)?.namesText;
+  const text =
+    target === "__extra__"
+      ? form.extraNamesText
+      : target === "__m2m__"
+        ? form.m2mNamesText
+        : form.packages.find((r) => r.key === target)?.namesText;
   if (text === undefined) return true;
   const names = parseNames(text, 1000).map(normalizeMindbodyName);
   if (names.includes(normalizeMindbodyName(name))) return false;
-  return names.length >= (target === "__extra__" ? MAX_EXTRA_SESSION_NAMES : MAX_NAMES_PER_PACKAGE);
+  const max =
+    target === "__extra__" ? MAX_EXTRA_SESSION_NAMES : target === "__m2m__" ? MAX_MONTH_TO_MONTH_NAMES : MAX_NAMES_PER_PACKAGE;
+  return names.length >= max;
 }
 
-/** Adds a Mindbody name to a package (or to the extra-sessions list) in the form. */
+/** Adds a Mindbody name to a package (or to the extra-sessions or month-to-month list) in the form. */
 export function assignNameInForm(
   form: RenewalSettingsForm,
   name: string,
@@ -224,6 +237,7 @@ export function assignNameInForm(
     return text.trim() ? `${text.replace(/\s+$/, "")}\n${name}` : name;
   };
   if (target === "__extra__") return { extraNamesText: append(form.extraNamesText) };
+  if (target === "__m2m__") return { m2mNamesText: append(form.m2mNamesText) };
   return {
     packages: form.packages.map((row) =>
       row.key === target ? { ...row, namesText: append(row.namesText) } : row,

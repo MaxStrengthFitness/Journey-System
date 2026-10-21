@@ -1073,6 +1073,18 @@ describe("Firestore Security Rules", () => {
     await assertFails(setDoc(ref, { ...validRenewalSettings("ownerA"), packagesRenewAutomatically: "no" }));
   });
 
+  // Month-to-month (Oct 21 2026): the studio's list of Mindbody names that
+  // mean a client goes month to month, at most 40, like the extras.
+  it("lets a studio's owner save its month-to-month names, and refuses a list too long or not a list", async () => {
+    const ctx = testEnv.authenticatedContext("ownerA", { email: "ownera@test.com" });
+    const ref = doc(ctx.firestore(), "studios", "studioA", "config", "renewals");
+    await assertSucceeds(setDoc(ref, { ...validRenewalSettings("ownerA"), monthToMonthNames: ["8 Sessions", "Session $49"] }));
+    await assertFails(setDoc(ref, { ...validRenewalSettings("ownerA"), monthToMonthNames: "8 Sessions" }));
+    await assertFails(
+      setDoc(ref, { ...validRenewalSettings("ownerA"), monthToMonthNames: Array.from({ length: 41 }, (_, i) => `Session $${i}`) }),
+    );
+  });
+
   it("keeps the auto-renewal answer from a trainer who doesn't lead the studio", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "studios", "studioA", "config", "renewals"), validRenewalSettings("ownerA"));

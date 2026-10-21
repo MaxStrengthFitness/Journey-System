@@ -488,7 +488,7 @@ service cloud.firestore {
                'conversationAtSessionsLeft', 'chargeWarnDays', 'chargeWarnMinBanked',
                'horizonMonths', 'breakDays', 'lostAfterDays', 'payAsYouGoCountsAs',
                'pauseDuringAwayEvents', 'packagesRenewAutomatically', 'packages',
-               'extraSessionNames', 'updatedAt', 'updatedBy'])
+               'extraSessionNames', 'monthToMonthNames', 'updatedAt', 'updatedBy'])
           && numberWithin(d, 'conversationAtSessionsLeft', 0, 60)
           && numberWithin(d, 'chargeWarnDays', 0, 180)
           && numberWithin(d, 'chargeWarnMinBanked', 1, 100)
@@ -502,6 +502,8 @@ service cloud.firestore {
               (d.packages is list && d.packages.size() >= 1 && d.packages.size() <= 12))
           && (!('extraSessionNames' in d) ||
               (d.extraSessionNames is list && d.extraSessionNames.size() <= 40))
+          && (!('monthToMonthNames' in d) ||
+              (d.monthToMonthNames is list && d.monthToMonthNames.size() <= 40))
           && d.get('updatedBy', '') == request.auth.uid;
     }
 
