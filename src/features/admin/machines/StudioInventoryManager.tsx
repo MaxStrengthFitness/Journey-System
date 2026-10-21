@@ -41,7 +41,7 @@ import { outOfServiceLineOf, outOfServiceOfEntry } from "../../catalog/out-of-se
 import { OutOfServiceDialog } from "./OutOfServiceDialog";
 import { backInService, setOutOfService } from "./roster-status";
 import { AddFromMsfDialog } from "./AddFromMsfDialog";
-import { addableFromMsf, moveInOrder, onFloor, orderForNewMachine, orderReach } from "./floor-editor";
+import { addableFromMsf, catalogMatches, moveInOrder, onFloor, orderForNewMachine, orderReach } from "./floor-editor";
 import { useUnsavedChanges } from "../../unsaved-changes";
 import "../admin.css";
 
@@ -255,6 +255,11 @@ export function StudioInventoryManager({
   const addable = useMemo(
     () => addableFromMsf({ machines, rosterEntries, catalog }),
     [machines, rosterEntries, catalog],
+  );
+
+  const catalogFound = useMemo(
+    () => catalogMatches({ query: search, rosterEntries, catalog }),
+    [search, rosterEntries, catalog],
   );
 
   if (!studioId) {
@@ -563,7 +568,7 @@ export function StudioInventoryManager({
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-10 pl-9"
-            placeholder="Search equipment"
+            placeholder={readOnly ? "Search equipment" : "Search the floor and the MSF catalog"}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -731,6 +736,48 @@ export function StudioInventoryManager({
             );
           })}
         </div>
+      )}
+
+      {/* Search-to-add (AJ, Oct 21 2026): what the words typed above match in
+          the MSF catalog and is not on this floor, one tap to add. A machine
+          the catalog won't offer yet says why; nothing found offers New machine. */}
+      {!readOnly && !reorderIds && !loading && search.trim() && (
+        <section className="flex flex-col gap-1.5" aria-label="From the MSF catalog">
+          <h4 className="adm-label">Not on {floorName}&apos;s floor</h4>
+          {catalogFound.length > 0 && (
+            <ul className="adm-rows overflow-hidden rounded-[10px] border border-[var(--adm-border)]">
+              {catalogFound.map((c) => (
+                <li key={c.machineId} className="flex min-h-10 flex-wrap items-center justify-between gap-2 px-3.5 py-1.5">
+                  <span className="min-w-0">
+                    <span className="adm-row__name break-words">{c.name}</span>
+                    {c.why && <span className="adm-row__meta block break-words">{c.why}</span>}
+                  </span>
+                  {c.state !== "unavailable" && (
+                    <AdminButton
+                      size="sm"
+                      variant="primary"
+                      busy={busy === c.machineId}
+                      disabled={busy !== null}
+                      onClick={() => void addToFloor(c.machineId)}
+                    >
+                      {busy !== c.machineId && (
+                        <>
+                          <Plus className="h-3.5 w-3.5" aria-hidden /> {c.state === "putBack" ? "Put it back" : "Add"}
+                        </>
+                      )}
+                    </AdminButton>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div>
+            <AdminButton variant="quiet" size="sm" onClick={() => setEditing({ kind: "new" })}>
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              {catalogFound.length === 0 ? "Not in the catalog. New machine" : "Not here? New machine"}
+            </AdminButton>
+          </div>
+        </section>
       )}
 
       {askingOut && (

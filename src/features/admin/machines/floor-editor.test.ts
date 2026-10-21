@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MachineCatalogEntry, ResolvedMachine, StudioMachineRosterEntry } from "../../../types/machines";
-import { addableFromMsf, moveInOrder, onFloor, orderForNewMachine, orderReach } from "./floor-editor";
+import { addableFromMsf, catalogMatches, moveInOrder, onFloor, orderForNewMachine, orderReach } from "./floor-editor";
 
 const resolved = (machineId: string, over: Partial<ResolvedMachine> = {}): ResolvedMachine =>
   ({ machineId, name: machineId.toUpperCase(), studioId: "solon", source: "catalog", rosterStatus: "active", order: 0, comparisonKey: machineId, overriddenFields: [], ...over }) as ResolvedMachine;
@@ -64,6 +64,39 @@ describe("Add from MSF", () => {
     expect(all).not.toContain("m-old");
     expect(all).not.toContain("m-leg-press");
     expect(all).not.toContain("sm-solon-sled");
+  });
+});
+
+describe("search-to-add", () => {
+  const cat = [
+    catalog("m-tricep-ext", { name: "Tricep Extension" }),
+    catalog("m-torso-rotation", { name: "Torso Rotation", status: "draft" }),
+    catalog("m-old-press", { name: "Old Press", status: "retired" }),
+    catalog("m-leg-press", { name: "Leg Press" }),
+    catalog("m-lumbar", { name: "Lumbar Extension", aliases: ["back extension"] }),
+  ];
+  const rosterEntries = [entry("m-leg-press"), entry("m-lumbar", { status: "inactive" })];
+
+  it("finds a machine by the words typed and offers one tap", () => {
+    expect(catalogMatches({ query: "tricep", rosterEntries, catalog: cat })).toEqual([
+      { machineId: "m-tricep-ext", name: "Tricep Extension", state: "add" },
+    ]);
+  });
+
+  it("says why a draft or retired machine can't be added, instead of leaving it out", () => {
+    const [d] = catalogMatches({ query: "torso", rosterEntries, catalog: cat });
+    expect(d.state).toBe("unavailable");
+    expect(d.why).toMatch(/draft/i);
+    expect(catalogMatches({ query: "old", rosterEntries, catalog: cat })[0].why).toMatch(/retired/i);
+  });
+
+  it("matches another name, offers a switched-off machine back, and skips what is on the floor", () => {
+    expect(catalogMatches({ query: "back ext", rosterEntries, catalog: cat })[0]).toMatchObject({ machineId: "m-lumbar", state: "putBack" });
+    expect(catalogMatches({ query: "leg", rosterEntries, catalog: cat })).toEqual([]);
+  });
+
+  it("returns nothing for an empty search", () => {
+    expect(catalogMatches({ query: "  ", rosterEntries, catalog: cat })).toEqual([]);
   });
 });
 

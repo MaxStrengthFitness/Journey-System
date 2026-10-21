@@ -89,6 +89,55 @@ export function addableFromMsf(input: {
   return out;
 }
 
+/** One catalog machine a search found that is not on the floor. */
+export interface CatalogMatch {
+  machineId: string;
+  name: string;
+  /** add: one tap. putBack: switched off here. unavailable: the catalog won't offer it yet. */
+  state: "add" | "putBack" | "unavailable";
+  /** Said under an unavailable machine, so it is never just missing. */
+  why?: string;
+}
+
+/**
+ * Search-to-add (AJ, Oct 21 2026: "our catalog needs to be simpler to add to a
+ * studio"). Every catalog machine whose name (or another name the catalog
+ * knows) matches the words typed and that is not on the floor. A draft or
+ * retired machine is listed with the reason, never silently left out: a
+ * leader who can't find a machine can't tell "not in the catalog" from
+ * "not published". Nothing is returned for an empty search.
+ */
+export function catalogMatches(input: {
+  query: string;
+  rosterEntries: readonly StudioMachineRosterEntry[];
+  catalog: readonly MachineCatalogEntry[];
+}): CatalogMatch[] {
+  const words = input.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const rostered = new Map(input.rosterEntries.map((e) => [e.machineId, e]));
+  const out: CatalogMatch[] = [];
+  for (const c of input.catalog) {
+    const entry = rostered.get(c.id);
+    if (entry && entry.status !== "inactive") continue;
+    const hay = [c.name, ...(c.aliases ?? [])].join(" ").toLowerCase();
+    if (!words.every((w) => hay.includes(w))) continue;
+    const name = c.name || c.id;
+    if (c.status === "active") out.push({ machineId: c.id, name, state: entry ? "putBack" : "add" });
+    else if (entry) out.push({ machineId: c.id, name, state: "putBack" });
+    else
+      out.push({
+        machineId: c.id,
+        name,
+        state: "unavailable",
+        why:
+          c.status === "draft"
+            ? "In the catalog as a draft. An administrator publishes it first."
+            : "Retired from the catalog.",
+      });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /**
  * Where a machine added now goes in the walking order: after the last one,
  * when the studio keeps an order of its own (any entry on the roster carries
