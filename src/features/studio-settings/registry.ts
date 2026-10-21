@@ -34,9 +34,12 @@ export type SettingKey =
   | "wipeAfterSessions"
   | "weeklyMaintenanceDay"
   | "inbodyEverySessions"
-  | "newClientsStart";
+  | "newClientsStart"
+  | "endingSessions"
+  | "packageEndsDays"
+  | "birthdayDays";
 
-export type SettingGroup = "relay" | "journey" | "care" | "inbody" | "newClients";
+export type SettingGroup = "relay" | "journey" | "care" | "inbody" | "newClients" | "hub";
 
 export type SettingKind =
   /** A whole number between min and max. */
@@ -94,10 +97,11 @@ export const GROUP_LABEL: Record<SettingGroup, string> = {
   care: "The machines' care (Relay's Floor Map)",
   inbody: "InBody scans (the briefing and the InBody card)",
   newClients: "New clients",
+  hub: "The Hub's list view",
 };
 
 /** The order the editors show the groups in. */
-export const GROUP_ORDER: readonly SettingGroup[] = ["relay", "journey", "care", "inbody", "newClients"];
+export const GROUP_ORDER: readonly SettingGroup[] = ["relay", "journey", "care", "inbody", "newClients", "hub"];
 
 export const SETTINGS: readonly SettingDef[] = [
   {
@@ -264,6 +268,43 @@ export const SETTINGS: readonly SettingDef[] = [
       "features/briefing/BriefingScreen.tsx",
       "features/routine-plan/ui/useBriefingPlan.ts",
     ],
+  },
+  {
+    // The Hub's list view, Oct 21 2026. AJ: "who has sessions ending soon, or whose packages are ending soon, or who has a birthday coming up".
+    key: "endingSessions",
+    group: "hub",
+    label: "Sessions ending at",
+    unit: "sessions left or fewer",
+    kind: "count",
+    min: 1,
+    max: 50,
+    appDefault: 6,
+    help: "The Hub's list view lists a client whose package has this many sessions left, or fewer, in Sessions ending.",
+    readers: ["features/hub-opportunities/lenses.ts"],
+  },
+  {
+    key: "packageEndsDays",
+    group: "hub",
+    label: "Packages ending within",
+    unit: "days",
+    kind: "days",
+    min: 1,
+    max: 120,
+    appDefault: 14,
+    help: "The Hub's list view lists a client whose package or contract comes up for renewal within this many days in Package ending.",
+    readers: ["features/hub-opportunities/lenses.ts"],
+  },
+  {
+    key: "birthdayDays",
+    group: "hub",
+    label: "Birthdays within",
+    unit: "days",
+    kind: "days",
+    min: 1,
+    max: 60,
+    appDefault: 14,
+    help: "The Hub's list view lists a client whose birthday comes within this many days in Birthday soon.",
+    readers: ["features/hub-opportunities/lenses.ts"],
   },
 ];
 

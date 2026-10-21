@@ -33,21 +33,11 @@ import { mineDefinition, myLabel } from "../../lib/mine";
 import { IMPORTANCE_META } from "../../types/journal";
 import React, { useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, Award, Cake, ChevronDown, ChevronRight, FileSignature, MessageCircle, RefreshCw, Sparkles, Undo2 } from "lucide-react";
-import { formatStudioTime } from "../../lib/studio-time";
-import {
-  FILTERS,
-  RUN_SORTS,
-  filterCounts,
-  hasFamily,
-  rowChips,
-  runSections,
-  type FilterId,
-  type Moment,
-  type MomentKind,
-  type RunSheetEntry,
-  type RunSortKey,
-} from "./moments-today";
+import { formatStudioDate, formatStudioTime } from "../../lib/studio-time";
+import { rowChips, runSections, type FilterId, type Moment, type MomentKind, type RunSheetEntry } from "./moments-today";
 import { ASK_UNREAD_LINE } from "./get-to-know";
+import { LENSES, LENS_DEFAULTS, lensRows, nextBookings, type LensId, type LensRow, type LensThresholds } from "./lenses";
+import type { DirectoryRow } from "../client-directory/row";
 import "./run-sheet.css";
 
 export interface RunSheetProps {
@@ -59,6 +49,16 @@ export interface RunSheetProps {
    * the grid and the list can never disagree.
    */
   entries: ReadonlyArray<RunSheetEntry>;
+  /** The Hub's strip, `yyyy-mm-dd`: "the next 7 days" the lenses look across (Oct 21 2026). */
+  weekDays: ReadonlyArray<string>;
+  /** Any day's entries from the Hub's one engine, for the week. */
+  entriesOn: (day: string) => ReadonlyArray<RunSheetEntry>;
+  /** The directory's rows the engine was built on: sessions left, the package's end, birthdays. */
+  rowsById: ReadonlyMap<string, DirectoryRow>;
+  /** The real studio day. */
+  today: string;
+  /** The studio's numbers for "ending soon" (studio settings). */
+  thresholds?: LensThresholds;
   onOpenProfile: (clientId: string) => void;
   onStartSession: (clientId: string) => void;
   /**
@@ -78,23 +78,21 @@ export interface RunSheetProps {
 type Scope = "studio" | "mine";
 
 interface Remembered {
-  sort: RunSortKey;
-  filter: FilterId;
+  lens: LensId;
   scope: Scope;
 }
 
 const MEMORY_KEY = "journey.hub.opportunities";
-const DEFAULTS: Remembered = { sort: "time", filter: "all", scope: "studio" };
+const DEFAULTS: Remembered = { lens: "coming", scope: "studio" };
 
-/** Opportunities remembers its sort, filter and scope on this iPad (a sign-out clears it). */
+/** The list view remembers its lens and scope on this iPad (a sign-out clears it). */
 function readMemory(): Remembered {
   try {
     const raw = typeof window !== "undefined" ? window.localStorage.getItem(MEMORY_KEY) : null;
     if (!raw) return DEFAULTS;
     const v = JSON.parse(raw) as Partial<Remembered>;
     return {
-      sort: RUN_SORTS.some((s) => s.id === v.sort) ? (v.sort as RunSortKey) : DEFAULTS.sort,
-      filter: FILTERS.some((f) => f.id === v.filter) ? (v.filter as FilterId) : DEFAULTS.filter,
+      lens: LENSES.some((l) => l.id === v.lens) ? (v.lens as LensId) : DEFAULTS.lens,
       scope: v.scope === "mine" ? "mine" : "studio",
     };
   } catch {
@@ -205,48 +203,84 @@ function OpenedRow({ entry, onOpenProfile, onStartSession }: { entry: RunSheetEn
   );
 }
 
-export function RunSheet({ day, entries, onOpenProfile, onStartSession, request = null, trainer = null, onClearTrainer }: RunSheetProps) {
+export function RunSheet({
+  day,
+  entries,
+  weekDays,
+  entriesOn,
+  rowsById,
+  today,
+  thresholds = LENS_DEFAULTS,
+  onOpenProfile,
+  onStartSession,
+  trainer = null,
+  onClearTrainer,
+}: RunSheetProps) {
   const [memory, setMemory] = useState<Remembered>(readMemory);
-  const [reversed, setReversed] = useState(false);
   const [openKey, setOpenKey] = useState<string | null>(null);
   // The sections the trainer has flipped from how they start (folded or open).
   const [flipped, setFlipped] = useState<Set<string>>(() => new Set());
   useEffect(() => writeMemory(memory), [memory]);
-  // A new day starts with every row closed.
-  useEffect(() => setOpenKey(null), [day]);
-  // The spotlight's "See them as a list": its family, for the whole studio.
-  useEffect(() => {
-    if (request) setMemory((m) => ({ ...m, filter: request.filter, scope: "studio" }));
-  }, [request?.filter, request?.nonce]);
+  // A new day or a new lens starts with every row closed.
+  useEffect(() => setOpenKey(null), [day, memory.lens]);
 
   // One trainer's bookings (a tap on their column head) narrows the same entries, whatever the scope.
-  const scoped = useMemo(() => (trainer ? entries.filter(trainer.includes) : memory.scope === "mine" ? entries.filter((e) => e.mine) : entries), [entries, memory.scope, trainer]);
-  const counts = useMemo(() => filterCounts(scoped), [scoped]);
+  const inScope = (e: RunSheetEntry) => (trainer ? trainer.includes(e) : memory.scope === "mine" ? e.mine : true);
+  const scoped = useMemo(() => entries.filter(inScope), [entries, memory.scope, trainer]);
   const mineCount = useMemo(() => entries.filter((e) => e.mine).length, [entries]);
-  // A filter whose count fell to zero (a new day) shows everyone rather than nobody.
-  const filter: FilterId = memory.filter !== "all" && counts[memory.filter] === 0 ? "all" : memory.filter;
-  const filtered = useMemo(() => (filter === "all" ? scoped : scoped.filter((e) => hasFamily(e, filter))), [scoped, filter]);
-  const sections = useMemo(() => runSections(filtered, memory.sort, reversed), [filtered, memory.sort, reversed]);
-  const sortMeta = RUN_SORTS.find((s) => s.id === memory.sort)!;
+
+  // The lenses look across the strip (the next 7 days); Coming in and Critical are the day on screen's.
+  const week = useMemo(() => nextBookings(weekDays, entriesOn).filter(inScope), [weekDays, entriesOn, memory.scope, trainer]);
+  const lensList = useMemo(() => {
+    const out = {} as Record<Exclude<LensId, "coming">, LensRow[]>;
+    for (const id of ["sessions", "package", "birthday", "critical"] as const) out[id] = lensRows(id, week, scoped, rowsById, today, thresholds);
+    return out;
+  }, [week, scoped, rowsById, today, thresholds]);
+  const countOf = (id: LensId) => (id === "coming" ? scoped.length : lensList[id].length);
+  const lens: LensId = memory.lens;
+  const sections = useMemo(() => (lens === "coming" ? runSections(scoped, "time") : []), [lens, scoped]);
+  const lensMeta = LENSES.find((l) => l.id === lens)!;
+  const rows: LensRow[] = lens === "coming" ? [] : lensList[lens];
   // After the last booking "Earlier today" is all there is: it starts open, not a closed header over a blank screen (Oct 20 2026).
   const onlyFolded = sections.length > 0 && sections.every((s) => s.folded);
-  // The filter row is only worth a row when there is a family to filter on besides All.
-  const familyFilters = FILTERS.filter((f) => f.id !== "all" && counts[f.id] > 0);
-  // "Time: earliest first." says nothing a clock doesn't; the other sorts, and a reversal, still say it.
-  const sortSentence = memory.sort !== "time" || reversed;
   const unreadCritical = scoped.filter((e) => e.criticalUnknown).length;
   const unreadFord = scoped.filter((e) => e.askUnknown).length;
 
-  const tapSort = (id: RunSortKey) => {
-    if (id === memory.sort) setReversed((r) => !r);
-    else {
-      setReversed(false);
-      setMemory((m) => ({ ...m, sort: id }));
-    }
+  const renderRow = (entry: RunSheetEntry, sentence: string, when: string) => {
+    const open = openKey === entry.key;
+    return (
+      <div key={entry.key} className="ho-row" data-client-id={entry.clientId ?? ""}>
+        <button type="button" className="ho-rowbtn" aria-expanded={open} onClick={() => setOpenKey(open ? null : entry.key)}>
+          <span className="ho-name">{entry.name}</span>
+          <span className="ho-when">{when}</span>
+          <span className="ho-sentence" data-unknown="false">
+            {sentence}
+          </span>
+          <span className="ho-chips">
+            {rowChips(entry, "time").map((m) => (
+              <Chip key={m.kind} m={m} />
+            ))}
+          </span>
+        </button>
+        {open && <OpenedRow entry={entry} onOpenProfile={onOpenProfile} onStartSession={onStartSession} />}
+      </div>
+    );
   };
 
+  const lensLine = [
+    lens === "sessions" ? `Booked in the next 7 days with ${thresholds.sessionsLeft} sessions left or fewer, fewest first.` : "",
+    lens === "package" ? `Booked in the next 7 days, package up for renewal within ${thresholds.packageDays} days, soonest first.` : "",
+    lens === "birthday" ? `Booked in the next 7 days, birthday within ${thresholds.birthdayDays} days, soonest first.` : "",
+    lens === "critical" ? "Booked on this day, with a Critical note that matters today." : "",
+    memory.scope === "mine" ? mineDefinition("clients") : "",
+    unreadCritical > 0 ? `Couldn’t check ${unreadCritical === 1 ? "one client’s" : `${unreadCritical} clients’`} critical notes — their briefings show them.` : "",
+    unreadFord > 0 ? `Couldn’t check FORD for ${unreadFord === 1 ? "one client" : `${unreadFord} clients`}, so something to ask about may be missing.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="ho" data-sort={memory.sort}>
+    <div className="ho" data-lens={lens}>
       {trainer && (
         <div className="ho-trainer" role="status">
           <span className="ho-trainer-words">{`${trainer.name} · ${scoped.length} ${scoped.length === 1 ? "booking" : "bookings"}`}</span>
@@ -258,16 +292,24 @@ export function RunSheet({ day, entries, onOpenProfile, onStartSession, request 
         </div>
       )}
       <div className="ho-controls">
-        <div className="ho-seg" role="group" aria-label="Sort by">
-          {RUN_SORTS.map((s) => (
-            <button key={s.id} type="button" className="ho-seg-btn" aria-pressed={memory.sort === s.id} onClick={() => tapSort(s.id)}>
-              {s.label}
+        <div className="ho-lenses" role="group" aria-label="What to look at">
+          {LENSES.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              className="ho-lens"
+              aria-pressed={lens === l.id}
+              data-empty={countOf(l.id) === 0 ? "true" : undefined}
+              onClick={() => setMemory((m) => ({ ...m, lens: l.id }))}
+            >
+              {l.label}
+              <span className="ho-lens-n">{countOf(l.id)}</span>
             </button>
           ))}
         </div>
         <div className="ho-seg" role="group" aria-label="Whose clients">
           <button type="button" className="ho-seg-btn" aria-pressed={memory.scope === "studio"} onClick={() => setMemory((m) => ({ ...m, scope: "studio" }))}>
-            {`Studio ${entries.length}`}
+            Studio
           </button>
           <button type="button" className="ho-seg-btn" aria-pressed={memory.scope === "mine"} onClick={() => setMemory((m) => ({ ...m, scope: "mine" }))}>
             {`${myLabel("clients")} ${mineCount}`}
@@ -275,27 +317,24 @@ export function RunSheet({ day, entries, onOpenProfile, onStartSession, request 
         </div>
       </div>
 
-      {familyFilters.length > 0 && (
-        <div className="ho-filters" role="group" aria-label="Show">
-          {FILTERS.filter((f) => f.id === "all" || counts[f.id] > 0).map((f) => (
-            <button key={f.id} type="button" className="ho-filter" aria-pressed={filter === f.id} onClick={() => setMemory((m) => ({ ...m, filter: f.id }))}>
-              {`${f.label} ${counts[f.id]}`}
-            </button>
-          ))}
-        </div>
-      )}
+      {lensLine && <p className="ho-line">{lensLine}</p>}
 
-      {(sortSentence || memory.scope === "mine" || unreadCritical > 0 || unreadFord > 0) && (
-        <p className="ho-line">
-          {sortSentence ? `${sortMeta.label}: ${reversed ? "reversed" : sortMeta.words}. ` : ""}
-          {memory.scope === "mine" ? `${mineDefinition("clients")} ` : ""}
-          {unreadCritical > 0 ? `Couldn\u2019t check ${unreadCritical === 1 ? "one client\u2019s" : `${unreadCritical} clients\u2019`} critical notes \u2014 their briefings show them. ` : ""}
-          {unreadFord > 0 ? `Couldn\u2019t check FORD for ${unreadFord === 1 ? "one client" : `${unreadFord} clients`}, so something to ask about may be missing.` : ""}
-        </p>
-      )}
-
-      <div className="ho-scroll" role="region" aria-label="Clients booked on this day">
-        {sections.length === 0 ? (
+      <div className="ho-scroll" role="region" aria-label={lens === "coming" ? "Clients booked on this day" : lensMeta.label}>
+        {lens !== "coming" ? (
+          rows.length === 0 ? (
+            <p className="ho-empty">{lensMeta.empty}</p>
+          ) : (
+            rows.map((r) =>
+              renderRow(
+                r.entry,
+                r.stat,
+                [lens === "critical" ? null : formatStudioDate(r.entry.start, { weekday: "short", month: "short", day: "numeric" }), formatStudioTime(new Date(r.entry.start)), r.entry.withText]
+                  .filter(Boolean)
+                  .join(" · "),
+              ),
+            )
+          )
+        ) : sections.length === 0 ? (
           <p className="ho-empty">{memory.scope === "mine" ? "Nobody of yours is booked on this day." : "Nobody is booked on this day."}</p>
         ) : (
           sections.map((section) => {
@@ -324,28 +363,9 @@ export function RunSheet({ day, entries, onOpenProfile, onStartSession, request 
                   <div className="ho-sechead">{`${section.label} (${section.entries.length})`}</div>
                 )}
                 {!folded &&
-                  section.entries.map((entry) => {
-                    const fact = entry.facts[memory.sort];
-                    const open = openKey === entry.key;
-                    const sentence = memory.sort === "time" ? [entry.timeText, entry.stateText].filter(Boolean).join(" \u00b7 ") : fact.sentence;
-                    return (
-                      <div key={entry.key} className="ho-row" data-client-id={entry.clientId ?? ""}>
-                        <button type="button" className="ho-rowbtn" aria-expanded={open} onClick={() => setOpenKey(open ? null : entry.key)}>
-                          <span className="ho-name">{entry.name}</span>
-                          <span className="ho-when">{[formatStudioTime(new Date(entry.start)), entry.withText].filter(Boolean).join(" \u00b7 ")}</span>
-                          <span className="ho-sentence" data-unknown={fact.unknown ? "true" : "false"}>
-                            {sentence}
-                          </span>
-                          <span className="ho-chips">
-                            {rowChips(entry, memory.sort).map((m) => (
-                              <Chip key={m.kind} m={m} />
-                            ))}
-                          </span>
-                        </button>
-                        {open && <OpenedRow entry={entry} onOpenProfile={onOpenProfile} onStartSession={onStartSession} />}
-                      </div>
-                    );
-                  })}
+                  section.entries.map((entry) =>
+                    renderRow(entry, [entry.timeText, entry.stateText].filter(Boolean).join(" · "), [formatStudioTime(new Date(entry.start)), entry.withText].filter(Boolean).join(" · ")),
+                  )}
               </section>
             );
           })

@@ -706,7 +706,7 @@ describe("the Hub: a read that failed", () => {
 
 async function openOpportunities(el: HTMLElement) {
   await act(async () => {
-    [...el.querySelectorAll<HTMLButtonElement>(".hl-btn")].find((b) => b.textContent === "Opportunities")!.click();
+    [...el.querySelectorAll<HTMLButtonElement>(".hl-btn")].find((b) => b.textContent === "List view")!.click();
   });
   for (let i = 0; i < 50 && !el.querySelector(".ho"); i++) {
     await act(async () => {
@@ -833,7 +833,7 @@ describe("the Hub: All stars", () => {
     expect(hub.marksCalls[hub.marksCalls.length - 1]).toBeNull();
   });
 
-  it("says it in the peek and gives her a section on the Sessions sort; nothing on the card", async () => {
+  it("says it in the peek; nothing on the card", async () => {
     hub.stars = { hamfast: { clientId: "hamfast", weeksIn: 25, perWeek: 2 } };
     const { el } = mount();
     expect(cardOf(el, "Hamfast Gamgee")?.textContent).not.toContain("All star");
@@ -842,13 +842,6 @@ describe("the Hub: All stars", () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     });
-    await openOpportunities(el);
-    await act(async () => {
-      [...el.querySelectorAll<HTMLButtonElement>(".ho-seg-btn")].find((b) => b.textContent === "Sessions")!.click();
-    });
-    const heads = [...el.querySelectorAll(".ho-sechead")].map((h) => h.textContent);
-    expect(heads).toContain("All stars (1)");
-    expect(el.querySelector('.ho-row[data-client-id="hamfast"] .ho-sentence')?.textContent).toBe("#331 \u00b7 in 25 of the last 26 weeks");
   });
 
   it("says nothing when the marks name nobody here", () => {

@@ -69,6 +69,68 @@
   padding: 10px 12px 6px;
 }
 
+/* The lenses (Oct 21 2026): one row of what to look at, each with the number
+   of clients it holds. A lens is a chip, so it keeps its pill, raised on its
+   3:1 edge like a button; the picked one is tinted blue on the blue edge and
+   still lifted. A lens with nobody in it is quieter but still tappable, so
+   its empty line can say why. The row scrolls sideways before it wraps. */
+.ho-lenses {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ho-lens {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--eq-border-strong);
+  border-radius: 999px;
+  background: var(--eq-raised);
+  box-shadow: var(--eq-elev-1), inset 0 1px 0 var(--eq-highlight);
+  color: var(--eq-ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ho-lens-n {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--eq-ink);
+}
+
+.ho-lens[data-empty="true"] .ho-lens-n {
+  color: var(--eq-ink-muted);
+}
+
+.ho-lens[aria-pressed="true"] {
+  border-color: var(--eq-live);
+  background: var(--eq-live-fill);
+  color: var(--eq-live-text);
+  font-weight: 700;
+}
+
+.ho-lens[aria-pressed="true"] .ho-lens-n {
+  color: var(--eq-live-text);
+}
+
+.ho-lens:active {
+  transform: translateY(1px);
+}
+
+.ho-lens:focus-visible {
+  outline: 3px solid var(--eq-focus-ring);
+  outline-offset: 2px;
+}
+
 /* A segmented switch is a control group (type and depth, phase 8): it keeps
    its 3:1 edge, like a field, and sinks into a well inside it; the picked
    segment is raised out of the well, its words blue and bolder, ringed in

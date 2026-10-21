@@ -67,8 +67,8 @@ type MountProps = DayMomentsProps & { onOpenProfile: (id: string) => void; onSta
 
 /** The Hub works the day out once (use-day-moments) and hands the Run-sheet its entries. */
 function WithTheDay(props: MountProps) {
-  const { entries } = useDayMoments(props);
-  return <RunSheet day={props.day} entries={entries} onOpenProfile={props.onOpenProfile} onStartSession={props.onStartSession} />;
+  const { entries, entriesOn, input } = useDayMoments(props);
+  return <RunSheet day={props.day} entries={entries} weekDays={[props.day]} entriesOn={entriesOn} rowsById={input.rowsById} today={TODAY} onOpenProfile={props.onOpenProfile} onStartSession={props.onStartSession} />;
 }
 
 async function mount(over: Partial<MountProps> = {}) {
@@ -125,29 +125,18 @@ describe("RunSheet", () => {
     expect(chips(host, "ruth")).toEqual(["100th today", "Turns 80 Thu"]);
   });
 
-  it("a sort tap rewrites the one column; the sorted fact is not repeated as a chip", async () => {
+  it("one row of lenses: each says how many clients it holds, and Birthday soon picks by the birthday", async () => {
     const { host } = await mount();
-    await click(button(host, ".ho-seg-btn", "Birthday"));
-    expect(sentence(host, "ruth")).toBe("turns 80 \u00b7 Thu Oct 1");
-    expect(chips(host, "ruth")).toEqual(["100th today"]);
-    await click(button(host, ".ho-seg-btn", "Sessions"));
-    expect(sentence(host, "ruth")).toBe("100th session today");
-    expect(chips(host, "ruth")).toEqual(["Turns 80 Thu"]);
-    // Harold and Arwen can't be numbered: folded under Can't tell yet.
+    const lensLabels = [...host.querySelectorAll(".ho-lens")].map((l) => l.textContent);
+    expect(lensLabels[0]).toBe("Coming in3");
+    expect(lensLabels).toHaveLength(5);
+    expect(host.querySelectorAll(".ho-filter, .ho-seg-btn[aria-label]").length).toBe(0);
+    await click(button(host, ".ho-lens", "Birthday soon"));
     expect(rows(host)).toEqual(["ruth"]);
-    const cant = button(host, ".ho-sechead", "Can\u2019t tell yet");
-    expect(cant?.getAttribute("aria-expanded")).toBe("false");
-    await click(cant);
+    expect(sentence(host, "ruth")).toContain("Turns 80");
+    // Back to the day's list.
+    await click(button(host, ".ho-lens", "Coming in"));
     expect(rows(host)).toEqual(["ruth", "harold", "arwen"]);
-    expect(sentence(host, "arwen")).toBe("Total not recorded yet");
-  });
-
-  it("filter chips carry counts, and a zero is not drawn", async () => {
-    const { host } = await mount();
-    const labels = [...host.querySelectorAll(".ho-filter")].map((f) => f.textContent);
-    expect(labels).toEqual(["All 3", "Celebrate 1"]);
-    await click(button(host, ".ho-filter", "Celebrate"));
-    expect(rows(host)).toEqual(["ruth"]);
   });
 
   it("My clients is booked with me today", async () => {
@@ -172,8 +161,6 @@ describe("RunSheet", () => {
     const { host } = await mount({ day: "2026-10-01" });
     expect(rows(host)).toEqual(["ruth"]);
     expect(chips(host, "ruth")).toEqual(["Turns 80 today"]);
-    await click(button(host, ".ho-seg-btn", "Sessions"));
-    expect(sentence(host, "ruth")).toBe("#101");
   });
 });
 
@@ -194,38 +181,33 @@ describe("RunSheet: the after-hours and calmer-controls cleanup (Oct 20 2026)", 
     expect(rows(host)).toEqual(["ruth", "harold", "arwen"]);
   });
 
-  it("the filter row is not drawn when only All exists", async () => {
+  it("a lens nobody is in still opens, and says why it is empty", async () => {
     const { host } = await mount({ clients: [makeClient({ id: "ruth", firstName: "Ruth", lastName: "Alvarez" })], schedules: [schedules[0]] });
-    expect(host.querySelectorAll(".ho-filter").length).toBe(0);
     expect(host.querySelectorAll(".ho-row").length).toBe(1);
+    await click(button(host, ".ho-lens", "Critical note"));
+    expect(host.querySelector(".ho-empty")?.textContent).toContain("Critical note");
   });
 
-  it("the sort sentence is said only when the sort is not Time, or after a reversal", async () => {
+  it("says which clients a lens looks at, and nothing under Coming in", async () => {
     const { host } = await mount();
     expect(host.querySelector(".ho-line")).toBeNull();
-    await click(button(host, ".ho-seg-btn", "Sessions"));
-    expect(host.querySelector(".ho-line")?.textContent).toContain("Sessions:");
-    await click(button(host, ".ho-seg-btn", "Time"));
+    await click(button(host, ".ho-lens", "Birthday soon"));
+    expect(host.querySelector(".ho-line")?.textContent).toContain("next 7 days");
+    await click(button(host, ".ho-lens", "Coming in"));
     expect(host.querySelector(".ho-line")).toBeNull();
-    await click(button(host, ".ho-seg-btn", "Time"));
-    expect(host.querySelector(".ho-line")?.textContent).toContain("Time: reversed.");
   });
 });
 
 describe("RunSheet: All stars (wave 2 hub)", () => {
-  it("is a section after Regulars on the Sessions sort, and her opened row says it with its proof", async () => {
+  it("her opened row says it with its proof", async () => {
     const { host } = await mount({ allStarOf: (id) => (id === "arwen" ? { clientId: id, weeksIn: 25, perWeek: 2 } : null) });
-    await click(button(host, ".ho-seg-btn", "Sessions"));
-    // Arwen's total can't be quoted, but the nightly marks' claim is about the 26 weeks Journey holds.
-    expect([...host.querySelectorAll(".ho-sechead")].map((h) => h.textContent)).toEqual(["Milestone (1)", "All stars (1)", "Can’t tell yet (1)"]);
-    expect(sentence(host, "arwen")).toBe("In 25 of the last 26 weeks");
     await click(host.querySelector('.ho-row[data-client-id="arwen"] .ho-rowbtn'));
     expect(host.querySelector(".ho-open")?.textContent).toContain("All star: in 25 of the last 26 weeks, about twice a week.");
   });
 
-  it("with no marks, there is no All stars section and nothing is said", async () => {
+  it("with no marks, nothing is said", async () => {
     const { host } = await mount();
-    await click(button(host, ".ho-seg-btn", "Sessions"));
+    await click(host.querySelector('.ho-row[data-client-id="arwen"] .ho-rowbtn'));
     expect(host.textContent).not.toContain("All star");
   });
 });
@@ -244,12 +226,9 @@ describe("RunSheet: Get to know (wave 2 hub)", () => {
     isArchived: false,
   } as unknown as FordEntry;
 
-  it("is a chip, a filter with its count, and a sentence under Something to say", async () => {
+  it("is a chip, and a sentence under Something to say", async () => {
     const { host } = await mount({ fordFor: (id) => (id === "harold" ? [PARTY] : []) });
     expect(chips(host, "harold")).toEqual(["Ask: the party · Wed"]);
-    expect([...host.querySelectorAll(".ho-filter")].map((f) => f.textContent)).toEqual(["All 3", "Celebrate 1", "Get to know 1"]);
-    await click(button(host, ".ho-filter", "Get to know"));
-    expect(rows(host)).toEqual(["harold"]);
     await click(host.querySelector('.ho-row[data-client-id="harold"] .ho-rowbtn'));
     expect(host.querySelector(".ho-open")?.textContent).toContain("Ask about: Hosting the Hobbiton party on Wednesday — Wednesday, Sep 30 (Recreation, noted Sep 1).");
   });

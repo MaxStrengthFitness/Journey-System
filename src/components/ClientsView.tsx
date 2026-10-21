@@ -81,6 +81,7 @@ import { useCompletedSessions } from "../lib/completed-sessions";
  * (lazy-screens.test.ts): a deploy that removed its file replaces only the
  * layer, and recovers on the Hub, where a reload is allowed.
  */
+import { LENS_DEFAULTS } from "../features/hub-opportunities/lenses";
 const RunSheet = React.lazy(() => import("../features/hub-opportunities/RunSheet"));
 
 /*
@@ -597,7 +598,16 @@ export function ClientsView({
    * list can never disagree. No read per card.
    */
   // "New client!" up to the studio's "New, up to session" (AJ, Oct 20 2026).
-  const hubNewMax = useStudioSettings(activeStudioId || null).value("newMax") ?? undefined;
+  const hubSettings = useStudioSettings(activeStudioId || null);
+  const hubNewMax = hubSettings.value("newMax") ?? undefined;
+  // The list view's lenses: the studio's numbers over head office's (Oct 21 2026).
+  const endingSessions = hubSettings.value("endingSessions") ?? LENS_DEFAULTS.sessionsLeft;
+  const packageEndsDays = hubSettings.value("packageEndsDays") ?? LENS_DEFAULTS.packageDays;
+  const birthdayDays = hubSettings.value("birthdayDays") ?? LENS_DEFAULTS.birthdayDays;
+  const lensThresholds = React.useMemo(
+    () => ({ sessionsLeft: endingSessions, packageDays: packageEndsDays, birthdayDays }),
+    [endingSessions, packageEndsDays, birthdayDays],
+  );
   const dayMoments = useDayMoments({
     day: selectedKey,
     now: currentTime,
@@ -1294,6 +1304,11 @@ export function ClientsView({
                   <RunSheet
                     day={selectedKey}
                     entries={dayMoments.entries}
+                    weekDays={stripKeys}
+                    entriesOn={dayMoments.entriesOn}
+                    rowsById={dayMoments.input.rowsById}
+                    today={todayKey}
+                    thresholds={lensThresholds}
                     request={listRequest}
                     trainer={trainerFilter}
                     onClearTrainer={() => setTrainerList(null)}

@@ -558,7 +558,7 @@ export function ClientDirectory({
               enterKeyHint="search"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              placeholder={"Name or nickname \u2014 or describe: \u201cnurses over 60\u201d, \u201crenewing this month\u201d"}
+              placeholder={"Name or nickname \u2014 or describe: \u201cover 60\u201d, \u201crenewing this month\u201d"}
               aria-label="Search clients by name, or describe them"
               {...NAME_SEARCH_PROPS}
             />

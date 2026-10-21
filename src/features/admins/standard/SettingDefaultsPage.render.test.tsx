@@ -153,6 +153,8 @@ describe("Studio defaults", () => {
       // start building an A and B routine immediately for a client. So we
       // need to be able to have that customization."
       "New clients",
+      // The Hub's list view, Oct 21 2026: when a client is "ending soon".
+      "The Hub's list view",
     ]);
     expect(rowOf(el, "inbodyEverySessions")!.textContent).toContain("The app's default is 50.");
     expect(box(el, "quietFloorSessions")!.value).toBe("3");

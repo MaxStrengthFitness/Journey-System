@@ -112,6 +112,12 @@ export interface DayMoments {
    * function until the data or the engine's clock moves.
    */
   celebratesOn: (day: string) => boolean;
+  /**
+   * Any day's entries, worked out when first asked and remembered until the
+   * engine's input moves (the list view's lenses read the whole strip,
+   * Oct 21 2026). The selected day's are `entries`, not worked out twice.
+   */
+  entriesOn: (day: string) => ReadonlyArray<RunSheetEntry>;
 }
 
 export function useDayMoments({
@@ -236,6 +242,15 @@ export function useDayMoments({
     const entries = momentsToday(input);
     const byClientId = new Map<string, RunSheetEntry>();
     for (const e of entries) if (e.clientId) byClientId.set(e.clientId, e);
-    return { entries, byClientId, input, logged, celebratesOn: celebrates };
+    const asked = new Map<string, ReadonlyArray<RunSheetEntry>>([[day, entries]]);
+    const entriesOn = (key: string): ReadonlyArray<RunSheetEntry> => {
+      let list = asked.get(key);
+      if (!list) {
+        list = momentsToday({ ...base, day: key });
+        asked.set(key, list);
+      }
+      return list;
+    };
+    return { entries, byClientId, input, logged, celebratesOn: celebrates, entriesOn };
   }, [base, day, logged, celebrates]);
 }

@@ -8,6 +8,7 @@
  * screen trainers expect sixty times a day. Small and eager on purpose: the
  * Opportunities layer itself is fetched only when it is first opened.
  */
+import { CalendarDays, List } from "lucide-react";
 import "./layer-switch.css";
 
 export type HubLayer = "schedule" | "opportunities";
@@ -16,10 +17,13 @@ export function LayerSwitch({ value, onChange }: { value: HubLayer; onChange: (n
   return (
     <div className="hl-switch" role="group" aria-label="Hub layer">
       <button type="button" className="hl-btn" aria-pressed={value === "schedule"} onClick={() => onChange("schedule")}>
+        <CalendarDays size={16} aria-hidden />
         Schedule
       </button>
       <button type="button" className="hl-btn" aria-pressed={value === "opportunities"} onClick={() => onChange("opportunities")}>
-        Opportunities
+        <List size={16} aria-hidden />
+        {/* The layer's id is still "opportunities"; its name on screen is the List view (AJ, Oct 21 2026). */}
+        List view
       </button>
     </div>
   );
