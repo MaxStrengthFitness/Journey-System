@@ -420,11 +420,38 @@ export interface ResetOptions {
    * own to read it from, and every date rule needs it.
    */
   eraStartMs?: number | null;
+  /**
+   * One studio at a time (`--studio`, Oct 21 2026, the Strongsville import):
+   * the reset takes only this studio's clients (by `homeStudioId`), the
+   * sessions hosted there, what hangs off either, and the records filed under
+   * `studios/{id}/`. Absent, the whole database outside Demo Mode, as before.
+   * The plan's `scope` says what fell on the studio line.
+   */
+  studioId?: string | null;
 }
 
 /* ------------------------------------------------------------------ *
  * Output
  * ------------------------------------------------------------------ */
+
+/** A client on the studio line: filed at one studio, with sessions hosted at another. */
+export interface CrossFiledClient {
+  clientId: string;
+  /** The other studio: where the client is filed (hosted here), or where the sessions were hosted (filed here). */
+  otherStudioId: string | null;
+  sessions: number;
+}
+
+/** What a `--studio` run covers, so the dry run can say it and the backup can record it. */
+export interface StudioScope {
+  studioId: string;
+  /** Clients filed at the studio (Demo Mode aside). */
+  clients: number;
+  /** Sessions hosted at this studio for clients filed at another: taken, and listed. */
+  hostedHereFiledElsewhere: CrossFiledClient[];
+  /** Sessions of this studio's clients hosted at another studio: taken, and listed. */
+  filedHereHostedElsewhere: CrossFiledClient[];
+}
 
 /** A field that is not there (before the reset, or after it). */
 export const ABSENT: unique symbol = Symbol("absent");
@@ -503,6 +530,8 @@ export interface ResetPlan {
   /** The moment the earliest session began (ms): a first-session date before it was typed, not Journey's. */
   sessionEraStartMs: number | null;
   leftAlone: LeftAlone[];
+  /** The studio this run is scoped to, or null for the whole database. */
+  scope: StudioScope | null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -797,23 +826,68 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   const b = new Builder(options);
   const demo = new DemoScope(input);
 
+  /* ---- the studio line, when there is one ---- */
+  const studio = str(options.studioId ?? null);
+  /** The studio's clients by their home; null when the run is the whole database. */
+  const scopeClients = studio
+    ? new Set(input.clients.filter((c) => str(c.data.homeStudioId) === studio).map((c) => idOf(c.path)))
+    : null;
+  const inScopeClient = (clientId: string | null): boolean => scopeClients === null || (clientId !== null && scopeClients.has(clientId));
+  /** A session is the studio's when its client is, or when the studio hosted it (`studioId`). */
+  const inScopeSession = (s: DocIn): boolean => studio === null || inScopeClient(str(s.data.clientId)) || str(s.data.studioId) === studio;
+  /** A record filed under studios/{id}/… belongs to that studio. */
+  const underStudio = (path: string): boolean => studio === null || path.startsWith(`studios/${studio}/`);
+  const sessionById = new Map(input.sessions.map((s) => [idOf(s.path), s] as const));
+  /** A record carrying a session id: the session is the studio's, or it is gone and the record's client is. */
+  const inScopeBySession = (sessionId: string | null, clientId: string | null): boolean => {
+    if (studio === null) return true;
+    if (sessionId) {
+      const session = sessionById.get(sessionId);
+      if (session) return inScopeSession(session);
+    }
+    return inScopeClient(clientId);
+  };
+  const homeOf = new Map(input.clients.map((c) => [idOf(c.path), str(c.data.homeStudioId)] as const));
+  const hostedHereFiledElsewhere = new Map<string, CrossFiledClient>();
+  const filedHereHostedElsewhere = new Map<string, CrossFiledClient>();
+  const noteCross = (list: Map<string, CrossFiledClient>, clientId: string, otherStudioId: string | null) => {
+    const row = list.get(clientId) ?? { clientId, otherStudioId, sessions: 0 };
+    row.sessions += 1;
+    list.set(clientId, row);
+  };
+
   /* ---- sessions: which go, which stay ---- */
   const openSessions: OpenSession[] = [];
   const existingSessions = new Set<string>();
   const goingSessions = new Set<string>();
   /** Clients a session going was for: their counters, snapshot and totals are the sessions'. */
   const sessionClients = new Set<string>();
+  /** Trainers who coached a session going: their old counts map is cleared first (a studio run clears only theirs). */
+  const coachingTrainers = new Set<string>();
   let countedSessionsDeleted = 0;
   let eraStart: number | null = null;
   for (const s of input.sessions) {
     const id = idOf(s.path);
     existingSessions.add(id);
+    // Another studio's session: not this run's, and anything tied to it stays.
+    if (!inScopeSession(s)) continue;
+    if (studio !== null) {
+      const clientId = str(s.data.clientId);
+      const host = str(s.data.studioId);
+      if (clientId && !scopeClients!.has(clientId) && !demo.clients.has(clientId)) {
+        noteCross(hostedHereFiledElsewhere, clientId, homeOf.get(clientId) ?? str(s.data.clientHomeStudioId));
+      } else if (clientId && scopeClients!.has(clientId) && host !== null && host !== studio) {
+        noteCross(filedHereHostedElsewhere, clientId, host);
+      }
+    }
     const isDemo = demo.sessions.has(id);
     const imported = isImportedSession(s.data);
     if (b.deleteDoc(imported ? "imported-sessions" : "sessions", s, isDemo)) {
       goingSessions.add(id);
       const clientId = str(s.data.clientId);
       if (clientId) sessionClients.add(clientId);
+      const trainerId = str(s.data.trainerId);
+      if (trainerId) coachingTrainers.add(trainerId);
       if (s.data.rollupCounted === true) countedSessionsDeleted += 1;
     }
     // When Journey's own sessions began: the moment the first one was WRITTEN
@@ -846,21 +920,27 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
    * counted as Demo Mode's), "kept" (an imported session that stays: so does
    * the record), "none" (no session id).
    */
-  const tieOf = (sessionId: string | null): "none" | "going" | "demo" | "kept" => {
+  const tieOf = (sessionId: string | null, clientId: string | null = null): "none" | "going" | "demo" | "kept" => {
     if (!sessionId) return "none";
-    if (goingSessions.has(sessionId) || !existingSessions.has(sessionId)) return "going";
+    if (goingSessions.has(sessionId)) return "going";
+    // A session already gone: the record goes with it, unless a studio run can't place it (another studio's client).
+    if (!existingSessions.has(sessionId)) return inScopeClient(clientId) ? "going" : "kept";
+    // A session that stays: an imported one, or (a studio run) another studio's.
     return demo.sessions.has(sessionId) ? "demo" : "kept";
   };
 
   const importedSessionIds = new Set(input.sessions.filter((s) => isImportedSession(s.data)).map((s) => idOf(s.path)));
   for (const child of input.sessionChildren) {
     const sessionId = child.path.split("/")[1];
+    // A studio run takes only the children of its own sessions; a child whose session is gone can't be placed.
+    if (studio !== null && !(sessionById.has(sessionId) && inScopeSession(sessionById.get(sessionId)!))) continue;
     b.deleteDoc(importedSessionIds.has(sessionId) ? "imported-sessions" : "session-children", child, demo.sessions.has(sessionId));
   }
 
   /* ---- sets ---- */
   for (const log of input.exerciseLogs) {
     const sessionId = str(log.data.sessionId);
+    if (!inScopeBySession(sessionId, str(log.data.clientId))) continue;
     const isDemo = demo.isDemo(log);
     const taken =
       sessionId && importedSessionIds.has(sessionId) ? b.deleteDoc("imported-logs", log, isDemo) : b.deleteDoc("exercise-logs", log, isDemo);
@@ -872,7 +952,7 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   for (const note of input.sessionNotes) {
     // One with no session shows on the client's notes as a manual profile
     // note (useClientJournal's adapter, origin "manual"), and stays.
-    const tie = tieOf(str(note.data.sessionId));
+    const tie = tieOf(str(note.data.sessionId), str(note.data.clientId));
     if (tie === "kept" || tie === "none") continue;
     b.deleteDoc("session-notes", note, tie === "demo" || demo.isDemo(note));
   }
@@ -882,12 +962,15 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   const journalSeedDemo = new Set<string>(); // ids that would go but are Demo Mode's
   for (const entry of input.journalEntries) {
     const sessionId = str(entry.data.sessionId);
-    const tie = tieOf(sessionId);
+    const clientId = str(entry.data.clientId);
+    const tie = tieOf(sessionId, clientId);
     const origin = str(entry.data.origin);
     const sessionTime = origin !== null && (SESSION_ORIGINS as readonly string[]).includes(origin);
     // Tied to an imported session that stays: stays with it.
     if (tie === "kept") continue;
     if (tie === "none" && !sessionTime) continue;
+    // A session-time note with no session id: a studio run takes it only for its own client.
+    if (tie === "none" && !inScopeClient(clientId)) continue;
     const isDemo = tie === "demo" || demo.isDemo(entry);
     if (b.deleteDoc("journal-session", entry, isDemo)) journalGone.add(idOf(entry.path));
     else if (isDemo) journalSeedDemo.add(idOf(entry.path));
@@ -922,8 +1005,11 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   /* ---- old incident reports ---- */
   const incidentsGone = new Set<string>();
   for (const incident of input.clinicalIncidents) {
-    const tie = tieOf(str(incident.data.sessionId));
+    const incidentClient = str(incident.data.clientId);
+    const tie = tieOf(str(incident.data.sessionId), incidentClient);
     if (tie === "kept") continue;
+    // An incident with no session: a studio run takes only its own clients' (the operations group's part).
+    if (tie === "none" && !inScopeClient(incidentClient)) continue;
     const isDemo = tie === "demo" || demo.isDemo(incident);
     const part = tie === "none" ? "clinical-incidents-other" : "clinical-incidents-session";
     if (b.deleteDoc(part, incident, isDemo)) incidentsGone.add(idOf(incident.path));
@@ -938,7 +1024,8 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
     list.push(entry);
     fordByClient.set(clientId, list);
     if (idOf(entry.path) === FORD_ONE_LINE_ID) continue;
-    const tie = tieOf(str(entry.data.sessionId));
+    if (!inScopeClient(clientId)) continue;
+    const tie = tieOf(str(entry.data.sessionId), clientId);
     if (tie === "kept") continue;
     const origin = str(entry.data.origin);
     const isDemo = tie === "demo" || demo.isDemo(entry, { clientId });
@@ -954,6 +1041,7 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   /* ---- machine totals ---- */
   for (const t of input.machineTotals) {
     const clientId = parentIdOf(t.path);
+    if (!inScopeClient(clientId)) continue;
     const taken = b.deleteDoc("machine-totals", t, demo.isDemo(t, { clientId }));
     // Only a map with something in it was a session's: opening Programming
     // writes an empty one for anyone.
@@ -973,6 +1061,9 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   const firstSessionClearIds: string[] = [];
   for (const c of input.clients) {
     const id = idOf(c.path);
+    // A studio run changes nothing on another studio's client, cross-filed sessions included:
+    // the client belongs to the studio that filed her.
+    if (!inScopeClient(id)) continue;
     const isDemo = demo.clients.has(id);
     if (c.data.provisional === true && !c.data.supersededById && !isDemo) provisional += 1;
 
@@ -1082,11 +1173,11 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
     // is left (an earlier run whose write didn't land).
     const stored = c.data.fordSummary;
     if (fordTouched.has(id) || (stored && typeof stored === "object")) {
-      const studio = fordStudioIdOf(c.data as unknown as Client);
+      const fordStudio = fordStudioIdOf(c.data as unknown as Client);
       const left = (fordByClient.get(id) ?? [])
         .filter((e) => !b.willDelete(e.path))
         .map((e) => ({ id: idOf(e.path), ...e.data }) as unknown as FordEntry)
-        .filter((e) => (e as unknown as { studioId?: unknown }).studioId === studio)
+        .filter((e) => (e as unknown as { studioId?: unknown }).studioId === fordStudio)
         .slice(0, FORD_SUMMARY_READ_LIMIT);
       const summary = summariseFord(left);
       if (fordTouched.has(id) || !sameFordCounts(stored, summary)) {
@@ -1098,6 +1189,7 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   /* ---- Seen marks and "no need to remind me" on what goes ---- */
   const demoClients = demo.clients;
   for (const ack of input.acknowledgements) {
+    if (!underStudio(ack.path)) continue;
     const key = idOf(ack.path);
     const isDemo = demo.isDemo(ack);
     const colon = key.indexOf(":");
@@ -1123,25 +1215,37 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
 
   /* ---- open sessions' ghost set-ups ---- */
   for (const s of input.clientMachineSettings) {
-    if (!str(s.data.clientId) && idOf(s.path).startsWith("_")) b.deleteDoc("open-session-ghosts", s, demo.isDemo(s));
+    if (str(s.data.clientId) || !idOf(s.path).startsWith("_")) continue;
+    // A ghost names no client; a studio run takes only those its own open sessions saved.
+    if (studio !== null && str(s.data.studioId) !== studio) continue;
+    b.deleteDoc("open-session-ghosts", s, demo.isDemo(s));
   }
 
   /* ---- trainers ---- */
   for (const t of input.trainers) {
+    // A studio run clears the old map only on the trainers whose sessions go (the delete trigger could copy theirs back).
+    if (studio !== null && !coachingTrainers.has(idOf(t.path))) continue;
     b.clearFields("trainer-legacy-rollups", t, ["rollups"], demo.trainers.has(idOf(t.path)));
   }
-  for (const s of input.trainerStats) {
-    if (idOf(s.path) !== "rollups") continue;
-    if (!rollupHoldsSessions(s.data)) continue;
-    b.deleteDoc("trainer-stats", s, demo.trainers.has(parentIdOf(s.path) ?? ""));
+  // A trainer's counts span studios: a studio run leaves the document to the
+  // delete trigger (one off per counted session) and to Rebuild trainer
+  // rollups afterwards. Old leaderboards are nobody's studio; left alone too.
+  if (studio === null) {
+    for (const s of input.trainerStats) {
+      if (idOf(s.path) !== "rollups") continue;
+      if (!rollupHoldsSessions(s.data)) continue;
+      b.deleteDoc("trainer-stats", s, demo.trainers.has(parentIdOf(s.path) ?? ""));
+    }
+    for (const l of input.leaderboards) b.deleteDoc("leaderboards", l, false);
   }
-  for (const l of input.leaderboards) b.deleteDoc("leaderboards", l, false);
 
   /* ---- the nightly job's output ---- */
   for (const s of input.clientStates) {
+    if (!underStudio(s.path)) continue;
     b.deleteDoc("job-client-states", s, demo.isDemo(s, { clientId: idOf(s.path) }));
   }
   for (const w of input.watch) {
+    if (!underStudio(w.path)) continue;
     const id = idOf(w.path);
     const tally = /^(hours|sessions)-\d{4}-\d{2}$/.test(id);
     if (id !== "journey" && id !== "hubMarks" && !tally) continue;
@@ -1155,11 +1259,24 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   for (const s of input.clientMachineSettings) {
     const clientId = str(s.data.clientId);
     if (!clientId && idOf(s.path).startsWith("_")) continue; // the ghosts, above
-    const isDemo = demo.isDemo(s, { clientId: clientId ?? idOf(s.path).split("_")[0] });
+    const owner = clientId ?? idOf(s.path).split("_")[0];
+    if (!inScopeClient(owner)) continue;
+    const isDemo = demo.isDemo(s, { clientId: owner });
     b.clearFields("settings-weights", s, SETTINGS_WEIGHT_FIELDS, isDemo);
     b.deleteDoc("settings-docs", s, isDemo);
   }
   const undated = { history: 0, floor: 0 };
+  let unplacedHistory = 0;
+  /** A setting change record is the studio's by its client, else by its studio; one naming neither can't be placed. */
+  const historyInScope = (h: DocIn): boolean => {
+    if (studio === null) return true;
+    const clientId = str(h.data.clientId);
+    if (clientId) return scopeClients!.has(clientId);
+    const at = str(h.data.studioId);
+    if (at) return at === studio;
+    unplacedHistory += 1;
+    return false;
+  };
   const beforeCutoff = (doc: DocIn, fields: string[]): boolean | null => {
     for (const f of fields) {
       const at = millisOf(doc.data[f]);
@@ -1168,12 +1285,14 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
     return null;
   };
   for (const h of input.settingHistory) {
+    if (!historyInScope(h)) continue;
     const before = beforeCutoff(h, ["timestamp", "createdAt", "at"]);
     if (before === null) undated.history += 1;
     if (before !== true) continue;
     b.deleteDoc("setting-history", h, demo.isDemo(h));
   }
   for (const h of input.machineSettingChanges) {
+    if (!historyInScope(h)) continue;
     const before = beforeCutoff(h, ["timestamp", "createdAt", "changedAt", "at"]);
     if (before === null) undated.history += 1;
     if (before !== true) continue;
@@ -1182,25 +1301,42 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
 
   /* ---- routines ---- */
   const demoRoutines = new Set<string>();
+  const scopeRoutines = new Set<string>();
   for (const r of input.routines) {
+    if (!inScopeClient(str(r.data.clientId))) continue;
+    scopeRoutines.add(idOf(r.path));
     const isDemo = demo.isDemo(r);
     if (isDemo) demoRoutines.add(idOf(r.path));
     b.deleteDoc("routines", r, isDemo);
   }
   for (const child of input.routineChildren) {
+    if (studio !== null && !scopeRoutines.has(child.path.split("/")[1])) continue;
     b.deleteDoc("routine-children", child, demoRoutines.has(child.path.split("/")[1]) || demo.isDemo(child));
   }
-  for (const a of input.routineAdjustments) b.deleteDoc("routine-adjustments", a, demo.isDemo(a));
+  for (const a of input.routineAdjustments) {
+    if (!inScopeClient(str(a.data.clientId))) continue;
+    b.deleteDoc("routine-adjustments", a, demo.isDemo(a));
+  }
 
   /* ---- pulse ---- */
-  for (const r of input.progressReports) b.deleteDoc("progress-reports", r, demo.isDemo(r));
-  for (const f of input.clientFocuses) b.deleteDoc("client-focuses", f, demo.isDemo(f));
-  for (const f of [...input.trainerFocuses, ...input.focusRecords]) b.deleteDoc("legacy-focuses", f, demo.isDemo(f));
+  for (const r of input.progressReports) {
+    if (!inScopeClient(str(r.data.clientId))) continue;
+    b.deleteDoc("progress-reports", r, demo.isDemo(r));
+  }
+  for (const f of input.clientFocuses) {
+    if (!inScopeClient(str(f.data.clientId))) continue;
+    b.deleteDoc("client-focuses", f, demo.isDemo(f));
+  }
+  for (const f of [...input.trainerFocuses, ...input.focusRecords]) {
+    if (!inScopeClient(str(f.data.clientId))) continue;
+    b.deleteDoc("legacy-focuses", f, demo.isDemo(f));
+  }
 
   /* ---- floor notes ---- */
   const floorRootsGone = new Set<string>();
   const floorRootsDemo = new Set<string>();
   for (const n of input.floorNotes) {
+    if (!underStudio(n.path)) continue;
     if (str(n.data.threadId)) continue;
     const before = beforeCutoff(n, ["createdAt", "updatedAt"]);
     if (before === null) undated.floor += 1;
@@ -1218,13 +1354,14 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   }
 
   /* ---- operations ---- */
-  for (const w of input.watchlist) b.deleteDoc("watchlist", w, demo.isDemo(w, { clientId: idOf(w.path) }));
-  for (const c of input.cases) b.deleteDoc("cases", c, demo.isDemo(c, { clientId: idOf(c.path) }));
-  for (const d of input.dayLogs) b.deleteDoc("day-logs", d, demo.isDemo(d));
-  for (const t of input.renewalTouches) b.deleteDoc("renewal-touches", t, demo.isDemo(t));
+  for (const w of input.watchlist) if (underStudio(w.path)) b.deleteDoc("watchlist", w, demo.isDemo(w, { clientId: idOf(w.path) }));
+  for (const c of input.cases) if (underStudio(c.path)) b.deleteDoc("cases", c, demo.isDemo(c, { clientId: idOf(c.path) }));
+  for (const d of input.dayLogs) if (underStudio(d.path)) b.deleteDoc("day-logs", d, demo.isDemo(d));
+  for (const t of input.renewalTouches) if (underStudio(t.path)) b.deleteDoc("renewal-touches", t, demo.isDemo(t));
 
   /* ---- what is left alone, for AJ ---- */
   const leftAlone: LeftAlone[] = [];
+  if (unplacedHistory > 0) leftAlone.push({ label: "Setting change records naming no client and no studio (a studio run can't place them)", count: unplacedHistory });
   if (firstSessionDatesKept > 0) {
     leftAlone.push({ label: "First session dates from before the test sessions, or typed on the old client form", count: firstSessionDatesKept });
   }
@@ -1233,7 +1370,7 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   if (undated.history > 0) leftAlone.push({ label: "Setting change records with no time on them", count: undated.history });
   if (undated.floor > 0) leftAlone.push({ label: "Floor notes with no time on them", count: undated.floor });
   if (provisional > 0) leftAlone.push({ label: "Temporary clients added in the app (provisional, never merged): delete by hand if they were tests", count: provisional });
-  const cyclesWithOutcome = input.renewalCycles.filter((r) => r.data.outcome != null && !demo.isDemo(r)).length;
+  const cyclesWithOutcome = input.renewalCycles.filter((r) => underStudio(r.path) && r.data.outcome != null && !demo.isDemo(r)).length;
   if (cyclesWithOutcome > 0) leftAlone.push({ label: "Renewal outcomes already recorded (from Mindbody packages; never rebuilt)", count: cyclesWithOutcome });
   const linkedReports = input.progressReports.filter((r) => linksDeletedNote(r.data, journalGone)).length;
   if (linkedReports > 0 && !options.groups.has("pulse")) {
@@ -1248,10 +1385,20 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
     openSessions,
     countedSessionsDeleted,
     plannedDocuments: b.deletes.length + new Set(fieldSteps.map((s) => s.path)).size,
-    cutoverStudios: cutoverStudiosOf(input.studios),
+    // A studio run is refused only by ITS studio's cutover date; the others' floors are not touched.
+    cutoverStudios: cutoverStudiosOf(input.studios).filter((s) => studio === null || s.id === studio),
     firstSessionClearIds,
     sessionEraStartMs: eraStart,
     leftAlone,
+    scope:
+      studio === null
+        ? null
+        : {
+            studioId: studio,
+            clients: [...scopeClients!].filter((id) => !demo.clients.has(id)).length,
+            hostedHereFiledElsewhere: [...hostedHereFiledElsewhere.values()].sort((a, b) => a.clientId.localeCompare(b.clientId)),
+            filedHereHostedElsewhere: [...filedHereHostedElsewhere.values()].sort((a, b) => a.clientId.localeCompare(b.clientId)),
+          },
   };
 }
 

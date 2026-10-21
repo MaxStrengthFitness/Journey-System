@@ -691,3 +691,213 @@ describe("helpers", () => {
     expect(partLine(countOf(two, "sessions"), "plan")).toBe("Sessions (open, unfinished and finished): none here; 2 more in Demo Mode, left out");
   });
 });
+
+/**
+ * One studio at a time (`--studio`, Oct 21 2026). Two studios, S and W: a
+ * client filed at each, a session hosted at each, one W client with a session
+ * hosted at S (booked here, filed elsewhere), one S client with a session
+ * hosted at W, each studio's own job documents, two trainers (one coached at
+ * both), and W past its cutover while S is not.
+ */
+describe("one studio at a time", () => {
+  const ALL: GroupId[] = ["imported-history", "settings", "setting-history", "routines", "pulse", "floor-notes", "prior-history", "operations", "ford-briefing"];
+  const two = () =>
+    input({
+      studios: [doc("studios/S", { name: "S" }), doc("studios/W", { name: "W", journeyCutoverDate: "2026-10-01" })],
+      clients: [
+        doc("clients/sc", { homeStudioId: "S", completedSessions: 2, sessionCount: 2, lifetimeReps: 20, renewal: { lastVisitDate: "x" }, isRoutineBActive: true, subjectiveSnapshot: {} }),
+        doc("clients/sc2", { homeStudioId: "S", completedSessions: 1, sessionCount: 1 }),
+        doc("clients/wc", { homeStudioId: "W", completedSessions: 3, sessionCount: 3, lifetimeReps: 30, isRoutineBActive: true, subjectiveSnapshot: {} }),
+        doc("clients/wc2", { homeStudioId: "W", completedSessions: 1, sessionCount: 1 }),
+      ],
+      sessions: [
+        // S's own, hosted at S, two trainers
+        doc("sessions/s1", { clientId: "sc", studioId: "S", clientHomeStudioId: "S", trainerId: "ts", createdAt: NOW - 5 * DAY, rollupCounted: true, status: "Completed" }),
+        doc("sessions/s2", { clientId: "sc", studioId: "S", clientHomeStudioId: "S", trainerId: "tboth", createdAt: NOW - 4 * DAY, rollupCounted: true, status: "Completed" }),
+        // an imported one for S's client
+        doc("sessions/fm_sc_2024-01-01", { clientId: "sc2", studioId: "S", legacy_filemaker_id: "x", status: "Completed", rollupCounted: true }),
+        // a W client hosted at S (booked here, filed elsewhere)
+        doc("sessions/x1", { clientId: "wc2", studioId: "S", clientHomeStudioId: "W", trainerId: "ts", createdAt: NOW - 3 * DAY, status: "Completed" }),
+        // an S client hosted at W (filed here, hosted elsewhere)
+        doc("sessions/x2", { clientId: "sc2", studioId: "W", clientHomeStudioId: "S", trainerId: "tw", createdAt: NOW - 2 * DAY, status: "Completed" }),
+        // W's own, hosted at W
+        doc("sessions/w1", { clientId: "wc", studioId: "W", clientHomeStudioId: "W", trainerId: "tboth", createdAt: NOW - 6 * DAY, rollupCounted: true, status: "Running" }),
+      ],
+      sessionChildren: [doc("sessions/s1/logs/a"), doc("sessions/w1/logs/b"), doc("sessions/gone/logs/c")],
+      exerciseLogs: [
+        doc("exerciseLogs/l1", { sessionId: "s1", clientId: "sc" }),
+        doc("exerciseLogs/lx1", { sessionId: "x1", clientId: "wc2" }),
+        doc("exerciseLogs/lw", { sessionId: "w1", clientId: "wc" }),
+        doc("exerciseLogs/lgone-s", { sessionId: "gone1", clientId: "sc" }),
+        doc("exerciseLogs/lgone-w", { sessionId: "gone2", clientId: "wc" }),
+      ],
+      journalEntries: [
+        doc("journalEntries/js", { sessionId: "s1", clientId: "sc", origin: "in_session" }),
+        doc("journalEntries/js-u", { threadId: "js", clientId: "sc" }),
+        doc("journalEntries/jw", { sessionId: "w1", clientId: "wc", origin: "in_session" }),
+        doc("journalEntries/jnone-s", { clientId: "sc", origin: "post_session" }),
+        doc("journalEntries/jnone-w", { clientId: "wc", origin: "post_session" }),
+        doc("journalEntries/jgone-w", { sessionId: "gone3", clientId: "wc", origin: "in_session" }),
+      ],
+      ford: [
+        doc("clients/sc/ford/a", { origin: "in_session", sessionId: "s1", studioId: "S" }),
+        doc("clients/wc/ford/b", { origin: "in_session", sessionId: "w1", studioId: "W" }),
+      ],
+      machineTotals: [doc("clients/sc/machineTotals/current", { machineStats: { m: 1 } }), doc("clients/wc/machineTotals/current", { machineStats: { m: 1 } })],
+      trainers: [doc("trainers/ts", { rollups: { a: 1 } }), doc("trainers/tboth", { rollups: { a: 1 } }), doc("trainers/tw", { rollups: { a: 1 } })],
+      trainerStats: [doc("trainers/ts/stats/rollups", { sessionsCoached: 1 }), doc("trainers/tboth/stats/rollups", { sessionsCoached: 2 })],
+      leaderboards: [doc("leaderboards/old")],
+      clientStates: [doc("studios/S/clientStates/sc"), doc("studios/W/clientStates/wc")],
+      watch: [doc("studios/S/watch/journey"), doc("studios/W/watch/journey"), doc("studios/W/watch/sessions-2026-10", { count: 3 })],
+      acknowledgements: [doc("studios/S/acknowledgements/note:js"), doc("studios/W/acknowledgements/note:jw"), doc("studios/W/acknowledgements/other")],
+      noteDismissals: [doc("noteDismissals/u", { threads: { js: 1, jw: 1 } })],
+      clientMachineSettings: [
+        doc("clientMachineSettings/sc_m", { clientId: "sc", currentWeight: 50, settings: { seat: 3 } }),
+        doc("clientMachineSettings/wc_m", { clientId: "wc", currentWeight: 60, settings: { seat: 4 } }),
+        doc("clientMachineSettings/_ghostS", { studioId: "S" }),
+        doc("clientMachineSettings/_ghostW", { studioId: "W" }),
+      ],
+      settingHistory: [
+        doc("machines/m/settingHistory/hs", { clientId: "sc", timestamp: NOW - DAY }),
+        doc("machines/m/settingHistory/hw", { studioId: "W", timestamp: NOW - DAY }),
+        doc("machines/m/settingHistory/hnone", { timestamp: NOW - DAY }),
+      ],
+      routines: [doc("routines/rs", { clientId: "sc" }), doc("routines/rw", { clientId: "wc" })],
+      routineChildren: [doc("routines/rs/planChanges/p"), doc("routines/rw/planChanges/q")],
+      routineAdjustments: [doc("routineAdjustments/as", { clientId: "sc" }), doc("routineAdjustments/aw", { clientId: "wc" })],
+      progressReports: [doc("progressReports/ps", { clientId: "sc" }), doc("progressReports/pw", { clientId: "wc" })],
+      clientFocuses: [doc("clientFocuses/fs", { clientId: "sc" }), doc("clientFocuses/fw", { clientId: "wc" })],
+      floorNotes: [doc("studios/S/floorNotes/n", { createdAt: NOW - DAY }), doc("studios/W/floorNotes/n", { createdAt: NOW - DAY })],
+      watchlist: [doc("studios/S/watchlist/sc"), doc("studios/W/watchlist/wc")],
+      cases: [doc("studios/S/cases/a"), doc("studios/W/cases/b")],
+      dayLogs: [doc("studios/S/dayLogs/d"), doc("studios/W/dayLogs/d")],
+      renewalTouches: [doc("studios/S/renewals/c/touches/t"), doc("studios/W/renewals/c/touches/t")],
+      renewalCycles: [doc("studios/W/renewals/c", { outcome: "renewed" })],
+    });
+  const forS = (groups: GroupId[] = []) => planReset(two(), opts(groups, { studioId: "S" }));
+  /** Every path in the fixture that is W's alone: none may be deleted or changed by S's run. */
+  const W_PATHS = [
+    "sessions/w1", "sessions/w1/logs/b", "exerciseLogs/lw", "exerciseLogs/lgone-w", "journalEntries/jw", "journalEntries/jnone-w", "journalEntries/jgone-w",
+    "clients/wc", "clients/wc2", "clients/wc/ford/b", "clients/wc/machineTotals/current", "studios/W/clientStates/wc", "studios/W/watch/journey",
+    "studios/W/watch/sessions-2026-10", "studios/W/acknowledgements/note:jw", "studios/W/acknowledgements/other", "clientMachineSettings/wc_m",
+    "clientMachineSettings/_ghostW", "machines/m/settingHistory/hw", "routines/rw", "routines/rw/planChanges/q", "routineAdjustments/aw",
+    "progressReports/pw", "clientFocuses/fw", "studios/W/floorNotes/n", "studios/W/watchlist/wc", "studios/W/cases/b", "studios/W/dayLogs/d",
+    "studios/W/renewals/c/touches/t", "trainers/tboth/stats/rollups", "trainers/ts/stats/rollups", "leaderboards/old",
+  ];
+  const touchesW = (plan: ResetPlan) => [...plan.deletes.map((d) => d.path), ...plan.fieldSteps.map((s) => s.path)].filter((p) => W_PATHS.includes(p));
+
+  it("takes the studio's sessions, hosted here or its clients', and leaves the other studio's whole", () => {
+    const plan = forS(ALL);
+    expect(deleted(plan)).toContain("sessions/s1");
+    expect(deleted(plan)).toContain("sessions/s2");
+    expect(deleted(plan)).toContain("sessions/x1");
+    expect(deleted(plan)).toContain("sessions/x2");
+    expect(deleted(plan)).toContain("sessions/fm_sc_2024-01-01");
+    expect(deleted(plan)).not.toContain("sessions/w1");
+    expect(deleted(plan)).toContain("exerciseLogs/l1");
+    expect(deleted(plan)).toContain("exerciseLogs/lx1");
+    expect(deleted(plan)).toContain("exerciseLogs/lgone-s");
+    expect(deleted(plan)).toContain("sessions/s1/logs/a");
+    expect(deleted(plan)).toContain("journalEntries/js");
+    expect(deleted(plan)).toContain("journalEntries/js-u");
+    expect(deleted(plan)).toContain("journalEntries/jnone-s");
+    expect(deleted(plan)).toContain("clients/sc/ford/a");
+    expect(deleted(plan)).toContain("clients/sc/machineTotals/current");
+    expect(deleted(plan)).toContain("studios/S/clientStates/sc");
+    expect(deleted(plan)).toContain("studios/S/watch/journey");
+    expect(deleted(plan)).toContain("studios/S/acknowledgements/note:js");
+    expect(deleted(plan)).toContain("clientMachineSettings/_ghostS");
+    expect(deleted(plan)).toContain("machines/m/settingHistory/hs");
+    expect(deleted(plan)).toContain("routines/rs");
+    expect(deleted(plan)).toContain("routines/rs/planChanges/p");
+    expect(deleted(plan)).toContain("routineAdjustments/as");
+    expect(deleted(plan)).toContain("progressReports/ps");
+    expect(deleted(plan)).toContain("clientFocuses/fs");
+    expect(deleted(plan)).toContain("studios/S/floorNotes/n");
+    expect(deleted(plan)).toContain("studios/S/watchlist/sc");
+    expect(deleted(plan)).toContain("studios/S/cases/a");
+    expect(deleted(plan)).toContain("studios/S/dayLogs/d");
+    expect(deleted(plan)).toContain("studios/S/renewals/c/touches/t");
+    // Nothing of W's, by path or by client, and no W client field.
+    expect(touchesW(plan)).toEqual([]);
+    expect(deleted(plan)).not.toContain("sessions/gone/logs/c");
+    expect(deleted(plan)).not.toContain("machines/m/settingHistory/hnone");
+    expect(plan.leftAlone.find((l) => l.label.startsWith("Setting change records naming no client"))?.count).toBe(1);
+  });
+
+  it("lists the clients on the studio line, both ways, and takes their sessions", () => {
+    const plan = forS();
+    expect(plan.scope).toEqual({
+      studioId: "S",
+      clients: 2,
+      hostedHereFiledElsewhere: [{ clientId: "wc2", otherStudioId: "W", sessions: 1 }],
+      filedHereHostedElsewhere: [{ clientId: "sc2", otherStudioId: "W", sessions: 1 }],
+    });
+    // The W client whose session was hosted here keeps her record as it is: her studio's reset resets her.
+    expect(plan.fieldSteps.map((s) => s.path)).not.toContain("clients/wc2");
+    // The S client hosted elsewhere is this run's: counters back.
+    expect(changedFields(plan, "clients/sc2")).toContain("completedSessions");
+  });
+
+  it("puts only its own clients' counters back, and leaves the other studio's client untouched", () => {
+    const plan = forS(["routines", "pulse"]);
+    expect(changedFields(plan, "clients/sc")).toEqual(expect.arrayContaining(["completedSessions", "sessionCount", "lifetimeReps", "renewal.lastVisitDate", "isRoutineBActive", "subjectiveSnapshot"]));
+    expect(plan.fieldSteps.filter((s) => s.path === "clients/wc")).toEqual([]);
+    expect(plan.firstSessionClearIds).toEqual([]);
+  });
+
+  it("clears the old counts map only on trainers whose sessions go, and leaves the counts documents and leaderboards", () => {
+    const plan = forS(["imported-history"]);
+    expect(changedFields(plan, "trainers/ts")).toEqual(["rollups"]);
+    expect(changedFields(plan, "trainers/tboth")).toEqual(["rollups"]);
+    expect(changedFields(plan, "trainers/tw")).toEqual(["rollups"]); // he coached x2, an S client's session hosted at W
+    expect(deleted(plan)).not.toContain("trainers/ts/stats/rollups");
+    expect(deleted(plan)).not.toContain("trainers/tboth/stats/rollups");
+    expect(deleted(plan)).not.toContain("leaderboards/old");
+    expect(countOf(plan, "trainer-stats").docs).toBe(0);
+    expect(plan.countedSessionsDeleted).toBe(3);
+  });
+
+  it("is refused only by its own studio's cutover date, and reads the era and the open sessions from its own sessions", () => {
+    const plan = forS();
+    expect(plan.cutoverStudios).toEqual([]);
+    const whole = planReset(two(), opts());
+    expect(whole.cutoverStudios).toEqual([{ id: "W", day: "2026-10-01" }]);
+    const forW = planReset(two(), opts([], { studioId: "W" }));
+    expect(forW.cutoverStudios).toEqual([{ id: "W", day: "2026-10-01" }]);
+    // W's running session is not S's open session; it is W's.
+    expect(plan.openSessions).toEqual([]);
+    expect(forW.openSessions.map((s) => s.path)).toEqual(["sessions/w1"]);
+    expect(plan.sessionEraStartMs).toBe(NOW - 5 * DAY);
+    expect(forW.sessionEraStartMs).toBe(NOW - 6 * DAY);
+  });
+
+  it("settings: the weights on its own clients' set-ups only, dials kept", () => {
+    const plan = forS(["settings"]);
+    expect(changedFields(plan, "clientMachineSettings/sc_m")).toEqual(["currentWeight"]);
+    expect(plan.fieldSteps.filter((s) => s.path === "clientMachineSettings/wc_m")).toEqual([]);
+    expect(deleted(plan)).not.toContain("clientMachineSettings/sc_m");
+  });
+
+  it("a second run on the studio finds nothing left, and the other studio's counts are what they were", () => {
+    const before = two();
+    const first = planReset(before, opts(ALL, { studioId: "S" }));
+    const after = apply(before, first);
+    const second = planReset(after, opts(ALL, { studioId: "S" }));
+    expect(second.deletes).toEqual([]);
+    expect(second.fieldSteps).toEqual([]);
+    const wBefore = planReset(before, opts(ALL, { studioId: "W" }));
+    const wAfter = planReset(after, opts(ALL, { studioId: "W" }));
+    expect(deleted(wAfter)).toEqual(deleted(wBefore).filter((p) => !deleted(first).includes(p)));
+    expect(deleted(wAfter)).toContain("sessions/w1");
+  });
+
+  it("without a studio the plan is the whole database, scope null", () => {
+    const whole = planReset(two(), opts(ALL));
+    expect(whole.scope).toBeNull();
+    expect(deleted(whole)).toContain("sessions/w1");
+    expect(deleted(whole)).toContain("trainers/tboth/stats/rollups");
+    expect(deleted(whole)).toContain("leaderboards/old");
+    expect(deleted(whole)).toContain("sessions/gone/logs/c");
+  });
+});
