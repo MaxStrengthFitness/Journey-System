@@ -16,6 +16,7 @@
  * PURE — the structure. timeline-words.ts says it.
  */
 import type { FoldInfo, SetupBoundary, TimelineColumn, TimelineModel } from "./timeline-model";
+import { inTrendEra } from "../../lib/session-era";
 
 export type RunDivider = { kind: "fold"; fold: FoldInfo } | { kind: "setup"; boundary: SetupBoundary };
 
@@ -37,6 +38,8 @@ export function stepRuns(model: Pick<TimelineModel, "columns" | "foldAt" | "boun
   let pending: RunDivider[] = [];
   model.columns.forEach((col, i) => {
     if (col.isToday) return;
+    // The Staircase is a trend: it reads the eras decision (b) names (lib/session-era.ts); the list below it shows every column.
+    if (!inTrendEra(col)) return;
     const fold = model.foldAt[i];
     const boundary = model.boundaryAt[i];
     if (fold) pending.push({ kind: "fold", fold });

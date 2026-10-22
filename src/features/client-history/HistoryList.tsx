@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ANOTHER_STUDIOS_TRAINER } from "../trainer-scope/names";
+import { ERA_TAG_WORDS } from "../../lib/session-era";
 import { AlertTriangle, ArrowUpRight, Network, StickyNote } from "lucide-react";
 import type { ExerciseLog } from "../../types";
 import { formatStudioTime } from "../../lib/studio-time";
@@ -168,7 +169,7 @@ export const SessionRow = memo(function SessionRow({
             </span>
           </span>
           <span className={`hist-time ${time ? "" : "hist-time--muted"}`}>
-            {time ?? (legacy ? "Imported" : backfilled ? "Logged later" : "—")}
+            {time ?? (legacy ? ERA_TAG_WORDS : backfilled ? "Logged later" : "—")}
           </span>
           {isOpen && <span className="hist-tag hist-tag--open">Not closed out</span>}
           {s.isCrossTrain && (

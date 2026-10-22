@@ -26,6 +26,7 @@
 
 import { isDemoRecord } from "../demo-mode/is-demo";
 import { isPerformedLog, type OutcomeLog } from "../../lib/set-outcome.ts";
+import { inTrendEra } from "../../lib/session-era.ts";
 
 /** Named minimum sample: a median is only written when this many DISTINCT clients contributed. */
 export const MIN_CLIENTS = 5;
@@ -272,6 +273,8 @@ export function createTrendsAccumulator(clients: ReadonlyMap<string, TrendClient
 
   const add = (log: TrendLogInput): void => {
     if (!isPerformedLog(log)) return;
+    // Machine trends and the Kaizen reports read the eras decision (b) names (lib/session-era.ts), by the set's session id.
+    if (!inTrendEra(log)) return;
     /*
      * DEMO MODE (Sep 20 2026). The weekly job reads `exerciseLogs` across the
      * WHOLE COMPANY -- it has no studio filter, by design, because "how this

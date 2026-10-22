@@ -24,6 +24,7 @@ import { calculateExerciseVolume, parseSessionDate } from "../../lib/utils";
 import { isPerformedLog, isRepsNotRecorded } from "../../lib/set-outcome";
 import { studioDateKey, toDate } from "../../lib/studio-time";
 import { canClaimGap, WHOLE_STORY, type OwnedWindow } from "../../lib/history-claims";
+import { isFileMakerSession, type EraLike } from "../../lib/session-era";
 // Types only: bookings.ts imports this module's values, so nothing runs in a circle.
 import type { BookingLayer, BookingMark } from "./bookings";
 
@@ -91,14 +92,9 @@ export function todayKey(now: Date = new Date(), tz?: string): DayKey {
  * Which day a session happened on
  * ------------------------------------------------------------------ */
 
-/** Imported FileMaker / chart sessions: their date is a fact, any time on them is not. */
+/** Imported FileMaker / chart sessions: their date is a fact, any time on them is not. The one rule is lib/session-era.ts. */
 export function isLegacySession(s: HistorySession): boolean {
-  return (
-    Boolean(s.legacy_filemaker_id) ||
-    s.trainerId === "legacy-trainer" ||
-    s.trainerInitials === "Legacy" ||
-    s.trainerInitials === "Chart"
-  );
+  return isFileMakerSession(s as EraLike);
 }
 
 /**

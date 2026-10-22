@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, ChevronsRight, NotebookPen, Plus, X } from "lucide-react";
 import type { JourneyRow, JourneySession, JourneySet, LiveColumn, LiveSet, StatMetric } from "./types";
+import { eraTag } from "../../lib/session-era";
 import {
   computeRowStats,
   formatLongDate,
@@ -1128,7 +1129,7 @@ export function JourneyGrid({
                     aria-pressed={isSpot}
                     aria-label={`${num ? `Session ${s.sessionNumber}` : "Session"}, ${formatLongDate(s.date)}, trainer ${s.trainerName ?? s.trainerInitials}${
                       isLatest ? ", most recent session" : ""
-                    }. Tap to spotlight this column.`}
+                    }${eraTag(s) ? `, ${eraTag(s)}` : ""}. Tap to spotlight this column.`}
                     onClick={() => toggleSpot(s.id)}
                   >
                     {isLatest && <span className="jg-head__tag">Latest</span>}
@@ -1136,6 +1137,7 @@ export function JourneyGrid({
                     <span className="jg-head__n">
                       {num ? `${num} · ${s.trainerInitials}` : s.trainerInitials}
                     </span>
+                    {eraTag(s) ? <span className="jg-head__era">{eraTag(s)}</span> : null}
                   </button>
                 </div>
               );

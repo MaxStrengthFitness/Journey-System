@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ANOTHER_STUDIOS_TRAINER } from "../trainer-scope/names";
+import { ERA_TAG_WORDS } from "../../lib/session-era";
 import {
   Timestamp,
   collection,
@@ -548,7 +549,7 @@ export function SessionDetailDialog({
                     )}
                   </DialogTitle>
                   <DialogDescription className="hsd-head__sub">
-                    {title.time ?? (isLegacySession(selected) ? "Imported" : isBackfilledSession(selected) ? "Logged later" : "No start time")}
+                    {title.time ?? (isLegacySession(selected) ? ERA_TAG_WORDS : isBackfilledSession(selected) ? "Logged later" : "No start time")}
                     {selected.isCrossTrain ? " · Cross-train" : ""}
                     {startedByLine ? ` · ${startedByLine}` : ""}
                     {selected.status !== "Completed" ? " · Not closed out" : ""}

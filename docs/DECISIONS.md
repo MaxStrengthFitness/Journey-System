@@ -310,6 +310,10 @@ The same afternoon (AJ: "we need to have ultimate control over user profiles fro
 
 **Where it lives:** `src/features/home-studio/` (its README); `functions/src/homeStudio.ts`, `home-studio-logic.ts`; `scripts/find-wrong-home-studio.ts` (read-only sweep) and `scripts/set-home-studio.ts` (one client, dry run by default).
 
+### Session eras
+
+**A FileMaker session counts everywhere for now, with a visible "from FileMaker" tag; trend and average measures move to the Journey era only later, by one word (AJ, Oct 21 2026: decision (a) now, (b) "in a few months").** The era is never stored: `src/lib/session-era.ts` derives it at read time from the import's marks (`legacy_filemaker_id`, the `fm_` session id, a set's session id) and is the one place it is read; `client-history/model.ts`'s `isLegacySession` is that rule. Every list of a client's sessions shows the same words beside a FileMaker one (History, the session pop-up, the header's Last session list, the Journey grid's column headers, the machine card's session list). `TREND_ERA` is `"all"`; each trend or average measure (the Journey grid's aggregates and arrows, the Staircase, the progress report's windows, the Deep Dive, machine trends and the Kaizen reports, the performance watch) asks `inTrendEra` once, so (b) is changing that one word. The counts stay whole under both: the total and the numbering, the machine totals, the trainer rollups, InBody due, attendance and All stars (`docs/business/session-eras.md` names each, and the Wrap-up's "last time" as the open question for (b)). `lib/session-era.test.ts` holds a client with both eras: 48 imported, 2 of her own, a stated 183, reads 185 and starts #186. The round: `docs/rounds/2026-10-21-strongsville-import.md`.
+
 ## How we work
 
 ### Work goes to master

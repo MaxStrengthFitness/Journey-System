@@ -24,6 +24,7 @@
  * the studio the set was logged at.
  */
 import { isPerformedLog, type OutcomeLog } from "../../../lib/set-outcome.ts";
+import { inTrendEra } from "../../../lib/session-era.ts";
 import { millis } from "../insights/metrics.ts";
 
 /** Earlier performed sets at the same weight needed before a drop is claimed. */
@@ -40,6 +41,8 @@ export const PERFORMANCE_WATCH_VERSION = 1;
 export interface PerformanceLogInput extends OutcomeLog {
   clientId?: string | null;
   machineId?: string | null;
+  /** The set's session: how lib/session-era.ts tells a FileMaker set from Journey's own (the job hands the whole set in). */
+  sessionId?: string | null;
   studioId?: string | null;
   homeStudioId?: string | null;
   weight?: string | number | null;
@@ -147,6 +150,8 @@ export function createPerformanceAccumulator(opts: { now: Date; clientHomes?: Ma
   const add = (log: PerformanceLogInput): void => {
     if (!log.clientId || !log.machineId) return;
     if (!isPerformedLog(log)) return;
+    // The performance watch is a trend: it reads the eras decision (b) names (lib/session-era.ts), by the set's session id.
+    if (!inTrendEra(log)) return;
     if (log.isStaticHold || log.isTSC) return;
     const reps = num(log.reps ?? log.outcomeReps);
     const weight = num(log.weight);

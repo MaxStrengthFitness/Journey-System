@@ -83,3 +83,17 @@ describe("recentSessionRows", () => {
     expect(row.unknownTime).toBe(true);
   });
 });
+
+describe("a FileMaker session on the list (Oct 22 2026)", () => {
+  it("says where it came from instead of a start time, in the quiet ink", () => {
+    const rows = recentSessionRows(
+      [
+        { id: "fm_100003602_2026-10-15", date: "2026-10-15", status: "Completed", legacy_filemaker_id: "fm:x:2026-10-15" },
+        { id: "own", date: "2026-10-19", status: "Completed", startTime: new Date("2026-10-19T16:06:00-04:00") },
+      ],
+      NOW,
+    );
+    expect(rows.map((r) => r.time)).toEqual([expect.stringMatching(/^Started /), "from FileMaker"]);
+    expect(rows[1].unknownTime).toBe(true);
+  });
+});

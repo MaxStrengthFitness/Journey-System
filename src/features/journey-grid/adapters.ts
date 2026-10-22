@@ -8,6 +8,7 @@
  *   import type { WorkoutSession, ExerciseLog, Machine, ClientMachineSetting } from "../../types";
  */
 import { outcomeOf, skipReasonOf, type SetOutcome, isBloodFlow, isRepsNotRecorded } from "../../lib/set-outcome";
+import { eraOf } from "../../lib/session-era";
 import type { JourneyMachine, JourneyRow, JourneySession, JourneySet, MovementGroup, RepQuality } from "./types";
 
 export interface SessionLike {
@@ -15,6 +16,9 @@ export interface SessionLike {
   sessionNumber: number;
   date: string;
   trainerInitials: string;
+  /** The import's marks, read by lib/session-era.ts. */
+  legacy_filemaker_id?: unknown;
+  trainerId?: unknown;
 }
 
 export interface LogLike {
@@ -80,6 +84,7 @@ export function toJourneySessions(sessions: SessionLike[]): JourneySession[] {
       sessionNumber: s.sessionNumber ?? 0,
       date: toIsoDate(s.date),
       trainerInitials: (s.trainerInitials || "—").toUpperCase(),
+      era: eraOf(s),
     }))
     .sort((a, b) => a.sessionNumber - b.sessionNumber || a.date.localeCompare(b.date));
 }

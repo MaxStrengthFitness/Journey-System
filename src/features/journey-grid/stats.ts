@@ -1,4 +1,5 @@
 import type { JourneyRow, JourneySession, JourneySet, RepQuality, StatMetric } from "./types";
+import { inTrendEra } from "../../lib/session-era";
 
 /* ------------------------------------------------------------------ *
  * Pure helpers. No React in here so they are trivially unit-testable
@@ -35,6 +36,8 @@ export function nextMetric(m: StatMetric): StatMetric {
 export function orderedSets(row: JourneyRow, sessions: JourneySession[]): JourneySet[] {
   const out: JourneySet[] = [];
   for (const s of sessions) {
+    // The aggregates and the trend arrows read the eras decision (b) names (lib/session-era.ts); the cells draw every session.
+    if (!inTrendEra(s)) continue;
     const set = row.sets[s.id];
     if (set && set.outcome === "performed") out.push(set);
   }

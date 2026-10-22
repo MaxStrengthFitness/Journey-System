@@ -17,6 +17,7 @@
  * guessed time is worse than none.
  */
 import { formatStudioDate, formatStudioTime } from "../../lib/studio-time";
+import { ERA_TAG_WORDS, isFileMakerSession } from "../../lib/session-era";
 import { toEpochMs } from "../../lib/session-timing";
 import { parseSessionDate } from "../../lib/utils";
 import { stillBooked } from "./next-session-tile";
@@ -50,6 +51,10 @@ interface SessionLike {
   startTime?: unknown;
   clientStartTime?: string;
   bookingStartTime?: unknown;
+  /** The import's marks, read by lib/session-era.ts for the "from FileMaker" tag. */
+  legacy_filemaker_id?: unknown;
+  trainerId?: unknown;
+  trainerInitials?: unknown;
 }
 
 function dayWords(ms: number, now: Date): string {
@@ -107,10 +112,11 @@ export function recentSessionRows(
       const bookedMs = toEpochMs(s.bookingStartTime);
       const booked = bookedMs !== null ? formatStudioTime(new Date(bookedMs), undefined, "") : "";
       const started = startMs !== null ? formatStudioTime(new Date(startMs), undefined, "") : "";
+      // A FileMaker session's day is a fact and its time is not: the row says where it came from instead.
       const row: SessionListRow = {
         key: s.id ?? `last-${i}-${dayMs}`,
         day: dayWords(dayMs, now),
-        time: started ? `Started ${started}${booked ? ` · booked ${booked}` : ""}` : NO_START_WORDS,
+        time: isFileMakerSession(s) ? ERA_TAG_WORDS : started ? `Started ${started}${booked ? ` · booked ${booked}` : ""}` : NO_START_WORDS,
       };
       if (!started) row.unknownTime = true;
       return row;

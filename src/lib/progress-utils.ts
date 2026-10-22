@@ -9,6 +9,7 @@ import { db } from "../firebase";
 import { ExerciseLog, WorkoutSession } from "../types";
 import { parseSessionDate } from "./utils";
 import { isPerformedLog, repsOf } from "./set-outcome";
+import { inTrendEra } from "./session-era";
 
 /* ------------------------------------------------------------------ *
  * The progress report's window data
@@ -86,8 +87,10 @@ export function sessionsInWindow(
   sessions: WorkoutSession[],
   startDateStr?: string,
 ): WorkoutSession[] {
-  if (!startDateStr) return sessions;
-  return sessions.filter((s) => typeof s.date === "string" && s.date >= startDateStr);
+  // The report's windows, totals and averages read the eras decision (b) names (lib/session-era.ts).
+  const inEra = sessions.filter((s) => inTrendEra(s));
+  if (!startDateStr) return inEra;
+  return inEra.filter((s) => typeof s.date === "string" && s.date >= startDateStr);
 }
 
 /**

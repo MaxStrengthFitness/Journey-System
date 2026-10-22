@@ -21,6 +21,7 @@
  * PURE.
  */
 import { historyStartWords, machineUsageSentence, sessionNumberTag } from "../../lib/history-claims";
+import { eraTag } from "../../lib/session-era";
 import type { HistoryCoverage } from "../../lib/prior-history";
 import { MINDBODY_GUESS_WORDS, beforeJourneyGuess, type SessionTotal } from "../../lib/session-total";
 import { BLOOD_FLOW_GLOSS, BLOOD_FLOW_LABEL, SKIP_REASON_LABEL, SKIP_REASON_SHORT } from "../../lib/set-outcome";
@@ -575,7 +576,7 @@ export function sessionRow(model: TimelineModel, index: number, ctx: WordsContex
           : "Not reached";
   return {
     sessionId: col.sessionId,
-    day: col.isToday ? "Today" : dayWords(col.day, ctx.today),
+    day: `${col.isToday ? "Today" : dayWords(col.day, ctx.today)}${eraTag(col) ? ` · ${eraTag(col)}` : ""}`,
     number: sessionNumberTag(col.sessionNumber, !!ctx.quotableNumbers),
     lb: col.weight === null ? "—" : String(col.weight),
     effort,

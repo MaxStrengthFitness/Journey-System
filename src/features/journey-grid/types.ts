@@ -8,6 +8,7 @@
  */
 
 import type { SetOutcome, SkipReason } from "../../lib/set-outcome";
+import type { SessionEra } from "../../lib/session-era";
 
 /** Matches the existing `RepQuality` in src/types.ts: 1 = poor, 2 = completed, 3 = max strength. */
 export type RepQuality = 1 | 2 | 3;
@@ -22,6 +23,8 @@ export interface JourneySession {
   date: string;
   trainerInitials: string;
   trainerName?: string;
+  /** Which era the session is from (lib/session-era.ts): the header says "from FileMaker", the stats ask `inTrendEra`. */
+  era?: SessionEra;
 }
 
 /**

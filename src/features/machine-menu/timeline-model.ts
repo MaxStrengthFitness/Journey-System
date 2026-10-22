@@ -45,6 +45,7 @@
 import type { MachineNote } from "../../types";
 import type { JournalEntry } from "../../types/journal";
 import { NO_WINDOW, canClaimGap, type OwnedWindow } from "../../lib/history-claims";
+import { eraOf, type SessionEra } from "../../lib/session-era";
 import { isBegunLog, isBloodFlow, type SetOutcome, type SkipReason } from "../../lib/set-outcome";
 import { studioDayKeyOf, toDate } from "../../lib/studio-time";
 import { assembleThreads, zoneOf } from "../client-notes/threads";
@@ -71,6 +72,9 @@ export interface TimelineSessionInput {
   hostedAtStudioId?: string | null;
   status?: string | null;
   sessionMachineIds?: readonly string[] | null;
+  /** The import's marks, read by lib/session-era.ts (the "from FileMaker" tag; decision (b)'s era). */
+  legacy_filemaker_id?: unknown;
+  trainerId?: string | null;
 }
 
 /** The set fields the model reads. An `ExerciseLog` fits. */
@@ -176,6 +180,8 @@ export interface ColumnSet {
 export interface TimelineColumn {
   index: number;
   sessionId: string;
+  /** Which era the session is from (lib/session-era.ts): the list says "from FileMaker", the runs ask `inTrendEra`. */
+  era?: SessionEra;
   /** The session's studio day. */
   day: string;
   /** The session's stored number. Shown only through `sessionNumberTag`. */
@@ -507,6 +513,7 @@ function buildColumn(
 
   return {
     sessionId: session.id,
+    era: eraOf(session),
     day,
     sessionNumber: typeof session.sessionNumber === "number" && Number.isFinite(session.sessionNumber) ? session.sessionNumber : null,
     trainerInitials: (session.trainerInitials ?? "").trim().replace(/^—$/, "").toUpperCase() || null,

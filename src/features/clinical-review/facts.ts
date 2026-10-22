@@ -12,6 +12,7 @@
 import type { ClinicalIncident, DialValue, ExerciseLog, WorkoutSession } from "../../types";
 import { isPerformedLog } from "../../lib/set-outcome";
 import { isBackfilledSession, isLegacySession } from "../client-history/model";
+import { inTrendEra } from "../../lib/session-era";
 import { effortOf } from "../rating/session-reads";
 import {
   dialFromClientFeel,
@@ -287,8 +288,9 @@ export function buildFacts(
     incidentsBySession.set(inc.sessionId, list);
   }
 
+  // The Deep Dive's baseline, trend and stalls read the eras decision (b) names (lib/session-era.ts).
   const completed = sessions
-    .filter((s) => s && s.id && (s.status === undefined || s.status === "Completed"))
+    .filter((s) => s && s.id && (s.status === undefined || s.status === "Completed") && inTrendEra(s))
     .map((s) => ({ s, date: toIsoDay(s.date) || toIsoDay(s.startTime) || toIsoDay(s.createdAt) }))
     .filter((x) => !!x.date);
 

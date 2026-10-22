@@ -440,6 +440,16 @@ button.jg-stat__btn:active { background: var(--jg-surface-3); }
   color: var(--jg-ink);
 }
 .jg-head__d { white-space: nowrap; }
+/* "from FileMaker" under a column's date (lib/session-era.ts): words, the muted ink, never under 11px (the Active Session's floor). */
+.jg-head__era {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--jg-ink-muted);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
 .jg-head.is-spot .jg-head__btn { border-bottom-color: var(--jg-live); background: var(--jg-live-fill); }
 .jg-head.is-spot .jg-head__d,
 .jg-head.is-spot .jg-head__n { color: var(--jg-live-text); }
