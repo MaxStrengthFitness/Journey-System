@@ -17,6 +17,21 @@
  * time (`--also settings,routines`), and the dry run counts every one of them
  * so he decides with numbers. `GROUP_WORDS` says what each holds.
  *
+ * ONE STUDIO AT A TIME (`--studio`, Oct 21 2026; AJ: "I want to be able to
+ * reset ONE studio at a time"). `ResetOptions.studioId` scopes a run to the
+ * studio's clients (by `homeStudioId`), the sessions hosted there (a session's
+ * `studioId`), whatever hangs off either, and the records filed under
+ * studios/{id}/. Another studio's records are neither deleted nor changed. A
+ * client filed elsewhere whose session was hosted here, and a client filed
+ * here whose session was hosted elsewhere, are listed on the plan's `scope`
+ * and their sessions taken: never skipped silently. The trainers' counts
+ * documents and old leaderboards are left (a trainer's counts span studios;
+ * Rebuild trainer rollups afterwards), the old counts map is cleared only on
+ * trainers whose sessions go, and the cutover check, the era and the open
+ * sessions are the studio's own. The imported-history group also takes the
+ * import's marks off a client (the imported count down, the FileMaker id
+ * cleared), with or without a studio.
+ *
  * WHAT TIES A RECORD TO A SESSION (read from the code, Oct 10 2026):
  *   - a note (journalEntries) or FORD detail carries the session's id, or a
  *     session-time origin (a note written in a session's machine menu can have

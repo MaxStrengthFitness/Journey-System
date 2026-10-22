@@ -22,7 +22,19 @@
  *     ... --also settings,routines --commit --expect N
  *       the reset, with the optional groups chosen, exactly as the dry run said
  *
+ *   One studio at a time (Oct 21 2026, the Strongsville import; AJ: "I want to
+ *   be able to reset ONE studio at a time"): the studio's document id. The
+ *   run takes the studio's clients (by their home), the sessions hosted there,
+ *   what hangs off either, and the records filed under studios/{id}/; another
+ *   studio's records are neither deleted nor changed. The dry run lists the
+ *   clients on the studio line both ways (hosted here but filed elsewhere,
+ *   filed here but hosted elsewhere): their sessions are taken, never skipped
+ *   silently. Trainers' counts documents are left to the delete trigger and
+ *   to Rebuild trainer rollups afterwards (a trainer's counts span studios).
+ *     ... --studio BVDDRe5AqQZFihRLW0vK --also imported-history,settings
+ *
  *   Options:
+ *     --studio <id>           one studio's reset (above); an unknown id prints the studios
  *     --also a,b,c            optional groups: imported-history, ford-briefing, settings,
  *                             settings-all, setting-history, routines, pulse,
  *                             floor-notes, prior-history, operations
@@ -78,7 +90,9 @@ import {
   parseAlso,
   partLine,
   partOf,
+  idOf,
   planReset,
+  type StudioScope,
   plural,
   type DeleteStep,
   type DocIn,
@@ -112,10 +126,10 @@ const PRODUCTION = { projectId: "gen-lang-client-0731527386", databaseId: "ai-st
  * The flags: every one known, anything else stops it
  * ------------------------------------------------------------------ */
 
-const VALUE_FLAGS = ["also", "before", "settle-seconds", "key", "project", "database", "confirm-project", "restore", "expect"] as const;
+const VALUE_FLAGS = ["also", "before", "settle-seconds", "key", "project", "database", "confirm-project", "restore", "expect", "studio"] as const;
 const BOOL_FLAGS = ["commit", "include-demo", "ignore-open-sessions", "after-cutover"] as const;
 /** Flags that say something about a reset and nothing about a restore. */
-const RESET_ONLY = ["also", "before", "settle-seconds", "expect", "include-demo", "ignore-open-sessions", "after-cutover"] as const;
+const RESET_ONLY = ["also", "before", "settle-seconds", "expect", "include-demo", "ignore-open-sessions", "after-cutover", "studio"] as const;
 
 function parseFlags(argv: readonly string[]): { values: Map<string, string>; bools: Set<string> } {
   const values = new Map<string, string>();
@@ -141,6 +155,12 @@ function parseFlags(argv: readonly string[]): { values: Map<string, string>; boo
   if (values.has("restore")) {
     const wrong = RESET_ONLY.filter((f) => values.has(f) || bools.has(f));
     if (wrong.length) throw new Error(`${wrong.map((f) => `--${f}`).join(", ")} ${wrong.length === 1 ? "is" : "are"} for a reset, not a restore. Nothing was read or written.`);
+  }
+  if (values.has("studio") && bools.has("include-demo")) {
+    throw new Error("--studio and --include-demo don't go together: Demo Mode has its own Reset button. Nothing was read or written.");
+  }
+  if (values.has("studio") && !/^[A-Za-z0-9_-]{4,}$/.test(values.get("studio")!)) {
+    throw new Error(`--studio takes a studio's document id (studio-ids: Strongsville is BVDDRe5AqQZFihRLW0vK), not "${values.get("studio")}". Nothing was read or written.`);
   }
   return { values, bools };
 }
@@ -453,6 +473,30 @@ function printPlan(plan: ResetPlan, groups: ReadonlySet<GroupId>) {
   }
 }
 
+/**
+ * The studio line, before the counts: the clients whose sessions cross it,
+ * both ways, ids and counts only. Their sessions are taken; nothing is skipped
+ * silently. (Bookings are Mindbody's: scripts/find-wrong-home-studio.ts sweeps
+ * those, and the home-studio notice on Operations → Today moves a client.)
+ */
+function printScope(scope: StudioScope, input: ResetInput) {
+  const nameOf = (id: string | null) => (id ? String(input.studios.find((s) => idOf(s.path) === id)?.data.name ?? id) : "(no studio on the record)");
+  console.log("");
+  console.log(`Scope: ${plural(scope.clients, "client")} filed at this studio.`);
+  if (scope.hostedHereFiledElsewhere.length === 0 && scope.filedHereHostedElsewhere.length === 0) {
+    console.log("    No client crosses the studio line: every session here is a client's filed here, and none of theirs was hosted elsewhere.");
+    return;
+  }
+  if (scope.hostedHereFiledElsewhere.length) {
+    console.log(`    Hosted here, filed at another studio (taken with this reset; the client's own record is her studio's): ${scope.hostedHereFiledElsewhere.length}`);
+    for (const c of scope.hostedHereFiledElsewhere) console.log(`        clients/${c.clientId}  filed at ${nameOf(c.otherStudioId)}  ${plural(c.sessions, "session")} here`);
+  }
+  if (scope.filedHereHostedElsewhere.length) {
+    console.log(`    Filed here, hosted at another studio (taken: they are this studio's client's): ${scope.filedHereHostedElsewhere.length}`);
+    for (const c of scope.filedHereHostedElsewhere) console.log(`        clients/${c.clientId}  hosted at ${nameOf(c.otherStudioId)}  ${plural(c.sessions, "session")}`);
+  }
+}
+
 function printOpenSessions(plan: ResetPlan, includeDemo: boolean) {
   const open = plan.openSessions.filter((s) => includeDemo || !s.demo);
   if (open.length === 0) {
@@ -655,7 +699,12 @@ function writeManifest(dir: string, manifest: BackupManifest) {
 }
 
 /** When the test sessions began, as the newest earlier backup of this database worked it out. */
-function earlierEraStart(target: Target): { ms: number; dir: string } | null {
+/**
+ * The earliest "test sessions began" an earlier run of this database recorded.
+ * A studio run reads its own studio's backups and the whole-database ones
+ * (those covered it too); a whole-database run reads every backup.
+ */
+function earlierEraStart(target: Target, studioId: string | null): { ms: number; dir: string } | null {
   const root = path.resolve(process.cwd(), "backups");
   if (!fs.existsSync(root)) return null;
   let found: { ms: number; dir: string } | null = null;
@@ -663,6 +712,7 @@ function earlierEraStart(target: Target): { ms: number; dir: string } | null {
     try {
       const m = JSON.parse(fs.readFileSync(path.join(root, name, MANIFEST_FILE), "utf8")) as BackupManifest;
       if (m.projectId !== target.projectId || m.databaseId !== target.databaseId) continue;
+      if (studioId !== null && m.studioId && m.studioId !== studioId) continue;
       if (typeof m.eraStartMs === "number" && (found === null || m.eraStartMs < found.ms)) found = { ms: m.eraStartMs, dir: name };
     } catch {
       /* not a reset backup */
@@ -675,7 +725,7 @@ function earlierEraStart(target: Target): { ms: number; dir: string } | null {
  * The follow-up commands
  * ------------------------------------------------------------------ */
 
-function followUps(target: Target, includeDemo: boolean, groups: ReadonlySet<GroupId>) {
+function followUps(target: Target, includeDemo: boolean, groups: ReadonlySet<GroupId>, studioId: string | null) {
   const where = target.emulator
     ? ` --project ${target.projectId}${target.databaseId === "(default)" ? "" : ` --database ${target.databaseId}`}`
     : "";
@@ -689,8 +739,32 @@ function followUps(target: Target, includeDemo: boolean, groups: ReadonlySet<Gro
   console.log(`  3. npx tsx scripts/run-renewals.ts${where} --commit --max-pulls 0 --first-sync-max 0`);
   console.log("       renewal snapshots and month tallies again, with no Mindbody call (client states only for a studio past its cutover)");
   console.log("  4. Sign every iPad out and back in.");
-  if (includeDemo) console.log("  5. In the app: Demo Mode, Reset, so the practice studio has its sessions again.");
+  let n = 5;
+  if (studioId !== null) {
+    console.log(`  ${n}. In the app: Admins → Machinery → System tools → Rebuild trainer rollups → Rebuild.`);
+    console.log("       A studio run leaves the trainers' counts documents alone (a trainer's counts span studios); the delete trigger took");
+    console.log("       each counted session off, and the rebuild counts every session that is left.");
+    n += 1;
+  }
+  if (includeDemo) console.log(`  ${n}. In the app: Demo Mode, Reset, so the practice studio has its sessions again.`);
   console.log("  The nightly jobs and the trainers' counts (3 AM) carry on by themselves from tonight.");
+}
+
+/** The studio a `--studio` run is scoped to, from the studios collection; an unknown id names them all and stops. */
+async function studioFor(db: Firestore, id: string): Promise<{ id: string; name: string }> {
+  const snap = await db.collection("studios").get();
+  const studios = snap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    return { id: d.id, name: String(data.name ?? d.id), demo: data.isDemo === true || d.id === "demo-studio" };
+  });
+  const hit = studios.find((s) => s.id === id);
+  if (!hit) {
+    throw new Error(
+      `--studio ${id}: no studio has that id. The studios: ${studios.map((s) => `${s.name} = ${s.id}`).join("; ")}. Nothing was written.`,
+    );
+  }
+  if (hit.demo) throw new Error(`--studio ${id} is Demo Mode, which has its own Reset button in the app. Nothing was written.`);
+  return { id: hit.id, name: hit.name };
 }
 
 /* ------------------------------------------------------------------ *
@@ -716,10 +790,13 @@ async function reset(target: Target) {
   if (expectText !== undefined && !commit) throw new Error("--expect goes with --commit.");
 
   console.log(commit ? "COMMIT: the reset below will be written, after a backup." : "DRY RUN: nothing will be written.");
+  const studio = flag("studio") ? await studioFor(db, flag("studio")!) : null;
+  if (studio) console.log(`STUDIO: ${studio.name} (${studio.id}). Only this studio's clients, the sessions hosted here, and its own records; every other studio is left as it is.`);
+  else console.log("WHOLE DATABASE: every studio outside Demo Mode.");
   console.log(`Groups: ${[...groups].join(", ")}${includeDemo ? ", and Demo Mode" : " (Demo Mode left out)"}.`);
   if (note) console.log(note);
   console.log(`"Before" for setting history and floor notes: ${new Date(beforeMs).toISOString()}.`);
-  const earlier = earlierEraStart(target);
+  const earlier = earlierEraStart(target, studio?.id ?? null);
   console.log("Reading...");
   const input = await readEverything(db);
   console.log(
@@ -727,8 +804,9 @@ async function reset(target: Target) {
       `${plural(input.clients.length, "client")}, ${plural(input.trainers.length, "trainer")}, ${plural(input.studios.length, "studio")}.`,
   );
 
-  const options: ResetOptions = { groups, includeDemo, beforeMs, nowMs, eraStartMs: earlier?.ms ?? null };
+  const options: ResetOptions = { groups, includeDemo, beforeMs, nowMs, eraStartMs: earlier?.ms ?? null, studioId: studio?.id ?? null };
   const plan = planReset(input, options);
+  if (plan.scope) printScope(plan.scope, input);
   printPlan(plan, groups);
   console.log("");
   if (plan.sessionEraStartMs !== null) {
@@ -812,6 +890,7 @@ async function reset(target: Target) {
     fieldDocuments: fieldDocs,
     fields,
     eraStartMs: plan.sessionEraStartMs,
+    ...(plan.scope ? { studioId: plan.scope.studioId, studioName: studio?.name, scope: plan.scope } : {}),
   };
   writeBackup(dir, lines, manifest);
   const minute = new Date(Math.floor(startedAt.getTime() / 60_000) * 60_000).toISOString().replace(":00.000Z", " UTC");
@@ -944,7 +1023,7 @@ async function reset(target: Target) {
       ? "Every write landed."
       : `${plural(failedDocs, "document")} did not take the reset. Tomorrow morning, run the dry run again and look; commit what it shows with its own --expect.`,
   );
-  followUps(target, includeDemo, groups);
+  followUps(target, includeDemo, groups, studio?.id ?? null);
 }
 
 /* ------------------------------------------------------------------ *

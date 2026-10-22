@@ -211,6 +211,15 @@ export interface BackupManifest {
   retries?: number;
   /** Set when the last write has been sent; absent if the run stopped part way. */
   finishedAt?: string;
+  /** A `--studio` run (Oct 21 2026): the studio, and the clients whose sessions crossed its line. Absent on a whole-database run. */
+  studioId?: string;
+  studioName?: string;
+  scope?: {
+    studioId: string;
+    clients: number;
+    hostedHereFiledElsewhere: { clientId: string; otherStudioId: string | null; sessions: number }[];
+    filedHereHostedElsewhere: { clientId: string; otherStudioId: string | null; sessions: number }[];
+  };
 }
 
 export function parseBackupLines(text: string): BackupLine[] {

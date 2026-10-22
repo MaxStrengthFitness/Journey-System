@@ -144,6 +144,29 @@ The nightly jobs and the trainers' 3 AM counts carry on by themselves from that 
 
 Sign every iPad out and back in, so no screen keeps the old numbers in memory. If you used `--include-demo`, open Demo Mode and press **Reset**.
 
+## Resetting one studio
+
+*Oct 21 2026, the Strongsville import (AJ: "I want to be able to reset ONE studio at a time"). The round is `docs/rounds/2026-10-21-strongsville-import.md`.*
+
+Add `--studio` and the studio's document id to any of the commands above (the ids are in Admins → Studios, or the script prints them all when the id is wrong): the dry run, the real run and the check. `--restore` takes no `--studio`: a backup is put back exactly as it was taken. `--include-demo` is refused with it (Demo Mode has its own Reset).
+
+```powershell
+npx tsx scripts/reset-test-data.ts --project gen-lang-client-0731527386 --database ai-studio-32cbbdcc-6e08-4770-9665-867c68878efa --confirm-project gen-lang-client-0731527386 --studio BVDDRe5AqQZFihRLW0vK --also imported-history,settings
+```
+
+**What it takes:** the studio's clients (by their home studio), the sessions hosted there, everything built from either (sets, notes, FORD details, machine totals, counters, the renewal snapshot's two fields), and the studio's own records (client states, the Journey summary, All stars, month tallies, floor notes, the watch list, cases, day logs, renewal conversations, Seen marks). **What it leaves:** every other studio's clients, sessions and records, untouched; the trainers' counts documents and the old leaderboards (a trainer's counts span studios: the delete trigger takes each counted session off, and you press **Rebuild trainer rollups** on Admins → Machinery → System tools once afterwards, which the script's NEXT list says).
+
+**The studio line.** Before the counts the dry run prints **Scope**: how many clients are filed at the studio, then two lists, ids and counts only:
+
+- *Hosted here, filed at another studio*: a client whose record is another studio's but who trained here. Her sessions here go with this reset; her record (counters, dates) is her own studio's reset to change. Mindbody's bookings are untouched; the home-studio notice on Operations → Today is where a leader moves such a client, and `scripts/find-wrong-home-studio.ts` sweeps the bookings.
+- *Filed here, hosted at another studio*: this studio's client who trained elsewhere. Those sessions go too (they are her sessions).
+
+Nothing is skipped silently: both lists are printed and kept in the backup's manifest (`studioId`, `studioName`, `scope`).
+
+**The cutover check** looks at this studio alone: another studio's cutover date does not block it. **When the test sessions began** is read from this studio's own sessions, or from an earlier backup of this studio (or of the whole database).
+
+**For a FileMaker re-import**, take `imported-history` as well: it deletes the imported sessions and their sets AND takes the import's marks off each client (`priorHistory.importedCount` down by the sessions deleted, `legacy_filemaker_id` cleared), so the total a client shows is what it was before the import and the next import counts from a clean record. Take `settings` (the weights only) too: the import writes a weight only when the set-up is older than the visit, so weights an earlier import left would block the right ones; the dials stay.
+
 ## What trainers will see after
 
 - Every client's Journey starts at their first real session. A long-time client still shows Mindbody's count ("#312", from Mindbody) until a trainer confirms it.
