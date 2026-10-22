@@ -192,3 +192,26 @@ describe("hasOwnPackageTable", () => {
     expect(hasOwnPackageTable({ packages: [DEFAULT_PACKAGES[0]] })).toBe(true);
   });
 });
+
+describe("month-to-month names (AJ, Oct 21 2026)", () => {
+  it("a studio that never saved a list gets Max Strength's; a saved list, even empty, is the studio's", () => {
+    expect(normalizeRenewalSettings({}).monthToMonthNames).toContain("2 x Week-Session Pack");
+    expect(normalizeRenewalSettings({ extraSessionNames: [] }).monthToMonthNames).toContain("Session $49");
+    expect(normalizeRenewalSettings({ monthToMonthNames: [] }).monthToMonthNames).toEqual([]);
+    expect(normalizeRenewalSettings({ monthToMonthNames: [" 8  Sessions", "8 sessions", 4] }).monthToMonthNames).toEqual(["8 Sessions"]);
+  });
+  it("matches as the package names do, and a studio's own package or extra name wins", () => {
+    const index = buildPackageNameIndex(DEFAULT_RENEWAL_SETTINGS);
+    expect(index.isMonthToMonth("month-to-month  package")).toBe(true);
+    expect(index.isMonthToMonth("48 Sessions - 2X Week")).toBe(false);
+    expect(index.isMonthToMonth(undefined)).toBe(false);
+    const claimed = buildPackageNameIndex({ ...DEFAULT_RENEWAL_SETTINGS, extraSessionNames: ["8 Sessions"] });
+    expect(claimed.isMonthToMonth("8 Sessions")).toBe(false);
+    expect(buildPackageNameIndex({ ...DEFAULT_RENEWAL_SETTINGS, monthToMonthNames: undefined as unknown as string[] }).isMonthToMonth("8 Sessions")).toBe(false);
+  });
+  it("says so when a name is on two lists", () => {
+    const problems = validateRenewalSettings({ ...DEFAULT_RENEWAL_SETTINGS, monthToMonthNames: ["144 PIF", "Session Comp"] });
+    expect(problems).toContain(`"144 PIF" is a package name (Life Transformed) and a month-to-month name.`);
+    expect(problems).toContain(`"Session Comp" is an extra-sessions name and a month-to-month name.`);
+  });
+});

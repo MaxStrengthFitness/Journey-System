@@ -59,6 +59,9 @@
 
 import type { AutoRenewMark, Client } from "../../types";
 import type { AutoRenewAnswer, PackageTier, RenewalSettings, RenewalSnapshot } from "./types";
+import { asMonthToMonth } from "./month-to-month";
+
+const LOCKED_M2M = new WeakMap<RenewalSnapshot, RenewalSnapshot>();
 
 /**
  * What a studio that never answered reads as (AJ, Sep 25 2026: "its auto
@@ -168,6 +171,18 @@ export type RenewalOfClient = Partial<Pick<Client, "renewal" | "autoRenewMark" |
 export function renewalOf(client: RenewalOfClient | null | undefined): RenewalSnapshot | null {
   const r = client?.renewal ?? null;
   if (!r) return null;
+  // A Month-to-month lock saved today is M2M at once (Oct 21 2026), like the
+  // other locks' warning; one object per stored record, so a screen that
+  // compares by identity sees no change between renders.
+  if (client?.contractTierOverride?.payment === "month-to-month" && r.situation !== "month-to-month") {
+    let m2m = LOCKED_M2M.get(r);
+    if (!m2m) {
+      m2m = asMonthToMonth(r, { from: "lock", name: client.contractTierOverride.note?.trim() || null, since: null });
+      LOCKED_M2M.set(r, m2m);
+    }
+    return m2m;
+  }
+  if (r.situation === "month-to-month") return r;
   if (!(typeof r.version === "number" && r.version >= 2) || r.paymentMode !== "monthly") return r;
   const contractId = r.clientContractId ?? null;
   const stored = r.autoRenewsInherited ?? null;

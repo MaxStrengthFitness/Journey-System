@@ -40,7 +40,11 @@ export function directoryPackageRead(client: Client, today?: string): DirectoryP
 
   let sessionsLeft = "Unknown";
   let sessionsLeftTone: DirectoryPackageRead["sessionsLeftTone"] = "unknown";
-  if (r) {
+  if (r?.situation === "month-to-month") {
+    // AJ, Oct 21 2026: month to month lists as "M2M", never a count.
+    sessionsLeft = "M2M";
+    sessionsLeftTone = "ok";
+  } else if (r) {
     if (typeof r.sessionsLeft === "number") {
       sessionsLeft = `${r.sessionsLeft} left`;
       sessionsLeftTone = r.sessionsLeft <= 3 ? "low" : "ok";

@@ -65,6 +65,7 @@ import { formatStudioTime, studioDateKey, toDate, zonedHM } from "../../lib/stud
 import { SESSION_MILESTONES } from "../admin/overview/moments";
 import { promptText, renewalPromptDue } from "../renewals/conversation";
 import { renewalOf } from "../renewals/auto-renew";
+import { isMonthToMonthRecord, M2M_LABEL } from "../renewals/month-to-month";
 import { daysBetween, weekdayOf } from "../client-history/model";
 import { bookedWithMe, pastDayWords, type DirectoryRow } from "../client-directory/row";
 import { ASK_ABOUT_LABEL, askAboutFor } from "./get-to-know";
@@ -684,7 +685,10 @@ export function buildEntry(bookings: ScheduleEntry[], input: MomentsTodayInput, 
     const renewal = renewalOf(client);
     const talk = renewalPromptDue(renewal);
     if (talk && renewal) moments.push({ family: "renew", kind: "renew", chip: "Renewal talk", sentence: promptText(renewal) });
-    if (left && left.state === "known") {
+    if (left?.m2m || isMonthToMonthRecord(renewal)) {
+      // AJ, Oct 21 2026: month to month lists as "M2M", never a count, never a talk.
+      facts.left = { sentence: M2M_LABEL, bucket: "m2m", unknown: false, value: null };
+    } else if (left && left.state === "known") {
       const inContract = left.perPayment ? `${left.value} on hand in contract` : left.value === 0 ? "None left in contract" : `${left.value} left in contract`;
       const extra = left.sub ? ` \u00b7 ${left.sub}` : "";
       facts.left = talk
@@ -880,6 +884,7 @@ const SECTION_ORDER: Record<RunSortKey, Array<{ id: string; label: string; folde
     { id: "ending", label: "Ending soon" },
     { id: "plenty", label: "Plenty" },
     { id: "monthly", label: "Monthly \u2014 on hand" },
+    { id: "m2m", label: "Month to month" },
   ],
   birthday: [
     { id: "today", label: "Today" },

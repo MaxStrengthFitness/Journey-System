@@ -58,6 +58,24 @@ export const DEFAULT_PACKAGES: PackageTier[] = [
   },
 ];
 
+/**
+ * AJ's month-to-month names, Oct 21 2026, as Mindbody spells them (checked
+ * against every studio's names seen that day: Strongsville, Willoughby and
+ * westlake hold them). A studio adds its own on My Studio → Studio →
+ * Renewals.
+ */
+export const DEFAULT_MONTH_TO_MONTH_NAMES: string[] = [
+  "4 Sessions",
+  "8 Sessions",
+  "16 Sessions",
+  "1 x Week- Session Pack",
+  "2 x Week-Session Pack",
+  "Month-to-Month Package",
+  "Session $49",
+  "Session $50",
+  "Session $55",
+];
+
 export const DEFAULT_RENEWAL_SETTINGS: RenewalSettings = {
   conversationAtSessionsLeft: 10,
   chargeWarnDays: 30,
@@ -69,6 +87,7 @@ export const DEFAULT_RENEWAL_SETTINGS: RenewalSettings = {
   pauseDuringAwayEvents: true,
   packages: DEFAULT_PACKAGES,
   extraSessionNames: ["Session Comp"],
+  monthToMonthNames: DEFAULT_MONTH_TO_MONTH_NAMES,
 };
 
 /** The allowed range of every number setting, and what the form says about it. */
@@ -91,6 +110,8 @@ export const MAX_PACKAGES = 12;
 export const MAX_NAMES_PER_PACKAGE = 60;
 /** The rules' cap on the extra-sessions list (renewalSettingsValid). */
 export const MAX_EXTRA_SESSION_NAMES = 40;
+/** The rules' cap on the month-to-month list (renewalSettingsValid). */
+export const MAX_MONTH_TO_MONTH_NAMES = 40;
 
 /** Pricing options come 8 at a time on a monthly package; below this a package is not a package. */
 const MIN_PACKAGE_SESSIONS = 1;
@@ -253,6 +274,10 @@ export function normalizeRenewalSettings(raw: unknown): RenewalSettings {
       d.extraSessionNames === undefined
         ? DEFAULT_RENEWAL_SETTINGS.extraSessionNames
         : cleanNames(d.extraSessionNames, MAX_EXTRA_SESSION_NAMES),
+    monthToMonthNames:
+      d.monthToMonthNames === undefined
+        ? DEFAULT_RENEWAL_SETTINGS.monthToMonthNames
+        : cleanNames(d.monthToMonthNames, MAX_MONTH_TO_MONTH_NAMES),
     // Kept only when the studio answered: absent is "hasn't said", which
     // reads as ON (auto-renew.ts), and a stray "yes" is not an answer.
     ...(typeof d.packagesRenewAutomatically === "boolean"
@@ -268,6 +293,8 @@ export function normalizeRenewalSettings(raw: unknown): RenewalSettings {
 export interface PackageNameIndex {
   tierFor(name: unknown): PackageTier | null;
   isExtraSessions(name: unknown): boolean;
+  /** A month-to-month name. A package or extra-sessions name with the same spelling wins (a studio's own match). */
+  isMonthToMonth(name: unknown): boolean;
 }
 
 export function buildPackageNameIndex(settings: RenewalSettings): PackageNameIndex {
@@ -280,9 +307,15 @@ export function buildPackageNameIndex(settings: RenewalSettings): PackageNameInd
     }
   }
   const extras = new Set(settings.extraSessionNames.map(normalizeMindbodyName).filter(Boolean));
+  // Settings saved before Oct 21 2026 never carried the list; anything built by hand may not either.
+  const m2m = new Set((settings.monthToMonthNames ?? []).map(normalizeMindbodyName).filter(Boolean));
   return {
     tierFor: (name) => byName.get(normalizeMindbodyName(name)) ?? null,
     isExtraSessions: (name) => extras.has(normalizeMindbodyName(name)),
+    isMonthToMonth: (name) => {
+      const key = normalizeMindbodyName(name);
+      return Boolean(key) && m2m.has(key) && !byName.has(key) && !extras.has(key);
+    },
   };
 }
 
@@ -323,6 +356,13 @@ export function validateRenewalSettings(s: RenewalSettings): string[] {
   for (const n of s.extraSessionNames) {
     const owner = claimed.get(normalizeMindbodyName(n));
     if (owner) problems.push(`"${n}" is a package name (${owner}) and an extra-sessions name.`);
+  }
+  const extras = new Set(s.extraSessionNames.map(normalizeMindbodyName));
+  for (const n of s.monthToMonthNames ?? []) {
+    const key = normalizeMindbodyName(n);
+    const owner = claimed.get(key);
+    if (owner) problems.push(`"${n}" is a package name (${owner}) and a month-to-month name.`);
+    else if (extras.has(key)) problems.push(`"${n}" is an extra-sessions name and a month-to-month name.`);
   }
   return Array.from(new Set(problems));
 }

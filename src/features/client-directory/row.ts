@@ -337,6 +337,8 @@ export interface DirectoryRow {
     sub: string | null;
     reason: string | null;
     perPayment: boolean;
+    /** Month to month (Oct 21 2026): "M2M", never a count; its own group. */
+    m2m?: true;
   };
   total: {
     state: KnownState;
@@ -359,7 +361,7 @@ export interface DirectoryRow {
    * banked sessions) with no date worked out: it ends when her sessions run
    * out, so it has no day of its own (AJ, Oct 3 2026: "These are paid in full").
    */
-  renews: { state: "known" | "renewed" | "paid" | "none" | "unknown"; day: string | null; text: string; sub: string | null; reason: string | null };
+  renews: { state: "known" | "renewed" | "paid" | "m2m" | "none" | "unknown"; day: string | null; text: string; sub: string | null; reason: string | null };
   /** Her booking today (the first not yet over, else the last), for In today and Start. */
   today: { at: number; end: number; text: string; with: string | null; over: boolean } | null;
   /** Booked with the signed-in trainer in the held bookings. */
@@ -588,6 +590,7 @@ function nextOf(client: Client, ctx: DirectoryContext): DirectoryRow["next"] {
 
 function leftOf(client: Client, ctx: DirectoryContext): DirectoryRow["left"] {
   const unknown = (reason: string): DirectoryRow["left"] => ({ state: "unknown", value: null, text: "Unknown", sub: null, reason, perPayment: false });
+  if (isM2m(client)) return { state: "known", value: null, text: "M2M", sub: null, reason: null, perPayment: false, m2m: true };
   const services = client.mindbodyServices ?? {};
   const pulled = !!client.mindbodyServicesSyncedAt || Object.keys(services).length > 0;
   if (!pulled) return unknown("Packages haven't been pulled from Mindbody yet.");
@@ -700,7 +703,17 @@ function paidInFull(client: Client): DirectoryRow["renews"] | null {
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Month to month, by the profile's one answer (`resolveContractTier`: the
+ * lock, then the renewal record, then the Mindbody names). AJ, Oct 21 2026:
+ * "these should just list as 'M2M'".
+ */
+function isM2m(client: Client): boolean {
+  return resolveContractTier(client).payment === "month-to-month";
+}
+
 function renewsOf(client: Client, today: string): DirectoryRow["renews"] {
+  if (isM2m(client)) return { state: "m2m", day: null, text: "M2M", sub: "month to month", reason: null };
   const s = client.renewal as RenewalSnapshot | undefined;
   if (s) {
     if (s.renewalOnBooks && YMD.test(s.renewalOnBooks.startsOn)) {

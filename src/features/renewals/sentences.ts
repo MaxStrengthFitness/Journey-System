@@ -139,6 +139,8 @@ export function chipText(s: RenewalSnapshot | null | undefined, today: string): 
       return `No package since ${dayLabel(s.focusDate, today)}`;
     case "unknown":
       return "Renewal: Mindbody data missing";
+    case "month-to-month":
+      return "M2M";
     default: {
       const left = s.sessionsLeft !== null ? `${s.sessionsLeft} left` : null;
       if (s.renewalOnBooks) return [left, `renewed · next starts ${dayLabel(s.renewalOnBooks.startsOn, today)}`].filter(Boolean).join(" · ");
@@ -187,6 +189,8 @@ export function situationSentence(s: RenewalSnapshot, today: string): string {
       return `Package ended ${dayLabel(s.focusDate, today)} — no new one in Mindbody yet`;
     case "lapsed":
       return `No package since ${dayLabel(s.focusDate, today)}`;
+    case "month-to-month":
+      return "M2M · month to month, so no renewal to plan";
     case "unknown":
     default:
       return s.dataGaps[0] ?? "Not enough Mindbody data to say yet";
@@ -242,6 +246,7 @@ export const SITUATION_TONE: Record<RenewalSituation, "ok" | "warn" | "alert" | 
   ended: "alert",
   lapsed: "alert",
   unknown: "neutral",
+  "month-to-month": "neutral",
 };
 
 /* ------------------------------------------------------------------ *

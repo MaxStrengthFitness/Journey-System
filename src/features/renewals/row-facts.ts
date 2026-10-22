@@ -17,6 +17,7 @@
 
 import { concernLabel, lastTalkSentence, leaningLabel } from "./conversation";
 import { formatMoney } from "./money";
+import { isMonthToMonthRecord, M2M_LABEL } from "./month-to-month";
 import { PLAN_WORDS, planExpectation, planSentence } from "./plan";
 import {
   dayLabel,
@@ -80,6 +81,8 @@ export function situationWord(situation: RenewalSnapshot["situation"]): string {
       return "Away";
     case "unknown":
       return "No data";
+    case "month-to-month":
+      return M2M_LABEL;
     default:
       return "On track";
   }
@@ -113,6 +116,7 @@ export function endLine(s: RenewalSnapshot, today: string): string | null {
 
 /** Sessions left now: the ledger, else the plain count, else that it isn't known. */
 export function leftNowLine(s: RenewalSnapshot): string {
+  if (isMonthToMonthRecord(s)) return M2M_LABEL;
   const ledger = ledgerSentence(s);
   if (ledger) return ledger;
   if (s.sessionsLeft === null || s.sessionsLeft === undefined) return "Sessions left not known";

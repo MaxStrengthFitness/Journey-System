@@ -59,6 +59,8 @@ export function headerContractWords(
   client: Partial<Pick<Client, "mindbodyContracts" | "autoRenewMark" | "contractTierOverride">> | null | undefined,
   today: string,
 ): string | null {
+  // Month to month has no renewal date to say; the sessions tile says M2M (Oct 21 2026).
+  if (client?.contractTierOverride?.payment === "month-to-month") return null;
   let best: { key: string; end: string; c: ContractLike } | null = null;
   for (const [key, raw] of Object.entries(client?.mindbodyContracts ?? {})) {
     const c = raw as ContractLike | null;
