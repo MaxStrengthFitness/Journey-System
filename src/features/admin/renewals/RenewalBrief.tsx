@@ -54,6 +54,7 @@ import {
   latestLine,
 } from "../../renewals/conversation";
 import { touchHeadline } from "../../renewals/row-facts";
+import { isMonthToMonthRecord, M2M_LABEL, monthToMonthWhySentence } from "../../renewals/month-to-month";
 import { gainSentence, healthLines, journeyLines, strengthGains } from "../../renewals/brief";
 import { OUTCOMES, closedOnFor } from "../../renewals/outcomes";
 import { optionsFor, upgradeVerdict } from "../../renewals/options";
@@ -350,7 +351,8 @@ export function RenewalBrief({
 
               <AdminPanel title="5. Where they stand">
                 <AdminRows>
-                  <AdminRow
+                  {isMonthToMonthRecord(s) && <AdminRow name="Package" meta={`${M2M_LABEL} · ${monthToMonthWhySentence(s.monthToMonth)}`} />}
+                  {!isMonthToMonthRecord(s) && <AdminRow
                     name="Sessions left"
                     meta={
                       s.sessionsLeft === null
@@ -359,8 +361,8 @@ export function RenewalBrief({
                             s.paymentsLeft ? ` — ${s.sessionsOnHand ?? 0} on hand, ${s.paymentsLeft} payment${s.paymentsLeft === 1 ? "" : "s"} to come` : ""
                           }`
                     }
-                  />
-                  <AdminRow
+                  />}
+                  {!isMonthToMonthRecord(s) && <AdminRow
                     name={s.paymentMode === "monthly" || s.chargeDate ? capitalize(billingEndPhrase(s.autoRenews)) : "Package"}
                     meta={
                       s.chargeDate
@@ -373,7 +375,7 @@ export function RenewalBrief({
                             ? "Billing finished — using banked sessions"
                             : "Not known"
                     }
-                  />
+                  />}
                   <AdminRow name="Pace" meta={paceSentence(s)} />
                   {s.situation === "will-bank" && (
                     <AdminRow name="Banked when billing ends" meta={bankedAtChargeNote(s)} />

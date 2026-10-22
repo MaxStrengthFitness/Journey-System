@@ -362,3 +362,25 @@ describe("the row cache (the iPad round, Oct 2026)", () => {
     expect(second).toEqual(buildDirectoryRows([a, b], ctx2));
   });
 });
+
+describe("month to month (AJ, Oct 21 2026)", () => {
+  const M2M_RECORD = { situation: "month-to-month", sessionsLeft: null, focusDate: null, dataGaps: [], monthToMonth: { from: "pricing-option", name: "8 Sessions", since: "2026-09-01" } };
+
+  it("says M2M for left and renewal, never a count or a date", () => {
+    const c = makeClient({
+      id: "a",
+      mindbodyServicesSyncedAt: "x",
+      mindbodyServices: { s: { serviceId: 3, name: "8 Sessions", count: 8, remaining: 5 } },
+      mindbodyContracts: { k: { clientContractId: 9, status: "Active", autopayStatus: "Active", contractName: "2 x Week-Session Pack", endDate: "2027-09-01" } },
+      renewal: M2M_RECORD,
+    } as never);
+    const row = buildDirectoryRow(c, makeContext());
+    expect(row.left).toMatchObject({ text: "M2M", value: null, m2m: true });
+    expect(row.renews).toMatchObject({ state: "m2m", text: "M2M", day: null });
+  });
+
+  it("a Month-to-month lock says it before the nightly run", () => {
+    const c = makeClient({ id: "a", contractTierOverride: { term: null, payment: "month-to-month", setAt: "2026-10-21" } } as never);
+    expect(buildDirectoryRow(c, makeContext()).renews.state).toBe("m2m");
+  });
+});

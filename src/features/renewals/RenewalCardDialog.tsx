@@ -37,6 +37,7 @@ import {
   situationSentence,
 } from "./sentences";
 import { latestLine } from "./conversation";
+import { isMonthToMonthRecord, M2M_LABEL, monthToMonthWhySentence } from "./month-to-month";
 import { useInBodyVariation } from "../inbody/useInBodyVariation";
 import { studioTodayKey } from "../../lib/studio-time";
 import type { Client, Trainer } from "../../types";
@@ -81,6 +82,19 @@ function Clocks({ s, today }: { s: RenewalSnapshot; today: string }) {
   // label a bare "from Mindbody" reads as the source of the renewal claim,
   // beside an answer that may be the studio's or the standard.
   const dateFrom = (src: string | null) => (src === "estimate" ? "estimated date" : src === "mindbody" ? "date from Mindbody" : undefined);
+  if (isMonthToMonthRecord(s)) {
+    // AJ, Oct 21 2026: "M2M" in place of sessions left and an end date.
+    return (
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Fact label="Package" value={M2M_LABEL} sub={monthToMonthWhySentence(s.monthToMonth)} />
+        <Fact
+          label="Pace"
+          value={paceSentence(s)}
+          sub={[s.lastVisitDate ? `Last visit ${dayLabel(s.lastVisitDate, today)}` : null, s.nextBookingDate ? `Next booked ${dayLabel(s.nextBookingDate, today)}` : null].filter(Boolean).join(" · ") || undefined}
+        />
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <Fact

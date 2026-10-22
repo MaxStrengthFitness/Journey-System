@@ -136,6 +136,16 @@ export function resolveContractTier(
   }
 
   const r = client?.renewal;
+  if (r?.situation === "month-to-month") {
+    const name = r.monthToMonth?.name;
+    return {
+      term: null,
+      payment: "month-to-month",
+      label: tierLabel(null, "month-to-month"),
+      source: "renewal",
+      evidence: name ? `“${name}” is on the studio's month-to-month list` : null,
+    };
+  }
   if (r && (r.packageLabel || r.paymentMode)) {
     const term = termFromLabel(r.packageLabel) ?? parseTierFromName(r.packageLabel)?.term ?? null;
     const payment: PaymentKind | null =

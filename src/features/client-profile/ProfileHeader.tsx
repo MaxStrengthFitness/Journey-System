@@ -34,6 +34,7 @@ import type { Trainer } from "../../types";
 import { BrandTiles } from "./BrandTiles";
 import { headerContractWords, headerRenewalWords } from "./header-renewal";
 import { renewalOf } from "../renewals/auto-renew";
+import { isMonthToMonthRecord, M2M_LABEL } from "../renewals/month-to-month";
 import { bookedLabel, nextSessionHeadline } from "./next-session-tile";
 import { recentSessionRows, upcomingSessionRows, type SessionListRow } from "./session-lists";
 import { clientDisplayName, clientInitials, clientLegalName, goesByNickname } from "../../lib/client-name";
@@ -309,12 +310,15 @@ function SessionsTile({
   completed,
   lateCancels,
   remaining,
+  monthToMonth = false,
   renewal,
 }: {
   completedWord: string;
   completed: number | null;
   lateCancels: number | null;
   remaining: number | null;
+  /** Month to month (AJ, Oct 21 2026): "M2M" in place of the sessions remaining. */
+  monthToMonth?: boolean;
   renewal?: RenewalTileState;
 }) {
   const Tag = renewal ? "button" : "div";
@@ -350,12 +354,18 @@ function SessionsTile({
           fill on the cells any more, one long line would be drawn over the
           next cell's words instead of hidden under its fill. */}
       <span className="flex flex-wrap gap-x-1 gap-y-0.5 text-[12px] font-medium leading-none text-slate-500 dark:text-slate-400">
-        <span className="whitespace-nowrap">
-          <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums" data-testid="sessions-remaining">
-            {remaining === null ? "\u2014" : remaining}
-          </span>{" "}
-          remaining
-        </span>
+        {monthToMonth ? (
+          <span className="whitespace-nowrap font-bold text-slate-700 dark:text-slate-200" data-testid="sessions-remaining">
+            {M2M_LABEL}
+          </span>
+        ) : (
+          <span className="whitespace-nowrap">
+            <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums" data-testid="sessions-remaining">
+              {remaining === null ? "\u2014" : remaining}
+            </span>{" "}
+            remaining
+          </span>
+        )}
         {typeof lateCancels === "number" && lateCancels > 0 && (
           <>
             {" "}
@@ -757,6 +767,7 @@ export function ProfileHeader({
           completed={completedCount}
           lateCancels={lateCancels}
           remaining={remainingCount}
+          monthToMonth={isMonthToMonthRecord(renewalSnapshot) || client.contractTierOverride?.payment === "month-to-month"}
           renewal={renewal}
         />
 

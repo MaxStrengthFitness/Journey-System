@@ -37,6 +37,7 @@ import type { TeamJob } from "../jobs/types";
 import { coverTimeOf, neededWords } from "./cover";
 import type { ShiftPhase } from "./now-context";
 import { renewalPromptDue } from "../../renewals/conversation";
+import { renewalOf } from "../../renewals/auto-renew";
 import { checklistLine, choreParts, choreStates, isWipeChore, laterWipeShifts, wipeShiftKey } from "./cleaning";
 
 export type CardPart = "open" | "day" | "close" | "week";
@@ -525,7 +526,8 @@ export function boardCards(input: CardsInput): BoardCard[] {
     if (!c.id || seen.has(c.id)) continue;
     if (input.studioId && c.homeStudioId !== input.studioId) continue;
     seen.add(c.id);
-    if (renewalPromptDue(c.renewal)) cards.push(renewalCard(c));
+    // renewalOf: a Month-to-month lock saved today takes the card away at once (Oct 21 2026).
+    if (renewalPromptDue(renewalOf(c))) cards.push(renewalCard(c));
   }
 
   return cards.sort(compareCards);

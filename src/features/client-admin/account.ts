@@ -60,6 +60,7 @@ import {
   situationSentence,
 } from "../renewals/sentences";
 import { mindbodyDayKey } from "../renewals/engine";
+import { isMonthToMonthRecord, M2M_LABEL } from "../renewals/month-to-month";
 import { isAutoRenewMark, liveMindbodyFlag, lockSaysNothingBills, markFor, renewalOf } from "../renewals/auto-renew";
 import { formatStudioDate, studioDayKeyOf } from "../../lib/studio-time";
 import { mindbodyIdOf } from "../../lib/mindbody-id";
@@ -707,7 +708,20 @@ export function packageView(
     when = "Run-out date not known yet";
   }
 
-  const status = !r
+  // Month to month (AJ, Oct 21 2026): "these should just list as 'M2M'
+  // rather than listing when their contract ends or how many sessions they
+  // have left". The lock, staged or saved, says so before the night's run.
+  const m2m = isMonthToMonthRecord(r) || tier.payment === "month-to-month";
+  if (m2m) {
+    left = M2M_LABEL;
+    leftWords = "month to month";
+    held = null;
+    when = "Month to month · no end date";
+  }
+
+  const status = m2m
+    ? null
+    : !r
     ? "Renewal not worked out yet — it appears after the nightly run."
     : r.situation === "on-track" && !r.renewalOnBooks
       ? null
@@ -723,7 +737,7 @@ export function packageView(
     left,
     leftWords,
     held,
-    payments: r && typeof r.paymentsLeft === "number" ? plural(r.paymentsLeft, "payment") + " to go" : null,
+    payments: !m2m && r && typeof r.paymentsLeft === "number" ? plural(r.paymentsLeft, "payment") + " to go" : null,
     when,
     status,
     pace: r ? paceSentence(r) : null,
