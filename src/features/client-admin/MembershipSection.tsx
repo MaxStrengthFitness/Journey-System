@@ -42,7 +42,7 @@
  * green on track, plum a caution — an ended package included, never crimson.
  * "Time for the renewal conversation" is brand blue, never hero orange.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   CalendarCheck,
   Check,
@@ -60,8 +60,11 @@ import {
   Unlock,
   Upload,
   UserPlus,
+  Users,
 } from "lucide-react";
-import type { AutoRenewMark, Client, ContractTierOverride, Studio } from "../../types";
+import type { AutoRenewMark, Client, ContractTierOverride, SharesPackageWith, Studio } from "../../types";
+import { ClientSelectionDialog } from "../tracker/ClientSelectionDialog";
+import { clientDisplayName } from "../../lib/client-name";
 import { markAfterTap } from "../renewals/auto-renew";
 import { useActiveStudio } from "../../contexts/ActiveStudioContext";
 import { mindbodyIdOf } from "../../lib/mindbody-id";
@@ -145,6 +148,11 @@ export interface MembershipSectionProps {
   split?: SessionsSplit | null;
   /** For "synced 2 days ago"; the real clock when left out. */
   now?: Date;
+  /**
+   * The studio's clients the profile already holds, for "Shares a package"
+   * (Oct 22 2026): whose package she uses. Empty while they load.
+   */
+  studioClients?: readonly Client[];
 }
 
 const TERM_CHOICES: { term: CommitmentTerm | null; payment: PaymentKind; label: string }[] = [
@@ -180,7 +188,8 @@ function PackageCard({
   split,
   pronouns,
   studioName,
-}: Pick<MembershipSectionProps, "client" | "author" | "coverage" | "canEdit" | "today" | "split" | "pronouns"> & {
+  studioClients = [],
+}: Pick<MembershipSectionProps, "client" | "author" | "coverage" | "canEdit" | "today" | "split" | "pronouns" | "studioClients"> & {
   form: FormPart;
   /** The client's home studio, named in the auto-renewal box's sentences. */
   studioName: string | null;
@@ -195,10 +204,32 @@ function PackageCard({
   // tapped, or the saved mark back when that one was an earlier contract's).
   const pendingMark: AutoRenewMark | null =
     "autoRenewMark" in formData ? formData.autoRenewMark ?? null : client.autoRenewMark ?? null;
+  // And whose package she uses (Oct 22 2026), null once "Stop sharing" is tapped.
+  const pendingShare: SharesPackageWith | null =
+    "sharesPackageWith" in formData ? formData.sharesPackageWith ?? null : client.sharesPackageWith ?? null;
+  const [choosingHolder, setChoosingHolder] = useState(false);
   const view = useMemo(
-    () => packageView(client, pendingOverride, today, split, pendingMark),
-    [client, pendingOverride, today, split, pendingMark],
+    () => packageView({ ...client, sharesPackageWith: pendingShare }, pendingOverride, today, split, pendingMark),
+    [client, pendingShare, pendingOverride, today, split, pendingMark],
   );
+  // Who she could share with: her own studio's clients, never herself.
+  const holders = useMemo(
+    () => studioClients.filter((c) => c.id && c.id !== client.id && (!client.homeStudioId || c.homeStudioId === client.homeStudioId)) as Client[],
+    [studioClients, client.id, client.homeStudioId],
+  );
+  const share = (holderId: string) => {
+    const holder = holders.find((c) => c.id === holderId);
+    if (!holder) return;
+    const next: SharesPackageWith = {
+      clientId: holderId,
+      name: clientDisplayName(holder, "another client"),
+      setAt: new Date().toISOString(),
+      ...(author?.id ? { setById: author.id } : {}),
+      ...(author?.name ? { setByName: author.name } : {}),
+    };
+    updateField("sharesPackageWith", next);
+    setChoosingHolder(false);
+  };
   const renew = useMemo(
     () => autoRenewView({ client, pendingMark, pendingOverride, canEdit, pronouns, studioName }),
     [client, pendingMark, pendingOverride, canEdit, pronouns, studioName],
@@ -208,7 +239,7 @@ function PackageCard({
     () => membershipTimeline(rows, priorHistoryOf(client), coverage, pendingOverride),
     [rows, client, coverage, pendingOverride],
   );
-  const dirty = isDirty("contractTierOverride") || isDirty("autoRenewMark");
+  const dirty = isDirty("contractTierOverride") || isDirty("autoRenewMark") || isDirty("sharesPackageWith");
 
   // The box flips the answer; each of the pair (Journey can't tell) sets its own.
   const tapAutoRenew = (want: boolean) => {
@@ -266,10 +297,39 @@ function PackageCard({
                   Use Mindbody's
                 </Btn>
               ) : null}
+              <Btn icon={Users} onClick={() => setChoosingHolder(true)}>
+                {pendingShare ? "Change who" : "Shares a package"}
+              </Btn>
+              {pendingShare ? (
+                <Btn variant="quiet" icon={Undo2} onClick={() => updateField("sharesPackageWith", null)}>
+                  Stop sharing
+                </Btn>
+              ) : null}
             </>
           ) : null
         }
       />
+
+      {choosingHolder ? (
+        <ClientSelectionDialog
+          clients={holders}
+          clientsStatus={studioClients.length === 0 ? "loading" : "ready"}
+          title="Whose package?"
+          description={`Choose whose sessions ${clientDisplayName(client, "this client")} uses. Tap Save changes on the bar to keep it.`}
+          onSelect={share}
+          onClose={() => setChoosingHolder(false)}
+        />
+      ) : null}
+
+      {pendingShare ? (
+        <p className="cadm-line" data-testid="shares-package">
+          <Users size={16} aria-hidden="true" />
+          <span>
+            {`Uses ${pendingShare.name}'s sessions`}
+            {pendingShare.setByName ? ` · marked by ${pendingShare.setByName}` : ""}
+          </span>
+        </p>
+      ) : null}
 
       {picker.open ? (
         <div className="cadm-picker" role="group" aria-label="Lock the contract tier">
@@ -765,7 +825,7 @@ function FinePrint({
 /* ------------------------------------------------------------------ */
 
 export function MembershipSection(props: MembershipSectionProps) {
-  const { client, form, studios, author, coverage, canEdit, pronouns: p, today, onOpenMigrationHub, split, now } = props;
+  const { client, form, studios, author, coverage, canEdit, pronouns: p, today, onOpenMigrationHub, split, now, studioClients } = props;
   const homeId = recordStudioIdOf(client);
   const homeStudioName = (homeId ? studios.find((s) => s.id === homeId)?.name?.trim() : null) || null;
   return (
@@ -787,6 +847,7 @@ export function MembershipSection(props: MembershipSectionProps) {
           split={split}
           pronouns={p}
           studioName={homeStudioName}
+          studioClients={studioClients}
         />
         <div className="cadm-side">
           <TrainAtCard client={client} form={form} studios={studios} canEdit={canEdit} pronouns={p} />

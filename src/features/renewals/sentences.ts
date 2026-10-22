@@ -11,6 +11,7 @@ import { daysBetween } from "../client-history/model";
 import { formatDateWords } from "../../lib/studio-time";
 import { callChange, type InBodyVariation } from "../inbody/variation";
 import { formatMoney } from "./money";
+import { sharedSentence } from "./shared-package";
 import type { AutoRenewSource, RenewalSituation, RenewalSnapshot } from "./types";
 
 const DAY_LABEL: Intl.DateTimeFormatOptions = { timeZone: "UTC", month: "short", day: "numeric" };
@@ -141,6 +142,8 @@ export function chipText(s: RenewalSnapshot | null | undefined, today: string): 
       return "Renewal: Mindbody data missing";
     case "month-to-month":
       return "M2M";
+    case "shared":
+      return sharedSentence(s);
     default: {
       const left = s.sessionsLeft !== null ? `${s.sessionsLeft} left` : null;
       if (s.renewalOnBooks) return [left, `renewed · next starts ${dayLabel(s.renewalOnBooks.startsOn, today)}`].filter(Boolean).join(" · ");
@@ -191,6 +194,8 @@ export function situationSentence(s: RenewalSnapshot, today: string): string {
       return `No package since ${dayLabel(s.focusDate, today)}`;
     case "month-to-month":
       return "M2M · month to month, so no renewal to plan";
+    case "shared":
+      return `${sharedSentence(s)}, so no renewal of their own`;
     case "unknown":
     default:
       return s.dataGaps[0] ?? "Not enough Mindbody data to say yet";
@@ -247,6 +252,7 @@ export const SITUATION_TONE: Record<RenewalSituation, "ok" | "warn" | "alert" | 
   lapsed: "alert",
   unknown: "neutral",
   "month-to-month": "neutral",
+  shared: "neutral",
 };
 
 /* ------------------------------------------------------------------ *

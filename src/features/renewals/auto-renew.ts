@@ -60,8 +60,10 @@
 import type { AutoRenewMark, Client } from "../../types";
 import type { AutoRenewAnswer, PackageTier, RenewalSettings, RenewalSnapshot } from "./types";
 import { asMonthToMonth } from "./month-to-month";
+import { asShared, sharedHolderOf } from "./shared-package";
 
 const LOCKED_M2M = new WeakMap<RenewalSnapshot, RenewalSnapshot>();
+const LOCKED_SHARED = new WeakMap<RenewalSnapshot, RenewalSnapshot>();
 
 /**
  * What a studio that never answered reads as (AJ, Sep 25 2026: "its auto
@@ -159,7 +161,7 @@ export function liveMindbodyFlag(
   return typeof c?.isAutoRenewing === "boolean" ? c.isAutoRenewing : undefined;
 }
 
-export type RenewalOfClient = Partial<Pick<Client, "renewal" | "autoRenewMark" | "mindbodyContracts" | "contractTierOverride">>;
+export type RenewalOfClient = Partial<Pick<Client, "renewal" | "autoRenewMark" | "mindbodyContracts" | "contractTierOverride" | "sharesPackageWith">>;
 
 /**
  * THE accessor for a single client's renewal on screen: the stored snapshot,
@@ -182,7 +184,17 @@ export function renewalOf(client: RenewalOfClient | null | undefined): RenewalSn
     }
     return m2m;
   }
-  if (r.situation === "month-to-month") return r;
+  // The same for a "Uses sessions from" mark saved today (Oct 22 2026).
+  const holder = sharedHolderOf(client);
+  if (holder && r.situation !== "shared") {
+    let shared = LOCKED_SHARED.get(r);
+    if (!shared) {
+      shared = asShared(r, holder);
+      LOCKED_SHARED.set(r, shared);
+    }
+    return shared;
+  }
+  if (r.situation === "month-to-month" || r.situation === "shared") return r;
   if (!(typeof r.version === "number" && r.version >= 2) || r.paymentMode !== "monthly") return r;
   const contractId = r.clientContractId ?? null;
   const stored = r.autoRenewsInherited ?? null;

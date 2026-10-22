@@ -34,7 +34,7 @@ import type { Trainer } from "../../types";
 import { BrandTiles } from "./BrandTiles";
 import { headerContractWords, headerRenewalWords } from "./header-renewal";
 import { renewalOf } from "../renewals/auto-renew";
-import { isMonthToMonthRecord, M2M_LABEL } from "../renewals/month-to-month";
+import { M2M_LABEL, noRenewalLabel, SHARED_LABEL } from "../renewals/month-to-month";
 import { bookedLabel, nextSessionHeadline } from "./next-session-tile";
 import { recentSessionRows, upcomingSessionRows, type SessionListRow } from "./session-lists";
 import { clientDisplayName, clientInitials, clientLegalName, goesByNickname } from "../../lib/client-name";
@@ -310,15 +310,15 @@ function SessionsTile({
   completed,
   lateCancels,
   remaining,
-  monthToMonth = false,
+  noRenewal = null,
   renewal,
 }: {
   completedWord: string;
   completed: number | null;
   lateCancels: number | null;
   remaining: number | null;
-  /** Month to month (AJ, Oct 21 2026): "M2M" in place of the sessions remaining. */
-  monthToMonth?: boolean;
+  /** Month to month or someone else's package (AJ, Oct 21-22 2026): "M2M" or "Shared" in place of the sessions remaining. */
+  noRenewal?: string | null;
   renewal?: RenewalTileState;
 }) {
   const Tag = renewal ? "button" : "div";
@@ -354,9 +354,9 @@ function SessionsTile({
           fill on the cells any more, one long line would be drawn over the
           next cell's words instead of hidden under its fill. */}
       <span className="flex flex-wrap gap-x-1 gap-y-0.5 text-[12px] font-medium leading-none text-slate-500 dark:text-slate-400">
-        {monthToMonth ? (
+        {noRenewal ? (
           <span className="whitespace-nowrap font-bold text-slate-700 dark:text-slate-200" data-testid="sessions-remaining">
-            {M2M_LABEL}
+            {noRenewal}
           </span>
         ) : (
           <span className="whitespace-nowrap">
@@ -767,7 +767,10 @@ export function ProfileHeader({
           completed={completedCount}
           lateCancels={lateCancels}
           remaining={remainingCount}
-          monthToMonth={isMonthToMonthRecord(renewalSnapshot) || client.contractTierOverride?.payment === "month-to-month"}
+          noRenewal={
+            noRenewalLabel(renewalSnapshot) ??
+            (client.sharesPackageWith?.clientId ? SHARED_LABEL : client.contractTierOverride?.payment === "month-to-month" ? M2M_LABEL : null)
+          }
           renewal={renewal}
         />
 

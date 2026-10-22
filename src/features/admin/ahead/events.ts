@@ -245,7 +245,7 @@ function renewalEvents(
   // A renewal already signed, or recorded, is done: nothing ahead to decide.
   const outcome = cycle?.outcome ?? null;
   if (s.renewalOnBooks || outcome === "renewed" || outcome === "upgraded" || outcome === "downgraded") return out;
-  if (s.situation === "lapsed" || s.situation === "unknown" || s.situation === "away" || s.situation === "month-to-month") return out;
+  if (s.situation === "lapsed" || s.situation === "unknown" || s.situation === "away" || s.situation === "month-to-month" || s.situation === "shared") return out;
   const inactive = inactiveOnRecord(c, s, i.laneCtx.inactiveMarks.get(id) ?? null, i.today, i.laneCtx.inactiveDays);
   if (inactive) return out;
 

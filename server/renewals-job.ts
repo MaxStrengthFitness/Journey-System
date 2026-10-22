@@ -90,6 +90,8 @@ import { DEFAULT_TIME_ZONE, isValidTimeZone, studioDateKey, studioTodayKey } fro
 import { bookingMarks, loggedSessions, type BookingMarks } from "../src/lib/booking-state.ts";
 import { coverageOfClient, cutoverOf } from "../src/lib/client-coverage.ts";
 import { buildRenewalSnapshot, sameSnapshot, stableStringify } from "../src/features/renewals/engine.ts";
+import { sharersByHolder, type PackageSharer } from "../src/features/renewals/shared-package.ts";
+import { clientDisplayName } from "../src/lib/client-name.ts";
 import { withMachineTotalsRead } from "./machine-totals-read.ts";
 import {
   CYCLE_KEY_PATTERN,
@@ -392,7 +394,17 @@ export async function runRenewals(options: RenewalsRunOptions): Promise<Renewals
     ];
   };
 
-  const build = (run: StudioRun, client: Client, history: ClientHistory): RenewalSnapshot => {
+  // Shared packages (Oct 22 2026): a holder's pace counts her sharers' visits.
+  // They are found in the studio's own clients, which are read already, with
+  // their bookings and workouts in the same history: no read of its own.
+  const sharersOf = (run: StudioRun, client: Client, history: ClientHistory, roster: Map<string, Client[]>): PackageSharer[] =>
+    (roster.get(client.id!) ?? []).map((c) => ({
+      clientId: c.id!,
+      name: clientDisplayName(c, "A client"),
+      attendance: attendanceOf(run, c, history),
+    }));
+
+  const build = (run: StudioRun, client: Client, history: ClientHistory, roster: Map<string, Client[]>): RenewalSnapshot => {
     const sessions = history.sessions.get(client.id!) ?? [];
     return buildRenewalSnapshot({
       client,
@@ -409,6 +421,7 @@ export async function runRenewals(options: RenewalsRunOptions): Promise<Renewals
       // live read (useLiveRenewal) passes the same two.
       coverage: coverageOfClient(client, cutoverOf(cutovers, client.homeStudioId)),
       timeZone: run.tz,
+      sharers: sharersOf(run, client, history, roster),
     });
   };
 
@@ -454,7 +467,10 @@ export async function runRenewals(options: RenewalsRunOptions): Promise<Renewals
       const history = await readClientHistory(db, clients.map((c) => c.id!), now);
       memory.sample();
       const snapshots = new Map<string, RenewalSnapshot>();
-      for (const c of clients) snapshots.set(c.id!, build(run, c, history));
+      {
+        const roster = sharersByHolder(clients);
+        for (const c of clients) snapshots.set(c.id!, build(run, c, history, roster));
+      }
 
       // 1b's candidates: never synced, booked today or tomorrow.
       for (const c of clients) {
@@ -689,7 +705,10 @@ export async function runRenewals(options: RenewalsRunOptions): Promise<Renewals
 
     // Every snapshot, from what is stored and what tonight brought.
     const snapshots = new Map<string, RenewalSnapshot>();
-    for (const c of clients) snapshots.set(c.id!, build(run, c, history));
+    {
+      const roster = sharersByHolder(clients);
+      for (const c of clients) snapshots.set(c.id!, build(run, c, history, roster));
+    }
 
     /* ---------- 3. Outcomes: how packages ended ---------- */
     // Before the snapshots on purpose: if this fails, tonight's snapshots

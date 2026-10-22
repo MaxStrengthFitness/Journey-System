@@ -101,6 +101,8 @@ export interface AccountPageProps {
    * out, nothing is drawn.
    */
   standing?: ReactNode;
+  /** The studio's clients the profile holds, for "Shares a package" (Oct 22 2026). */
+  studioClients?: readonly Client[];
 }
 
 export function AccountPage({
@@ -120,6 +122,7 @@ export function AccountPage({
   split,
   now,
   standing,
+  studioClients,
 }: AccountPageProps) {
   const lede = accountLede(client, canEdit, p);
   // Mindbody's notes belong to a client Mindbody holds; a typed-in client has
@@ -211,6 +214,7 @@ export function AccountPage({
           onOpenMigrationHub={onOpenMigrationHub}
           split={split}
           now={now}
+          studioClients={studioClients}
         />
       </div>
     </Page>

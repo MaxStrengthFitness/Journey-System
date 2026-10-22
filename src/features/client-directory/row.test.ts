@@ -375,12 +375,25 @@ describe("month to month (AJ, Oct 21 2026)", () => {
       renewal: M2M_RECORD,
     } as never);
     const row = buildDirectoryRow(c, makeContext());
-    expect(row.left).toMatchObject({ text: "M2M", value: null, m2m: true });
+    expect(row.left).toMatchObject({ text: "M2M", value: null, noRenewal: "m2m" });
     expect(row.renews).toMatchObject({ state: "m2m", text: "M2M", day: null });
   });
 
   it("a Month-to-month lock says it before the nightly run", () => {
     const c = makeClient({ id: "a", contractTierOverride: { term: null, payment: "month-to-month", setAt: "2026-10-21" } } as never);
     expect(buildDirectoryRow(c, makeContext()).renews.state).toBe("m2m");
+  });
+});
+
+describe("a shared package (AJ, Oct 22 2026)", () => {
+  it("says Shared and whose, never a count or a date", () => {
+    const c = makeClient({
+      id: "t",
+      mindbodyServicesSyncedAt: "x",
+      sharesPackageWith: { clientId: "j", name: "Jane Doe", setAt: "2026-10-22" },
+    } as never);
+    const row = buildDirectoryRow(c, makeContext());
+    expect(row.left).toMatchObject({ text: "Shared", value: null, noRenewal: "shared" });
+    expect(row.renews).toMatchObject({ state: "shared", text: "Shared", sub: "Jane Doe's package", day: null });
   });
 });

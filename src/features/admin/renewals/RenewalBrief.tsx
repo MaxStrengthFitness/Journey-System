@@ -54,7 +54,8 @@ import {
   latestLine,
 } from "../../renewals/conversation";
 import { touchHeadline } from "../../renewals/row-facts";
-import { isMonthToMonthRecord, M2M_LABEL, monthToMonthWhySentence } from "../../renewals/month-to-month";
+import { isOutsideRenewals, monthToMonthWhySentence, noRenewalLabel } from "../../renewals/month-to-month";
+import { sharedSentence } from "../../renewals/shared-package";
 import { gainSentence, healthLines, journeyLines, strengthGains } from "../../renewals/brief";
 import { OUTCOMES, closedOnFor } from "../../renewals/outcomes";
 import { optionsFor, upgradeVerdict } from "../../renewals/options";
@@ -351,8 +352,13 @@ export function RenewalBrief({
 
               <AdminPanel title="5. Where they stand">
                 <AdminRows>
-                  {isMonthToMonthRecord(s) && <AdminRow name="Package" meta={`${M2M_LABEL} · ${monthToMonthWhySentence(s.monthToMonth)}`} />}
-                  {!isMonthToMonthRecord(s) && <AdminRow
+                  {isOutsideRenewals(s) && (
+                    <AdminRow
+                      name="Package"
+                      meta={`${noRenewalLabel(s)} · ${s.situation === "shared" ? sharedSentence(s) : monthToMonthWhySentence(s.monthToMonth)}`}
+                    />
+                  )}
+                  {!isOutsideRenewals(s) && <AdminRow
                     name="Sessions left"
                     meta={
                       s.sessionsLeft === null
@@ -362,7 +368,7 @@ export function RenewalBrief({
                           }`
                     }
                   />}
-                  {!isMonthToMonthRecord(s) && <AdminRow
+                  {!isOutsideRenewals(s) && <AdminRow
                     name={s.paymentMode === "monthly" || s.chargeDate ? capitalize(billingEndPhrase(s.autoRenews)) : "Package"}
                     meta={
                       s.chargeDate

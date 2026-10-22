@@ -660,6 +660,18 @@ export interface ContractTierOverride {
   note?: string;
 }
 
+/** See Client.sharesPackageWith. */
+export interface SharesPackageWith {
+  /** The holder's client id: whose package she uses. */
+  clientId: string;
+  /** The holder's name when it was marked, so a screen can say it without a read. */
+  name: string;
+  setAt: string;
+  setById?: string;
+  setByName?: string;
+  note?: string;
+}
+
 /**
  * See Client.autoRenewMark. An OBJECT, never a bare boolean: the codex record
  * form counts `false` as "nothing", so an untick over an empty field would
@@ -1013,6 +1025,15 @@ export interface Client {
    * is removed. Never written by a sync. See features/client-admin/contract.ts.
    */
   contractTierOverride?: ContractTierOverride | null;
+  /**
+   * Uses another client's package (AJ, Oct 21 2026: "some clients SHARE
+   * packages so one client may not have a package but use another clients
+   * sessions, couples and families"). Marked by hand on Account → The
+   * package by anyone at the studio; never written by a sync. Her renewal
+   * record is then "shared", never a renewal of her own, and the holder's
+   * pace counts her visits (features/renewals/shared-package.ts).
+   */
+  sharesPackageWith?: SharesPackageWith | null;
   /**
    * A trainer's answer to "is she on auto-renewal?" for ONE contract, marked
    * on the profile's package card (Sep 25 2026; AJ: "allow trainers to mark a

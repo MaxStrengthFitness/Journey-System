@@ -164,7 +164,12 @@ export type RenewalSituation =
    * left, no end date, no warning, never in a renewal lane; every screen
    * says "M2M". `monthToMonth` says why.
    */
-  | "month-to-month";
+  | "month-to-month"
+  /**
+   * Uses another client's package (Oct 22 2026): couples and families. Like
+   * month to month, never a renewal of her own; `sharedPackage` names whose.
+   */
+  | "shared";
 
 /** Why a client is month to month: a coach's lock on Account, or the Mindbody name that says so. */
 export interface MonthToMonthWhy {
@@ -325,6 +330,14 @@ export interface RenewalSnapshot {
   runOutRange?: { earliest: string; latest: string } | null;
   /** Set only on a month-to-month snapshot (`situation` "month-to-month"): why. */
   monthToMonth?: MonthToMonthWhy | null;
+  /** Set only on a shared snapshot (`situation` "shared"): whose package she uses. */
+  sharedPackage?: { holderId: string; holderName: string } | null;
+  /**
+   * The holder's side: who else uses this package, by name order. Their
+   * visits count in the pace (AJ, Oct 22 2026: "count both people's visits
+   * in the holder's pace"). Written by the nightly job, which reads them.
+   */
+  sharedWith?: Array<{ clientId: string; name: string }> | null;
 }
 
 /**

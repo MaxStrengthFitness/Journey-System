@@ -106,7 +106,7 @@ export function quarter(n: number): number {
  * cancels (engine.ts: a late cancel takes a session without being a visit).
  */
 export function paceBetween(
-  used: ReadonlySet<string>,
+  used: Iterable<string>,
   from: string,
   to: string,
   away: readonly AwayRange[],
@@ -127,7 +127,7 @@ export function paceBetween(
  * than two windows that clear the minimum sample: one window is no range.
  */
 export function paceRange(params: {
-  used: ReadonlySet<string>;
+  used: Iterable<string>;
   today: string;
   floor: string | null;
   away: readonly AwayRange[];
@@ -483,7 +483,7 @@ export function paceTrendOf(recent: number | null, prior: number | null): Retent
  * later): a new client's weeks before they joined are not "coming less".
  */
 export function paceTrendWindows(params: {
-  used: ReadonlySet<string>;
+  used: Iterable<string>;
   today: string;
   floor: string | null;
   away: readonly AwayRange[];

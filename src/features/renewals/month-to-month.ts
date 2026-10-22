@@ -90,6 +90,14 @@ export function monthToMonthOf(input: MonthToMonthInput): MonthToMonthWhy | null
  * to month to month is a leader's to record (pay-as-you-go).
  */
 export function asMonthToMonth(s: RenewalSnapshot, why: MonthToMonthWhy): RenewalSnapshot {
+  return { ...clearedOfRenewal(s), situation: "month-to-month", packageLabel: "Month-to-month", monthToMonth: why };
+}
+
+/**
+ * Everything about a renewal of HER OWN taken off a record: month to month,
+ * and a client who uses someone else's package (shared-package.ts), share it.
+ */
+export function clearedOfRenewal(s: RenewalSnapshot): RenewalSnapshot {
   return {
     ...s,
     cycleKey: null,
@@ -113,7 +121,7 @@ export function asMonthToMonth(s: RenewalSnapshot, why: MonthToMonthWhy): Renewa
     conversationDue: false,
     chargeWarning: false,
     focusDate: null,
-    // Mindbody's package names say nothing about a month-to-month client.
+    // Her own package names say nothing about either: no package of her own is the point.
     dataGaps: s.dataGaps.filter((g) => !/isn't matched to a package|shows no package/.test(g)),
     ledger: null,
     commitmentEnd: null,
@@ -123,17 +131,33 @@ export function asMonthToMonth(s: RenewalSnapshot, why: MonthToMonthWhy): Renewa
     signals: s.signals ? { ...s.signals, suggestedPackageKey: null } : s.signals,
     paceRange: null,
     runOutRange: null,
-    monthToMonth: why,
+    sharedWith: null,
   };
 }
 
-/** Is this record month to month? Every screen that would say sessions left or an end date asks this first. */
+/** Is this record month to month? */
 export function isMonthToMonthRecord(s: Pick<RenewalSnapshot, "situation"> | null | undefined): boolean {
   return s?.situation === "month-to-month";
 }
 
+/**
+ * Month to month, or someone else's package: no renewal of her own. Every
+ * screen that would say sessions left or an end date asks this first, and
+ * says `noRenewalLabel` instead.
+ */
+export function isOutsideRenewals(s: Pick<RenewalSnapshot, "situation"> | null | undefined): boolean {
+  return s?.situation === "month-to-month" || s?.situation === "shared";
+}
+
 /** "M2M": what a screen says in place of sessions left and an end date. */
 export const M2M_LABEL = "M2M";
+/** "Shared": the same, for a client on someone else's package. */
+export const SHARED_LABEL = "Shared";
+
+/** The short word in place of a count: "M2M" or "Shared". Null for a record with a renewal of its own. */
+export function noRenewalLabel(s: Pick<RenewalSnapshot, "situation"> | null | undefined): string | null {
+  return s?.situation === "month-to-month" ? M2M_LABEL : s?.situation === "shared" ? SHARED_LABEL : null;
+}
 
 /** The (i)'s line: why Journey calls them month to month. */
 export function monthToMonthWhySentence(why: MonthToMonthWhy | null | undefined): string {

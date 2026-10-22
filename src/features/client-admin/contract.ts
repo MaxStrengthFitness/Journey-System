@@ -25,6 +25,7 @@ import { toDateSafe, type FirestoreDateLike } from "../../lib/mindbody-dates";
 import type { Client, ContractTierOverride, MindbodyContract, MindbodyService } from "../../types";
 import type { RenewalSnapshot } from "../renewals/types";
 import { mindbodyDayKey } from "../renewals/engine";
+import { sharedSentence } from "../renewals/shared-package";
 import { studioTodayKey } from "../../lib/studio-time";
 import { studiosInRealm } from "../demo-mode/access";
 import { DEMO_STUDIO_ID } from "../demo-mode/constants";
@@ -136,6 +137,9 @@ export function resolveContractTier(
   }
 
   const r = client?.renewal;
+  if (r?.situation === "shared") {
+    return { term: null, payment: null, label: sharedSentence(r), source: "renewal", evidence: "Marked by hand on Account" };
+  }
   if (r?.situation === "month-to-month") {
     const name = r.monthToMonth?.name;
     return {

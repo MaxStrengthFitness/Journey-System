@@ -160,7 +160,7 @@ export function AheadPeekBody(p: AheadPeekProps) {
         )}
       </dl>
 
-      {s && !c.cantPlace && s.situation !== "month-to-month" && (
+      {s && !c.cantPlace && s.situation !== "month-to-month" && s.situation !== "shared" && (
         <RenewalRowList label={`${c.name}'s renewal`}>
           <RenewalRow
             studioId={p.studioId}

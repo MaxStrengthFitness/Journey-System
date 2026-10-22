@@ -200,10 +200,14 @@ export function useLiveRenewal(
   // that landed today (auto-renew.ts, renewalOf) — the one a cross-train
   // visitor sees, whom the rules refuse the studio's settings.
   const fallback = useMemo(() => renewalOf(client), [client]);
+  // A holder's pace counts her sharers' visits, which only the nightly job
+  // reads (shared-package.ts): worked out here from her bookings alone it
+  // would disagree with the night, so the night's record is the one shown.
+  const holder = (stored?.sharedWith?.length ?? 0) > 0;
   return {
-    live,
+    live: holder ? null : live,
     stored,
-    snapshot: live ?? fallback,
+    snapshot: holder ? fallback : live ?? fallback,
     settings,
     loading: loading || (enabled && settingsLoading),
     error,

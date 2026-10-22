@@ -106,7 +106,7 @@ export function runningLow(input: RunningLowInput): RunningLow {
     const s = (c.renewal as RenewalSnapshot | undefined) ?? null;
     if (inactiveOnRecord(c, s, inactiveMarks.get(c.id) ?? null, today, inactiveDays)) continue;
     // Month to month runs low by design, so it is never counted, nor "not known" (AJ, Oct 21 2026).
-    if (s && (s.situation === "ended" || s.situation === "lapsed" || s.situation === "month-to-month")) continue;
+    if (s && (s.situation === "ended" || s.situation === "lapsed" || s.situation === "month-to-month" || s.situation === "shared")) continue;
     if (!s || s.sessionsLeft == null) {
       notKnown += 1;
       continue;
