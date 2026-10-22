@@ -338,6 +338,13 @@ export interface RenewalSnapshot {
    * in the holder's pace"). Written by the nightly job, which reads them.
    */
   sharedWith?: Array<{ clientId: string; name: string }> | null;
+  /**
+   * When `cycleKey` is a Part B read with its Part A as one package
+   * (engine.ts, Contract A and B, Oct 22 2026): the Part A's contract id.
+   * Records before then could be keyed by A, so the A key is the same
+   * package, never its successor, and an outcome on it is this package's.
+   */
+  partAContractId?: string | null;
 }
 
 /**

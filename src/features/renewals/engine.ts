@@ -1117,6 +1117,10 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
         : balance.packageService && isPif
           ? `pif-${String(balance.packageService.service.serviceId)}`
           : null;
+  // The pair's Part A, when the cycle is a Part B (Contract A and B): before
+  // Oct 22 2026 some records were keyed by A, and an outcome may sit there.
+  const cycleView = current && cycleKey === current.id ? current : contracts.lastEnded && cycleKey === contracts.lastEnded.id ? contracts.lastEnded : null;
+  const partAContractId = cycleView?.partA ? String(cycleView.partA.clientContractId) : null;
   const packageLabel = tier
     ? `${tier.label} · ${tier.months} months${paymentMode === "prepaid" ? " · paid in full" : ""}`
     : null;
@@ -1239,6 +1243,7 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
     paceRange: range,
     runOutRange,
     ...(sharedWith ? { sharedWith } : {}),
+    ...(partAContractId ? { partAContractId } : {}),
   };
   // Someone else's package first: she has no package of her own to be month to month on.
   const holder = sharedHolderOf(client);

@@ -713,7 +713,7 @@ export async function runRenewals(options: RenewalsRunOptions): Promise<Renewals
     /* ---------- 3. Outcomes: how packages ended ---------- */
     // Before the snapshots on purpose: if this fails, tonight's snapshots
     // aren't written either, so tomorrow sees the same change and records it.
-    const found: Array<{ c: Client; cand: OutcomeCandidate; ref: DocumentReference }> = [];
+    const found: Array<{ c: Client; cand: OutcomeCandidate; ref: DocumentReference; aliasRef: DocumentReference | null }> = [];
     for (const c of clients) {
       const cand = outcomeCandidate({
         stored: c.renewal ?? null,
@@ -722,7 +722,12 @@ export async function runRenewals(options: RenewalsRunOptions): Promise<Renewals
         today: run.today,
       });
       if (!cand || !CYCLE_KEY_PATTERN.test(cand.cycleKey)) continue;
-      found.push({ c, cand, ref: db.doc(`studios/${run.id}/renewals/${cand.cycleKey}`) });
+      // A Part B whose package was once keyed by its Part A (Contract A and
+      // B, Oct 22 2026): the A cycle is read too, so an outcome already
+      // recorded there is never recorded a second time on B.
+      const alias = snapshots.get(c.id!)!.partAContractId;
+      const aliasRef = alias && alias !== cand.cycleKey && CYCLE_KEY_PATTERN.test(alias) ? db.doc(`studios/${run.id}/renewals/${alias}`) : null;
+      found.push({ c, cand, ref: db.doc(`studios/${run.id}/renewals/${cand.cycleKey}`), aliasRef });
     }
     if (found.length > 0) {
       // Only the cycles a decision touches are read, in groups.
@@ -731,9 +736,18 @@ export async function runRenewals(options: RenewalsRunOptions): Promise<Renewals
         const docs = await db.getAll(...found.slice(i, i + 100).map((f) => f.ref));
         docs.forEach((d) => existing.push(d.exists ? (d.data() as Partial<RenewalCycle>) : null));
       }
+      const aliasRefs = found.map((f) => f.aliasRef).filter((r): r is DocumentReference => r !== null);
+      const aliasOutcome = new Set<string>();
+      for (let i = 0; i < aliasRefs.length; i += 100) {
+        const docs = await db.getAll(...aliasRefs.slice(i, i + 100));
+        docs.forEach((d) => {
+          if (d.exists && d.get("outcome")) aliasOutcome.add(d.ref.path);
+        });
+      }
 
       const writes: Array<(batch: WriteBatch) => void> = [];
-      found.forEach(({ c, cand, ref }, i) => {
+      found.forEach(({ c, cand, ref, aliasRef }, i) => {
+        if (cand.outcome && aliasRef && aliasOutcome.has(aliasRef.path)) return;
         const had = existing[i];
         const patch = outcomePatch(cand, had as RenewalCycle | null);
         if (!patch) return;

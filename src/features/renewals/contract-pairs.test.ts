@@ -93,3 +93,25 @@ describe("a Part A / Part B pair is one package", () => {
     expect(p.lastEnded?.id).toBe("b1");
   });
 });
+
+describe("the night the key moves from Part A to Part B", () => {
+  it("a record once keyed by Part A is the same package, never its successor", () => {
+    const c = client("2026-10-01", "2026-10-08");
+    const now = run(c, "2026-10-20");
+    expect(now.partAContractId).toBe("a");
+    const before = { ...now, cycleKey: "a", billingStart: null };
+    expect(isSuccessor(before, { ...now, billingStart: null }, "2026-10-20")).toBe(false);
+    // An ordinary contract carries no Part A.
+    const plain = run({ ...c, mindbodyContracts: { k: contract("k", "96 Sessions - 2X Week", "2026-10-01", "2027-10-01") } } as Client, "2026-10-20");
+    expect(plain.partAContractId).toBeUndefined();
+  });
+});
+
+describe("a record Journey couldn't read", () => {
+  it("is never the before of a renewal, when its names are first matched", () => {
+    const now = run(client("2026-10-01", "2026-10-01"), "2026-10-20");
+    const unread = { ...now, situation: "unknown" as const, cycleKey: "old-ended", billingStart: null, packageKey: null, focusDate: "2026-02-01" };
+    expect(isSuccessor(unread, now, "2026-10-20")).toBe(false);
+    expect(isSuccessor({ ...unread, situation: "ended" }, now, "2026-10-20")).toBe(true);
+  });
+});
