@@ -159,7 +159,7 @@ function parseFlags(argv: readonly string[]): { values: Map<string, string>; boo
   if (values.has("studio") && bools.has("include-demo")) {
     throw new Error("--studio and --include-demo don't go together: Demo Mode has its own Reset button. Nothing was read or written.");
   }
-  if (values.has("studio") && !/^[A-Za-z0-9_-]{4,}$/.test(values.get("studio")!)) {
+  if (values.has("studio") && !/^[A-Za-z0-9_-]+$/.test(values.get("studio")!)) {
     throw new Error(`--studio takes a studio's document id (studio-ids: Strongsville is BVDDRe5AqQZFihRLW0vK), not "${values.get("studio")}". Nothing was read or written.`);
   }
   return { values, bools };
