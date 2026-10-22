@@ -70,6 +70,14 @@ export function closedOnFor(s: Pick<RenewalSnapshot, "focusDate"> | null | undef
  */
 export function isSuccessor(stored: RenewalSnapshot, next: RenewalSnapshot, today: string): boolean {
   if (!stored.cycleKey || !next.cycleKey || stored.cycleKey === next.cycleKey) return false;
+  // The same Part A / Part B pair, re-keyed from A to B (Oct 22 2026): not a new package.
+  if (next.partAContractId && next.partAContractId === stored.cycleKey) return false;
+  // A record Journey couldn't read is never the "before" of a renewal: it
+  // saw no package there to renew. When a studio's names are first matched
+  // (Max Strength's table learned them on Oct 22 2026), 59 clients went from
+  // unknown to known with a contract that had ended months before, and each
+  // would have been recorded "renewed" that night.
+  if (stored.situation === "unknown") return false;
   if (stored.billingStart && next.billingStart) return next.billingStart > stored.billingStart;
   return Boolean(next.packageKey && stored.focusDate && stored.focusDate <= addDays(today, SUCCESSOR_WINDOW_DAYS));
 }

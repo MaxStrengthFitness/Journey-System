@@ -131,7 +131,7 @@ describe("AdminRenewalsTab — the door to the studio's auto-renewal answer", ()
 describe("AdminRenewalsTab — the Mindbody names waiting (the renewals dashboard, Oct 7 2026)", () => {
   const seen = {
     names: {
-      a: { name: "SV 6 Months/48 Sessions PIF", kind: "pricing-option", clients: 12 },
+      a: { name: "WL 6 Months/48 Sessions PIF", kind: "pricing-option", clients: 12 },
       b: { name: "Intro Offer", kind: "pricing-option", clients: 2 },
     },
   };

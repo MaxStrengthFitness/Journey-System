@@ -282,6 +282,73 @@ interface ContractView {
   start: string | null;
   end: string | null;
   tier: PackageTier | null;
+  /** A Part B's own Part A, when the two are read as one package (`pairContracts`). */
+  partA?: MindbodyContract;
+}
+
+/* ------------------------------------------------------------------ *
+ * Contract A and B (AJ, Oct 21 2026)
+ * ------------------------------------------------------------------ *
+ * "Contract A is the commitment length and Contract B is price they agree
+ * to, this is a way to give clients special pricing for promotions." In
+ * Mindbody every studio sells a package as two contracts, "96 Sessions Part
+ * A" and "96 Sessions Part B" (409 clients on Oct 22 2026, read-only). Part
+ * A is a stub: it ends the day it starts, a month later, or with B, and it
+ * never charges. Part B carries the real end date and every charge — the
+ * special price is B's.
+ *
+ * Read as two contracts, Part A was "the" contract while it ran (billing
+ * "ends" in a month, the table's rate instead of B's), and the night A
+ * ended the package seemed to be replaced by B: a renewal nobody made. So a
+ * pair is ONE package: its commitment (the package) from A's name, its
+ * billing — end date, charges, autopay, Mindbody's auto-renew flag — from B,
+ * keyed by B's id from the first day. Each B takes the A nearest it in
+ * start, within PAIR_WINDOW_DAYS; a B alone (sold today, A not synced yet)
+ * or an A alone is read as itself.
+ */
+const PART = /\bpart\s*([ab])\b/i;
+/** How far apart a pair's two starts may be: the widest real pair seen was 43 days. */
+export const PAIR_WINDOW_DAYS = 60;
+
+function partOf(name: unknown): "a" | "b" | null {
+  const m = PART.exec(typeof name === "string" ? name : "");
+  return m ? (m[1].toLowerCase() as "a" | "b") : null;
+}
+
+function pairContracts(views: ContractView[]): ContractView[] {
+  const as = views.filter((v) => partOf(v.contract.contractName) === "a");
+  const bs = views
+    .filter((v) => partOf(v.contract.contractName) === "b")
+    .sort((x, y) => (x.start ?? "").localeCompare(y.start ?? ""));
+  if (as.length === 0 || bs.length === 0) return views;
+  const used = new Set<ContractView>();
+  const pairs: ContractView[] = [];
+  for (const b of bs) {
+    if (!b.start) continue;
+    let best: ContractView | null = null;
+    let gap = Infinity;
+    for (const a of as) {
+      if (used.has(a) || !a.start) continue;
+      const g = Math.abs(daysBetween(a.start, b.start));
+      if (g <= PAIR_WINDOW_DAYS && g < gap) {
+        best = a;
+        gap = g;
+      }
+    }
+    if (!best) continue;
+    used.add(best);
+    used.add(b);
+    pairs.push({
+      contract: b.contract,
+      id: b.id,
+      start: minKey(best.start, b.start),
+      end: b.end,
+      // A says the commitment; B's name only when A's isn't a package the studio knows.
+      tier: best.tier ?? b.tier,
+      partA: best.contract,
+    });
+  }
+  return [...views.filter((v) => !used.has(v)), ...pairs];
 }
 
 function contractView(c: MindbodyContract, index: PackageNameIndex): ContractView {
@@ -329,9 +396,11 @@ export function pickContracts(
   today: string,
   index: PackageNameIndex,
 ): ContractPick {
-  const views = Object.values(contracts ?? {})
-    .filter((c) => c && c.clientContractId !== undefined && c.clientContractId !== null)
-    .map((c) => contractView(c, index));
+  const views = pairContracts(
+    Object.values(contracts ?? {})
+      .filter((c) => c && c.clientContractId !== undefined && c.clientContractId !== null)
+      .map((c) => contractView(c, index)),
+  );
 
   const byPreference = (a: ContractView, b: ContractView) =>
     Number(Boolean(b.tier)) - Number(Boolean(a.tier)) || (b.start ?? "").localeCompare(a.start ?? "");
@@ -1048,6 +1117,10 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
         : balance.packageService && isPif
           ? `pif-${String(balance.packageService.service.serviceId)}`
           : null;
+  // The pair's Part A, when the cycle is a Part B (Contract A and B): before
+  // Oct 22 2026 some records were keyed by A, and an outcome may sit there.
+  const cycleView = current && cycleKey === current.id ? current : contracts.lastEnded && cycleKey === contracts.lastEnded.id ? contracts.lastEnded : null;
+  const partAContractId = cycleView?.partA ? String(cycleView.partA.clientContractId) : null;
   const packageLabel = tier
     ? `${tier.label} · ${tier.months} months${paymentMode === "prepaid" ? " · paid in full" : ""}`
     : null;
@@ -1170,6 +1243,7 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
     paceRange: range,
     runOutRange,
     ...(sharedWith ? { sharedWith } : {}),
+    ...(partAContractId ? { partAContractId } : {}),
   };
   // Someone else's package first: she has no package of her own to be month to month on.
   const holder = sharedHolderOf(client);
