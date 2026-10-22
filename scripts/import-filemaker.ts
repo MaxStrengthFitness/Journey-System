@@ -107,13 +107,17 @@ import { isPerformedLog } from "../src/lib/set-outcome.ts";
 import { involvedMachines, logsAfter, sessionOutcome, totalsPlan, type Move, type StoredLog, type StoredSession, type TotalsPlan } from "../src/features/filemaker-import/relabel.ts";
 
 /**
- * The app is ready since the history-ready round (Oct 12 2026: the session
- * screen reads a window of a client's sessions; every reader of reps asks
- * set-outcome.ts). Switched on only once the pre-launch reset has run, the
- * full export with the trainer per visit is here, and AJ says go. (The round
- * document's §6.)
+ * Switched on Oct 22 2026 for the Strongsville import (AJ: "Go"), once its
+ * three conditions were met: the pre-launch reset ran for Strongsville that
+ * morning (`reset-test-data.ts --studio`), the full export carries the
+ * trainer per visit, and AJ gave the go on the wave 1 dry run. What still
+ * guards a real run: a client with a Journey session of her own is refused,
+ * a --through on or after the studio's cutover is refused, a machine table
+ * with a mistake stops it, --commit needs the dry run's --expect, and a
+ * client waits whole while any of her names is unmatched (--allow-waiting
+ * writes the others). The round: docs/rounds/2026-10-21-strongsville-import.md.
  */
-const PRODUCTION_IMPORT_READY = false;
+const PRODUCTION_IMPORT_READY = true;
 
 /*
  * The machine table's suggestions read Journey's names for the movements
