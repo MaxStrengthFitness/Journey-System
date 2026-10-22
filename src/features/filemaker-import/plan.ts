@@ -188,8 +188,12 @@ export function planClient(input: PlanInput): ClientPlan {
   const unmatched = new Set<string>();
   const machineOf = (line: WorkoutLine, day: string) => (line.machine ? input.machineFor(line.machine, day) : null);
   const holdsOn = input.holdsOn ?? (() => true);
-  // Weights nobody lifts (visits.ts): held back, the visit imports without them.
-  const implausible = implausibleWeights(input.visits);
+  // Weights nobody lifts (visits.ts): held back, the visit imports without them. Keyed by the Journey
+  // machine the line lands on that day (a renamed client's one FileMaker name is two machines over time).
+  const implausible = implausibleWeights(input.visits, (line, day) => {
+    const id = machineOf(line, day);
+    return id && id !== SKIP ? id : null;
+  });
   let position = 0;
 
   // First, whether anything waits for the machine table: then the client waits whole.

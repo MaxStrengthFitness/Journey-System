@@ -148,12 +148,15 @@ export function readSet(
  * slip is held whole. Said in the dry run so the copy of the export is
  * corrected first: an imported visit is never rewritten.
  */
-export function implausibleWeights(visits: readonly Visit[]): Set<number> {
+export function implausibleWeights(visits: readonly Visit[], keyOf?: (line: WorkoutLine, day: string) => string | null): Set<number> {
+  // "The client's usual on the machine" is the MACHINE's usual, not the FileMaker name's: a client whose
+  // chart was rebuilt has one name holding an overhead press at 20 for a year and a lumbar at 88 after
+  // (Beverly Snyder, wave 2b, Oct 22 2026), so the plan keys by the machine the line resolves to on its day.
   const byMachine = new Map<string, WorkoutLine[]>();
   for (const visit of visits) {
     for (const line of visit.lines) {
       if (line.weight === null || line.weight <= 0) continue;
-      const key = line.machine.toLowerCase();
+      const key = keyOf?.(line, visit.day) ?? line.machine.toLowerCase();
       (byMachine.get(key) ?? byMachine.set(key, []).get(key)!).push(line);
     }
   }

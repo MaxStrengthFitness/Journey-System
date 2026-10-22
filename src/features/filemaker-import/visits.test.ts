@@ -123,6 +123,29 @@ describe("the Strongsville audit's guards (Oct 21 2026)", () => {
     expect(f[0]).toMatchObject({ level: "held", where: "2025-04-22 Lumbar: 8410" });
   });
 
+  it("judges a weight against the MACHINE's usual, so a renamed client's one name holding two machines over time is not a slip", () => {
+    // Beverly Snyder (wave 2b, Oct 22 2026): "Overhead" is her overhead press at 20 until her chart was rebuilt
+    // on 2024-11-04, and her lumbar at 76-88 after. By the name, the 88s are 4x the median and held; by the
+    // machine each day resolves to, nothing is.
+    const { visits } = groupVisits([
+      line("2024-08-05", "Overhead", 1, 20, 10),
+      line("2024-08-12", "Overhead", 1, 20, 10),
+      line("2024-08-19", "Overhead", 1, 20, 10),
+      line("2024-08-26", "Overhead", 1, 20, 10),
+      line("2024-11-04", "Overhead", 1, 76, 10),
+      line("2024-11-11", "Overhead", 1, 76, 10),
+      line("2024-11-18", "Overhead", 1, 88, 10),
+      line("2024-11-25", "Overhead", 1, 88, 10),
+    ]);
+    const byName = implausibleWeights(visits);
+    expect([...byName].length).toBeGreaterThan(0);
+    const byMachine = implausibleWeights(visits, (l, day) => (day >= "2024-11-04" ? "m-lumbar" : "m-overhead-press"));
+    expect([...byMachine]).toEqual([]);
+    // A line the table has not settled yet falls back to its name.
+    const unsettled = implausibleWeights(visits, () => null);
+    expect([...unsettled]).toEqual([...byName]);
+  });
+
   it("asks the machine whether a hold is real, through the same door as per-side", () => {
     const { visits } = groupVisits([line("2024-04-16", "Hip ADD", 1, 68, 92), line("2024-04-16", "Leg Ext.", 2, 44, 90)]);
     const held = findingsOf(visits, [], () => false, (machine) => machine !== "Hip ADD").filter((x) => /can't be read safely/.test(x.what));
