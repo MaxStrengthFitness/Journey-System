@@ -111,7 +111,8 @@ describe("Off today: a small button, and a second tap (AJ, Oct 20 2026)", () => 
   });
 
   it("is 40px to tap and never crimson", () => {
-    const css = readFileSync(resolve(__dirname, "journey-grid.css"), "utf8");
+    // A Windows checkout has CRLF line ends; the patterns below expect LF.
+    const css = readFileSync(resolve(__dirname, "journey-grid.css"), "utf8").replace(/\r\n/g, "\n");
     const rule = css.match(/\n\.jg-nb__off,\n\.jg-nb__offbtn \{([^}]*)\}/)![1];
     expect(rule).toContain("min-height: 40px");
     expect(css.match(/\n\.jg-nb__off \{([^}]*)\}/)![1]).not.toContain("q-poor");
