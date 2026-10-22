@@ -116,6 +116,80 @@ Nothing here touches the Mindbody integration, a Cloud Function or the Firestore
 2. **The groups.** `imported-history` and `settings` (the weights only), keeping the dials, routines and everything else (recommended), or something else once the dry run's numbers are in front of you?
 3. **Trainers' counts.** With `--studio` the counts document is left to the delete trigger and one press of Rebuild trainer rollups afterwards (recommended), rather than deleted?
 
-## Stage 3: the import (to plan after Stage 2)
+## Stage 2: what ran
 
-In waves, from a corrected copy of the export, with `--through` on the export day: first the clean clients (about 95), then the 51 flagged once their charts are read and their rows checked, and the 21 numbering clients once their totals are stated; former clients, split profiles and Bruce Stone as AJ decides. The importer changes it needs first (each behind AJ's yes): `parseDay` refuses a year before 2000; `readSet` takes the machine and holds a hold on a lifting machine or over 120 seconds; a weight of 0 on a counted line, or over 400 or 4× the client's median, is held and listed; `correct-export.mts` takes a date column and a blank `--becomes`; the "from FileMaker" tag and the era filter for decision (a) / (b), with the list of measures (b) would change; a test that a client with both eras reads right. `PRODUCTION_IMPORT_READY` flips in that round, with the three rebuild jobs after the run.
+Four commits on local master (`808ed5d3` the scope in the core, `2408d167` the import's marks on the client, `5359653d` the script, `2181a2a2` the emulator proof, 33 checks). **The real reset ran on Oct 22 2026 at 8:25 AM ET** (`--studio BVDDRe5AqQZFihRLW0vK --also imported-history,settings --commit --expect 10151`): every write landed, backup `backups\reset-2026-10-22T12-25-32-221Z`, point-in-time minute 2026-10-22T12:25 UTC, the check dry run PLANNED 0, the three jobs run with no Mindbody call, Rebuild trainer rollups pressed by AJ. Strongsville holds no sessions; routines, Pulse, dials, setting history and everything Mindbody owns are as they were. The log is `backups/filemaker/IMPORT-LOG.md`.
+
+## Stage 3: the import, in waves (the plan, Oct 22 2026; nothing built yet)
+
+### What AJ asked
+
+"Dry-run the import for Strongsville, show me the numbers, wait for my go, then flip `PRODUCTION_IMPORT_READY`, run with `--commit`, and run the three rebuild jobs from the reset runbook, step 5. Every imported session already carries `legacy_filemaker_id` and the client's `priorHistory` marks the before-Journey count; keep that marker intact and add a test that a client with both eras reads right. DECISION (a): FileMaker sessions count everywhere for now, with a visible 'from FileMaker' tag; in a few months we switch trend and average measures to Journey-era only (b). So make the era filterable at read time (derive it from `legacy_filemaker_id`) so (b) is a one-line change per measure, and note each measure that would need it in a doc." And the rules table of Stage 1, approved with its defaults.
+
+### What the importer does today, and what Stage 3 changes in it
+
+The importer (`src/features/filemaker-import/`, `scripts/import-filemaker.ts`) is built and rehearsed; the Stage 1 audit found four readings that would write something wrong into a visit that can never be rewritten, and one guard that is missing. Each is small, pure, and tested beside the rule it changes:
+
+| Change | Where | Rule it serves |
+| --- | --- | --- |
+| A year before 2000 is not a day: the entry is held as "no date", never a session in year 205 | `records.ts` `parseDay` | R11 |
+| A count of 30 or more is seconds only from 30 to 120 and only on a machine that is held; on Hip Adduction, Hip Abduction, Leg Curl, Pulldown, Lumbar, a Leg Press or the Hoist it is held and listed (the machine reaches `readSet` the way `perSide` does) | `visits.ts` `readSet`, `findingsOf`; `plan.ts` | R8 |
+| A weight of 0 beside a count is held and listed | `visits.ts` | R6 |
+| A weight over 400, or over 4× the client's median on that machine, is held and listed | `visits.ts` `findingsOf` → `plan.ts` (a new "held" kind) | R10 |
+| The dry run's held list says, once, that a held entry on a visit that imports is never added later, so the copy is corrected first | `report.ts` | the rules table's note |
+
+Nothing in the importer's writing changes: the ids, the batches, the client's counts, the machine totals and the next weights are as the Oct 12 round built and rehearsed them (the README). The trainer per visit is already written from the lines (`trainerInitials`, one set of initials or blank).
+
+### The era: decision (a) now, (b) later, one line per measure
+
+One new file, **`src/lib/session-era.ts`**, the only place the era is read:
+
+- `eraOf(session)` → `"filemaker"` or `"journey"`, from `legacy_filemaker_id` (and the older chart imports' marks, exactly `isLegacySession`'s test today). `client-history/model.ts`'s `isLegacySession` delegates to it, so the four screens that already read it (History's list and pop-up, the codex's Arrivals, Your week, the Deep Dive's `beforeJourney`) are unchanged.
+- `TREND_ERA: "all" | "journey" = "all"` and `inTrendEra(session)`. Under (a) every measure includes both eras. Switching to (b) is changing that one constant, and each measure's one call is the line that honours it.
+- **The visible tag.** History's pop-up already says "Imported" where a time would be; the Journey tab and the session list on the header do not. Stage 3 gives every list of a client's sessions the same small tag, "from FileMaker", through one helper (`eraTag(session)`), on: History's rows and pop-up, the Journey tab's past sessions, the machine card's session list, the header's Last / Next session lists. No new colour, no icon: words, 11px or more, as the Wrap-up round's labels are.
+- **The measures (b) would change**, each named in **`docs/business/session-eras.md`** with the file and the one line: the Journey grid's trend arrows (`journey-grid/stats.ts` `trendVsPrevious`) and the Staircase (`machine-menu`), the Wrap-up's "last time" and gains (`lib/post-session.ts`), the progress report's windows and totals (`lib/progress-utils.ts`, `progress-report/`), the Deep Dive's baseline, effort trend and stalls (`clinical-review/facts.ts`, `effort-trend.ts`, `analytics.ts`), machine trends and the Kaizen reports (`machine-trends/trends.ts`, the weekly job), the performance watch, All stars and the client states' pace (`renewals/attendance.ts`, `hub-opportunities`), Your week and My clients (`trainer-profile`). **Not** in the list, because they are counts and stay whole under (b) too: the session total and numbering (`lib/session-total.ts`, `history-claims.ts`), the machine totals and "last time", the trainer rollups, the month tallies, InBody due. The sweep that builds this list is part of the phase, read file by file; the list above is the starting point.
+- **The test AJ asked for** (`session-era.test.ts` and a case in `lib/session-total.test.ts`): a client with 48 imported sessions, a stated total of 183 and 2 Journey sessions of her own reads total 185, next session #186, two eras tagged apart, History's coverage "complete" from Mindbody's count; `inTrendEra` includes all 50 under (a) and only the 2 under (b), and no measure in the list changes its answer under (a) against today's.
+
+### The copy of the export, the machine table, and the two sheets
+
+Prepared before the dry run, nothing in `src/`:
+
+1. **A corrected copy** of the workouts file, through `backups/filemaker/tools/correct-export.mts` run once per row, each run's output the next run's input (the tool gains a `--column DateofWorkout` mode and a blank `--becomes`, both in the gitignored tools folder): the 12 rows AJ already confirmed by approving the rules table (Nancy 2000 → 200, Eva 1000 → 100, Stacy 1780 → 178, Gary 1400 → 140, Steve 1502 → 150, Debora 8410 → 84 and 268 → 26, Janice 5412 → 54, Tom Cifelli 888 → 88 and 849 → 84, Mary 540 → 54) and Tom Reddy's date 12/12/0205 → 2025-12-12; Tom Reddy's 13137 and Bonnie Eggers' 228 as AJ picks, else left for the guard to hold. The original stays as it came; the copy is named for the day and logged.
+2. **The machine table, `machine-table-strongsville-v2.csv`**: the studio's 19 rows, plus Cx → `m-neck`; the five old names (Comp. Row Hoist, Chest Press Hoist, Pulldown Imag., Overhead Imag., Leg Press Nt) and the two flagged (Rowing Back → `m-simple-row`, Abs Imagine → `m-abs`), each Until 2023-12-31; Pam's five client rows (chart-proven); Allan's eight T1 rows from 2024-08-24 (chart-read Oct 14); and **a hold row per flagged client** (the other 49, Lynne included: a client row with a blank Journey machine from the client's start day, so each waits whole and nothing wrong is written). The draft rows for them stay in `audit/draft-client-rows-2026-10-21.csv` for wave 2.
+3. **The numbering sheet** for the 21 clients whose story predates FileMaker (R13): name, Mindbody's count, FileMaker's visits, the suggested total, Confirm / Change. Until a leader has answered for a client, that client is held (a hold row) out of wave 1. The answers are written the way the app writes them: a leader on Account → Sessions before Journey, or AJ hands the sheet back and `scripts/state-prior-history.ts` (new, dry run by default, `--commit --expect`) writes each record with source `filemaker` and the leader's name, never without a person.
+4. **Held out of wave 1 by the rules table's defaults**, and said in the dry run's report: the 124 former clients not in Journey (R15), the four split profiles (R16), the nine staff and test profiles (R17), Bruce Stone and the three drive-bys (R18).
+
+### The waves
+
+| Wave | Who | When |
+| --- | --- | --- |
+| 1 | Every Strongsville client in Journey who is neither flagged for the name fault nor waiting on a stated total: about 90 clients, the exact list from the dry run; Pam and Allan with their rows | after AJ's go on the dry run |
+| 2 | The flagged clients as their charts answer (the row order read on three or four charts settles the order; each client's rows then checked: the eight incomplete chains completed, the implied Pulldown and Lumbar rows confirmed by the notes test or the chart, the start days where routines were rebuilt apart), and the 21 numbering clients as their totals are stated | as the answers come, in runs of the clients ready |
+| 3 | Former clients if AJ wants them (onboard `--months 36` first), the split profiles once paired in Mindbody, Bruce Stone once re-filed | AJ's call |
+| Top-up | FileMaker keeps running at Strongsville until its cutover, so every session logged there after the export (Oct 21 2026, 10 AM) is missing from Journey. A second export on the eve of the cutover, run through the same importer, adds the new visits and writes nothing twice; it must happen BEFORE the first Journey session is logged there, since a client with a Journey session of her own is refused | the night before Strongsville's cutover |
+
+Every run: `--through` the export's own day (Oct 21 2026 for this export, so April Lozinak's Oct 23 sheet stays out), `--verify` on the commit, the report and the table kept in `backups/filemaker/`, the log updated. After each wave: `rebuild-machine-fit --commit`, `run-machine-trends --commit`, `run-renewals --commit --max-pulls 0 --first-sync-max 0`, and Rebuild trainer rollups once (an imported session is written `rollupCounted` so the trigger does nothing per document).
+
+### The lock
+
+`PRODUCTION_IMPORT_READY` flips to `true` in its own commit, after the wave 1 dry run and AJ's go, with the lock's comment rewritten to say what it now guards: a run is refused for a client who has a Journey session of her own, for a `--through` on or after the studio's cutover, and for a machine table with a mistake, exactly as before. `--trial` stays for a single client between waves.
+
+### The phases (one commit each, typechecked and tested on their own)
+
+1. **The reading guards**: the five rows of the table above, with tests in `records.test.ts` and `visits.test.ts`, and the emulator rehearsal run again on the three Oct 12 samples (nothing real touched).
+2. **The era**: `session-era.ts`, `isLegacySession` delegating, the tag on the four lists, the one call in each measure (no behaviour change under (a), held by the test), the two-era client test, `docs/business/session-eras.md`.
+3. **The copy, the table and the sheets** (gitignored files, logged): the corrected export, `machine-table-strongsville-v2.csv`, the numbering sheet, `scripts/state-prior-history.ts` with its test.
+4. **The wave 1 dry run on production** (read-only), its numbers to AJ: clients ready, sessions and sets to write, what waits and why, the held entries by kind with their rows. AJ's go.
+5. **The lock flipped, wave 1 written** (`--commit --expect N --through 2026-10-21 --verify`), the three jobs, Rebuild trainer rollups, the log and `backups/filemaker/IMPORT-LOG.md`; a `--trial` walk of two clients on an iPad before the rest if AJ wants one.
+
+Nothing here touches the Mindbody integration, a Cloud Function or the Firestore structure: every field the import writes exists today (`legacy_filemaker_id`, `priorHistory`, the session and set documents as Finish writes them). An InBody "last scan day" field (R20) would be a structure change and is not in this stage.
+
+### Stage 3: what ran (Oct 22 2026)
+
+Phases 1 to 3 are committed (`f89acb97` the reading guards and the emulator rehearsal, `233fe126` the session era, `390c5cab` the numbering sheet's writer), the lock flipped in `97bd2e1c`, and **wave 1 was written at about 11:06 AM ET: 94 clients, 6,829 sessions, 46,264 sets, each client read back with its counts; 38 clients held on purpose (the flagged, the numbering clients, four filed elsewhere); nobody stopped.** The three jobs ran after with no Mindbody call; AJ pressed Rebuild trainer rollups. The log is `backups/filemaker/IMPORT-LOG.md`; the files that wave used are `exports/strongsville-full/…-corrected-2026-10-22.csv`, `machine-table-strongsville-v2.csv` and `report-2026-10-22T14-51-53-477Z.json` there. Wave 2 waits on the charts, the numbering sheet and two picks (the log says which).
+
+### Three questions for AJ
+
+1. **The top-up.** FileMaker stays the studio's log until the cutover, so a second export on the cutover's eve is part of the plan (and the import is refused once a client has a Journey session of her own). Is that the order you want, or does Strongsville start logging in Journey as soon as wave 1 is in?
+2. **The flagged 51 and the 21.** Wave 1 now with them held (recommended: nothing wrong is written, and wave 2 adds them), or wait for the charts and the numbering sheet and import everyone in one wave?
+3. **Tom Reddy's Seated Dip (131, 132 or 137) and Bonnie Eggers' Leg Extension (28, or 22 × 8).** A pick, or the guard holds those 12 sets for good.
