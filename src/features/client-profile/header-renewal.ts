@@ -56,11 +56,11 @@ type ContractLike = {
 
 /** The renewal words from her Mindbody contracts, for a client with no snapshot yet. */
 export function headerContractWords(
-  client: Partial<Pick<Client, "mindbodyContracts" | "autoRenewMark" | "contractTierOverride">> | null | undefined,
+  client: Partial<Pick<Client, "mindbodyContracts" | "autoRenewMark" | "contractTierOverride" | "sharesPackageWith">> | null | undefined,
   today: string,
 ): string | null {
   // Month to month has no renewal date to say; the sessions tile says M2M (Oct 21 2026).
-  if (client?.contractTierOverride?.payment === "month-to-month") return null;
+  if (client?.contractTierOverride?.payment === "month-to-month" || client?.sharesPackageWith?.clientId) return null;
   let best: { key: string; end: string; c: ContractLike } | null = null;
   for (const [key, raw] of Object.entries(client?.mindbodyContracts ?? {})) {
     const c = raw as ContractLike | null;

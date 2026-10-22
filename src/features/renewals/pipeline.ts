@@ -60,8 +60,8 @@ export function laneOf(
   settings: RenewalSettings,
   today: string,
 ): PipelineLane | null {
-  // Month to month is never a renewal (AJ, Oct 21 2026): no lane at all.
-  if (s.situation === "month-to-month") return null;
+  // Month to month, or someone else's package, is never a renewal (AJ, Oct 21-22 2026): no lane at all.
+  if (s.situation === "month-to-month" || s.situation === "shared") return null;
   if (s.situation === "away") return "away";
   // The next package is already signed: the renewal is done.
   if (s.renewalOnBooks) return null;

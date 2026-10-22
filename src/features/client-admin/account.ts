@@ -60,7 +60,8 @@ import {
   situationSentence,
 } from "../renewals/sentences";
 import { mindbodyDayKey } from "../renewals/engine";
-import { isMonthToMonthRecord, M2M_LABEL } from "../renewals/month-to-month";
+import { isMonthToMonthRecord, M2M_LABEL, SHARED_LABEL } from "../renewals/month-to-month";
+import { sharedHolderOf, sharedWithSentence } from "../renewals/shared-package";
 import { isAutoRenewMark, liveMindbodyFlag, lockSaysNothingBills, markFor, renewalOf } from "../renewals/auto-renew";
 import { formatStudioDate, studioDayKeyOf } from "../../lib/studio-time";
 import { mindbodyIdOf } from "../../lib/mindbody-id";
@@ -517,7 +518,7 @@ export function tierSourceLine(tier: Pick<ContractTier, "source" | "evidence">):
 }
 
 export type PackageClient = Pick<Client, "mindbodyContracts" | "mindbodyServices"> &
-  Partial<Pick<Client, "renewal" | "contractTierOverride" | "autoRenewMark">>;
+  Partial<Pick<Client, "renewal" | "contractTierOverride" | "autoRenewMark" | "sharesPackageWith">>;
 
 /**
  * What Mindbody says she holds right now: every pricing option with sessions
@@ -711,15 +712,26 @@ export function packageView(
   // Month to month (AJ, Oct 21 2026): "these should just list as 'M2M'
   // rather than listing when their contract ends or how many sessions they
   // have left". The lock, staged or saved, says so before the night's run.
-  const m2m = isMonthToMonthRecord(r) || tier.payment === "month-to-month";
-  if (m2m) {
+  // Someone else's package (Oct 22 2026), staged or saved: the same, "Shared".
+  const holder = sharedHolderOf(client) ?? (r?.situation === "shared" ? r.sharedPackage ?? null : null);
+  const m2m = !holder && (isMonthToMonthRecord(r) || tier.payment === "month-to-month");
+  if (holder) {
+    left = SHARED_LABEL;
+    leftWords = `uses ${holder.holderName}'s package`;
+    held = null;
+    when = `Sessions come off ${holder.holderName}'s package`;
+  } else if (m2m) {
     left = M2M_LABEL;
     leftWords = "month to month";
     held = null;
     when = "Month to month · no end date";
+  } else {
+    // The holder's side: who else uses these sessions (their visits are in the pace).
+    held = [held, sharedWithSentence(r)].filter(Boolean).join(" · ") || null;
   }
+  const outside = !!holder || m2m;
 
-  const status = m2m
+  const status = outside
     ? null
     : !r
     ? "Renewal not worked out yet — it appears after the nightly run."
@@ -737,7 +749,7 @@ export function packageView(
     left,
     leftWords,
     held,
-    payments: !m2m && r && typeof r.paymentsLeft === "number" ? plural(r.paymentsLeft, "payment") + " to go" : null,
+    payments: !outside && r && typeof r.paymentsLeft === "number" ? plural(r.paymentsLeft, "payment") + " to go" : null,
     when,
     status,
     pace: r ? paceSentence(r) : null,

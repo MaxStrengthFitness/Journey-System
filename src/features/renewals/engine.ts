@@ -47,6 +47,7 @@ import type { HistoryCoverage } from "../../lib/prior-history";
 import { buildPackageNameIndex, sessionsPerPayment, type PackageNameIndex } from "./settings";
 import { decideAutoRenew, lockSaysNothingBills } from "./auto-renew";
 import { asMonthToMonth, monthToMonthOf } from "./month-to-month";
+import { asShared, sharedHolderOf, sharerUsedDays, type PackageSharer } from "./shared-package";
 import {
   awayDaysBetween,
   BOOKING_LOOKAHEAD_DAYS,
@@ -179,6 +180,11 @@ export interface RenewalEngineInput {
   coverage?: HistoryCoverage;
   /** The studio's time zone, for the day of the last Mindbody pull. UTC when not given. */
   timeZone?: string;
+  /**
+   * Who else uses this client's package, with their visits (shared-package.ts,
+   * Oct 22 2026): their sessions come off her package, so the pace counts them.
+   */
+  sharers?: readonly PackageSharer[];
 }
 
 /* ------------------------------------------------------------------ *
@@ -436,8 +442,10 @@ export function computePace(params: {
   billingStart: string | null;
   away: AwayRange[];
   pauseDuringAway: boolean;
+  /** The days others sharing the package used a session, each person's days once (shared-package.ts). */
+  sharedDays?: readonly string[];
 }): PaceResult {
-  const { visitDays, today, attendanceSince, billingStart, away, pauseDuringAway } = params;
+  const { visitDays, today, attendanceSince, billingStart, away, pauseDuringAway, sharedDays = [] } = params;
   if (!attendanceSince || attendanceSince > today) {
     return { perWeek: null, windowStart: null, observedDays: 0, visits: 0 };
   }
@@ -447,7 +455,9 @@ export function computePace(params: {
   const totalDays = daysBetween(windowStart, today) + 1;
   const awayDays = pauseDuringAway ? awayDaysBetween(windowStart, today, away) : 0;
   const observedDays = totalDays - awayDays;
-  const visits = new Set(visitDays.filter((d) => d >= windowStart && d <= today)).size;
+  const visits =
+    new Set(visitDays.filter((d) => d >= windowStart && d <= today)).size +
+    sharedDays.filter((d) => d >= windowStart && d <= today).length;
   if (observedDays < MIN_PACE_WINDOW_DAYS) {
     return { perWeek: null, windowStart, observedDays, visits };
   }
@@ -589,6 +599,12 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
    */
   const usedDays = new Set(visitDays);
   for (const a of attendance) if (a.kind === "no-show" && a.day <= today) usedDays.add(a.day);
+  // Sessions off THIS package: hers, and those of anyone who shares it (AJ,
+  // Oct 22 2026: "count both people's visits in the holder's pace"). Each
+  // person's days once, added: two people in on one day are two sessions.
+  const sharers = sharedHolderOf(client) ? [] : (input.sharers ?? []).filter((x) => x.clientId !== client.id);
+  const sharedDays = sharers.flatMap((x) => sharerUsedDays(x.attendance, today));
+  const packageUsed: string[] = [...usedDays, ...sharedDays];
   const hint =
     typeof input.lastVisitHint === "string" &&
     /^\d{4}-\d{2}-\d{2}$/.test(input.lastVisitHint) &&
@@ -762,7 +778,7 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
     ) {
       // No pricing options on file, but Journey has seen the whole package:
       // the package's sessions minus the visits since it began.
-      const used = Array.from(usedDays).filter((d) => d >= current.start!).length;
+      const used = packageUsed.filter((d) => d >= current.start!).length;
       sessionsLeft = Math.max(0, tier.sessions - used);
       sessionsLeftSource = "estimate";
     }
@@ -775,6 +791,7 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
   /* ---- Pace and projections ---- */
   const pace = computePace({
     visitDays: Array.from(usedDays),
+    sharedDays,
     today,
     attendanceSince,
     // A renewal starting next week must not blank the pace: only a package
@@ -826,7 +843,7 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
   const range =
     perWeek === null
       ? null
-      : paceRange({ used: usedDays, today: addDays(today, -1), floor: pace.windowStart, away: awayAhead, wholeWindows: rollingFloor });
+      : paceRange({ used: packageUsed, today: addDays(today, -1), floor: pace.windowStart, away: awayAhead, wholeWindows: rollingFloor });
   // A count old enough that the pace would already have used it up says
   // "about now", never a day in the past.
   const runOutAt = (p: number | null): string | null => {
@@ -1099,6 +1116,10 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
     dayKey: mindbodyDayKey,
   });
 
+  const sharedWith = sharers.length
+    ? sharers.map((x) => ({ clientId: x.clientId, name: x.name })).sort((a, b) => a.name.localeCompare(b.name))
+    : null;
+
   const snapshot: RenewalSnapshot = {
     version: ENGINE_VERSION,
     cycleKey,
@@ -1148,7 +1169,11 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
     signals,
     paceRange: range,
     runOutRange,
+    ...(sharedWith ? { sharedWith } : {}),
   };
+  // Someone else's package first: she has no package of her own to be month to month on.
+  const holder = sharedHolderOf(client);
+  if (holder) return asShared(snapshot, holder);
   return m2m ? asMonthToMonth(snapshot, m2m) : snapshot;
 }
 

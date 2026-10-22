@@ -49,6 +49,7 @@ import { WEEK_AHEAD_DAYS } from "../../lib/schedule-window";
 import { isStaffBlock } from "../../lib/booking-state";
 import { ageAndBirthday, sessionsSplit } from "../client-admin/account";
 import { resolveContractTier } from "../client-admin/contract";
+import { sharedHolderOf } from "../renewals/shared-package";
 import type { PackageNameIndex } from "../renewals/settings";
 import type { RenewalSnapshot } from "../renewals/types";
 import { addDays, daysBetween, sessionDayKey, weekdayOf } from "../client-history/model";
@@ -337,8 +338,8 @@ export interface DirectoryRow {
     sub: string | null;
     reason: string | null;
     perPayment: boolean;
-    /** Month to month (Oct 21 2026): "M2M", never a count; its own group. */
-    m2m?: true;
+    /** Month to month or someone else's package (Oct 21-22 2026): "M2M" or "Shared", never a count; its own group. */
+    noRenewal?: "m2m" | "shared";
   };
   total: {
     state: KnownState;
@@ -361,7 +362,7 @@ export interface DirectoryRow {
    * banked sessions) with no date worked out: it ends when her sessions run
    * out, so it has no day of its own (AJ, Oct 3 2026: "These are paid in full").
    */
-  renews: { state: "known" | "renewed" | "paid" | "m2m" | "none" | "unknown"; day: string | null; text: string; sub: string | null; reason: string | null };
+  renews: { state: "known" | "renewed" | "paid" | "m2m" | "shared" | "none" | "unknown"; day: string | null; text: string; sub: string | null; reason: string | null };
   /** Her booking today (the first not yet over, else the last), for In today and Start. */
   today: { at: number; end: number; text: string; with: string | null; over: boolean } | null;
   /** Booked with the signed-in trainer in the held bookings. */
@@ -590,7 +591,8 @@ function nextOf(client: Client, ctx: DirectoryContext): DirectoryRow["next"] {
 
 function leftOf(client: Client, ctx: DirectoryContext): DirectoryRow["left"] {
   const unknown = (reason: string): DirectoryRow["left"] => ({ state: "unknown", value: null, text: "Unknown", sub: null, reason, perPayment: false });
-  if (isM2m(client)) return { state: "known", value: null, text: "M2M", sub: null, reason: null, perPayment: false, m2m: true };
+  if (sharedOf(client)) return { state: "known", value: null, text: "Shared", sub: null, reason: null, perPayment: false, noRenewal: "shared" };
+  if (isM2m(client)) return { state: "known", value: null, text: "M2M", sub: null, reason: null, perPayment: false, noRenewal: "m2m" };
   const services = client.mindbodyServices ?? {};
   const pulled = !!client.mindbodyServicesSyncedAt || Object.keys(services).length > 0;
   if (!pulled) return unknown("Packages haven't been pulled from Mindbody yet.");
@@ -712,7 +714,15 @@ function isM2m(client: Client): boolean {
   return resolveContractTier(client).payment === "month-to-month";
 }
 
+/** Someone else's package (Oct 22 2026): the mark, or last night's record. */
+function sharedOf(client: Client): { holderName: string } | null {
+  const s = client.renewal as RenewalSnapshot | undefined;
+  return sharedHolderOf(client) ?? (s?.situation === "shared" ? s.sharedPackage ?? { holderName: "another client" } : null);
+}
+
 function renewsOf(client: Client, today: string): DirectoryRow["renews"] {
+  const shared = sharedOf(client);
+  if (shared) return { state: "shared", day: null, text: "Shared", sub: `${shared.holderName}'s package`, reason: null };
   if (isM2m(client)) return { state: "m2m", day: null, text: "M2M", sub: "month to month", reason: null };
   const s = client.renewal as RenewalSnapshot | undefined;
   if (s) {

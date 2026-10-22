@@ -127,7 +127,8 @@ function nextBucket(row: DirectoryRow, ctx: BucketContext): Bucket {
 
 function leftBucket(row: DirectoryRow): Bucket {
   const v = row.left.value;
-  if (row.left.m2m) return tail("m2m", "Month to month", 0);
+  if (row.left.noRenewal === "m2m") return tail("m2m", "Month to month", 0);
+  if (row.left.noRenewal === "shared") return tail("shared", "Shared package", 0.5);
   if (row.left.state !== "known" || v === null) return tail("unknown", "Unknown", 1);
   if (v <= 0) return known("none", row.left.perPayment ? "None on hand" : "None left", 1);
   if (v <= 4) return known("1-4", "1\u20134 left", 2);
@@ -148,6 +149,7 @@ function renewsBucket(row: DirectoryRow, ctx: BucketContext): Bucket {
   if (r.state === "renewed") return tail("renewed", "Already renewed", 1);
   if (r.state === "paid") return tail("paid", "Paid in full · ends when sessions run out", 2);
   if (r.state === "m2m") return tail("m2m", "Month to month", 2.5);
+  if (r.state === "shared") return tail("shared", "Shared package", 2.6);
   if (r.state === "none") return tail("none", "No end date", 3);
   return tail("unknown", "Unknown", 4);
 }

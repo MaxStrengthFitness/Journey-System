@@ -40,9 +40,9 @@ export function directoryPackageRead(client: Client, today?: string): DirectoryP
 
   let sessionsLeft = "Unknown";
   let sessionsLeftTone: DirectoryPackageRead["sessionsLeftTone"] = "unknown";
-  if (r?.situation === "month-to-month") {
-    // AJ, Oct 21 2026: month to month lists as "M2M", never a count.
-    sessionsLeft = "M2M";
+  if (r?.situation === "month-to-month" || r?.situation === "shared") {
+    // AJ, Oct 21-22 2026: month to month lists as "M2M", someone else's package as "Shared", never a count.
+    sessionsLeft = r.situation === "shared" ? "Shared" : "M2M";
     sessionsLeftTone = "ok";
   } else if (r) {
     if (typeof r.sessionsLeft === "number") {
