@@ -65,6 +65,7 @@ import { useStudioSettings } from "../studio-settings/useStudioSettings";
 import { rosterCutWords } from "../../lib/studio-roster";
 import { DirectoryRowView, type DirectoryMark, type ExtraColumn } from "./DirectoryRowView";
 import { SortPicker } from "./SortPicker";
+import { ColumnsMenu } from "./ColumnsMenu";
 import { directoryBoundaries, useDirectoryContext } from "./use-directory-context";
 import { LEFT_HERE_FAILED, openSessionsLeftHere, useOpenSessionsLeftHere } from "./left-open-here";
 import "./client-directory.css";
@@ -491,11 +492,39 @@ export function ClientDirectory({
   return (
     <div className="cd" data-view={view}>
       <header className="cd-head">
-        <div className="cd-title-row">
+        <div className="cd-top">
           <h1 className="cd-title">
             {"Clients"}
             {studioName && <span className="cd-title-studio">{` \u00b7 ${studioName}`}</span>}
           </h1>
+          <div className="cd-find">
+          <label className="cd-search">
+            <Search className="cd-search-icon" size={20} aria-hidden="true" />
+            <input
+              className="cd-search-input"
+              // Text, not "search": Safari adds its own clear button to a
+              // search field, beside this screen's 44px one.
+              type="text"
+              enterKeyHint="search"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder={"Name or nickname \u2014 or describe: \u201cover 60\u201d, \u201crenewing this month\u201d"}
+              aria-label="Search clients by name, or describe them"
+              {...NAME_SEARCH_PROPS}
+            />
+            {searchText && (
+              <button type="button" className="cd-search-clear" aria-label="Clear the search" onClick={() => setSearchText("")}>
+                <X size={18} aria-hidden="true" />
+              </button>
+            )}
+          </label>
+          {canSearchAll && (
+            <select className="cd-select" aria-label="Which studios" value={scope} onChange={(e) => setScope(e.target.value as Scope)}>
+              <option value="studio">This studio</option>
+              <option value="all">All my studios</option>
+            </select>
+          )}
+          </div>
           <div className="cd-actions">
             {onStartOpenSession && (
               <Button
@@ -503,7 +532,7 @@ export function ClientDirectory({
                 onClick={() => onStartOpenSession()}
                 disabled={openSessionStarting}
                 aria-busy={openSessionStarting || undefined}
-                className="text-[14px] font-bold rounded-xl h-12 px-5 cursor-pointer"
+                className="text-[14px] font-bold rounded-xl h-10 px-4 cursor-pointer"
                 title={
                   openSessionRunning
                     ? "Go back to the open session you started"
@@ -516,7 +545,7 @@ export function ClientDirectory({
             {onStartNewClientOnboarding && (
               <Button
                 onClick={() => onStartNewClientOnboarding("")}
-                className="bg-primary hover:bg-primary text-primary-foreground text-[14px] font-bold rounded-xl h-12 px-6 cursor-pointer"
+                className="bg-primary hover:bg-primary text-primary-foreground text-[14px] font-bold rounded-xl h-10 px-4 cursor-pointer"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add client
@@ -547,74 +576,46 @@ export function ClientDirectory({
           </p>
         )}
 
-        <div className="cd-search-row">
-          <label className="cd-search">
-            <Search className="cd-search-icon" size={20} aria-hidden="true" />
-            <input
-              className="cd-search-input"
-              // Text, not "search": Safari adds its own clear button to a
-              // search field, beside this screen's 44px one.
-              type="text"
-              enterKeyHint="search"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              placeholder={"Name or nickname \u2014 or describe: \u201cover 60\u201d, \u201crenewing this month\u201d"}
-              aria-label="Search clients by name, or describe them"
-              {...NAME_SEARCH_PROPS}
-            />
-            {searchText && (
-              <button type="button" className="cd-search-clear" aria-label="Clear the search" onClick={() => setSearchText("")}>
-                <X size={18} aria-hidden="true" />
-              </button>
-            )}
-          </label>
-          {canSearchAll && (
-            <select className="cd-select" aria-label="Which studios" value={scope} onChange={(e) => setScope(e.target.value as Scope)}>
-              <option value="studio">This studio</option>
-              <option value="all">All my studios</option>
-            </select>
-          )}
-          <span className="cd-display" role="group" aria-label="Columns shown on a wide screen">
-            {EXTRA_COLUMNS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className="cd-display-toggle"
-                aria-pressed={wide.has(c)}
-                onClick={() =>
-                  setWide((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(c)) next.delete(c);
-                    else next.add(c);
-                    return next;
-                  })
-                }
-              >
-                {COLUMN_WORDS[c]}
+        <div className="cd-filters">
+          <div className="cd-chips" role="group" aria-label="Views">
+            {VIEWS.map((v) => (
+              <button key={v.id} type="button" className="cd-chip" aria-pressed={view === v.id} onClick={() => setView(v.id)}>
+                <span>{v.label}</span>
+                <span className="cd-chip-count">{counts[v.id]}</span>
               </button>
             ))}
-          </span>
-        </div>
-
-        <div className="cd-chips" role="group" aria-label="Views">
-          {VIEWS.map((v) => (
-            <button key={v.id} type="button" className="cd-chip" aria-pressed={view === v.id} onClick={() => setView(v.id)}>
-              <span>{v.label}</span>
-              <span className="cd-chip-count">{counts[v.id]}</span>
-            </button>
-          ))}
-          {inactive.size > 0 && (
-            <button
-              type="button"
-              className="cd-chip"
-              aria-pressed={showInactive}
-              aria-label={showInactive ? `Showing ${inactive.size} inactive clients too. Tap to leave them out.` : `Show ${inactive.size} inactive clients`}
-              onClick={() => setShowInactive((v) => !v)}
-            >
-              <span>Inactive</span>
-              <span className="cd-chip-count">{inactive.size}</span>
-            </button>
-          )}
+            {inactive.size > 0 && (
+              <button
+                type="button"
+                className="cd-chip"
+                aria-pressed={showInactive}
+                aria-label={showInactive ? `Showing ${inactive.size} inactive clients too. Tap to leave them out.` : `Show ${inactive.size} inactive clients`}
+                onClick={() => setShowInactive((v) => !v)}
+              >
+                <span>Inactive</span>
+                <span className="cd-chip-count">{inactive.size}</span>
+              </button>
+            )}
+          </div>
+          <div className="cd-tools">
+            <span className="cd-count" aria-live="polite" title={bookingsAsOf ? `Bookings as of ${bookingsAsOf}` : undefined}>
+              <strong>{countWords}</strong>
+            </span>
+            <SortPicker sort={sort} keys={view === "today" ? (["time", ...SORT_MENU] as SortKey[]) : SORT_MENU} onChange={setSort} />
+            <ColumnsMenu
+              columns={EXTRA_COLUMNS}
+              words={COLUMN_WORDS}
+              shown={wide}
+              onToggle={(c) =>
+                setWide((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(c)) next.delete(c);
+                  else next.add(c);
+                  return next;
+                })
+              }
+            />
+          </div>
         </div>
         {showInactive && <p className="cd-line">{INACTIVE_DEFINITION(inactiveDays)}</p>}
         {view === "mine" && <p className="cd-line">{MINE_DEFINITION}</p>}
@@ -648,12 +649,8 @@ export function ClientDirectory({
         ))}
 
         <div className="cd-status" aria-live="polite">
-          <span>
-            <strong>{countWords}</strong>
-            {notOnFile.map((w) => ` \u00b7 ${w}`).join("")}
-          </span>
-          <SortPicker sort={sort} keys={view === "today" ? (["time", ...SORT_MENU] as SortKey[]) : SORT_MENU} onChange={setSort} />
-          <span>{bookingsAsOf ? `bookings as of ${bookingsAsOf}` : "bookings not loaded yet"}</span>
+          {notOnFile.length > 0 && <span>{notOnFile.join(" \u00b7 ")}</span>}
+          {!bookingsAsOf && <span>bookings not loaded yet</span>}
           {bookingsAsOf && !bookingsFresh && <span className="cd-warn">{"Bookings haven\u2019t been read lately, so a next booking may be missing."}</span>}
           {rosterStatus === "loading" && rows.length > 0 && <span className="cd-warn">{"Still loading this studio\u2019s clients \u2014 the list may be incomplete."}</span>}
           {rosterCut && <span className="cd-warn">{rosterCutWords()}</span>}
