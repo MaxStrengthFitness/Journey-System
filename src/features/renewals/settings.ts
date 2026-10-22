@@ -18,6 +18,16 @@
 
 import type { PackageTier, RenewalSettings } from "./types";
 
+/*
+ * The names are the ones every studio's Mindbody holds for the three
+ * packages (every name the nightly job had met, read Oct 22 2026), so a
+ * studio that never saved a table of its own reads its clients from the
+ * first night: the Part A / Part B pairs (engine.ts, Contract A and B), the
+ * roll-over options and the PIF spellings. Only the names that say the
+ * package's own months and sessions: "1x week 96 Sessions" (once a week for
+ * two years) or "12 Months-48 Sessions" (once a week for a year) are other
+ * packages, each studio's to add with its own price.
+ */
 export const DEFAULT_PACKAGES: PackageTier[] = [
   {
     key: "trial",
@@ -31,7 +41,22 @@ export const DEFAULT_PACKAGES: PackageTier[] = [
     // "48 Sessions - 2X Week" is on a real client's account (AJ, Sep 11).
     // The PIF name follows the "144 PIF" pattern and is unconfirmed; an
     // unused name matches nothing and costs nothing.
-    mindbodyNames: ["48 Sessions - 2X Week", "48 PIF"],
+    mindbodyNames: [
+      "48 Sessions - 2X Week",
+      "48 PIF",
+      "48 Sessions Part A",
+      "48 Sessions Part B",
+      "6 Months- 48 Sessions Contract Part A",
+      "6 Months- 48 Sessions Contract Part B",
+      "6 Months/48 Sessions Monthly",
+      "48 Sessions/6 Months Updated",
+      "48 Sessions w/ Roll Over",
+      "48 Sessions w/ Roll Over Payments",
+      "48 Sessions PIF",
+      "48 Sessions/6 Months PIF",
+      "6 Months/48 Sessions PIF",
+      "SV 6 Months/48 Sessions PIF",
+    ],
   },
   {
     key: "committed",
@@ -42,7 +67,21 @@ export const DEFAULT_PACKAGES: PackageTier[] = [
     ratePerSession: 60,
     paymentAmount: 480,
     prepayRatePerSession: 57,
-    mindbodyNames: ["96 Sessions - 2X Week", "96 PIF"],
+    mindbodyNames: [
+      "96 Sessions - 2X Week",
+      "96 PIF",
+      "96 Sessions Part A",
+      "96 Sessions Part B",
+      "12 Months-96 Sessions Contract Part A",
+      "12 Months- 96 Sessions Contract Part B",
+      "12 Months/96 Sessions Monthly",
+      "96 Sessions w/ Roll Over",
+      "96 Session w/ Roll Over Payments",
+      "96 Sessions PIF",
+      "96 Sessions - PIF",
+      "12 Months/96 Sessions PIF",
+      "SV 12 Months/96 Sessions PIF",
+    ],
   },
   {
     key: "transformed",
@@ -54,7 +93,20 @@ export const DEFAULT_PACKAGES: PackageTier[] = [
     paymentAmount: 432,
     prepayRatePerSession: 51,
     // "144 PIF" is on a real client's account (AJ, Sep 11).
-    mindbodyNames: ["144 Sessions - 2X Week", "144 PIF"],
+    mindbodyNames: [
+      "144 Sessions - 2X Week",
+      "144 PIF",
+      "144 Sessions Part A",
+      "144 Sessions Part B",
+      "18 Months- 144 Sessions Contract Part A",
+      "18 Months- 144 Sessions Contract part B",
+      "144 Sessions Monthly 18m",
+      "144 Sessions w/ Roll Over",
+      "144 Sessions w/ Roll Over Payments",
+      "144 Sessions 18 months PIF",
+      "18 Months-144 Sessions",
+      "SV 18 Months/144 Sessions PIF",
+    ],
   },
 ];
 

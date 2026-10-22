@@ -149,8 +149,8 @@ describe("RenewalSettingsPanel — the studio's auto-renewal answer", () => {
 
 const seen: RenewalNamesSeen = {
   names: {
-    a: { name: "SV 6 Months/48 Sessions PIF", kind: "pricing-option", clients: 12 },
-    b: { name: "144 Sessions w/ Roll Over", kind: "pricing-option", clients: 8 },
+    a: { name: "WL 6 Months/48 Sessions PIF", kind: "pricing-option", clients: 12 },
+    b: { name: "WL 144 Sessions w/ Roll Over", kind: "pricing-option", clients: 8 },
     c: { name: "SV Free Session Won", kind: "pricing-option", clients: 3 },
     d: { name: "Intro Offer", kind: "pricing-option", clients: 2 },
   },
@@ -162,8 +162,8 @@ const nameRow = (host: HTMLElement, name: string) =>
 describe("RenewalSettingsPanel — suggestions for the names waiting", () => {
   it("suggests a package or extra sessions for each name it can read, and says when it can't", async () => {
     const host = await mount(DEFAULT_RENEWAL_SETTINGS, true, seen);
-    expect(nameRow(host, "SV 6 Months/48 Sessions PIF")?.textContent).toMatch(/Suggested: .+ · paid in full/);
-    expect(nameRow(host, "144 Sessions w/ Roll Over")?.textContent).toMatch(/Suggested: .+ · sessions roll over/);
+    expect(nameRow(host, "WL 6 Months/48 Sessions PIF")?.textContent).toMatch(/Suggested: .+ · paid in full/);
+    expect(nameRow(host, "WL 144 Sessions w/ Roll Over")?.textContent).toMatch(/Suggested: .+ · sessions roll over/);
     expect(nameRow(host, "SV Free Session Won")?.textContent).toContain("Suggested: Extra sessions (complimentary or won)");
     expect(nameRow(host, "Intro Offer")?.textContent).toContain("No suggestion: match it by hand");
     expect(nameRow(host, "Intro Offer")?.querySelector("button")).toBeFalsy();
@@ -171,27 +171,27 @@ describe("RenewalSettingsPanel — suggestions for the names waiting", () => {
 
   it("confirms one, and the save writes it into its package's names", async () => {
     const host = await mount(DEFAULT_RENEWAL_SETTINGS, true, seen);
-    await click(nameRow(host, "SV 6 Months/48 Sessions PIF")?.querySelector("button"));
+    await click(nameRow(host, "WL 6 Months/48 Sessions PIF")?.querySelector("button"));
     // Matched in the form at once: it leaves the waiting list.
-    expect(nameRow(host, "SV 6 Months/48 Sessions PIF")).toBeUndefined();
+    expect(nameRow(host, "WL 6 Months/48 Sessions PIF")).toBeUndefined();
     expect(saves).toEqual([]);
     await click(button(host, "Save settings"));
     expect(saves).toHaveLength(1);
     const trial = (saves[0].patch.packages as Array<{ key: string; mindbodyNames: string[] }>).find((p) => p.key === "trial")!;
-    expect(trial.mindbodyNames).toContain("SV 6 Months/48 Sessions PIF");
+    expect(trial.mindbodyNames).toContain("WL 6 Months/48 Sessions PIF");
   });
 
   it("confirms all at once, leaving only the name it couldn't read", async () => {
     const host = await mount(DEFAULT_RENEWAL_SETTINGS, true, seen);
     await click(button(host, "Confirm all 3"));
-    expect(nameRow(host, "SV 6 Months/48 Sessions PIF")).toBeUndefined();
-    expect(nameRow(host, "144 Sessions w/ Roll Over")).toBeUndefined();
+    expect(nameRow(host, "WL 6 Months/48 Sessions PIF")).toBeUndefined();
+    expect(nameRow(host, "WL 144 Sessions w/ Roll Over")).toBeUndefined();
     expect(nameRow(host, "SV Free Session Won")).toBeUndefined();
     expect(nameRow(host, "Intro Offer")).toBeDefined();
     await click(button(host, "Save settings"));
     const patch = saves[0].patch as { packages: Array<{ key: string; mindbodyNames: string[] }>; extraSessionNames: string[] };
     expect(patch.extraSessionNames).toContain("SV Free Session Won");
-    expect(patch.packages.find((p) => p.key === "transformed")!.mindbodyNames).toContain("144 Sessions w/ Roll Over");
+    expect(patch.packages.find((p) => p.key === "transformed")!.mindbodyNames).toContain("WL 144 Sessions w/ Roll Over");
   });
 
   // AJ, Oct 7 2026 ("yes"): warn before names adopt Max Strength's table as the studio's own.

@@ -5,6 +5,8 @@ import { buildPackageNameIndex, DEFAULT_RENEWAL_SETTINGS, normalizeRenewalSettin
 import type { RenewalNamesSeen } from "./types";
 
 const settings = DEFAULT_RENEWAL_SETTINGS;
+/** The standard table before it learned Mindbody's real names (Oct 22 2026): each package's first two. */
+const OLD_TABLE = { ...settings, packages: settings.packages.map((p) => ({ ...p, mindbodyNames: p.mindbodyNames.slice(0, 2) })) };
 const key = (name: string, kind?: "contract" | "pricing-option") => {
   const s = suggestName(name, settings, kind);
   return s === null ? null : s.kind === "package" ? s.packageKey : s.kind;
@@ -121,7 +123,7 @@ describe("waitingNames", () => {
     },
   };
   it("lists the unmatched names, most clients first, each with its suggestion", () => {
-    const w = waitingNames(seen, settings);
+    const w = waitingNames(seen, OLD_TABLE);
     expect(w.map((x) => [x.name, x.suggestion ? suggestionTarget(x.suggestion) : null])).toEqual([
       ["48 Sessions w/ Roll Over", "trial"],
       ["SV 12 Month Committed EFT", "committed"],
@@ -132,13 +134,17 @@ describe("waitingNames", () => {
     expect(waitingLine([])).toBeNull();
     expect(waitingNames(null, settings)).toEqual([]);
   });
+
+  it("Max Strength's table knows Mindbody's real names since Oct 22 2026, so they no longer wait", () => {
+    expect(waitingNames(seen, settings).map((x) => x.name)).toEqual(["SV 12 Month Committed EFT", "Single Session"]);
+  });
 });
 
 describe("confirming suggestions in the settings form (the panel's path)", () => {
   it("adds each confirmed name to its package or the extras, and the engine then reads it", () => {
-    let form = settingsToForm(settings);
+    let form = settingsToForm(OLD_TABLE);
     for (const name of ["48 Sessions w/ Roll Over", "SV 18 Months/144 Sessions PIF", "SV Session Comp"]) {
-      form = { ...form, ...assignNameInForm(form, name, suggestionTarget(suggestName(name, settings)!)) };
+      form = { ...form, ...assignNameInForm(form, name, suggestionTarget(suggestName(name, OLD_TABLE)!)) };
     }
     const saved = formToSettings(form).settings;
     // And they survive the cleaning every read does.
@@ -147,7 +153,7 @@ describe("confirming suggestions in the settings form (the panel's path)", () =>
     expect(index.tierFor("SV 18 Months/144 Sessions PIF")?.key).toBe("transformed");
     expect(index.isExtraSessions("SV Session Comp")).toBe(true);
     // The original settings are untouched.
-    expect(settings.packages[0].mindbodyNames).not.toContain("48 Sessions w/ Roll Over");
+    expect(OLD_TABLE.packages[0].mindbodyNames).not.toContain("48 Sessions w/ Roll Over");
   });
 
   it("knows when a list is full, so a name is never dropped silently on save", () => {
