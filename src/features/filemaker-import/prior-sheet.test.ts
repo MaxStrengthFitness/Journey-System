@@ -33,6 +33,7 @@ describe("the numbering sheet", () => {
         row({ clientId: "5", name: "Not a number", answer: "about 180", by: "KS" }),
         row({ clientId: "6", name: "Too few", answer: "40", by: "KS" }),
         row({ clientId: "7", name: "No count", answer: "confirm", by: "KS", mindbodyVisits: null, suggested: null }),
+        row({ clientId: "8", name: "Excel date", answer: "confirm", by: "KS", through: "10/20/2026" }),
       ],
       new Map(),
     );
@@ -46,6 +47,7 @@ describe("the numbering sheet", () => {
       ["5", expect.stringMatching(/neither confirm nor a number/)],
       ["6", expect.stringMatching(/fewer than the 48 FileMaker visits/)],
       ["7", expect.stringMatching(/no suggested total/)],
+      ["8", expect.stringMatching(/not a day/)],
     ]);
   });
 

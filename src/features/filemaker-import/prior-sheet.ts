@@ -88,6 +88,11 @@ export function planSheet(rows: readonly SheetRow[], existing: ReadonlyMap<strin
       plan.skipped.push({ clientId: r.clientId, name: r.name, why: `${sessions} is fewer than the ${r.fmVisits} FileMaker visits the import would count inside it` });
       continue;
     }
+    // The record's "through" is what the total counts up to: a studio day, never a spreadsheet's rewording of one.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.through)) {
+      plan.skipped.push({ clientId: r.clientId, name: r.name, why: `the last FileMaker day "${r.through}" is not a day (yyyy-mm-dd)` });
+      continue;
+    }
     const prior = existing.get(r.clientId) ?? null;
     if (prior && prior.sessions === sessions && prior.through === r.through) {
       plan.skipped.push({ clientId: r.clientId, name: r.name, why: "already stated, the same" });

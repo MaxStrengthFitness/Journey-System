@@ -28,6 +28,7 @@ import Papa from "papaparse";
 import { FieldValue, type DocumentData } from "firebase-admin/firestore";
 import { argv, connectFirestore, flag, hasFlag } from "./lib/admin.ts";
 import { planSheet, SHEET_COLUMNS, type SheetRow } from "../src/features/filemaker-import/prior-sheet.ts";
+import { parseDay } from "../src/features/filemaker-import/records.ts";
 import { priorHistoryOf } from "../src/lib/prior-history.ts";
 
 const sheetPath = argv.find((a) => !a.startsWith("--"));
@@ -53,14 +54,16 @@ if (missing.length) {
   process.exit(1);
 }
 const num = (v: string | undefined): number | null => (v !== undefined && /^\d+$/.test(v.trim()) ? Number(v.trim()) : null);
+// Excel saves a date column back as "10/20/2026": read it the way the export's days are read, so the record's day is a day.
+const day = (v: string | undefined): string => (v && v.trim() ? parseDay(v.trim()).value ?? v.trim() : "");
 const rows: SheetRow[] = parsed.data.map((r) => ({
   clientId: (r.clientId ?? "").trim(),
   name: (r.name ?? "").trim(),
   mindbodyVisits: num(r.mindbodyVisits),
-  mindbodyAsOf: (r.mindbodyAsOf ?? "").trim() || null,
+  mindbodyAsOf: day(r.mindbodyAsOf) || null,
   fmVisits: num(r.fmVisits) ?? 0,
   fmVisitsAfter: num(r.fmVisitsAfter) ?? 0,
-  through: (r.through ?? "").trim(),
+  through: day(r.through),
   suggested: num(r.suggested),
   answer: r.answer ?? "",
   by: r.by ?? "",
