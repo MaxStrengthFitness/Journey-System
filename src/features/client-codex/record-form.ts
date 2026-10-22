@@ -91,6 +91,8 @@ export const RECORD_FORM_KEYS = [
   // here), her first day, and where they can train
   "contractTierOverride",
   "autoRenewMark",
+  // ...and whose package she uses, when it is someone else's (Oct 22 2026)
+  "sharesPackageWith",
   "firstStudioDay",
   "approvedCrossTrainStudioIds",
   // Account · How they found us
@@ -172,6 +174,7 @@ export const FIELD_HOME: Readonly<Record<RecordFormKey, FieldHome>> = {
   emergencyContactPhone: CONTACT,
   contractTierOverride: MEMBERSHIP,
   autoRenewMark: MEMBERSHIP,
+  sharesPackageWith: MEMBERSHIP,
   firstStudioDay: FIRST_DAY,
   approvedCrossTrainStudioIds: TRAIN_AT,
   leadSource: FOUND_US,

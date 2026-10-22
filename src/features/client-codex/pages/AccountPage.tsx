@@ -48,6 +48,8 @@ export function AccountPage({ data, form, go, hosts }: CodexPageProps) {
       onOpenMigrationHub={hosts.onOpenMigrationHub}
       priorHistoryDoor={hosts.priorHistoryDoor ?? null}
       split={hosts.sessionsSplit ?? null}
+      // Whose package she uses (Oct 22 2026): the roster the profile already holds.
+      studioClients={data.programming?.studioClients ?? []}
       // Active or inactive (the inactive round, Oct 1 2026): her home studio's leaders mark it; one document read.
       standing={<StandingCard client={client} trainer={authTrainer} today={today} />}
     />

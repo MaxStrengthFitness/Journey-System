@@ -112,6 +112,7 @@ function Harness({
   coverage = "complete",
   onOpenMigrationHub,
   split,
+  studioClients,
 }: {
   c: Client;
   probe?: Probe;
@@ -121,6 +122,7 @@ function Harness({
   coverage?: MembershipSectionProps["coverage"];
   onOpenMigrationHub?: () => void;
   split?: MembershipSectionProps["split"];
+  studioClients?: Client[];
 }) {
   const form = useRecordForm({ client: c, trainerId: "t-aj", canEdit, homeStudioName: "Solon" });
   probe.form = form;
@@ -139,6 +141,7 @@ function Harness({
           onOpenMigrationHub={onOpenMigrationHub}
           split={split}
           now={NOW}
+          studioClients={studioClients}
         />
       </div>
     </div>
@@ -807,5 +810,38 @@ describe("MembershipSection — her first day at the studio", () => {
     expect(card.textContent).toContain("Sep 8, 2014");
     expect(card.textContent).toContain("Set by a person; anniversaries count from this day.");
     expect(buttons(host).find((b) => b.getAttribute("aria-label") === "Edit First day at the studio")).toBeUndefined();
+  });
+});
+
+describe("shares a package (AJ, Oct 22 2026)", () => {
+  const tom = client({ id: "200", mindbodyClientId: "200", firstName: "Tom", lastName: "Daus", mindbodyContracts: {}, mindbodyServices: {} });
+  const ann = client({ id: "300", mindbodyClientId: "300", firstName: "Ann", lastName: "Other", homeStudioId: "westlake" });
+
+  it("a saved mark says whose sessions, shows Shared, and Stop sharing stages its removal", async () => {
+    const probe: Probe = {};
+    const host = await mount(
+      <Harness
+        c={client({ sharesPackageWith: { clientId: "200", name: "Tom Daus", setAt: "2026-09-24T12:00:00Z", setByName: "AJ" } })}
+        probe={probe}
+        studioClients={[tom]}
+      />,
+    );
+    expect(host.querySelector('[data-testid="shares-package"]')?.textContent).toBe("Uses Tom Daus's sessions · marked by AJ");
+    expect(host.textContent).toContain("Sessions come off Tom Daus's package");
+    await click(buttonByText(host, "Stop sharing"));
+    expect(probe.form?.formData.sharesPackageWith).toBeNull();
+  });
+
+  it("Shares a package offers her own studio's clients, never herself, and stages the one chosen, named", async () => {
+    const probe: Probe = {};
+    const host = await mount(<Harness c={client()} probe={probe} studioClients={[client(), tom, ann]} />);
+    await click(buttonByText(host, "Shares a package"));
+    const dialog = document.querySelector('[data-testid="client-picker"]') as HTMLElement;
+    expect(dialog.textContent).toContain("Whose package?");
+    expect(dialog.textContent).toContain("Tom");
+    expect(dialog.textContent).not.toContain("Ann");
+    const tomRow = Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent?.includes("Tom"));
+    await click(tomRow);
+    expect(probe.form?.formData.sharesPackageWith).toMatchObject({ clientId: "200", name: "Tom Daus", setById: "uid-aj", setByName: "AJ" });
   });
 });
