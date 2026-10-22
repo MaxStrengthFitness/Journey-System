@@ -892,6 +892,60 @@ describe("one studio at a time", () => {
     expect(deleted(wAfter)).toContain("sessions/w1");
   });
 
+  it("imported-history: the imported count comes down by the sessions deleted, the FileMaker id goes, and the total is what it was before the import", () => {
+    // A FileMaker client: a stated 100 sessions, 2 of them imported, plus one Journey session of her own (sessionCount 100 = 1 + (100 − 2) + 1? no:
+    // the reconciler's count is Journey's 3 + uncounted 98 = 101).
+    const before = input({
+      clients: [doc("clients/f", { homeStudioId: "S", completedSessions: 3, sessionCount: 101, legacy_filemaker_id: "fm-1", priorHistory: { sessions: 100, importedCount: 2, source: "filemaker", through: "2026-09-01" } })],
+      sessions: [
+        doc("sessions/fm_f_2024-01-01", { clientId: "f", studioId: "S", legacy_filemaker_id: "x", status: "Completed" }),
+        doc("sessions/fm_f_2024-01-08", { clientId: "f", studioId: "S", legacy_filemaker_id: "y", status: "Completed" }),
+        doc("sessions/own", { clientId: "f", studioId: "S", createdAt: NOW - DAY, status: "Completed" }),
+      ],
+    });
+    const taken = planReset(before, opts(["imported-history"], { studioId: "S" }));
+    const changes = taken.fieldSteps.find((s) => s.path === "clients/f")!.changes;
+    const at = (f: string) => changes.find((c) => c.field.join(".") === f);
+    expect(at("priorHistory.importedCount")?.after).toBe(0);
+    expect(at("legacy_filemaker_id")?.after).toBe(ABSENT);
+    // Journey's count goes to 0 and the prior record's uncounted rises to 100: the total before the import.
+    expect(at("completedSessions")?.after).toBe(0);
+    expect(at("sessionCount")?.after).toBe(100);
+    expect(countOf(taken, "client-import-marker").docs).toBe(1);
+    expect(countOf(taken, "client-import-marker").included).toBe(true);
+
+    // Without the group: the imported sessions stay, so do the marks; her own session goes and the count is 98 uncounted.
+    const kept = planReset(before, opts([], { studioId: "S" }));
+    const kc = kept.fieldSteps.find((s) => s.path === "clients/f")!.changes;
+    expect(kc.find((c) => c.field.join(".") === "priorHistory.importedCount")).toBeUndefined();
+    expect(kc.find((c) => c.field.join(".") === "legacy_filemaker_id")).toBeUndefined();
+    expect(kc.find((c) => c.field.join(".") === "sessionCount")?.after).toBe(98);
+    expect(countOf(kept, "client-import-marker").docs).toBe(1); // counted, so the dry run shows what the group would do
+    expect(countOf(kept, "client-import-marker").included).toBe(false);
+
+    // The count never goes below 0, and a client with no prior record only loses the id.
+    const odd = input({
+      clients: [
+        doc("clients/g", { homeStudioId: "S", legacy_filemaker_id: "fm-2", priorHistory: { sessions: 10, importedCount: 1, source: "filemaker" } }),
+        doc("clients/h", { homeStudioId: "S", legacy_filemaker_id: "fm-3" }),
+      ],
+      sessions: [
+        doc("sessions/fm_g_1", { clientId: "g", studioId: "S", legacy_filemaker_id: "a", status: "Completed" }),
+        doc("sessions/fm_g_2", { clientId: "g", studioId: "S", legacy_filemaker_id: "b", status: "Completed" }),
+        doc("sessions/fm_h_1", { clientId: "h", studioId: "S", legacy_filemaker_id: "c", status: "Completed" }),
+      ],
+    });
+    const plan = planReset(odd, opts(["imported-history"], { studioId: "S" }));
+    expect(changedFields(plan, "clients/g")).toContain("priorHistory.importedCount");
+    expect(plan.fieldSteps.find((s) => s.path === "clients/g")!.changes.find((c) => c.field.join(".") === "priorHistory.importedCount")?.after).toBe(0);
+    expect(changedFields(plan, "clients/h")).toEqual(expect.arrayContaining(["legacy_filemaker_id"]));
+    expect(changedFields(plan, "clients/h")).not.toContain("priorHistory.importedCount");
+    // A second run finds nothing left.
+    const again = planReset(apply(odd, plan), opts(["imported-history"], { studioId: "S" }));
+    expect(again.deletes).toEqual([]);
+    expect(again.fieldSteps).toEqual([]);
+  });
+
   it("without a studio the plan is the whole database, scope null", () => {
     const whole = planReset(two(), opts(ALL));
     expect(whole.scope).toBeNull();

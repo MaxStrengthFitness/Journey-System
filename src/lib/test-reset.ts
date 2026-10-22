@@ -91,7 +91,7 @@ export const OPTIONAL_GROUPS: readonly GroupId[] = [
 
 export const GROUP_WORDS: Record<GroupId, string> = {
   core: "Sessions and everything built from them (always)",
-  "imported-history": "Sessions imported from paper charts or FileMaker, and their sets",
+  "imported-history": "Sessions imported from paper charts or FileMaker, their sets, and the import's marks on those clients (imported count down, FileMaker id cleared)",
   "ford-briefing": "FORD details caught in the pre-session briefing (they carry no session)",
   settings: "Machine set-ups: the weights only (current, starting, next); the dials stay",
   "settings-all": "Machine set-ups deleted whole, dials included",
@@ -169,6 +169,7 @@ export const PARTS: readonly PartSpec[] = [
   { id: "job-watch", group: "core", label: "The nightly job's Journey summary, All stars and month tallies", kind: "docs", phase: "main" },
   { id: "imported-sessions", group: "imported-history", label: "Sessions imported from charts or FileMaker", kind: "docs", phase: "main" },
   { id: "imported-logs", group: "imported-history", label: "Their sets", kind: "docs", phase: "main" },
+  { id: "client-import-marker", group: "imported-history", label: "The import's marks on those clients: the imported count down by the sessions deleted, the FileMaker id cleared", kind: "fields", phase: "main" },
   { id: "ford-briefing", group: "ford-briefing", label: "FORD details caught in the briefing", kind: "docs", phase: "main" },
   { id: "settings-weights", group: "settings", label: "Weights on machine set-ups (current, starting, next)", kind: "fields", phase: "main" },
   { id: "settings-docs", group: "settings-all", label: "Machine set-ups (clientMachineSettings), whole", kind: "docs", phase: "main" },
@@ -281,6 +282,7 @@ export const CLIENT_FIELDS_READ = [
   "priorHistory",
   "firstStudioDay",
   "fordSummary",
+  "legacy_filemaker_id",
 ] as const;
 
 /**
@@ -864,6 +866,8 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   const sessionClients = new Set<string>();
   /** Trainers who coached a session going: their old counts map is cleared first (a studio run clears only theirs). */
   const coachingTrainers = new Set<string>();
+  /** Per client: imported sessions in this run's scope (the imported-history group takes them all, asked for or counted). */
+  const importedInScope = new Map<string, number>();
   let countedSessionsDeleted = 0;
   let eraStart: number | null = null;
   for (const s of input.sessions) {
@@ -882,10 +886,11 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
     }
     const isDemo = demo.sessions.has(id);
     const imported = isImportedSession(s.data);
+    const sessionClient = str(s.data.clientId);
+    if (imported && sessionClient && !isDemo) importedInScope.set(sessionClient, (importedInScope.get(sessionClient) ?? 0) + 1);
     if (b.deleteDoc(imported ? "imported-sessions" : "sessions", s, isDemo)) {
       goingSessions.add(id);
-      const clientId = str(s.data.clientId);
-      if (clientId) sessionClients.add(clientId);
+      if (sessionClient) sessionClients.add(sessionClient);
       const trainerId = str(s.data.trainerId);
       if (trainerId) coachingTrainers.add(trainerId);
       if (s.data.rollupCounted === true) countedSessionsDeleted += 1;
@@ -1110,6 +1115,29 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
     const priorStays =
       prior && typeof prior === "object" && !(confirmTainted && b.takes("core", isDemo)) && !(typedPrior && b.takes("prior-history", isDemo));
 
+    // The import's marks (lib/prior-history.ts recordImportedSessions, the
+    // importer's contract): every imported session it wrote raised
+    // `importedCount` by one, and the client carries the FileMaker id. When
+    // the imported-history group deletes those sessions (all of hers in this
+    // run's scope) the count comes down by as many (never below 0) and the id
+    // goes, in the same write as her counters, so the total (Journey's + the
+    // prior record's uncounted) is what it was before the import. Counted
+    // whether or not the group is asked for, like every part, so the dry run
+    // shows what it would do.
+    const importedHere = importedInScope.get(id) ?? 0;
+    let priorAfter = prior as PriorHistory | undefined;
+    if (importedHere > 0) {
+      const marks: [string[], MaybeValue][] = [];
+      const stored = prior && typeof prior === "object" ? (prior as { importedCount?: unknown }).importedCount : undefined;
+      if (priorStays && typeof stored === "number" && Number.isFinite(stored)) {
+        const next = Math.max(0, stored - importedHere);
+        marks.push([["priorHistory", "importedCount"], next]);
+        if (b.takes("imported-history", isDemo)) priorAfter = { ...(prior as unknown as PriorHistory), importedCount: next };
+      }
+      if (c.data.legacy_filemaker_id !== undefined) marks.push([["legacy_filemaker_id"], ABSENT]);
+      if (marks.length) b.changeFields("client-import-marker", c, marks, isDemo);
+    }
+
     if (touched) {
       // Back to what a door that makes a client writes (COUNTERS_AS_CREATED);
       // the rest a new client doesn't have.
@@ -1118,7 +1146,7 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
         c,
         CLIENT_COUNTER_FIELDS.map((f): [string[], MaybeValue] => {
           if (f === "completedSessions") return [[f], 0];
-          if (f === "sessionCount") return [[f], priorStays ? priorUncounted(prior as unknown as PriorHistory) : 0];
+          if (f === "sessionCount") return [[f], priorStays ? priorUncounted(priorAfter as PriorHistory) : 0];
           return [[f], ABSENT];
         }),
         isDemo,
