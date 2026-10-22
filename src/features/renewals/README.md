@@ -55,7 +55,7 @@ The screens' half, on the data above:
 | --- | --- |
 | `types.ts` | Settings, the snapshot, cycles, conversations |
 | `settings.ts`, `settings-form.ts` | Defaults (the website's prices), cleaning, the package-name index, the settings form |
-| `engine.ts` | **The engine.** `buildRenewalSnapshot()` — pure, the same code in the browser and the nightly job |
+| `engine.ts` | **The engine.** `buildRenewalSnapshot()` — pure, the same code in the browser and the nightly job. **Contract A and B**: a Part A / Part B pair is one package (`pairContracts`, Oct 22 2026): the package from A's name, the billing from B, keyed by B; `partAContractId` names A so a record once keyed by A is the same package (`outcomes.ts` isSuccessor), and the job never records an outcome on B that A holds. A record Journey couldn't read (`unknown`) is never the before of a renewal |
 | `projection.ts` | Version 3's pure pieces: the ledger's parts, pace windows, the run-out day, the projection at the commitment's end, the rate, the signals |
 | `shared-package.ts` | Shared packages (AJ, Oct 22 2026): the mark (`sharedHolderOf`), the sharer's record (`asShared`), the sharer's used days and who shares each holder's package (`sharersByHolder`, the nightly job's), the words |
 | `month-to-month.ts` | Month to month (AJ, Oct 21 2026): who is on it (`monthToMonthOf`: the lock, a running listed contract, else the newest listed pricing option against the latest package), the record made M2M (`asMonthToMonth`), the words. The names are `RenewalSettings.monthToMonthNames`; `renewalOf` makes a lock saved today M2M at once |
