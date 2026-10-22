@@ -774,7 +774,7 @@ export function StudioInventoryManager({
           <div>
             <AdminButton variant="quiet" size="sm" onClick={() => setEditing({ kind: "new" })}>
               <Plus className="h-3.5 w-3.5" aria-hidden />
-              {catalogFound.length === 0 ? "Not in the catalog. New machine" : "Not here? New machine"}
+              {catalogFound.length === 0 ? "Not in the catalog? New machine" : "Not here? New machine"}
             </AdminButton>
           </div>
         </section>
