@@ -52,7 +52,7 @@ import { priorUncounted, recordImportedSessions, type PriorHistory } from "../..
 import { importedSessionsRollup, type FieldOps } from "../../lib/client-rollups";
 import { splitMachineTotalsUpdates } from "../machine-totals/totals";
 import { wallClockToInstant } from "../../lib/studio-time";
-import { readSet, type SetReading, type Visit } from "./visits";
+import { IMPLAUSIBLE_WEIGHT_WHY, implausibleWeights, readSet, type SetReading, type Visit } from "./visits";
 import type { WorkoutLine } from "./records";
 
 /** The machine table's word for "never import this FileMaker name" (machine-map.ts). */
@@ -78,6 +78,8 @@ export interface PlanInput {
   machineFor: (fmName: string, day: string) => string | null;
   /** Whether a Journey machine is done one side at a time (lib/floor-machines.ts isPerSideMachine). */
   perSide: (machineId: string) => boolean;
+  /** Whether a timed hold is a real reading on a Journey machine (visits.ts holdsAllowedOn). Absent: always. */
+  holdsOn?: (machineId: string) => boolean;
   /** Days Journey already has one of the client's own sessions on (not imported ones). */
   journeyDays: ReadonlySet<string>;
   /** Imported sessions already in Journey, by id, with the number each was stored under. */
@@ -147,16 +149,16 @@ export function visitInstant(day: string, timeZone: string, seconds = 0): Date {
 const DONE: ReadonlySet<SetReading["kind"]> = new Set(["reps", "seconds", "sides", "not-recorded"]);
 
 /** Was something done on this entry? A decimal counts when it reads as left.right. */
-function wasDone(line: WorkoutLine, perSide: boolean | null): boolean {
-  const reading = readSet(line, perSide ?? !Number.isInteger(line.reps ?? 0));
+function wasDone(line: WorkoutLine, perSide: boolean | null, holdsAllowed = true): boolean {
+  const reading = readSet(line, perSide ?? !Number.isInteger(line.reps ?? 0), holdsAllowed);
   return DONE.has(reading.kind);
 }
 
 const weightText = (w: number | null): string => (w === null ? "" : String(w));
 
 /** The log documents for one entry on a Journey machine. */
-function logsFor(line: WorkoutLine, machineId: string, perSide: boolean): Record<string, unknown>[] {
-  const reading = readSet(line, perSide);
+function logsFor(line: WorkoutLine, machineId: string, perSide: boolean, holdsAllowed: boolean): Record<string, unknown>[] {
+  const reading = readSet(line, perSide, holdsAllowed);
   const weight = weightText(line.weight);
   const both = (fields: Record<string, unknown>) =>
     perSide ? [{ ...fields, side: "Left" }, { ...fields, side: "Right" }] : [fields];
@@ -185,6 +187,9 @@ export function planClient(input: PlanInput): ClientPlan {
   const plan: ClientPlan = { sessions: [], skipped: [], held: [], unmatched: [], firstDays: {}, numberDrift: [] };
   const unmatched = new Set<string>();
   const machineOf = (line: WorkoutLine, day: string) => (line.machine ? input.machineFor(line.machine, day) : null);
+  const holdsOn = input.holdsOn ?? (() => true);
+  // Weights nobody lifts (visits.ts): held back, the visit imports without them.
+  const implausible = implausibleWeights(input.visits);
   let position = 0;
 
   // First, whether anything waits for the machine table: then the client waits whole.
@@ -206,8 +211,9 @@ export function planClient(input: PlanInput): ClientPlan {
       continue;
     }
     const doneSomewhere = visit.lines.some((l) => {
+      if (implausible.has(l.row)) return false;
       const id = machineOf(l, visit.day);
-      return wasDone(l, id && id !== SKIP ? input.perSide(id) : null);
+      return wasDone(l, id && id !== SKIP ? input.perSide(id) : null, id && id !== SKIP ? holdsOn(id) : true);
     });
     if (!doneSomewhere) {
       plan.skipped.push({ day: visit.day, why: "nothing was done that day (every machine 0, blank or unreadable)" });
@@ -226,8 +232,8 @@ export function planClient(input: PlanInput): ClientPlan {
     // Each machine's first day with a weight done: a starting weight is that day's only.
     for (const line of visit.lines) {
       const id = machineOf(line, visit.day);
-      if (!id || id === SKIP || plan.firstDays[id]) continue;
-      if (line.weight !== null && line.weight > 0 && wasDone(line, input.perSide(id))) plan.firstDays[id] = visit.day;
+      if (!id || id === SKIP || plan.firstDays[id] || implausible.has(line.row)) continue;
+      if (line.weight !== null && line.weight > 0 && wasDone(line, input.perSide(id), holdsOn(id))) plan.firstDays[id] = visit.day;
     }
 
     const id = sessionIdFor(client.docId, visit.day);
@@ -245,15 +251,20 @@ export function planClient(input: PlanInput): ClientPlan {
         plan.held.push({ day: visit.day, machine: line.machine, why: "two FileMaker names for one Journey machine that day" });
         continue;
       }
+      if (implausible.has(line.row)) {
+        plan.held.push({ day: visit.day, machine: line.machine, why: IMPLAUSIBLE_WEIGHT_WHY });
+        continue;
+      }
       const perSide = input.perSide(machineId);
-      const reading = readSet(line, perSide);
+      const holdsAllowed = holdsOn(machineId);
+      const reading = readSet(line, perSide, holdsAllowed);
       if (reading.kind === "unclear" || reading.kind === "empty") {
         plan.held.push({ day: visit.day, machine: line.machine, why: reading.kind === "unclear" ? reading.why : "nothing written" });
         continue;
       }
       machines.push(machineId);
       if (line.nextWeight !== null && line.nextWeight > 0) nextWeights[machineId] = line.nextWeight;
-      for (const fields of logsFor(line, machineId, perSide)) {
+      for (const fields of logsFor(line, machineId, perSide, holdsAllowed)) {
         const side = fields.side as "Left" | "Right" | undefined;
         const at = visitInstant(visit.day, timeZone, machines.length);
         logs.push({

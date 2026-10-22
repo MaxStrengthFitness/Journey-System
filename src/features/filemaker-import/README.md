@@ -26,7 +26,10 @@ AJ's answers and what the sample charts show (Oct 12 2026):
 | reps 1 to 20 | performed, those reps | |
 | a weight, reps blank | performed, **reps not recorded** (`repsNotRecorded: true`) | FileMaker never fills a weight in by itself ("no trainer puts it in"), so the machine was done. Strongsville left reps blank on two thirds of one long client's entries. Counts toward weight progress, never toward a rep average. |
 | reps 0, or a 0 for next time with no count | skipped, reason unknown | "zero in either column either means it wasn't performed. Or to take it out". A 0 for next time BESIDE a count is ignored: Solon wrote one beside eleven timed holds. |
-| 30 or more | a timed hold, in seconds (`isTSC`, `isStaticHold`) | Solon writes them in the reps column, unmarked (60, 90, 120). |
+| 30 to 120, on a machine that is held | a timed hold, in seconds (`isTSC`, `isStaticHold`) | Solon writes them in the reps column, unmarked (60, 90, 120); Strongsville's KM and KS since 2025. Over 120, or on Hip ADD, Hip ABD, Leg Curl, Pulldown, Lumbar or a Leg Press (`holdsAllowedOn`), it is a weight typed in the reps column: held back, said (the Strongsville audit, Oct 21 2026: 8 of 1,009). |
+| a weight over 400, or 4× the client's usual on the machine (`implausibleWeights`) | held back, said | A typing slip that can run for months (2000 on 12 visits, 13137 on 11): corrected in a copy of the export BEFORE the import (`backups/filemaker/tools/correct-export.mts`), since an imported visit is never rewritten. |
+| a count beside a weight of 0 | held back, said | A second unit under one name, or a bare sled (the audit: 7 lines). |
+| a day in a year before 2000 ("12/12/0205") | held back as an entry with no date | A typing slip for 2025; read literally it sorted above every real visit. |
 | a decimal on Torso Rotation | left and right (two logs) | Solon: "7.6" is 7 left, 6 right; "9.11" is 9 and 11. |
 | a minus before any of these ("-10") | the same, without the minus | Willoughby's try at marking rep quality, at the weight of the visits either side (AJ, Oct 12 2026: "we dont have to mind that"). Said once in the dry run as handled. |
 | 21 to 29, a decimal elsewhere, "7.1" (seven and one, or seven and ten: Excel drops a trailing zero), a side of 0 or above 20 | held back, said | can't be read safely |

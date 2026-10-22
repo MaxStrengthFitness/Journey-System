@@ -30,6 +30,13 @@ describe("values", () => {
     expect(parseDay("soon").problem).toMatch(/not a date/);
   });
 
+  it("holds a day in a year before 2000: Tom Reddy's 12/12/0205 is 2025 mistyped, never session #1 in the year 205", () => {
+    expect(parseDay("12/12/0205").problem).toMatch(/year before 2000/);
+    expect(parseDay("0205-12-12").problem).toMatch(/year before 2000/);
+    expect(parseDay("1999-12-31").problem).toMatch(/year before 2000/);
+    expect(parseDay("2000-01-01").value).toBe("2000-01-01");
+  });
+
   it("reads numbers, a thousands comma included, and puts Excel's float noise back to what was typed", () => {
     expect(parseNumber("1,220").value).toBe(1220);
     // A comma anywhere else is a problem, never a guess: "7,6" is not 76.

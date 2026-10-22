@@ -46,6 +46,33 @@ import type { WorkoutLine } from "./records";
 export const REPS_MAX = 20;
 /** A count from here up is a timed hold in seconds. */
 export const SECONDS_FROM = 30;
+/**
+ * The longest hold a trainer times (the Strongsville audit, Oct 21 2026: 1,001
+ * of 1,009 counts of 30 or more were holds of 30 to 120 seconds; the eight
+ * others were a weight typed in the reps column, 246, 910, or a hold on a
+ * machine nobody holds). Above it the entry is held back and listed.
+ */
+export const HOLD_MAX_SECONDS = 120;
+/**
+ * Movements lifted for reps, never held: a count of 30 or more on one of
+ * these is a slip (Hip ADD 68 × 92, Pulldown 120 × 116, a Leg Press 240 × 246),
+ * held back and listed. A studio's own unit of a leg press (the Hoist) counts
+ * by its id.
+ */
+export const NEVER_HELD_MOVEMENTS: ReadonlySet<string> = new Set(["m-hip-add", "m-hip-abd", "m-leg-curl", "m-pulldown", "m-lumbar", "m-leg-press"]);
+
+/** Whether a timed hold is a real reading on this Journey machine (its movement when it is a studio's own unit). */
+export function holdsAllowedOn(machineId: string, movement?: string | null): boolean {
+  if (NEVER_HELD_MOVEMENTS.has(machineId) || (movement && NEVER_HELD_MOVEMENTS.has(movement))) return false;
+  return !/leg-press/i.test(machineId);
+}
+
+/** A weight nobody lifts on these machines: over it, the entry is a typing slip (13137, 2000, 1000) and is held. */
+export const WEIGHT_MAX = 400;
+/** A weight this many times the client's usual on the machine is a slip too (8410 on a Lumbar at 84). */
+export const WEIGHT_RATIO = 4;
+/** The median rule needs this many weighted entries on the machine to know the client's usual. */
+export const WEIGHT_RATIO_MIN_ENTRIES = 3;
 
 export type SetReading =
   | { kind: "reps"; reps: number }
@@ -77,10 +104,15 @@ function readSides(value: number): SetReading {
   return { kind: "sides", left, right };
 }
 
-/** What one entry says. `perSide` is whether the Journey machine is done one side at a time. */
+/**
+ * What one entry says. `perSide` is whether the Journey machine is done one
+ * side at a time; `holdsAllowed` whether a timed hold is a real reading on it
+ * (`holdsAllowedOn`; true when the machine isn't known yet).
+ */
 export function readSet(
   line: { weight: number | null; reps: number | null; nextWeight?: number | null },
   perSide: boolean,
+  holdsAllowed = true,
 ): SetReading {
   const { weight, reps } = line;
   if (reps === 0) return { kind: "not-performed" };
@@ -90,15 +122,59 @@ export function readSet(
     return { kind: "not-recorded" };
   }
   // A minus before the count was Willoughby's try at marking rep quality (AJ, Oct 12 2026: "we dont have to mind that").
-  if (reps < 0) return readSet({ ...line, reps: -reps }, perSide);
+  if (reps < 0) return readSet({ ...line, reps: -reps }, perSide, holdsAllowed);
+  // A count beside a weight of 0 is not a set at that weight (Elovia Peddle's Hoist, 0 × 8 on alternate
+  // visits: a second unit under one name, or the bare sled); held back and listed.
+  if (weight === 0) return { kind: "unclear", why: `a count (${reps}) beside a weight of 0` };
   if (!Number.isInteger(reps)) {
     if (!perSide) return { kind: "unclear", why: `a decimal count (${reps}) on a machine done both sides at once` };
     return readSides(reps);
   }
   if (reps <= REPS_MAX) return { kind: "reps", reps };
-  if (reps >= SECONDS_FROM) return { kind: "seconds", seconds: reps };
+  if (reps >= SECONDS_FROM) {
+    if (!holdsAllowed) return { kind: "unclear", why: `a count of ${reps} on a machine lifted for reps, never held (a weight typed in the reps column?)` };
+    if (reps > HOLD_MAX_SECONDS) return { kind: "unclear", why: `${reps} is too long for a timed hold (the longest timed is ${HOLD_MAX_SECONDS} seconds)` };
+    return { kind: "seconds", seconds: reps };
+  }
   return { kind: "unclear", why: `${reps} is too many reps and too short for a timed hold` };
 }
+
+/**
+ * The entries whose weight nobody lifts (by the sheet's row): over WEIGHT_MAX,
+ * or WEIGHT_RATIO times the client's usual on that FileMaker name (the median
+ * of the other weighted entries on it, from WEIGHT_RATIO_MIN_ENTRIES of them).
+ * A typing slip can run for months (Nancy's 2000 on 12 visits, Tom Reddy's
+ * 13137 on 11), so the median is of the OTHER entries, and a run of the same
+ * slip is held whole. Said in the dry run so the copy of the export is
+ * corrected first: an imported visit is never rewritten.
+ */
+export function implausibleWeights(visits: readonly Visit[]): Set<number> {
+  const byMachine = new Map<string, WorkoutLine[]>();
+  for (const visit of visits) {
+    for (const line of visit.lines) {
+      if (line.weight === null || line.weight <= 0) continue;
+      const key = line.machine.toLowerCase();
+      (byMachine.get(key) ?? byMachine.set(key, []).get(key)!).push(line);
+    }
+  }
+  const held = new Set<number>();
+  for (const lines of byMachine.values()) {
+    for (const line of lines) {
+      const w = line.weight!;
+      if (w > WEIGHT_MAX) {
+        held.add(line.row);
+        continue;
+      }
+      const others = lines.filter((l) => l !== line && l.weight !== w).map((l) => l.weight!).sort((a, b) => a - b);
+      if (others.length < WEIGHT_RATIO_MIN_ENTRIES) continue;
+      const median = others[Math.floor(others.length / 2)];
+      if (median > 0 && w >= WEIGHT_RATIO * median) held.add(line.row);
+    }
+  }
+  return held;
+}
+
+export const IMPLAUSIBLE_WEIGHT_WHY = `a weight nobody lifts (over ${WEIGHT_MAX}, or ${WEIGHT_RATIO} times the client's usual on the machine): a typing slip to correct in the copy of the export first`;
 
 /* ------------------------------------------------------------------ *
  * Visits
@@ -211,11 +287,16 @@ export function columnsLookSwapped(lines: readonly WorkoutLine[]): boolean {
   return (next > 0.5 && reps < 0.25) || (next > 0.25 && next > 3 * reps);
 }
 
-/** The findings for one client's visits. `perSide(machine, day)` answers for the Journey machine an entry maps to that day. */
+/**
+ * The findings for one client's visits. `perSide(machine, day)` and
+ * `holdsOn(machine, day)` answer for the Journey machine an entry maps to that
+ * day (whether it is done one side at a time; whether a timed hold is real on it).
+ */
 export function findingsOf(
   visits: readonly Visit[],
   undated: readonly WorkoutLine[],
   perSide: (machine: string, day: string) => boolean,
+  holdsOn: (machine: string, day: string) => boolean = () => true,
 ): Finding[] {
   const out: Finding[] = [];
   const add = (level: Level, what: string, where: string) => out.push({ level, what, where });
@@ -224,13 +305,15 @@ export function findingsOf(
     add("held", "An entry with no date", `row ${line.row}${line.machine ? `, ${line.machine}` : ""}${line.problems.length ? ` (${line.problems.join("; ")})` : ""}`);
   }
 
+  const implausible = implausibleWeights(visits);
   for (const visit of visits) {
     const where = (l: WorkoutLine) => `${visit.day} ${l.machine || `row ${l.row}`}`;
     for (const line of visit.repeats) add("held", "The same machine twice on one day (the second is kept out)", where(line));
     for (const line of visit.lines) {
       for (const p of line.problems) add("held", "A cell that can't be read", `${where(line)}: ${p}`);
       if (!line.machine) add("held", "An entry with no machine", `${visit.day} row ${line.row}`);
-      const reading = readSet(line, perSide(line.machine, visit.day));
+      if (implausible.has(line.row)) add("held", "A weight nobody lifts (a typing slip: correct the copy of the export first)", `${where(line)}: ${line.weight}`);
+      const reading = readSet(line, perSide(line.machine, visit.day), holdsOn(line.machine, visit.day));
       if (reading.kind === "unclear") add("held", "A count that can't be read safely", `${where(line)}: ${reading.why}`);
       if (line.reps !== null && line.reps < 0 && reading.kind !== "unclear") {
         add("handled", "A minus before the count (a mark for rep quality: the count imports, the minus doesn't)", `${where(line)}: ${line.reps}`);

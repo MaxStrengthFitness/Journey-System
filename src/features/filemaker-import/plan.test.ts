@@ -103,6 +103,36 @@ describe("a client's visits as Journey sessions", () => {
     expect(plan.sessions[1].data.sessionMachineIds).toEqual(["m-leg-press", "m-pullover", "m-torso-rotation"]);
   });
 
+  it("holds a weight nobody lifts, a count beside a weight of 0, and a hold on a machine lifted for reps; the visit imports without them (the Strongsville audit)", () => {
+    const plan = planClient(
+      input(
+        [
+          line("2026-03-19", "Lumbar", 1, 84, 12),
+          line("2026-03-26", "Lumbar", 1, 84, 15),
+          line("2026-04-07", "Lumbar", 1, 84, 10),
+          line("2026-04-22", "Lumbar", 1, 8410, null), // "84" and "10" typed together
+          line("2026-04-22", "Comp. Row", 2, 60, 8),
+          line("2026-04-22", "Pullover", 3, 0, 8), // a count beside a weight of 0
+          line("2026-04-22", "Leg Press Imag.", 4, 240, 246), // the weight typed in the reps column, on a machine never held
+          line("2026-04-28", "Lumbar", 1, 84, 10),
+          line("2026-04-28", "Pullover", 2, 88, 90), // a real hold, on a machine that is held
+        ],
+        { holdsOn: (id) => id !== "m-leg-press" },
+      ),
+    );
+    const april22 = plan.sessions.find((s) => s.day === "2026-04-22")!;
+    expect(april22.logs.map((l) => l.machineId)).toEqual(["m-compound-row"]);
+    expect(plan.held.filter((h) => h.day === "2026-04-22").map((h) => [h.machine, h.why])).toEqual([
+      ["Lumbar", expect.stringMatching(/weight nobody lifts/)],
+      ["Pullover", expect.stringMatching(/weight of 0/)],
+      ["Leg Press Imag.", expect.stringMatching(/lifted for reps/)],
+    ]);
+    const april28 = plan.sessions.find((s) => s.day === "2026-04-28")!;
+    expect(april28.logs.find((l) => l.machineId === "m-pullover")!.data).toMatchObject({ seconds: "90", isTSC: true });
+    // The slip never becomes the machine's first day or starting weight: Lumbar's first weighted day is Mar 19.
+    expect(plan.firstDays["m-lumbar"]).toBe("2026-03-19");
+  });
+
   it("leaves out visits after the last day and on a day Journey has, numbering the rest with no gap", () => {
     const plan = planClient(
       input(

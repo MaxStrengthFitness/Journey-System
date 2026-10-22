@@ -91,7 +91,7 @@ import { FieldValue, getFirestore, type DocumentData, type Firestore } from "fir
 import { argv, connectFirestore, flag, hasFlag } from "./lib/admin.ts";
 import { readTable } from "../src/features/filemaker-import/files.ts";
 import { fileKindOf, parseDay, readProfiles, readWorkoutLines, type ProfileRecord, type WorkoutLine } from "../src/features/filemaker-import/records.ts";
-import { columnsLookSwapped, findingsOf, groupVisits } from "../src/features/filemaker-import/visits.ts";
+import { columnsLookSwapped, findingsOf, groupVisits, holdsAllowedOn } from "../src/features/filemaker-import/visits.ts";
 import type { FloorUnit, MapRow } from "../src/features/filemaker-import/machine-map.ts";
 import { clientWriteFor, numberOffsetFor, planClient, visitInstant, type ClientNow, type ClientPlan, type PlannedLog, type PlannedSession } from "../src/features/filemaker-import/plan.ts";
 import { clientLines, summaryLines, type ClientReport } from "../src/features/filemaker-import/report.ts";
@@ -381,6 +381,8 @@ async function main() {
   }
   const unitOf = (studio: string, id: string) => floors.get(studio)?.find((u) => u.id === id);
   const perSide = (studio: string) => (id: string) => isPerSideMachine({ id, name: unitOf(studio, id)?.name ?? catalogName.get(id) ?? id, comparisonKey: unitOf(studio, id)?.movement ?? undefined });
+  /** Whether a timed hold is a real reading on the unit (visits.ts): never on a machine lifted for reps. */
+  const holdsOn = (studio: string) => (id: string) => holdsAllowedOn(id, unitOf(studio, id)?.movement ?? null);
 
   /* The machine table: a person's, checked, or the draft. */
   let table: MapRow[] = [];
@@ -464,6 +466,7 @@ async function main() {
       timeZone: tz,
       machineFor: (fmName: string, day: string) => resolve(home, fmName, day, f.docId),
       perSide: perSide(home),
+      holdsOn: holdsOn(home),
       journeyDays,
       existing,
     };
@@ -494,10 +497,18 @@ async function main() {
       ...base,
       journey: { docId: f.docId, homeStudio: studioName(home), journeyName: [f.data.firstName, f.data.lastName].filter(Boolean).join(" ") || null },
       stopped,
-      findings: findingsOf(visits, undated, (fm, day) => {
-        const id = resolve(home, fm, day, f.docId);
-        return !!id && perSide(home)(id);
-      }),
+      findings: findingsOf(
+        visits,
+        undated,
+        (fm, day) => {
+          const id = resolve(home, fm, day, f.docId);
+          return !!id && perSide(home)(id);
+        },
+        (fm, day) => {
+          const id = resolve(home, fm, day, f.docId);
+          return !id || id === "skip" || holdsOn(home)(id);
+        },
+      ),
       plan,
       mindbodyVisits: typeof f.data.clientsNumberOfVisitsAtSite === "number" ? f.data.clientsNumberOfVisitsAtSite : null,
       hasPriorHistory: !!prior,

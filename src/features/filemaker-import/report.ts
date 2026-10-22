@@ -89,7 +89,12 @@ export function clientLines(r: ClientReport): string[] {
       const names = r.plan.unmatched.join(", ");
       out.push(`  WAITS WHOLE for the machine table: ${names}${names.endsWith(".") ? "" : "."}`);
     }
-    if (r.plan.held.length) out.push(`  ${r.plan.held.length} entr${r.plan.held.length === 1 ? "y" : "ies"} held back (the visit imports without ${r.plan.held.length === 1 ? "it" : "them"}).`);
+    if (r.plan.held.length) {
+      out.push(
+        `  ${r.plan.held.length} entr${r.plan.held.length === 1 ? "y" : "ies"} held back (the visit imports without ${r.plan.held.length === 1 ? "it" : "them"}; ` +
+          "an imported visit is never rewritten, so a held entry is gone for good unless the copy of the export is corrected before the run).",
+      );
+    }
   }
 
   for (const level of ["held", "look", "handled"] as Level[]) {

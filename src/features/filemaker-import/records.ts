@@ -109,6 +109,10 @@ export function parseDay(raw: string | null | undefined): Parsed<string> {
   if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
     return { value: null, problem: `not a real day ("${s}")` };
   }
+  // "12/12/0205" is a typing slip for 2025 (the Strongsville audit, Oct 21 2026): read as the year 205
+  // it sorted above every real visit and would have been written as session #1. No studio's history
+  // reaches back before 2000, so such a day is held, never a session.
+  if (y < 2000) return { value: null, problem: `a year before 2000 ("${s}")` };
   return { value: `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` };
 }
 

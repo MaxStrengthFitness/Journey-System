@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { columnsLookSwapped, findingsOf, groupVisits, readSet, shapeOf } from "./visits";
+import { columnsLookSwapped, findingsOf, groupVisits, holdsAllowedOn, implausibleWeights, readSet, shapeOf } from "./visits";
 import type { WorkoutLine } from "./records";
 
 let row = 1;
@@ -56,6 +56,78 @@ describe("what one entry means", () => {
       { level: "handled", what: expect.stringMatching(/^A minus before the count/), where: "2025-06-06 Hip ADD: -10" },
       expect.objectContaining({ what: expect.stringMatching(/one or two machines/) }),
     ]);
+  });
+});
+
+describe("the Strongsville audit's guards (Oct 21 2026)", () => {
+  it("reads a hold only from 30 to 120 seconds, and only on a machine that is held", () => {
+    expect(readSet({ weight: 88, reps: 90 }, false, true)).toEqual({ kind: "seconds", seconds: 90 });
+    expect(readSet({ weight: 26, reps: 120 }, false, true)).toEqual({ kind: "seconds", seconds: 120 });
+    // Bonnie Eggers' Leg Ext. 40 × 910: "9" and "10" typed together, not a fifteen-minute hold.
+    expect(readSet({ weight: 40, reps: 910 }, false, true)).toMatchObject({ kind: "unclear", why: expect.stringMatching(/too long for a timed hold/) });
+    // Denise Kaveliski's Hip ADD 68 × 92: a weight typed in the reps column.
+    expect(readSet({ weight: 68, reps: 92 }, false, false)).toMatchObject({ kind: "unclear", why: expect.stringMatching(/lifted for reps/) });
+    // The default is as before (the machine not known yet): a hold.
+    expect(readSet({ weight: 88, reps: 60 }, false)).toEqual({ kind: "seconds", seconds: 60 });
+    // A minus keeps the guards.
+    expect(readSet({ weight: 68, reps: -92 }, false, false).kind).toBe("unclear");
+  });
+
+  it("knows which machines are never held, a studio's own leg press included", () => {
+    expect(holdsAllowedOn("m-hip-add")).toBe(false);
+    expect(holdsAllowedOn("m-pulldown", "m-pulldown")).toBe(false);
+    expect(holdsAllowedOn("sm-BVDDRe5AqQZFihRLW0vK-hoist-leg-press", null)).toBe(false);
+    expect(holdsAllowedOn("sm-x-own-pull", "m-leg-curl")).toBe(false);
+    expect(holdsAllowedOn("m-ext")).toBe(true);
+    expect(holdsAllowedOn("m-overhead-press", "m-overhead-press")).toBe(true);
+    expect(holdsAllowedOn("m-neck")).toBe(true);
+  });
+
+  it("holds a count beside a weight of 0 (Elovia Peddle's Hoist, 0 × 8 on alternate visits)", () => {
+    expect(readSet({ weight: 0, reps: 8 }, false)).toMatchObject({ kind: "unclear", why: expect.stringMatching(/weight of 0/) });
+    expect(readSet({ weight: 0, reps: 60 }, false)).toMatchObject({ kind: "unclear" });
+    // 0 × 0 and 0 × blank are still "not performed".
+    expect(readSet({ weight: 0, reps: 0 }, false)).toEqual({ kind: "not-performed" });
+    expect(readSet({ weight: 0, reps: null }, false)).toEqual({ kind: "not-performed" });
+  });
+
+  it("finds the weights nobody lifts: over 400, or four times the client's usual, a run of the same slip whole", () => {
+    const { visits } = groupVisits([
+      line("2025-03-24", "Lumbar", 1, 84, 12),
+      line("2025-03-31", "Lumbar", 1, 84, 15),
+      line("2025-04-07", "Lumbar", 1, 84, 10),
+      line("2025-04-22", "Lumbar", 1, 8410, null), // Debora Haidar: "84" and "10" typed together
+      line("2025-04-28", "Lumbar", 1, 84, 10),
+      // Nancy's Leg Press: 206, then 2000 on three visits, then 180
+      line("2026-03-31", "Leg Press Imag.", 2, 206, 0),
+      line("2026-04-07", "Leg Press Imag.", 2, 2000, 10),
+      line("2026-04-14", "Leg Press Imag.", 2, 2000, 10),
+      line("2026-04-21", "Leg Press Imag.", 2, 2000, 10),
+      line("2026-09-01", "Leg Press Imag.", 2, 180, 10),
+      // Two entries far apart are too few to call either a slip
+      line("2026-01-05", "Bicep", 3, 40, 10),
+      line("2026-01-12", "Bicep", 3, 170, 10),
+      // A real heavy lifter is not a slip
+      line("2026-01-05", "Hoist", 4, 300, 10),
+      line("2026-01-12", "Hoist", 4, 310, 10),
+      line("2026-01-19", "Hoist", 4, 320, 10),
+    ]);
+    const held = implausibleWeights(visits);
+    const rows = (machine: string) => visits.flatMap((v) => v.lines).filter((l) => l.machine === machine && held.has(l.row)).map((l) => l.weight);
+    expect(rows("Lumbar")).toEqual([8410]);
+    expect(rows("Leg Press Imag.")).toEqual([2000, 2000, 2000]);
+    expect(rows("Bicep")).toEqual([]);
+    expect(rows("Hoist")).toEqual([]);
+    const f = findingsOf(visits, [], () => false).filter((x) => /nobody lifts/.test(x.what));
+    expect(f).toHaveLength(4);
+    expect(f[0]).toMatchObject({ level: "held", where: "2025-04-22 Lumbar: 8410" });
+  });
+
+  it("asks the machine whether a hold is real, through the same door as per-side", () => {
+    const { visits } = groupVisits([line("2024-04-16", "Hip ADD", 1, 68, 92), line("2024-04-16", "Leg Ext.", 2, 44, 90)]);
+    const held = findingsOf(visits, [], () => false, (machine) => machine !== "Hip ADD").filter((x) => /can't be read safely/.test(x.what));
+    expect(held).toHaveLength(1);
+    expect(held[0].where).toMatch(/Hip ADD: a count of 92 on a machine lifted for reps/);
   });
 });
 
