@@ -46,6 +46,7 @@ import { sessionTotalOf } from "../../lib/session-total";
 import type { HistoryCoverage } from "../../lib/prior-history";
 import { buildPackageNameIndex, sessionsPerPayment, type PackageNameIndex } from "./settings";
 import { decideAutoRenew, lockSaysNothingBills } from "./auto-renew";
+import { asMonthToMonth, monthToMonthOf } from "./month-to-month";
 import {
   awayDaysBetween,
   BOOKING_LOOKAHEAD_DAYS,
@@ -385,7 +386,8 @@ export function sessionBalance(
       if (remaining > 0 && exp && exp < today) {
         expired.push({ name: s.name || "A pricing option", remaining, expired: exp });
       }
-    } else if (remaining > 0) {
+    } else if (remaining > 0 && !index.isMonthToMonth(s.name)) {
+      // A month-to-month option is matched, to month to month: never a package's sessions, never a gap.
       unmatched.push({ name: s.name || "An unnamed pricing option", remaining });
     }
     if (tier) {
@@ -1084,7 +1086,20 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
     suggestedPackageKey: suggestPackage(settings.packages, perWeek, tier?.key ?? null),
   };
 
-  return {
+  // Month to month (AJ, Oct 21 2026) beats every other situation, away
+  // included: no renewal is coming, so nothing here is a renewal's to say.
+  const m2m = monthToMonthOf({
+    lock: client.contractTierOverride,
+    contracts: client.mindbodyContracts,
+    services: client.mindbodyServices,
+    index,
+    packageContract: current,
+    lastEndedPackageStart: contracts.lastEnded?.tier ? contracts.lastEnded.start : null,
+    today,
+    dayKey: mindbodyDayKey,
+  });
+
+  const snapshot: RenewalSnapshot = {
     version: ENGINE_VERSION,
     cycleKey,
     renewalOnBooks,
@@ -1134,6 +1149,7 @@ export function buildRenewalSnapshot(input: RenewalEngineInput): RenewalSnapshot
     paceRange: range,
     runOutRange,
   };
+  return m2m ? asMonthToMonth(snapshot, m2m) : snapshot;
 }
 
 /**

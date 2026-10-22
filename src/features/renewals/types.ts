@@ -157,7 +157,23 @@ export type RenewalSituation =
   /** Past the studio's "lost" rule. The win-back list. */
   | "lapsed"
   /** Not enough Mindbody data to say. dataGaps says what is missing. */
-  | "unknown";
+  | "unknown"
+  /**
+   * Month to month (AJ, Oct 21 2026): "these clients are special occasions
+   * and do not need to be caught by our retention algorithm". No sessions
+   * left, no end date, no warning, never in a renewal lane; every screen
+   * says "M2M". `monthToMonth` says why.
+   */
+  | "month-to-month";
+
+/** Why a client is month to month: a coach's lock on Account, or the Mindbody name that says so. */
+export interface MonthToMonthWhy {
+  from: "lock" | "contract" | "pricing-option";
+  /** The Mindbody name, or the lock's note. */
+  name: string | null;
+  /** The day it began or was bought, YYYY-MM-DD; null for a lock. */
+  since: string | null;
+}
 
 export type RenewalFlagCode =
   | "autopay-suspended"
@@ -307,6 +323,8 @@ export interface RenewalSnapshot {
    * `runOutDate` between them. Null without a range, or when both say the same day.
    */
   runOutRange?: { earliest: string; latest: string } | null;
+  /** Set only on a month-to-month snapshot (`situation` "month-to-month"): why. */
+  monthToMonth?: MonthToMonthWhy | null;
 }
 
 /**
