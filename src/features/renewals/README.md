@@ -15,6 +15,7 @@ A package runs on **two clocks**. Billing sends a payment every 4 weeks (6, 12 o
 | ended | "Package ended Sep 1 — no new one in Mindbody yet" | Inside the studio's lost window |
 | lapsed | "No package since Jul 20" | Past the lost rule: win-back |
 | unknown | The first data gap, in words | Not enough Mindbody data to say |
+| month-to-month | "M2M" | A Month-to-month lock, or a contract or pricing option on the studio's month-to-month list (Oct 21 2026, `month-to-month.ts`). Beats every other situation, away included; no sessions left, no dates, no cycle, never in a lane |
 
 The conversation is due at the studio's threshold (10 sessions left by default). A renewal **already signed in Mindbody** ("on the books") ends it: the client stops being prompted.
 
@@ -55,6 +56,7 @@ The screens' half, on the data above:
 | `settings.ts`, `settings-form.ts` | Defaults (the website's prices), cleaning, the package-name index, the settings form |
 | `engine.ts` | **The engine.** `buildRenewalSnapshot()` — pure, the same code in the browser and the nightly job |
 | `projection.ts` | Version 3's pure pieces: the ledger's parts, pace windows, the run-out day, the projection at the commitment's end, the rate, the signals |
+| `month-to-month.ts` | Month to month (AJ, Oct 21 2026): who is on it (`monthToMonthOf`: the lock, a running listed contract, else the newest listed pricing option against the latest package), the record made M2M (`asMonthToMonth`), the words. The names are `RenewalSettings.monthToMonthNames`; `renewalOf` makes a lock saved today M2M at once |
 | `plan.ts` | The renewal plan: the choices by the auto-renew answer, the packages a choice names, the writes, the sentences |
 | `name-suggest.ts` | Suggestions for the Mindbody names waiting to be matched (confirmed through `settings-form.ts`) |
 | `attendance.ts` | Bookings and workouts → visit rows (a late cancel, "Late cancel · session taken", is a no-show row: the pace counts it as a session USED, never a visit; Oct 2 2026); `attendanceSince` (unknown before the first synced booking, not zero). A booking is read through `lib/booking-state.ts` (Sep 24 2026): a visit when Journey logged a session for the client that day; an unlogged past booking is still a visit before its studio's `journeyCutoverDate` (or with none set — FileMaker holds that record), and from the cutover on it is neither a visit nor a miss. A Journey session is a visit only once it is FINISHED (`status` "Completed", the rule `loggedSessions` reads bookings by; sessions round, Oct 12 2026): one still running, or left open on an iPad and never finished, moves neither the pace, the last visit nor the Journey state |
