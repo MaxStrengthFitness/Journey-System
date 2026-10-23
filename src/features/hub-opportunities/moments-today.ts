@@ -49,6 +49,7 @@
  * for the facts (last in, left).
  */
 import { isMine } from "../../lib/mine";
+import { trainerTallyCount } from "../../lib/client-rollups";
 import type { Client, ScheduleEntry } from "../../types";
 import type { JournalEntry } from "../../types/journal";
 import type { FordEntry } from "../ford/types";
@@ -343,6 +344,11 @@ export interface MomentsTodayInput {
   myName?: string | null;
   trainerNameOf?: (trainerId: string) => string | null;
   /**
+   * The trainer's initials, so the tally's `initials:` keys (imported
+   * history carries initials, never an id) count as theirs for "First with".
+   */
+  trainerInitialsOf?: (trainerId: string) => string | null;
+  /**
    * Whether the studio keeps its waivers in Mindbody at all
    * (`waiversKeptInMindbody` over the roster; hub fixes, Oct 1 2026). False:
    * Mindbody's "not signed" says nothing about the client, and no card is
@@ -610,7 +616,8 @@ export function buildEntry(bookings: ScheduleEntry[], input: MomentsTodayInput, 
       moments.push({ family: "welcome", kind: "early-session", chip: NEW_CLIENT_CHIP, sentence: `New client: ${sessionWords(sessionNumber).toLowerCase()}.` });
     }
     // First time with this trainer: only when Journey holds her whole story,
-    // so the tally is every session she has had.
+    // so the tally is every session she has had. Imported sessions are tallied
+    // under the trainer's initials (lib/client-rollups), so those count too.
     const tally = client.trainerTally;
     if (
       coverage === "complete" &&
@@ -618,7 +625,7 @@ export function buildEntry(bookings: ScheduleEntry[], input: MomentsTodayInput, 
       booking.trainerId &&
       sessionNumber !== null &&
       sessionNumber > 1 &&
-      !((tally[booking.trainerId] ?? 0) > 0)
+      !(trainerTallyCount(tally, { id: booking.trainerId, initials: input.trainerInitialsOf?.(booking.trainerId) ?? null }) > 0)
     ) {
       const who = input.trainerNameOf?.(booking.trainerId) ?? booking.trainerName;
       moments.push({ family: "welcome", kind: "first-with-trainer", chip: `First with ${firstWord(who) ?? "trainer"}`, sentence: `First session with ${firstWord(who) ?? "this trainer"}.` });

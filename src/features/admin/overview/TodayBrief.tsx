@@ -335,6 +335,7 @@ export function TodayBrief({ footer, homeSignal, studio, studios, today, now, me
       myIds,
       myName: authTrainer.fullName ?? null,
       trainerNameOf,
+      trainerInitialsOf: (id) => trainers.find((t) => t.id === id || t.authUid === id)?.initials?.trim() || null,
       newMax: lines.newMax,
     });
   }, [weekUnread, trainers, authTrainer, uid, week.entries, clients, today, settled, tz, studios, studioId, packageIndex, own.critical, logged.logged, lines.newMax]);

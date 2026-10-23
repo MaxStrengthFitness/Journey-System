@@ -9,6 +9,7 @@ import {
   tallyFromSessions,
   toIsoDay,
   trainerKeyFor,
+  trainerTallyCount,
 } from "./client-rollups";
 import type { Trainer } from "../types";
 
@@ -26,6 +27,18 @@ const trainer = (id: string, fullName: string, initials: string): Trainer =>
 const AJ = trainer("t-aj", "Austin Jurgens", "AJ");
 const MP = trainer("t-mp", "Maria Perez", "MP");
 const TRAINERS = [AJ, MP];
+
+describe("trainerTallyCount", () => {
+  it("adds the trainer's id count and their initials key, and reads an empty or missing tally as none", () => {
+    const tally = { "t-aj": 2, "initials:AJ": 9, "initials:KM": 24 };
+    expect(trainerTallyCount(tally, { id: "t-aj", initials: "AJ" })).toBe(11);
+    expect(trainerTallyCount(tally, { id: "t-aj", initials: " aj " })).toBe(11);
+    expect(trainerTallyCount(tally, { id: "t-aj" })).toBe(2);
+    expect(trainerTallyCount(tally, { id: "t-km", initials: "KM" })).toBe(24);
+    expect(trainerTallyCount(tally, { id: "t-zz", initials: "ZZ" })).toBe(0);
+    expect(trainerTallyCount(null, { id: "t-aj", initials: "AJ" })).toBe(0);
+  });
+});
 
 describe("trainerKeyFor", () => {
   it("prefers the trainer id", () => {

@@ -186,6 +186,24 @@ describe("welcome", () => {
     expect(by("newtrainer")?.moments.find((m) => m.kind === "first-with-trainer")?.chip).toBe("First with Pippin");
   });
 
+  it("imported history counts for First with: the tally's initials key is the trainer's once the Hub knows their initials", () => {
+    // Fran Gesten (AJ, Oct 22 2026): nine FileMaker sessions with him, tallied under initials:AJ, and
+    // the card said "First with Austin". Known initials: quiet. Unknown: the old answer, by id alone.
+    const tally = { "initials:KM": 24, "initials:AJ": 9, "initials:MP": 22 };
+    const clients = [
+      makeClient({ id: "fran", sessionCount: 61, historyIsComplete: true, trainerTally: tally }),
+      makeClient({ id: "fran-with-new", sessionCount: 61, historyIsComplete: true, trainerTally: tally }),
+    ];
+    const bookings = [
+      makeBooking({ clientId: "fran", start: today("15:00"), trainerId: "t-aj" }),
+      makeBooking({ clientId: "fran-with-new", start: today("16:00"), trainerId: "t-new" }),
+    ];
+    const initials: Record<string, string> = { "t-aj": "AJ", "t-new": "ZZ" };
+    const first = (entries: RunSheetEntry[]) => ["fran", "fran-with-new"].map((id) => entries.find((e) => e.clientId === id)?.moments.some((m) => m.kind === "first-with-trainer") ?? null);
+    expect(first(run(clients, bookings, { trainerInitialsOf: (id) => initials[id] ?? null }))).toEqual([false, true]);
+    expect(first(run(clients, bookings))).toEqual([true, true]);
+  });
+
   it("back after a break is missed sessions at her own pace, claimed only where Journey owns the gap", () => {
     const pace = { renewal: { pacePerWeek: 2 } as never };
     const entries = run(

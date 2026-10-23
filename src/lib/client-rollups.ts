@@ -55,6 +55,27 @@ export function tallyFieldKey(trainerKey: string): string {
   return trainerKey.replace(/[.~*/[\]]/g, "_");
 }
 
+/**
+ * How many of a client's sessions a trainer has coached, by the tally: the
+ * ones under the trainer's id, plus the ones that carry only their initials
+ * (imported history, tallied under `initials:` above). The Hub's "First with"
+ * asked by id alone and called every imported client's first booking a first
+ * time with every trainer (AJ, Oct 22 2026: Fran Gesten, nine sessions with
+ * him under `initials:AJ`). Initials unknown: the id's count alone.
+ */
+export function trainerTallyCount(
+  tally: Readonly<Record<string, number>> | null | undefined,
+  trainer: { id: string; initials?: string | null },
+): number {
+  if (!tally) return 0;
+  const count = (key: string) => {
+    const n = Number(tally[tallyFieldKey(key)] ?? tally[key] ?? 0);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const initials = (trainer.initials || "").trim().toUpperCase();
+  return count(trainer.id) + (initials ? count(`initials:${initials}`) : 0);
+}
+
 /* ------------------------------------------------------------------ *
  * Top trainer
  * ------------------------------------------------------------------ */

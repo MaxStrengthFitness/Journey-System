@@ -143,6 +143,11 @@ export function useDayMoments({
   const myName = authTrainer?.fullName ?? null;
   const trainerNames = useMemo(() => new Map(trainers.map((t) => [t.id, t.nickname?.trim() || t.fullName])), [trainers]);
   const trainerNameOf = useMemo(() => (id: string) => trainerNames.get(id) ?? null, [trainerNames]);
+  // A booking may carry the trainer's record id or their Auth uid; imported sessions carry initials only.
+  const trainerInitialsOf = useMemo(
+    () => (id: string) => trainers.find((t) => t.id === id || t.authUid === id)?.initials?.trim() || null,
+    [trainers],
+  );
 
   const renewalSettings = useRenewalSettings(activeStudioId);
   const packageIndex = useMemo(() => {
@@ -216,12 +221,13 @@ export function useDayMoments({
       myIds,
       myName,
       trainerNameOf,
+      trainerInitialsOf,
       // Mindbody's "not signed" flags a card only where the studio keeps its
       // waivers in Mindbody at all (hub fixes, Oct 1 2026; lib/client-waiver).
       waiversKeptInMindbody: keepsWaivers,
       newMax,
     }),
-    [today, engineNow, schedules, index, clientsById, rowsById, studios, logged, marks, criticalFor, fordFor, allStarOf, myIds, myName, trainerNameOf, keepsWaivers, newMax],
+    [today, engineNow, schedules, index, clientsById, rowsById, studios, logged, marks, criticalFor, fordFor, allStarOf, myIds, myName, trainerNameOf, trainerInitialsOf, keepsWaivers, newMax],
   );
 
   /* The strip's dots: asked per day, remembered until the engine's input moves. */
