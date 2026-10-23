@@ -21,22 +21,27 @@ export interface DialRename {
 }
 
 /**
- * The renames (AJ's answers to the round's questions, §4 of the round document;
- * the recommendations until he answers).
+ * The renames, AJ's answers of Oct 23 2026 (§7 of the round document): "2. seat
+ * angles are P1 P2 P3 P4 and is the back pad to leg press"; "3. Shin Pad"; "Pull
+ * over has elbow pads and a back pad". Hip Adduction, Hip Abduction, Leg Curl and
+ * Leg Extension keep Back Pad ("1. back pad").
  */
 export const DIAL_RENAMES: readonly DialRename[] = [
-  // Q1: S on the chart is the seat, and these four have no other seat.
-  { machineId: "m-hip-add", from: "Back Pad", to: "Seat" },
-  { machineId: "m-hip-abd", from: "Back Pad", to: "Seat" },
-  { machineId: "m-ext", from: "Back Pad", to: "Seat" },
-  { machineId: "m-leg-curl", from: "Back Pad", to: "Seat" },
-  // Q2: the Leg Press's "Seat Angle" is its back pad (P1–P4, stored as the number); its seat is the seat.
   { machineId: "m-leg-press", from: "Seat Angle", to: "Back Pad" },
-  { machineId: "m-leg-press", from: "Seat Distance", to: "Seat" },
-  // Q7: the Simple Row's seat is the seat.
-  { machineId: "m-simple-row", from: "Seat Pad", to: "Seat" },
-  // Q6: the Pullover's E- is the elbow pads (AJ, Oct 19 2026), not handles.
+  { machineId: "m-leg-curl", from: "Ankle Pad", to: "Shin Pad" },
   { machineId: "m-pullover", from: "Handles", to: "Elbow Pads" },
+];
+
+export interface DialAddition {
+  machineId: string;
+  /** A dial the machine has that the catalog never listed; appended, nothing to migrate. */
+  dial: string;
+}
+
+/** AJ, Oct 23 2026: "lumbar has a seat height a gap and a foot plate. FT is Foot Plate"; the Pullover's back pad "can be up or down". */
+export const DIAL_ADDITIONS: readonly DialAddition[] = [
+  { machineId: "m-lumbar", dial: "Foot Plate" },
+  { machineId: "m-pullover", dial: "Back Pad" },
 ];
 
 export interface DialValueReword {
@@ -47,25 +52,56 @@ export interface DialValueReword {
   words: Readonly<Record<string, string>>;
 }
 
-/** Q4: the Seated Dip's handles are In or Wide (AJ, Oct 23 2026): N / Neutral / Inside are In, W / Out are Wide. */
+/**
+ * AJ, Oct 23 2026. The Seated Dip's handles are In or Wide ("4. Neutral is in"):
+ * N / Neutral / Inside are In, W / Out are Wide. The Pullover's elbow pads
+ * "can [be] out/wide, neutral/middle or in/narrow": N is Middle THERE (not In as
+ * on the dip). The Leg Press's back pad is P1–P4, so a bare number becomes its P.
+ */
 export const DIAL_VALUE_REWORDS: readonly DialValueReword[] = [
   {
     machineId: "m-dip",
     dial: "Handles",
     words: { N: "In", NEUTRAL: "In", INSIDE: "In", IN: "In", NARROW: "In", W: "Wide", WIDE: "Wide", OUT: "Wide", OUTSIDE: "Wide" },
   },
+  {
+    machineId: "m-pullover",
+    dial: "Elbow Pads",
+    words: {
+      W: "Wide", WIDE: "Wide", OUT: "Wide", OUTSIDE: "Wide",
+      M: "Middle", MID: "Middle", MIDDLE: "Middle", N: "Middle", NEUTRAL: "Middle",
+      IN: "In", NARROW: "In", INSIDE: "In",
+    },
+  },
+  {
+    machineId: "m-leg-press",
+    dial: "Back Pad",
+    words: { "1": "P1", "2": "P2", "3": "P3", "4": "P4", P1: "P1", P2: "P2", P3: "P3", P4: "P4" },
+  },
 ];
 
 /** The renames of one machine, old name → new. */
 export function renamesFor(machineId: string, renames: readonly DialRename[] = DIAL_RENAMES): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const r of renames) if (r.machineId === machineId) out.set(r.from, r.to);
-  return out;
+  return new Map(renames.filter((r) => r.machineId === machineId).map((r) => [r.from, r.to]));
 }
 
-/** Every machine the table touches, in table order, once each. */
-export function renamedMachineIds(renames: readonly DialRename[] = DIAL_RENAMES): string[] {
-  return [...new Set(renames.map((r) => r.machineId))];
+/** The value rewords of one machine, dial (new name) → words. */
+export function rewordsFor(machineId: string, rewords: readonly DialValueReword[] = DIAL_VALUE_REWORDS): Map<string, Readonly<Record<string, string>>> {
+  return new Map(rewords.filter((w) => w.machineId === machineId).map((w) => [w.dial, w.words]));
+}
+
+/** The dials added to one machine. */
+export function additionsFor(machineId: string, additions: readonly DialAddition[] = DIAL_ADDITIONS): string[] {
+  return additions.filter((a) => a.machineId === machineId).map((a) => a.dial);
+}
+
+/** Every machine the tables touch, in table order, once each. */
+export function touchedMachineIds(
+  renames: readonly DialRename[] = DIAL_RENAMES,
+  additions: readonly DialAddition[] = DIAL_ADDITIONS,
+  rewords: readonly DialValueReword[] = DIAL_VALUE_REWORDS,
+): string[] {
+  return [...new Set([...renames.map((r) => r.machineId), ...additions.map((a) => a.machineId), ...rewords.map((w) => w.machineId)])];
 }
 
 export interface KeyMove {
@@ -133,25 +169,6 @@ export function moveAckKeys(acks: Record<string, unknown> | null | undefined, re
   return moveKeys(acks, combos);
 }
 
-/** A settings list's label as the history rows write it: at the start, or after ", ". */
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/**
- * "Gap: —, Back Pad: 6" → "Gap: —, Seat: 6". A `settingHistory` row's words, with
- * the renamed dial's label replaced where it stands as a label (never inside a
- * value). The machine card draws a dial's history by matching the row's label
- * to the dial's (machine-menu/dial-control.ts), so a row left in the old word
- * falls off the dial it belongs to. Unchanged text comes back as is.
- */
-export function rewordHistoryText(text: string | null | undefined, renames: ReadonlyMap<string, string>): string | null {
-  if (typeof text !== "string" || !text) return null;
-  let out = text;
-  for (const [from, to] of renames) {
-    out = out.replace(new RegExp(`(^|, )${escapeRe(from)}: `, "g"), `$1${to}: `);
-  }
-  return out === text ? null : out;
-}
-
 /** A saved spelling as the one word, or null when it is already that word or is not one of the spellings. */
 export function rewordValue(value: unknown, words: Readonly<Record<string, string>>): string | null {
   if (typeof value !== "string") return null;
@@ -161,14 +178,73 @@ export function rewordValue(value: unknown, words: Readonly<Record<string, strin
 }
 
 /**
- * A catalog machine's `settingOptions` after the renames: the seed's list when
- * the renamed list has exactly the seed's dials (so the seed's order is taken
- * too), else the catalog's own order with each old name replaced in place.
+ * A settings map with each listed dial's spelling made the one word. `null` when
+ * nothing changed; `changed` says which ("Handles: Neutral → In").
+ */
+export function rewordValues(
+  map: Record<string, unknown> | null | undefined,
+  rewords: ReadonlyMap<string, Readonly<Record<string, string>>>,
+): { next: Record<string, unknown> | null; changed: string[] } {
+  if (!map || typeof map !== "object" || rewords.size === 0) return { next: null, changed: [] };
+  const changed: string[] = [];
+  const next = { ...map };
+  for (const [dial, words] of rewords) {
+    const word = rewordValue(next[dial], words);
+    if (word === null) continue;
+    changed.push(`${dial}: "${String(next[dial])}" → ${word}`);
+    next[dial] = word;
+  }
+  return changed.length ? { next, changed } : { next: null, changed };
+}
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * "Gap: —, Seat Angle: 2" → "Gap: —, Back Pad: P2". A `settingHistory` row's
+ * words, with a renamed dial's label replaced where it stands as a label (never
+ * inside a value), and a reworded dial's value made the one word. The machine
+ * card draws a dial's history by matching the row's label to the dial's
+ * (machine-menu/dial-control.ts) and its lane by the values, so a row left in
+ * the old words falls off the dial it belongs to. Unchanged text comes back null.
+ */
+export function rewordHistoryText(
+  text: string | null | undefined,
+  renames: ReadonlyMap<string, string>,
+  rewords: ReadonlyMap<string, Readonly<Record<string, string>>> = new Map(),
+): string | null {
+  if (typeof text !== "string" || !text) return null;
+  let out = text;
+  for (const [from, to] of renames) {
+    out = out.replace(new RegExp(`(^|, )${escapeRe(from)}: `, "g"), `$1${to}: `);
+  }
+  if (rewords.size) {
+    // The app's own split (setting-history.ts parseList): at ", " only where another "Label: " follows.
+    out = out
+      .split(/, (?=[^,:]+: )/)
+      .map((part) => {
+        const i = part.indexOf(": ");
+        if (i <= 0) return part;
+        const label = part.slice(0, i);
+        const words = rewords.get(label);
+        const word = words ? rewordValue(part.slice(i + 2), words) : null;
+        return word === null ? part : `${label}: ${word}`;
+      })
+      .join(", ");
+  }
+  return out === text ? null : out;
+}
+
+/**
+ * A catalog machine's `settingOptions` after the renames and the additions: the
+ * seed's list when the result has exactly the seed's dials (so the seed's order
+ * is taken too), else the catalog's own order with each old name replaced in
+ * place and each new dial appended.
  */
 export function renamedOptions(
   options: readonly string[],
   renames: ReadonlyMap<string, string>,
   seedOptions: readonly string[] | null | undefined,
+  additions: readonly string[] = [],
 ): { next: string[]; changed: boolean; conflict: string | null } {
   for (const [from, to] of renames) {
     if (options.includes(from) && options.includes(to)) {
@@ -176,7 +252,8 @@ export function renamedOptions(
     }
   }
   const inPlace = options.map((o) => renames.get(o) ?? o);
-  const changed = inPlace.some((o, i) => o !== options[i]);
+  for (const dial of additions) if (!inPlace.includes(dial)) inPlace.push(dial);
+  const changed = inPlace.length !== options.length || inPlace.some((o, i) => o !== options[i]);
   if (seedOptions && seedOptions.length === inPlace.length && seedOptions.every((o) => inPlace.includes(o))) {
     const next = [...seedOptions];
     return { next, changed: changed || next.some((o, i) => o !== options[i]), conflict: null };

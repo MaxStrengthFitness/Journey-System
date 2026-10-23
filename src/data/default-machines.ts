@@ -72,7 +72,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Latissimus Dorsi",
     kinematicClassification: "Simple Pull",
     order: 5,
-    settingOptions: ["Gap", "Seat", "Elbow Pads"],
+    settingOptions: ["Gap", "Seat", "Elbow Pads", "Back Pad"],
     executionPosture: "Posterior Pelvic Tilt / Contracted Abdomen",
     requiresHandoff: true,
     sequencingContraindications: [
@@ -100,7 +100,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Posterior Deltoids, Rhomboids",
     kinematicClassification: "Simple Pull",
     order: 7,
-    settingOptions: ["Gap", "Chest Pad", "Seat"],
+    settingOptions: ["Gap", "Chest Pad", "Seat Pad"],
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
     sequencingContraindications: [
       "Avoid back-to-back pulling exercises to prevent localized forearm/biceps fatigue limiting torso stimulation.",
@@ -183,7 +183,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Lumbar Paraspinals",
     kinematicClassification: "Simple Pull",
     order: 14,
-    settingOptions: ["Gap", "Seat"],
+    settingOptions: ["Gap", "Seat", "Foot Plate"],
     setupGap: "Gap 4-6",
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
     sequencingContraindications: [
@@ -218,7 +218,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Gluteus Medius, Gluteus Minimus",
     kinematicClassification: "Simple Push",
     order: 16,
-    settingOptions: ["Gap", "Seat", "Thigh Pads"],
+    settingOptions: ["Gap", "Back Pad", "Thigh Pads"],
     setupGap: "Custom Gap",
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
   },
@@ -229,7 +229,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Adductor Longus, Brevis, Magnus",
     kinematicClassification: "Simple Pull",
     order: 17,
-    settingOptions: ["Gap", "Seat"],
+    settingOptions: ["Gap", "Back Pad"],
     setupGap: "Custom Gap",
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
     sequencingContraindications: [
@@ -243,7 +243,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Quadriceps, Gluteus Maximus, Hamstrings",
     kinematicClassification: "Compound Push",
     order: 18,
-    settingOptions: ["Gap", "Seat", "Back Pad", "Shoulder Pads"],
+    settingOptions: ["Gap", "Back Pad", "Shoulder Pads", "Seat Distance"],
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
     primaryMuscles: ["Quadriceps", "Gluteus Maximus"],
     biomechanicalNotes:
@@ -254,7 +254,7 @@ export const DEFAULT_MACHINES: Machine[] = [
       "Severe Patellar Tendonitis",
     ],
     modifications:
-      "For Lumbar issues: Lock the back pad at 2 or 1, limit ROM to prevent pelvic tuck. For Knee issues: Reduce gap, set end-stop earlier to prevent deep flexion.",
+      "For Lumbar issues: Lock the back pad at P2 or P1, limit ROM to prevent pelvic tuck. For Knee issues: Reduce gap, set end-stop earlier to prevent deep flexion.",
   },
   {
     id: "m-ext",
@@ -263,7 +263,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Quadriceps Femoris",
     kinematicClassification: "Simple Push",
     order: 19,
-    settingOptions: ["Gap", "Seat"],
+    settingOptions: ["Gap", "Back Pad"],
     setupGap: "Gap 2",
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
   },
@@ -274,7 +274,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Hamstrings, Gastrocnemius",
     kinematicClassification: "Simple Pull",
     order: 20,
-    settingOptions: ["Gap", "Seat", "Ankle Pad"],
+    settingOptions: ["Gap", "Back Pad", "Shin Pad"],
     setupGap: "Gap 2",
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
     sequencingContraindications: [

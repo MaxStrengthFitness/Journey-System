@@ -7,13 +7,15 @@
  * set-up (equipment/adapters.ts buildFields, step 1), so the catalog and every saved value
  * move together, in this order:
  *
- *   1. machines/{id}.settingOptions (and any standardSettings / defaultSettings key)
+ *   1. machines/{id}.settingOptions: the renames in place, a new dial appended (DIAL_ADDITIONS;
+ *      nothing to migrate for one), and any standardSettings / defaultSettings key
  *   2. studios/{s}/roster/{id} overrides.settingOptions / overrides.standardSettings, and
  *      studioMachineSettings/{s}_{id} (none carry these names today; checked again here).
  *      A roster copy's own settingFields are the studio's words and are never touched.
- *   3. clientMachineSettings/*: settings, sources and fitAcks keys; the Dip's handle spellings
- *   4. clients/{c}/machineTotals/current.currentMachineMetrics[id].settings (the session snapshot)
- *   5. machines/{id}/settingHistory rows: "Back Pad: 3" → "Seat: 3" in oldValue / newValue
+ *   3. clientMachineSettings/*: settings, sources and fitAcks keys; the spellings on a reworded dial
+ *      (the Dip's and the Pullover's words, the Leg Press's back pad as P1–P4)
+ *   4. clients/{c}/machineTotals/current.currentMachineMetrics[id].settings (the session snapshot), keys and spellings
+ *   5. machines/{id}/settingHistory rows: "Seat Angle: 2" → "Back Pad: P2" in oldValue / newValue
  *      (the machine card finds a dial's history by its label, machine-menu/dial-control.ts)
  *
  * Then, by hand: `npx tsx scripts/rebuild-machine-fit.ts --commit` (the fit index keys by the
@@ -27,7 +29,7 @@
  *   - A backup of every document it will touch (the fields before) is written FIRST to
  *     backups/dial-rename-backup-<stamp>.json, and the run stops if that fails.
  *   - A document already carrying the new names is skipped, so an interrupted run is run again.
- *   - A trainer's value is never changed, except the Dip's handle spellings, each one listed.
+ *   - A trainer's value is never changed, except a reworded dial's spelling, each one listed.
  *   - A set-up that has a value under both the old and the new name keeps the new name's
  *     (saved by the app after the catalog changed, so the newer), and says so.
  *
@@ -41,15 +43,18 @@ import { FieldPath, type DocumentReference, type Firestore } from "firebase-admi
 import { connectFirestore, flag, hasFlag } from "./lib/admin.ts";
 import { DEFAULT_MACHINES } from "../src/data/default-machines.ts";
 import {
+  DIAL_ADDITIONS,
   DIAL_RENAMES,
   DIAL_VALUE_REWORDS,
+  additionsFor,
   moveAckKeys,
   moveKeys,
-  renamedMachineIds,
   renamedOptions,
   renamesFor,
   rewordHistoryText,
-  rewordValue,
+  rewordValues,
+  rewordsFor,
+  touchedMachineIds,
 } from "./lib/dial-renames.ts";
 
 const commit = hasFlag("commit");
@@ -67,7 +72,7 @@ interface Change {
   note: string;
 }
 
-const machineIds = renamedMachineIds();
+const machineIds = touchedMachineIds();
 const changes: Change[] = [];
 const warnings: string[] = [];
 const seedOptions = (id: string) => DEFAULT_MACHINES.find((m) => m.id === id)?.settingOptions ?? null;
@@ -90,7 +95,7 @@ async function plan(db: Firestore) {
     if (!snap.exists) { warnings.push(`machines/${id} does not exist`); continue; }
     const doc = snap.data() as Record<string, unknown>;
     const options = Array.isArray(doc.settingOptions) ? (doc.settingOptions as string[]) : [];
-    const r = renamedOptions(options, renames, seedOptions(id));
+    const r = renamedOptions(options, renames, seedOptions(id), additionsFor(id));
     if (r.conflict) throw new Error(`machines/${id} ${r.conflict}: settle that by hand first. Nothing written.`);
     const update: Record<string, unknown> = {};
     const before: Record<string, unknown> = {};
@@ -155,8 +160,9 @@ async function plan(db: Firestore) {
   for (const d of setups.docs) {
     const doc = d.data() as Record<string, unknown>;
     const id = String(doc.machineId ?? d.id.split("_").slice(1).join("_"));
-    if (!machineIds.includes(id) && !DIAL_VALUE_REWORDS.some((w) => w.machineId === id)) continue;
+    if (!machineIds.includes(id)) continue;
     const renames = renamesFor(id);
+    const rewords = rewordsFor(id);
     const update: Record<string, unknown> = {};
     const before: Record<string, unknown> = {};
     const note: string[] = [];
@@ -171,13 +177,11 @@ async function plan(db: Firestore) {
         if (acks.next) { update.fitAcks = acks.next; before.fitAcks = doc.fitAcks; note.push(`fitAcks: ${acks.moved.join(", ")}`); }
       }
     }
-    for (const w of DIAL_VALUE_REWORDS) {
-      if (w.machineId !== id || !settings) continue;
-      const word = rewordValue(settings[w.dial], w.words);
-      if (word === null) continue;
-      note.push(`${w.dial}: "${String(settings[w.dial])}" → ${word}`);
+    const reworded = rewordValues(settings, rewords);
+    if (reworded.next) {
+      note.push(...reworded.changed);
       if (before.settings === undefined) before.settings = doc.settings;
-      settings[w.dial] = word;
+      settings = reworded.next;
     }
     if (before.settings !== undefined) update.settings = settings;
     if (Object.keys(update).length) changes.push({ kind: "set-up", ref: d.ref, before, update, note: note.join("; ") });
@@ -195,10 +199,12 @@ async function plan(db: Firestore) {
       const entry = (metrics as Record<string, { settings?: Record<string, unknown> }>)[id];
       if (!entry?.settings) continue;
       const r = moveKeys(entry.settings, renamesFor(id));
-      if (!r.next) continue;
-      update.push([new FieldPath("currentMachineMetrics", id, "settings"), r.next]);
+      const w = rewordValues(r.next ?? entry.settings, rewordsFor(id));
+      const next = w.next ?? r.next;
+      if (!next) continue;
+      update.push([new FieldPath("currentMachineMetrics", id, "settings"), next]);
       before[`currentMachineMetrics.${id}.settings`] = entry.settings;
-      note.push(`${id}: ${[...r.moved, ...r.kept.map((k) => `${k} (dropped, the new name's value kept)`)].join(", ")}`);
+      note.push(`${id}: ${[...r.moved, ...r.kept.map((k) => `${k} (dropped, the new name's value kept)`), ...w.changed].join(", ")}`);
     }
     if (update.length) changes.push({ kind: "snapshot", ref: d.ref, before, update, note: note.join("; ") });
   }
@@ -206,13 +212,15 @@ async function plan(db: Firestore) {
   /* ---- 5. the history rows ---- */
   for (const id of machineIds) {
     const renames = renamesFor(id);
+    const rewords = rewordsFor(id);
+    if (!renames.size && !rewords.size) continue;
     const rows = await db.collection(`machines/${id}/settingHistory`).get();
     for (const row of rows.docs) {
       const doc = row.data() as Record<string, unknown>;
       const update: Record<string, unknown> = {};
       const before: Record<string, unknown> = {};
       for (const field of ["oldValue", "newValue"]) {
-        const next = rewordHistoryText(doc[field] as string | undefined, renames);
+        const next = rewordHistoryText(doc[field] as string | undefined, renames, rewords);
         if (next !== null) { update[field] = next; before[field] = doc[field]; }
       }
       if (Object.keys(update).length) changes.push({ kind: "history", ref: row.ref, before, update, note: `${id}: ${String(before.oldValue ?? before.newValue)}` });
@@ -224,6 +232,7 @@ async function main() {
   const db = connectFirestore();
   console.log(commit ? "COMMIT: the renames below will be written." : "DRY RUN: nothing will be written.");
   console.log(`Renames: ${DIAL_RENAMES.map((r) => `${r.machineId} "${r.from}" → "${r.to}"`).join("; ")}`);
+  console.log(`Added: ${DIAL_ADDITIONS.map((a) => `${a.machineId} "${a.dial}"`).join("; ") || "nothing"}`);
   console.log(`Rewords: ${DIAL_VALUE_REWORDS.map((w) => `${w.machineId} ${w.dial}: ${[...new Set(Object.values(w.words))].join(" / ")}`).join("; ")}`);
   await plan(db);
 
@@ -232,7 +241,12 @@ async function main() {
   for (const kind of kinds) {
     const of = changes.filter((c) => c.kind === kind);
     console.log(`${kind}: ${of.length} document(s)`);
-    const show = kind === "catalog" || kind === "roster" || kind === "studio-standards" ? of : of.filter((c) => /dropped|→ (In|Wide)/.test(c.note));
+    const show = kind === "catalog" || kind === "roster" || kind === "studio-standards" ? of : of.filter((c) => /dropped|" → /.test(c.note));
+    if (kind === "set-up") {
+      const tally = new Map<string, number>();
+      for (const c of of) for (const m of c.note.matchAll(/([^;]+?: "[^"]*" → \S+)/g)) { const k = m[1].replace(/^.*?(\w[\w ]*: ")/, "$1"); tally.set(k, (tally.get(k) ?? 0) + 1); }
+      if (tally.size) console.log(`   spellings: ${[...tally].map(([k, n]) => `${k} ×${n}`).join(", ")}`);
+    }
     for (const c of show) console.log(`   ${c.ref.path}: ${c.note}`);
     if (kind === "set-up") {
       const perMachine = new Map<string, number>();

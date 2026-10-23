@@ -331,7 +331,7 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
       },
       "limitedMobility": {
         "romRestrictions": "Hip Flexion / Lower Back Sensitivity: If the client does not tolerate deep hip flexion or experience lower back discomfort, increase the weight stack gap to create a shallower lower turnaround. If sensitive, avoid pairing Leg Press with the Lumbar Extension machine in the same workout (or place several exercises between them).",
-        "specialNotes": "Knee Constraints: Position the feet higher on the footplate to decrease knee flexion (biasing hip extension/glutes). Modifications: For Lumbar issues: Lock the back pad at 2 or 1, limit ROM to prevent pelvic tuck. For Knee issues: Reduce gap, set end-stop earlier to prevent deep flexion."
+        "specialNotes": "Knee Constraints: Position the feet higher on the footplate to decrease knee flexion (biasing hip extension/glutes). Modifications: For Lumbar issues: Lock the back pad at P2 or P1, limit ROM to prevent pelvic tuck. For Knee issues: Reduce gap, set end-stop earlier to prevent deep flexion."
       }
     },
     "alignmentCheckpoints": [
@@ -387,11 +387,6 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
         "type": "text"
       },
       {
-        "key": "seat",
-        "label": "Seat",
-        "type": "text"
-      },
-      {
         "key": "back-pad",
         "label": "Back Pad",
         "type": "text"
@@ -399,6 +394,11 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
       {
         "key": "shoulder-pads",
         "label": "Shoulder Pads",
+        "type": "text"
+      },
+      {
+        "key": "seat-distance",
+        "label": "Seat Distance",
         "type": "text"
       }
     ],
@@ -511,8 +511,8 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
         "type": "text"
       },
       {
-        "key": "seat",
-        "label": "Seat",
+        "key": "back-pad",
+        "label": "Back Pad",
         "type": "text"
       }
     ],
@@ -642,6 +642,11 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
       {
         "key": "elbow-pads",
         "label": "Elbow Pads",
+        "type": "text"
+      },
+      {
+        "key": "back-pad",
+        "label": "Back Pad",
         "type": "text"
       }
     ],
@@ -1335,13 +1340,13 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
         "type": "text"
       },
       {
-        "key": "seat",
-        "label": "Seat",
+        "key": "back-pad",
+        "label": "Back Pad",
         "type": "text"
       },
       {
-        "key": "ankle-pad",
-        "label": "Ankle Pad",
+        "key": "shin-pad",
+        "label": "Shin Pad",
         "type": "text"
       }
     ],
@@ -1465,8 +1470,8 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
         "type": "text"
       },
       {
-        "key": "seat",
-        "label": "Seat",
+        "key": "seat-pad",
+        "label": "Seat Pad",
         "type": "text"
       }
     ],
@@ -1952,6 +1957,11 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
         "key": "seat",
         "label": "Seat",
         "type": "text"
+      },
+      {
+        "key": "foot-plate",
+        "label": "Foot Plate",
+        "type": "text"
       }
     ],
     "defaultSettings": {
@@ -2192,8 +2202,8 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
         "type": "text"
       },
       {
-        "key": "seat",
-        "label": "Seat",
+        "key": "back-pad",
+        "label": "Back Pad",
         "type": "text"
       },
       {
@@ -2310,8 +2320,8 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
         "type": "text"
       },
       {
-        "key": "seat",
-        "label": "Seat",
+        "key": "back-pad",
+        "label": "Back Pad",
         "type": "text"
       }
     ],
