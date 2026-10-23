@@ -96,12 +96,12 @@ describe("the preset strip", () => {
   });
 
   it("takes the studio's own setup card first, then the unit's defaults", () => {
-    const def: MachineDefinition = { ...legPress, defaultSettings: { gap: "3", "seat-distance": "7" } };
+    const def: MachineDefinition = { ...legPress, defaultSettings: { gap: "3", seat: "7" } };
     const p = presetOf(def, { Gap: "5" });
     expect(p.dials.find((d) => d.key === "gap")?.number).toBe("5");
-    expect(p.dials.find((d) => d.key === "seat-distance")?.number).toBe("7");
+    expect(p.dials.find((d) => d.key === "seat")?.number).toBe("7");
     expect(p.state).toBe("partial");
-    expect(presetLine(p)).toBe("Gap 5 · Seat Distance 7 · 2 not set");
+    expect(presetLine(p)).toBe("Gap 5 · Seat 7 · 2 not set");
   });
 
   it("numbers the callouts by their place unless the drawing says otherwise, and carries the rule", () => {

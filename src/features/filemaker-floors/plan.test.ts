@@ -203,8 +203,8 @@ describe("the dials, both sets (AJ: decide later, build both)", () => {
   it("standard: a copy keeps the catalog's, a second unit takes the movement's, an own machine FileMaker's", () => {
     expect(unit(WESTLAKE, "Leg Press SSS").doc.overrides).toEqual({ name: "Leg Press SSS" });
     const second = unit(WESTLAKE, "Leg Press NT").doc.definition as { settingFields: { key: string; label: string }[] };
-    expect(second.settingFields.map((f) => f.label)).toEqual(["Gap", "Seat Angle", "Shoulder Pads", "Seat Distance"]);
-    expect(second.settingFields.map((f) => f.key)).toEqual(["gap", "seat-angle", "shoulder-pads", "seat-distance"]);
+    expect(second.settingFields.map((f) => f.label)).toEqual(["Gap", "Seat", "Back Pad", "Shoulder Pads"]);
+    expect(second.settingFields.map((f) => f.key)).toEqual(["gap", "seat", "back-pad", "shoulder-pads"]);
     expect(unit(WESTLAKE, "Calf").standardDials).toEqual(["SH", "LT"]);
   });
 
@@ -255,8 +255,8 @@ describe("what a trainer's screens would show (resolveMachine, then the session'
   it("standard: the session shows the standard's dials on every MSF unit", () => {
     const list = floorOf(WESTLAKE, "standard");
     const at = (name: string) => list.find((m) => m.name === name)!;
-    expect(at("Leg Press SSS").settingOptions).toEqual(["Gap", "Seat Angle", "Shoulder Pads", "Seat Distance"]);
-    expect(at("Leg Press NT").settingOptions).toEqual(["Gap", "Seat Angle", "Shoulder Pads", "Seat Distance"]);
+    expect(at("Leg Press SSS").settingOptions).toEqual(["Gap", "Seat", "Back Pad", "Shoulder Pads"]);
+    expect(at("Leg Press NT").settingOptions).toEqual(["Gap", "Seat", "Back Pad", "Shoulder Pads"]);
     expect(at("Calf").settingOptions).toEqual(["SH", "LT"]);
   });
 
@@ -298,9 +298,9 @@ describe("switching the dials on a floor the script built", () => {
     expect(byFm["Leg Press SSS"]).toEqual({ "overrides.settingFields": null });
     expect((byFm["Leg Press NT"]["definition.settingFields"] as { label: string }[]).map((f) => f.label)).toEqual([
       "Gap",
-      "Seat Angle",
+      "Seat",
+      "Back Pad",
       "Shoulder Pads",
-      "Seat Distance",
     ]);
   });
 
