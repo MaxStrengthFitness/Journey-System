@@ -86,7 +86,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Latissimus Dorsi, Rhomboids, Trapezius",
     kinematicClassification: "Compound Pull",
     order: 6,
-    settingOptions: ["Gap", "Chest Pad", "Handles"],
+    settingOptions: ["Gap", "Chest Pad", "Handles", "Chest Pad Height"],
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
     requiresHandoff: true,
     sequencingContraindications: [
