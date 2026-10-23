@@ -16,6 +16,7 @@ A client's FileMaker history (visits, machines, weights, reps) into Journey, wri
 | `report.ts` | The dry run's words. |
 | `scripts/import-filemaker.ts` | The only part that reads files and Firestore and writes. Its header is the safety model and the usage. |
 | `scripts/lib/stub-assets.mjs` | Lets the script load `catalog/names.ts`, which reaches the machines' photos (Vite handles those; Node does not). |
+| `letters-strongsville.csv` | What a FileMaker setting label (S-, B-, Sh-, Pad-) means on each of Strongsville's machines, in Journey's dial names, as AJ read the charts (the Oct 19–23 entries of `backups/filemaker/IMPORT-LOG.md`). The gitignored working copy the dial tools read (`backups/filemaker/letters-strongsville.csv`) is kept the same as this one; `src/data/dial-names.test.ts` holds every dial it names to the seed. The dial-names round, `docs/rounds/2026-10-23-dial-names.md`. |
 
 ## What an entry means
 

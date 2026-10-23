@@ -610,6 +610,23 @@ beta-prep trim moved the traps out of `CLAUDE.md`. It is kept word for word.
 
 *Machine authoring, Sep 20 2026; the catalog gate, Sep 20 2026.*
 
+**A dial's label is its storage key, so a catalog dial is never renamed by
+hand.** (The dial-names round, Oct 23 2026.) A catalog machine's dials are
+`settingOptions`, bare labels, and every client's saved value sits under that
+label (`clientMachineSettings/{client}_{machine}.settings["Back Pad"]`,
+`equipment/adapters.ts` buildFields step 1); the fit index keys by its
+normalised form, `fitAcks` too, the `machineTotals` snapshot copies it, and a
+`settingHistory` row names it in words that the machine card matches back to
+the dial (`machine-menu/dial-control.ts`). Rename the label alone, in the
+catalog editor or the seed, and every saved value becomes a key no screen reads:
+the card shows "Not set", machine fit forgets the client, the history falls off
+the dial. The one way is `scripts/rename-dials.ts` with its table in
+`scripts/lib/dial-renames.ts` (dry run, backup, `--commit --expect N`, then
+`rebuild-machine-fit`), and `src/data/dial-names.test.ts` holds the seed, the
+generated definitions and the Strongsville letters table to the same names.
+A studio's own unit (`sm-…`, its roster copy's `settingFields`) keys by ITS
+labels and is never touched by that script.
+
 **The template boundary does NOT cover a submission, and cannot.**
 `scopeOverrides` protects the roster write, where a studio is editing a COPY
 of a catalog machine. A studio's own machine (`source: "custom"`) inherits
