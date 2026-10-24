@@ -117,6 +117,8 @@ export interface ProgrammingTabProps {
   onToggleB: (checked: boolean) => void;
   /** A refused save on Routines, in a sentence (the profile's toast). */
   onError?: (message: string) => void;
+  /** A save worth saying (Save as my routine). */
+  onNotice?: (message: string) => void;
   onSelectMachine?: (machineId: string) => void;
   /**
    * The machine menu's door on the profile (ClientProfileView builds it):
@@ -155,6 +157,7 @@ export function ProgrammingTab({
   onEdit,
   onToggleB,
   onError,
+  onNotice,
   onSelectMachine,
   machineMenuHost,
   disabled = false,
@@ -429,6 +432,7 @@ export function ProgrammingTab({
               nextRoutineId={selectedRoutineTodayId}
               onToggleB={onToggleB}
               onError={onError}
+              onNotice={onNotice}
               disabled={disabled}
             />
             {aHasPlan && (

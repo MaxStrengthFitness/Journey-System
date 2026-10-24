@@ -34,6 +34,8 @@ import { drawerTemplates } from "../../../lib/routine-templates";
 import { floorStatus, startFromGroups, startFromLines, type StartFromChoice } from "../start-from";
 import type { FloorMachine } from "../starting-plan";
 import { useStartingRoutines } from "../useStartingRoutines";
+import { auth } from "../../../firebase";
+import { useMyRoutines } from "../../routine-slots/useMyRoutines";
 import { PlanSheet } from "./parts";
 
 export interface StartFromRoutineSheetProps {
@@ -72,6 +74,8 @@ export function StartFromRoutineSheet({
 }: StartFromRoutineSheetProps) {
   // The drawer's studio group holds its trainers' saved templates too: asked for here alone.
   const starting = useStartingRoutines(studioId, { trainerTemplates: true });
+  // The signed-in trainer's own routines (the routine library round, Oct 23 2026): theirs alone, offered after the client's.
+  const mine = useMyRoutines(auth?.currentUser?.uid ?? null);
   const groups = useMemo(() => {
     const templates =
       starting.templates === null
@@ -79,7 +83,7 @@ export function StartFromRoutineSheet({
           ? null
           : ("failed" as const)
         : drawerTemplates(starting.templates, studioId, GLOBAL_ROUTINE_PRESETS);
-    return startFromGroups({
+    const shared = startFromGroups({
       floor,
       todayYmd,
       clientRoutines,
@@ -93,7 +97,22 @@ export function StartFromRoutineSheet({
       firstName,
       studioName,
     });
-  }, [starting.status, starting.routines, starting.choice, starting.fromCode, starting.templates, studioId, floor, todayYmd, clientRoutines, outOfService, nameOf, firstName, studioName]);
+    const own = (mine.routines ?? []).length
+      ? startFromGroups({
+          floor,
+          todayYmd,
+          clientRoutines: null,
+          starting: { routines: [], choice: null },
+          templates: { company: [], studio: mine.routines ?? [] },
+          outOfService,
+          nameOf,
+        })
+          .filter((g) => g.key === "studio" && g.choices.length > 0)
+          .map((g) => ({ ...g, label: "My routines", choices: g.choices.map((c) => ({ ...c, key: `mine:${c.key.slice(c.key.indexOf(":") + 1)}` })) }))
+      : [];
+    const at = shared[0]?.key === "client" ? 1 : 0;
+    return [...shared.slice(0, at), ...own, ...shared.slice(at)];
+  }, [starting.status, starting.routines, starting.choice, starting.fromCode, starting.templates, studioId, floor, todayYmd, clientRoutines, outOfService, nameOf, firstName, studioName, mine.routines]);
   const unreadFloor = floorStatus(floorState, studioName);
 
   return (

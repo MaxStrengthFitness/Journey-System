@@ -30,10 +30,17 @@ export function useMyRoutines(uid: string | null | undefined, opts: { enabled?: 
     }
     let live = true;
     setState((s) => ({ routines: s.routines, status: "loading" }));
-    getDocs(query(collection(db, "routinePresets"), where("tier", "==", "trainer"), where("ownerUid", "==", uid)))
+    let read: Promise<Awaited<ReturnType<typeof getDocs>>>;
+    try {
+      read = getDocs(query(collection(db, "routinePresets"), where("tier", "==", "trainer"), where("ownerUid", "==", uid)));
+    } catch {
+      setState({ routines: null, status: "failed" });
+      return;
+    }
+    read
       .then((snap) => {
         if (!live) return;
-        setState({ routines: myRoutinesFromDocs(snap.docs.map((d) => ({ id: d.id, data: d.data() })), uid), status: "ready" });
+        setState({ routines: myRoutinesFromDocs(snap.docs.map((d) => ({ id: d.id, data: d.data() as Record<string, unknown> })), uid), status: "ready" });
       })
       .catch(() => {
         if (live) setState({ routines: null, status: "failed" });

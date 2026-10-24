@@ -32,6 +32,7 @@ import { YourWeek } from "./YourWeek";
 import { MyClients } from "./MyClients";
 import { cutoverOf } from "../../lib/client-coverage";
 import type { RosterStatus } from "../../hooks/useStudioRoster";
+import { MyRoutines } from "../routine-slots/ui/MyRoutines";
 import "./trainer-profile.css";
 
 /**
@@ -190,6 +191,20 @@ export function TrainerProfileView({
           rosterStatus={rosterStatus}
           tz={active?.activeStudio?.timezone || undefined}
           onSelectClient={openClient}
+        />
+      )}
+
+      {/* The routine library round (Oct 23 2026): the trainer's own
+          starting points, theirs alone, loaded into a client from a slot's
+          Change. AJ: "just allow trainers to make their own routines and
+          save them on their profile so they can load it into a client if
+          they need". */}
+      {visibility.scope === "self" && (
+        <MyRoutines
+          uid={auth.currentUser?.uid ?? null}
+          trainerName={trainer.fullName ?? null}
+          studioId={activeStudioId}
+          studioName={active?.activeStudio?.name ?? "this studio"}
         />
       )}
 

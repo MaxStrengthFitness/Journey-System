@@ -2242,6 +2242,7 @@ export function ClientProfileView({
             onEdit={(name) => setEditRoutineTarget(name)}
             onToggleB={handlePromptToggleB}
             onError={toastError}
+            onNotice={toastSuccess}
             onSelectMachine={openMachineWindow}
             machineMenuHost={machineMenuHost}
             disabled={!!hasQuotaError}

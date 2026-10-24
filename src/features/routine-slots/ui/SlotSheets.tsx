@@ -210,9 +210,11 @@ export interface StashSheetProps {
   onEquip: (slot: SlotKey) => void;
   onRename: () => void;
   onRetire: (archived: boolean) => void;
+  /** Saves it to the trainer's own routines (My Profile → My routines); absent with nobody signed in. */
+  onSaveAsMine?: () => void;
 }
 
-export function StashSheet({ routine, first, nameOf, onClose, onEquip, onRename, onRetire }: StashSheetProps) {
+export function StashSheet({ routine, first, nameOf, onClose, onEquip, onRename, onRetire, onSaveAsMine }: StashSheetProps) {
   const retired = !!routine.archived;
   return (
     <PlanSheet
@@ -247,6 +249,11 @@ export function StashSheet({ routine, first, nameOf, onClose, onEquip, onRename,
             <Button variant="outline" onClick={onRename}>
               Rename
             </Button>
+            {onSaveAsMine && routine.machineIds.length > 0 && (
+              <Button variant="outline" onClick={onSaveAsMine}>
+                Save as my routine
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => onRetire(true)}>
               Retire
             </Button>

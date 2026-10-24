@@ -26,7 +26,7 @@
  * What is typed and not saved is registered as unsaved work.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeftRight, Check, ClipboardList, Copy, History, Layers, Pencil, Plus, Undo2 } from "lucide-react";
+import { ArrowLeftRight, BookmarkPlus, Check, ClipboardList, Copy, History, Layers, Pencil, Plus, Undo2 } from "lucide-react";
 import type { Client, Machine, Routine, RoutineAdjustment, Trainer } from "../../../types";
 import { db } from "../../../firebase";
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,8 @@ import {
 import { commitNewRoutine, commitRename, commitRetire, commitSlotMove, copyOf } from "../../routine-slots/store";
 import { addedForGood, plannedOf } from "../../routine-slots/planned";
 import { programmingFromPlan } from "../../routine-slots/programming";
-import { useMyRoutines } from "../../routine-slots/useMyRoutines";
+import { saveMyRoutine, useMyRoutines } from "../../routine-slots/useMyRoutines";
+import { myRoutineFromClientRoutine } from "../../routine-slots/my-routines";
 import { ChangeSlotSheet, RenameSheet, StashSheet } from "../../routine-slots/ui/SlotSheets";
 import {
   copiedAIntoB,
@@ -90,6 +91,8 @@ export interface RoutineBuilderProps {
   onToggleB: (on: boolean) => void;
   /** A refused save, in a sentence. */
   onError?: (message: string) => void;
+  /** A save that went through and is worth saying (Save as my routine). */
+  onNotice?: (message: string) => void;
   disabled?: boolean;
 }
 
@@ -110,6 +113,7 @@ export function RoutineBuilder({
   nextRoutineId = null,
   onToggleB,
   onError,
+  onNotice,
   disabled = false,
 }: RoutineBuilderProps) {
   const first = client?.firstName?.trim() || "the client";
@@ -328,6 +332,12 @@ export function RoutineBuilder({
     const w = addedForGood(routine, [id], who, host.todayYmd);
     if (w) host.actions.save(routine.id, w);
   };
+  /** One of the client's routines saved as the trainer's own (§10.3), never awaited. */
+  const saveAsMine = (routine: Routine) => {
+    if (!who || !studioId) return;
+    const { commit } = saveMyRoutine(myRoutineFromClientRoutine(routine), who, studioId);
+    commit.then(() => onNotice?.(`Saved "${routine.name}" to My routines.`)).catch(() => onError?.("Couldn't save it to My routines. Try again."));
+  };
   const retire = (routineId: string, archived: boolean) => {
     commitRetire(db, routineId, archived).catch(() => onError?.(archived ? "Couldn't retire the routine. Try again." : "Couldn't bring the routine back. Try again."));
   };
@@ -417,6 +427,7 @@ export function RoutineBuilder({
           onStartFrom={() => setStartFor("Routine A")}
           onSwapSlot={() => setChangeFor("a")}
           onRename={realA?.id ? () => setRenaming(realA.id!) : undefined}
+          onSaveAsMine={who && realA && realA.machineIds.length > 0 ? () => saveAsMine(realA) : undefined}
           onChanges={realA?.id ? () => setChangesOf("Routine A") : undefined}
           planned={plannedOf(realA, host.todayYmd)}
           onPlannedNow={realA && !dirtyA ? (id) => addForGood(realA, id) : undefined}
@@ -447,6 +458,7 @@ export function RoutineBuilder({
           onStartFrom={() => setStartFor("Routine B")}
           onSwapSlot={() => setChangeFor("b")}
           onRename={realB?.id ? () => setRenaming(realB.id!) : undefined}
+          onSaveAsMine={who && realB && realB.machineIds.length > 0 ? () => saveAsMine(realB) : undefined}
           onChanges={realB?.id ? () => setChangesOf("Routine B") : undefined}
           planned={plannedOf(realB, host.todayYmd)}
           onPlannedNow={realB && !dirtyB ? (id) => addForGood(realB, id) : undefined}
@@ -655,6 +667,14 @@ export function RoutineBuilder({
             retire(stashRoutine.id!, archived);
             setStashed(null);
           }}
+          onSaveAsMine={
+            who
+              ? () => {
+                  saveAsMine(stashRoutine);
+                  setStashed(null);
+                }
+              : undefined
+          }
         />
       )}
 
@@ -821,6 +841,7 @@ function RoutineCard({
   onStartFrom,
   onSwapSlot,
   onRename,
+  onSaveAsMine,
   onChanges,
   planned = [],
   onPlannedNow,
@@ -856,6 +877,8 @@ function RoutineCard({
   onStartFrom: () => void;
   onSwapSlot: () => void;
   onRename?: () => void;
+  /** Saves this slot's routine to the trainer's own (My Profile → My routines). */
+  onSaveAsMine?: () => void;
   onChanges?: () => void;
   /** Planned for the routine, not in it yet (§10.2), in the road's order. */
   planned?: readonly string[];
@@ -1060,6 +1083,12 @@ function RoutineCard({
               <Button variant="ghost" onClick={onRename} disabled={disabled} aria-label={`Rename ${title}`}>
                 <Pencil aria-hidden="true" />
                 Rename
+              </Button>
+            )}
+            {onSaveAsMine && !dirty && (
+              <Button variant="ghost" onClick={onSaveAsMine} disabled={disabled} aria-label={`Save ${title} as my routine`}>
+                <BookmarkPlus aria-hidden="true" />
+                Save as mine
               </Button>
             )}
             {onChanges && (
