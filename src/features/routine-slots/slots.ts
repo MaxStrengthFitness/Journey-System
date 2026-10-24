@@ -28,6 +28,7 @@
  */
 import type { Routine, RoutineSlots } from "../../types";
 import { type RoutineLetter } from "../../lib/routine-utils";
+import { withProgramming, type Programming } from "./programming";
 
 export type SlotKey = "a" | "b";
 
@@ -97,24 +98,29 @@ export function stashedName(routine: Pick<Routine, "name">, todayYmd: string): s
  * answers from the slots. With no `routineSlots` at all the list is handed
  * back read by name, any stray `inSlot` taken off. The profile's `temp-`
  * stand-ins are left to their names.
+ *
+ * With the client's programming document (`programming.ts`), what the client
+ * can't do and their weak area are laid onto the routine in slot A, where
+ * every reader reads them ("read by A and B"). Undefined or null (still
+ * reading, or no document yet): Routine A's own, as before.
  */
-export function withSlots<T extends Routine>(routines: readonly T[], raw: unknown): T[] {
-  if (!slotsOf(raw)) {
-    return routines.map((r) => {
-      if (r.inSlot === undefined) return r;
-      const { inSlot: _drop, ...rest } = r;
-      return rest as T;
-    });
-  }
+export function withSlots<T extends Routine>(routines: readonly T[], raw: unknown, programming?: Programming | null): T[] {
+  const strip = (r: T): T => {
+    if (r.inSlot === undefined) return r;
+    const { inSlot: _drop, ...rest } = r;
+    return rest as T;
+  };
+  const named = !slotsOf(raw);
   const { a, b } = resolvedSlots(routines, raw);
   return routines.map((r) => {
-    if (!real(r)) {
-      if (r.inSlot === undefined) return r;
-      const { inSlot: _drop, ...rest } = r;
-      return rest as T;
+    if (!real(r)) return strip(r);
+    let out: T = named ? strip(r) : r;
+    if (!named) {
+      const inSlot: Routine["inSlot"] = r.id === a ? "A" : r.id === b ? "B" : null;
+      if (out.inSlot !== inSlot) out = { ...out, inSlot };
     }
-    const inSlot: Routine["inSlot"] = r.id === a ? "A" : r.id === b ? "B" : null;
-    return r.inSlot === inSlot ? r : { ...r, inSlot };
+    if (programming && r.id === a) out = withProgramming(out, programming);
+    return out;
   });
 }
 

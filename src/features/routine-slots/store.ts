@@ -9,10 +9,29 @@
  * - A routine is never deleted: Retire sets `archived`.
  * - Only the fields that change are written.
  */
-import { collection, doc, serverTimestamp, updateDoc, writeBatch, type Firestore } from "firebase/firestore";
+import { collection, doc, serverTimestamp, updateDoc, writeBatch, type Firestore, type WriteBatch } from "firebase/firestore";
 import type { Routine } from "../../types";
 import { withoutUndefined } from "../studio-tasks/task-wizard";
+import type { Programming } from "./programming";
 import type { SlotMove } from "./slots";
+
+/** The client's programming document's path (`programming.ts`). */
+export function programmingRef(db: Firestore, clientId: string) {
+  return doc(db, "clients", clientId, "programming", "current");
+}
+
+/**
+ * The client's marks and focus, written whole into a batch (the document has
+ * no other fields), signed with the Auth uid and the server's time.
+ */
+export function addProgrammingToBatch(batch: WriteBatch, db: Firestore, clientId: string, prog: Programming, uid: string): void {
+  batch.set(programmingRef(db, clientId), {
+    cantDo: prog.cantDo.map((c) => withoutUndefined({ ...c })),
+    focus: [...prog.focus],
+    updatedAt: serverTimestamp(),
+    updatedByUid: uid,
+  });
+}
 
 function settled(...ps: Promise<void>[]): Promise<void> {
   return Promise.all(ps).then(() => undefined);
@@ -24,6 +43,12 @@ export interface MoveBy {
   studioId: string;
   /** Each routine's machines, so its record says what it held. */
   machinesOf: (routineId: string) => readonly string[];
+  /**
+   * What the client can't do and their focus as they stand (slot A's plan as
+   * read), written onto the client when the move changes slot A, so the marks
+   * slot A's routine held are the client's before another takes its place.
+   */
+  programming?: { prog: Programming; uid: string } | null;
 }
 
 /**
@@ -33,8 +58,10 @@ export interface MoveBy {
  */
 export function commitSlotMove(db: Firestore, clientId: string, move: SlotMove, by?: MoveBy): Promise<void> {
   const out: Promise<void>[] = [];
+  const movesA = move.moved.some((m) => m.to === "A");
   if (move.renames.length > 0 || (by && move.moved.length > 0)) {
     const batch = writeBatch(db);
+    if (by?.programming && movesA) addProgrammingToBatch(batch, db, clientId, by.programming.prog, by.programming.uid);
     for (const r of move.renames) batch.update(doc(db, "routines", r.id), { name: r.name, updatedAt: serverTimestamp() });
     if (by) {
       for (const m of move.moved) {
@@ -101,6 +128,7 @@ export function commitNewRoutine(
   db: Firestore,
   input: NewRoutine,
   equip: ((routineId: string) => SlotMove) | null,
+  programming?: MoveBy["programming"],
 ): { routineId: string; commit: Promise<void> } {
   const batch = writeBatch(db);
   const ref = doc(collection(db, "routines"));
@@ -135,7 +163,7 @@ export function commitNewRoutine(
   });
   const made = batch.commit();
   const out: Promise<void>[] = [made];
-  if (equip) out.push(commitSlotMove(db, input.clientId, equip(ref.id), { trainerId: input.trainerId, studioId: input.studioId, machinesOf: (id) => (id === ref.id ? machineIds : []) }));
+  if (equip) out.push(commitSlotMove(db, input.clientId, equip(ref.id), { trainerId: input.trainerId, studioId: input.studioId, machinesOf: (id) => (id === ref.id ? machineIds : []), programming }));
   return { routineId: ref.id, commit: settled(...out) };
 }
 

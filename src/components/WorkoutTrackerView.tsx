@@ -395,6 +395,7 @@ import {
 import type { SettingSource } from "../features/machine-fit/types";
 import { useLeaveGuard } from "../features/unsaved-changes";
 import { withSlots } from "../features/routine-slots/slots";
+import { useClientProgramming } from "../features/routine-slots/useClientProgramming";
 import { addedForGood, plannedOf } from "../features/routine-slots/planned";
 import "../features/journey-grid/journey-grid.css";
 type RoutineType = "A" | "B" | "Free";
@@ -629,9 +630,10 @@ export function WorkoutTrackerView({
   /* The client's routines with the slot each is equipped in (the routine
      library round, Oct 23 2026): every "is this Routine A?" below asks the
      slots, and a client with none is read by name, as before. */
+  const programming = useClientProgramming(clientId);
   const routines = useMemo(
-    () => withSlots(storedRoutines, selectedClient?.id === clientId ? selectedClient?.routineSlots : undefined),
-    [storedRoutines, selectedClient, clientId],
+    () => withSlots(storedRoutines, selectedClient?.id === clientId ? selectedClient?.routineSlots : undefined, programming),
+    [storedRoutines, selectedClient, clientId, programming],
   );
   /* The client's machine totals (the last set on each machine: Start's
      prefilled weights) have answered. They live in their own document since
@@ -5428,6 +5430,7 @@ export function WorkoutTrackerView({
     who: planWho,
     onError: toastError,
     note: planNote,
+    clientId: clientId || null,
   });
   const planNameOf = useMemo(() => machineNamer(floorMachines, machines), [floorMachines, machines]);
   /* Today's list is on screen: before it is seeded, the plan's "next" would

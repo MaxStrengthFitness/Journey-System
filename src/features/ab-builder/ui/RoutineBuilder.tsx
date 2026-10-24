@@ -51,6 +51,7 @@ import {
 } from "../../routine-slots/slots";
 import { commitNewRoutine, commitRename, commitRetire, commitSlotMove, copyOf } from "../../routine-slots/store";
 import { addedForGood, plannedOf } from "../../routine-slots/planned";
+import { programmingFromPlan } from "../../routine-slots/programming";
 import { useMyRoutines } from "../../routine-slots/useMyRoutines";
 import { ChangeSlotSheet, RenameSheet, StashSheet } from "../../routine-slots/ui/SlotSheets";
 import {
@@ -257,7 +258,13 @@ export function RoutineBuilder({
 
   /* ── The stash and the slots ────────────────────────────────────────── */
 
-  const by = { trainerId, studioId, machinesOf: (id: string) => routines.find((r) => r.id === id)?.machineIds ?? [] };
+  const by = {
+    trainerId,
+    studioId,
+    machinesOf: (id: string) => routines.find((r) => r.id === id)?.machineIds ?? [],
+    // What the client can't do and their focus, as slot A holds them now: onto the client before another routine takes slot A (§10.4).
+    programming: who ? { prog: programmingFromPlan(savedA?.plan), uid: who.uid } : null,
+  };
   /** A slot's unsaved draft is let go when another routine goes into it: it was a draft of the routine leaving. */
   const dropDraft = (key: SlotKey) => {
     if (key === "a") {
@@ -282,6 +289,7 @@ export function RoutineBuilder({
       db,
       { clientId, studioId, trainerId, name: uniqueName(input.name, routines), machineIds: input.machineIds, template: input.template ?? null, machineNotes: input.machineNotes },
       (newId) => slotMove([...routines, { id: newId, name: input.name, clientId, machineIds: input.machineIds }], slots, key, newId, isBActive, host.todayYmd),
+      by.programming,
     );
     commit.catch(() => onError?.("Couldn't make the routine. Try again."));
   };
