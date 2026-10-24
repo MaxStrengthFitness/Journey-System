@@ -63,7 +63,10 @@ export function PhasePanel({
   editing,
   onSave,
   onChange,
+  routineName = "Routine B",
 }: {
+  /** The routine being phased in, as the screen names it (either slot since the routine library round, Oct 23 2026). */
+  routineName?: string;
   phase: PhasePlan;
   nameOf: (id: string) => string;
   todayYmd: string;
@@ -78,7 +81,7 @@ export function PhasePanel({
   const st = phaseStatus(phase, todayYmd);
   const can = !!who && !disabled;
   return (
-    <div className="abb-phase" aria-label="Phasing Routine B in">
+    <div className="abb-phase" aria-label={`Phasing ${routineName} in`}>
       <p className="rpl-line rpl-line--icon">
         <CalendarClock size={16} aria-hidden="true" />
         {phaseLine(phase, todayYmd, nameOf)}
@@ -101,14 +104,14 @@ export function PhasePanel({
           />
         ))}
       </div>
-      {editing && <p className="rpl-meta">Saving Routine B as it is on screen ends this plan.</p>}
+      {editing && <p className="rpl-meta">Saving {routineName} as it is on screen ends this plan.</p>}
       {stopping ? (
         <div className="rpl-actions">
-          <p className="rpl-meta">Stop phasing? Routine B stays as it is now.</p>
+          <p className="rpl-meta">Stop phasing? {routineName} stays as it is now.</p>
           <Button
             variant="outline"
             onClick={() => {
-              onSave(null, "Stopped phasing Routine B in", { kind: "none" });
+              onSave(null, `Stopped phasing ${routineName} in`, { kind: "none" });
               setStopping(false);
             }}
             disabled={!can}
@@ -129,7 +132,7 @@ export function PhasePanel({
             <Button
               variant="outline"
               onClick={() =>
-                who && onSave(finishedNow(phase, who, todayYmd), "Phased Routine B in: every step at once", { kind: "all", steps: phase.steps.filter((s) => !isDone(s)) })
+                who && onSave(finishedNow(phase, who, todayYmd), `Phased ${routineName} in: every step at once`, { kind: "all", steps: phase.steps.filter((s) => !isDone(s)) })
               }
               disabled={!can}
             >
@@ -156,7 +159,10 @@ export function PhaseSheet({
   first,
   onClose,
   onSave,
+  routineName = "Routine B",
 }: {
+  /** The routine being phased in, as the screen names it. */
+  routineName?: string;
   initial: PhasePlan;
   isNew: boolean;
   nameOf: (id: string) => string;
@@ -195,8 +201,8 @@ export function PhaseSheet({
   return (
     <PlanSheet
       open
-      title={isNew ? "Phase Routine B in" : "Change the phase-in plan"}
-      meta={`Routine B changes one step at a time. A person ticks each step done; nothing changes by itself.`}
+      title={isNew ? `Phase ${routineName} in` : "Change the phase-in plan"}
+      meta={`${routineName} changes one step at a time. A person ticks each step done; nothing changes by itself.`}
       onClose={close}
       footer={
         <div className="rpl-actions">
@@ -218,7 +224,7 @@ export function PhaseSheet({
       }
     >
       {steps.length === 0 ? (
-        <p className="rpl-line">Routine B and its start hold the same machines, so there is nothing to phase in.</p>
+        <p className="rpl-line">{routineName} and its start hold the same machines, so there is nothing to phase in.</p>
       ) : (
         <ol className="abb-steps">
           {steps.map((s, i) => (

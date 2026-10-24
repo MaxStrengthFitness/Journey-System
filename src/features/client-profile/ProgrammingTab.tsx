@@ -49,7 +49,7 @@
 import { rosterCoverage } from "./programming-summary";
 import { floorWithHistoryMachines } from "../../lib/floor-machines";
 import { neverTriedPhrase, type HistoryCoverage } from "../../lib/prior-history";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   Client,
   ClientMachineSetting,
@@ -117,6 +117,10 @@ export interface ProgrammingTabProps {
   onToggleB: (checked: boolean) => void;
   /** A refused save on Routines, in a sentence (the profile's toast). */
   onError?: (message: string) => void;
+  /** A save worth saying (Save as my routine). */
+  onNotice?: (message: string) => void;
+  /** The client's programming document has answered: a slot change writes it only then. */
+  programmingKnown?: boolean;
   onSelectMachine?: (machineId: string) => void;
   /**
    * The machine menu's door on the profile (ClientProfileView builds it):
@@ -155,6 +159,8 @@ export function ProgrammingTab({
   onEdit,
   onToggleB,
   onError,
+  onNotice,
+  programmingKnown = false,
   onSelectMachine,
   machineMenuHost,
   disabled = false,
@@ -347,53 +353,37 @@ export function ProgrammingTab({
     [model, isBActive, coverage, setup, toReview, aPlanMeta, bPlanMeta, plan?.status],
   );
 
+  // On Routines the slots show what is prescribed and which runs next (the
+  // routine library round, §2): the line keeps only what they don't say.
+  const builderShown = routinesView && !!plan && !starting;
+  const parts: { key: string; node: ReactNode }[] = [
+    ...(!builderShown
+      ? [{ key: "total", node: <span><b>{model.total}</b> {model.total === 1 ? "machine" : "machines"} prescribed</span> }]
+      : []),
+    ...(model.total > 0 && model.setUp < model.total
+      ? [{ key: "load", node: <span><b>{model.total - model.setUp}</b> with no load yet</span> }]
+      : []),
+    ...(!builderShown
+      ? [{ key: "today", node: <span>{model.todayName ? <><b>{model.todayName}</b> today</> : "No routine chosen for today"}</span> }]
+      : []),
+    ...(coverage.neverTried !== null && coverage.neverTried > 0
+      ? [{ key: "never", node: <span><b>{coverage.neverTried}</b> {neverTriedPhrase(coverage.neverTried, coverage.coverage)}</span> }]
+      : []),
+    ...(prescribedWatch > 0
+      ? [{ key: "watch", node: <span className="psub-context__watch"><b>{prescribedWatch}</b> with a clinical watch-out</span> }]
+      : []),
+    ...(model.newest
+      ? [{ key: "newest", node: <span>last change <b>{relativeTime(model.newest.when)}</b> by {model.newest.trainerInitials}</span> }]
+      : []),
+  ];
   const context = (
     <>
-      <span>
-        <b>{model.total}</b> {model.total === 1 ? "machine" : "machines"} prescribed
-      </span>
-      {model.total > 0 && model.setUp < model.total ? (
-        <>
-          <span className="psub-context__dot" aria-hidden="true" />
-          <span>
-            <b>{model.total - model.setUp}</b> with no load yet
-          </span>
-        </>
-      ) : null}
-      <span className="psub-context__dot" aria-hidden="true" />
-      <span>
-        {model.todayName ? (
-          <>
-            <b>{model.todayName}</b> today
-          </>
-        ) : (
-          "No routine chosen for today"
-        )}
-      </span>
-      {coverage.neverTried !== null && coverage.neverTried > 0 ? (
-        <>
-          <span className="psub-context__dot" aria-hidden="true" />
-          <span>
-            <b>{coverage.neverTried}</b> {neverTriedPhrase(coverage.neverTried, coverage.coverage)}
-          </span>
-        </>
-      ) : null}
-      {prescribedWatch > 0 ? (
-        <>
-          <span className="psub-context__dot" aria-hidden="true" />
-          <span className="psub-context__watch">
-            <b>{prescribedWatch}</b> with a clinical watch-out
-          </span>
-        </>
-      ) : null}
-      {model.newest ? (
-        <>
-          <span className="psub-context__dot" aria-hidden="true" />
-          <span>
-            last change <b>{relativeTime(model.newest.when)}</b> by {model.newest.trainerInitials}
-          </span>
-        </>
-      ) : null}
+      {parts.map((p, i) => (
+        <Fragment key={p.key}>
+          {i > 0 && <span className="psub-context__dot" aria-hidden="true" />}
+          {p.node}
+        </Fragment>
+      ))}
     </>
   );
 
@@ -442,8 +432,12 @@ export function ProgrammingTab({
               adjustments={adjustments}
               authTrainer={authTrainer}
               activeStudioId={activeStudioId}
+              nextRoutineId={selectedRoutineTodayId}
+              sessions={sessions}
               onToggleB={onToggleB}
               onError={onError}
+              onNotice={onNotice}
+              programmingKnown={programmingKnown}
               disabled={disabled}
             />
             {aHasPlan && (

@@ -361,6 +361,16 @@ describe("SessionNowBar on day one: the plan's next machine, Add a machine, the 
     expect(onAddMachine).toHaveBeenCalledTimes(1);
   });
 
+  it("says Planned for the routine when the add is for good (the routine library round, Oct 23 2026)", () => {
+    const onAddPlanned = vi.fn();
+    draw({ planNext: { ...planNext, forGood: true }, onAddPlanned, onAddMachine: vi.fn() });
+    const offer = host!.querySelector<HTMLButtonElement>(".jg-nb__next--plan")!;
+    expect(offer.textContent).toContain("Planned for the routine");
+    expect(offer.getAttribute("aria-label")).toBe("Planned for the routine: add Hip Abduction to today and to the routine");
+    act(() => offer.click());
+    expect(onAddPlanned).toHaveBeenCalledWith("m-hip-abd");
+  });
+
   it("with nothing next in the plan, the last machine's slot is as it was", () => {
     draw({ onAddMachine: vi.fn() });
     expect(host!.querySelector(".jg-nb__next--plan")).toBeNull();

@@ -5,41 +5,107 @@
    builder's own marks. Names wrap and are never cut short.
    ========================================================================== */
 
-/* Add to, and Start from…, over the builder. */
-.abb-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-}
-.abb-target {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.abb-target__label {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--eq-ink);
-}
-
-/* One column on a phone; the floor over A and B on a portrait iPad; the
-   floor, A and B side by side on a landscape iPad. */
-.abb-grid {
+/* The two slots: stacked on a phone and a portrait iPad, side by side on a
+   landscape iPad (the routine library round, Oct 23 2026). */
+.abb-slots {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
-@media (min-width: 700px) {
-  .abb-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .abb-floor { grid-column: 1 / -1; }
+@media (min-width: 1000px) {
+  .abb-slots { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
-@media (min-width: 1180px) {
-  .abb-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); }
-  .abb-floor { grid-column: auto; }
+.abb-slot__titles {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* The title's own flex basis is for a row head; in this column it would be a height. */
+.abb-slot__titles .rpl-panel__title {
+  flex: none;
+}
+.abb-slot__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--eq-ink-2);
+}
+.abb-next {
+  color: var(--eq-live);
+}
+
+/* The history strip: which routine ran when, one stretch after another. */
+.abb-history {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.abb-history__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.abb-history__stretch {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--eq-surface-2);
+  font-size: 14px;
+  color: var(--eq-ink);
+}
+.abb-history__stretch[data-current] {
+  box-shadow: inset 0 0 0 1px var(--eq-live);
+}
+
+/* The stash: one row of names under the slots. */
+.abb-stash {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.abb-stash__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.abb-stash__row {
+  padding: 6px 0;
+  font-size: 15px;
+  color: var(--eq-ink);
+}
+
+/* Planned for the routine, not in it yet (§10.2): under the slot's machines. */
+.abb-planned {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--eq-live);
+}
+.abb-planned__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  min-height: 44px;
+}
+.abb-planned__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--eq-ink);
+}
+
+/* The floor, in the Add machine sheet. */
+.abb-floor {
+  padding: 4px 0 8px;
 }
 
 /* A tile's mark: the routines that hold the machine. On the blue when the

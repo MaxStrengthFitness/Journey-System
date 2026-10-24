@@ -15,15 +15,18 @@ export function PhaseDueLine({
   active,
   todayYmd,
   nameOf,
+  routineName = "Routine B",
 }: {
+  /** The routine being phased in (Routine B, or since the routine library round the routine in slot A). */
   routineB: Pick<Routine, "plan"> | null | undefined;
-  /** B is on: a B switched off says nothing about its plan. */
+  /** The routine runs (B is on; A always): a B switched off says nothing about its plan. */
   active: boolean;
   todayYmd: string;
   nameOf: (id: string) => string;
+  routineName?: string;
 }) {
   const phase = active ? phaseOf(routineB?.plan?.phase) : null;
-  const words = phase ? phaseDueWords(phase, todayYmd, nameOf) : null;
+  const words = phase ? phaseDueWords(phase, todayYmd, nameOf, routineName) : null;
   if (!words) return null;
   return (
     <p className="rpl-line rpl-line--icon" data-testid="phase-due">

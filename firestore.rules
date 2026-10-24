@@ -798,7 +798,21 @@ service cloud.firestore {
              data.firstName is string && data.firstName.size() > 0 && data.firstName.size() < 50 &&
              data.lastName is string && data.lastName.size() > 0 && data.lastName.size() < 50 &&
              data.isActive is bool &&
-             data.remainingSessions is number && data.remainingSessions >= 0;
+             data.remainingSessions is number && data.remainingSessions >= 0 &&
+             routineSlotsOk(data);
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#routineslotsok
+    function routineSlotsOk(data) {
+      return !('routineSlots' in data)
+          || (data.routineSlots is map
+              && data.routineSlots.keys().hasOnly(['a', 'b'])
+              && slotIdOk(data.routineSlots.get('a', null))
+              && slotIdOk(data.routineSlots.get('b', null)));
+    }
+
+    function slotIdOk(v) {
+      return v == null || (v is string && v.size() > 0 && v.size() <= 200);
     }
 
     function isValidMachine(data) {
@@ -1967,6 +1981,47 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // Why: docs/ops/RULES-NOTES.md#clients-clientid-programming-docid
+    function programmingWritable(clientId) {
+      return exists(/databases/$(database)/documents/clients/$(clientId))
+        && (isSuperAdmin()
+            || programmingVisitor(machineTotalsClient(clientId), callerTrainer())
+            || (isAnyAuthenticatedTrainer()
+                && isTrainerOfStudio(getStudioIdFromData(machineTotalsClient(clientId)))));
+    }
+
+    function programmingVisitor(c, t) {
+      return t != null
+        && (c.get('approvedCrossTrainStudioIds', []).hasAny([t.get('primaryHomeStudioId', '')])
+            || c.get('approvedCrossTrainStudioIds', []).hasAny(t.get('accessibleStudioIds', []))
+            || c.get('approvedCrossTrainStudioIds', []).hasAny(t.get('activeGuestStudioIds', [])));
+    }
+
+    match /clients/{clientId}/programming/{docId} {
+      allow read: if docId == 'current' && (
+                    isSuperAdmin()
+                    || (isAnyAuthenticatedTrainer()
+                        && exists(/databases/$(database)/documents/clients/$(clientId))
+                        && isTrainerOfClientData(
+                             clientId,
+                             machineTotalsClient(clientId),
+                             getTrainerData().primaryHomeStudioId,
+                             getTrainerData().get('accessibleStudioIds', []),
+                             getTrainerData().get('activeGuestStudioIds', []))));
+
+      allow create, update: if docId == 'current'
+                    && request.resource.data.keys().hasOnly(['cantDo', 'focus', 'updatedAt', 'updatedByUid'])
+                    && (!('cantDo' in request.resource.data)
+                        || (request.resource.data.cantDo is list && request.resource.data.cantDo.size() <= 60))
+                    && (!('focus' in request.resource.data)
+                        || (request.resource.data.focus is list && request.resource.data.focus.size() <= 10))
+                    && request.resource.data.updatedAt == request.time
+                    && request.resource.data.updatedByUid == request.auth.uid
+                    && programmingWritable(clientId);
+
+      allow delete: if isSuperAdmin();
+    }
+
     // Why: docs/ops/RULES-NOTES.md#clientmachinesettings-settingid
     match /clientMachineSettings/{settingId} {
       allow read: if isLetIn();
@@ -2074,13 +2129,20 @@ service cloud.firestore {
     // ROUTINES & ADJUSTMENTS
     match /routines/{routineId} {
       allow read: if isLetIn();
-      allow create: if isAuthenticated() && isAnyAuthenticatedTrainer();
-      allow update: if isAuthenticated() && isAnyAuthenticatedTrainer();
+      allow create: if isAuthenticated() && isAnyAuthenticatedTrainer() && routineDocOk(request.resource.data);
+      allow update: if isAuthenticated() && isAnyAuthenticatedTrainer() && routineDocOk(request.resource.data);
       // Administrators only (the franchise partition, second review): any
       // trainer may rewrite a routine's clientId on update, so the stored
       // client can't decide a delete. No app path deletes a routine. The
       // privacy round pins clientId and brings a franchise owner's back.
       allow delete: if isSuperAdmin();
+
+      // Why: docs/ops/RULES-NOTES.md#routinedocok
+      function routineDocOk(d) {
+        return !('inSlot' in d)
+          && (!('archived' in d) || d.archived is bool)
+          && (!('archivedAt' in d) || d.archivedAt == null || d.archivedAt is timestamp);
+      }
 
       // Why: docs/ops/RULES-NOTES.md#planchangeok
       function planChangeOk(d) {
@@ -2119,7 +2181,12 @@ service cloud.firestore {
                 isSuperAdmin() ||
                 isStudioOwnerOrHeadTrainer(data.get('studioId', ''))
              )) ||
-             (presetTier(data) == 'trainer' && isAnyAuthenticatedTrainer());
+             (presetTier(data) == 'trainer' && isAnyAuthenticatedTrainer() && presetOwnerOk(data));
+    }
+
+    // Why: docs/ops/RULES-NOTES.md#presetownerok
+    function presetOwnerOk(data) {
+      return !('ownerUid' in data) || data.ownerUid == request.auth.uid || isSuperAdmin();
     }
 
     match /routinePresets/{presetId} {

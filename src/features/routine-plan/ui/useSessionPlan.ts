@@ -38,6 +38,7 @@ import type { StartingColumn } from "../starting-weights";
 import { savePlanChange } from "../store";
 import type { RoutinePlan } from "../types";
 import { floorMachinesOf, savedRoutineA, type HealthNoteCall } from "./host";
+import { movesProgramming } from "../../routine-slots/programming";
 
 export interface SessionPlanInput {
   /** The client's routines, from the tracker's live listener. */
@@ -57,6 +58,15 @@ export interface SessionPlanInput {
   onError: (message: string) => void;
   /** Where a Health note a can't-do asked for is filed, and who signs it; null when nobody is signed in. */
   note: { clientId: string; studioId: string; author: JournalAuthor; link: SessionLinkFields } | null;
+  /** The client: a change to what they can't do or their focus is written on their own record too (the routine library round, Oct 23 2026). */
+  clientId?: string | null;
+  /**
+   * The client's programming document has answered (the routine library
+   * round): only then is it written from slot A's plan, so a mark the
+   * document holds and this iPad hasn't read is never written over.
+   */
+  programmingKnown?: boolean;
+
 }
 
 export interface SessionPlan {
@@ -141,9 +151,12 @@ export function useSessionPlan(input: SessionPlanInput): SessionPlan {
         aPlan: w.plan,
         todayYmd: ref.current.todayYmd,
       });
+      const cid = ref.current.clientId;
+      const programming =
+        cid && ref.current.programmingKnown && w.change.byUid && movesProgramming(w.change, w.also ?? []) ? { clientId: cid, uid: w.change.byUid } : null;
       let commit: Promise<void>;
       try {
-        commit = savePlanChange(db, a.id, follow ? { ...w, follow } : w);
+        commit = savePlanChange(db, a.id, { ...(follow ? { ...w, follow } : w), programming });
       } catch (err) {
         refused(err);
         return;

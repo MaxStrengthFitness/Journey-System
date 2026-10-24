@@ -35,6 +35,7 @@ import {
 } from "./routine-rows";
 import type { HistoryCoverage } from "../../lib/prior-history";
 import { lastUsedDay, usedLastSentence } from "./next-routine";
+import { distinctMachines } from "../routine-slots/slots";
 
 export interface RoutinesModelInput {
   client: Client | null | undefined;
@@ -123,10 +124,11 @@ export function useRoutinesModel(input: RoutinesModelInput): RoutinesModel {
   const usedLastA = useMemo(() => usedLastSentence(lastUsedDay(sessions, a.id)), [sessions, a.id]);
   const usedLastB = useMemo(() => usedLastSentence(lastUsedDay(sessions, b.id)), [sessions, b.id]);
 
-  const setUp =
-    rowsA.filter((r) => r.weight !== null).length +
-    (isBActive ? rowsB.filter((r) => r.weight !== null).length : 0);
-  const total = rowsA.length + (isBActive ? rowsB.length : 0);
+  // Distinct machines (the routine library round, Oct 20 2026): a machine in A and B is one machine, so 6 + 7 with two shared is 11, not 13.
+  const counted = isBActive ? [...rowsA, ...rowsB] : rowsA;
+  const ids = distinctMachines(counted.map((r) => r.machineId));
+  const setUp = ids.filter((id) => counted.some((r) => r.machineId === id && r.weight !== null)).length;
+  const total = ids.length;
 
   return {
     a,

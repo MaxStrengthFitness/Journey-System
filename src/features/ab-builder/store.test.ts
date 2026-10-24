@@ -4,7 +4,8 @@ vi.mock("../../firebase", () => ({ db: {}, auth: {} }));
 
 import type { Routine } from "../../types";
 import { phasePlanOf, tickedStep } from "./phase";
-import { phaseSaveOf, routineSaveOf, saveChanges, type RoutineSaveInput } from "./store";
+import { phaseSaveOf, phaseSaveOfA, routineSaveOf, saveChanges, type RoutineSaveInput } from "./store";
+import { switchOnWholeOf } from "../routine-slots/usePlannedStarts";
 
 const who = { uid: "u1", name: "Sam" };
 const base: Omit<RoutineSaveInput, "slot" | "routine" | "machineIds" | "purpose"> = {
@@ -28,13 +29,13 @@ const swapB: Routine = {
 };
 
 describe("Routine B, built whole", () => {
-  it("makes Routine B with its machines and a plan of no swaps, and turns B on once it lands", () => {
+  it("makes Routine B with its machines and a plan of no swaps, planned: B stays off (the routine library round, Oct 23 2026)", () => {
     const s = routineSaveOf({ ...base, slot: "Routine B", routine: null, machineIds: ["add", "curl"], purpose: "Variety" });
     expect(s.routineId).toBeNull();
     expect(s.fields).toMatchObject({ name: "Routine B", clientId: "c1", machineIds: ["add", "curl"] });
     expect((s.fields.plan as { swaps?: unknown; purpose: string }).swaps).toBeUndefined();
     expect((s.fields.plan as { purpose: string }).purpose).toBe("Variety");
-    expect(s.turnB).toBe(true);
+    expect(s.turnB).toBeNull();
     expect(s.adjustment.changeType).toBe("created");
   });
 
@@ -135,5 +136,51 @@ describe("phasing in", () => {
     const own: Routine = { ...swapB, machineIds: ["add", "press", "row"], plan: { purpose: "", intended: [], building: false, madeByUid: "u1", phase } };
     const ticked = tickedStep(phase, 0, true, who, "2026-10-20");
     expect(phaseSaveOf({ routine: own, clientId: "c1", studioId: "s1", trainerId: "t1", who, todayYmd: "2026-10-20", phase: ticked, machineIds: ["add", "curl", "row"], note: "", isBActive: false }).turnB).toBeNull();
+  });
+});
+
+describe("phasing slot A in (the routine library round, Oct 23 2026)", () => {
+  const planned: Routine = { ...A, plan: { purpose: "Core", intended: ["add", "press", "row"], building: false, madeByUid: "u0" } };
+  const phase = phasePlanOf({ base: ["add", "press", "row"], target: ["add", "curl", "row"], todayYmd: "2026-10-19", who });
+  const input = { routine: planned, routines: [planned], clientId: "c1", studioId: "s1", trainerId: "t1", who, todayYmd: "2026-10-19", isBActive: false, note: "Phasing in" };
+
+  it("a start writes the plan alone, by its field path: A runs as it is", () => {
+    const out = phaseSaveOfA({ ...input, phase, machineIds: planned.machineIds });
+    expect(out.routine).toBeUndefined();
+    expect(out.phase!.fields).toEqual({ "plan.phase": phase });
+    expect(out.phase!.adjustment).toBeNull();
+  });
+
+  it("a tick is A's own save, its road kept, with the plan beside it", () => {
+    const ticked = tickedStep(phase, 0, true, who, "2026-10-19");
+    const out = phaseSaveOfA({ ...input, phase: ticked, machineIds: ["add", "curl", "row"] });
+    expect(out.routine!.fields.machineIds).toEqual(["add", "curl", "row"]);
+    const plan = (out.routine!.fields.plan ?? null) as { phase?: unknown; intended?: string[] } | null;
+    if (plan) {
+      expect(plan.phase).toEqual(ticked);
+      expect(plan.intended).toContain("curl");
+    } else expect(out.routine!.fields["plan.phase"]).toEqual(ticked);
+  });
+});
+
+describe("how a planned routine starts at a studio", () => {
+  const read = (value: number, source: "studio" | "company" | "app", loading = false, failed = false) =>
+    switchOnWholeOf({ value: () => value, source: () => source, loading, failed } as never);
+  it("switched on whole only where the studio allows it and the setting has answered", () => {
+    expect(read(2, "studio")).toBe(true);
+    expect(read(2, "company")).toBe(true);
+    expect(read(1, "studio")).toBe(false);
+    expect(read(2, "company", true)).toBe(false);
+    expect(read(2, "company", false, true)).toBe(false);
+  });
+});
+
+describe("a plan laid on as it was read (the review, Oct 23 2026)", () => {
+  it("is written whole, never by a field of it, so the stored plan always has its road", () => {
+    const laid: Routine = { ...A, plan: { purpose: "", intended: [...A.machineIds], building: false, madeByUid: "client-record", cantDo: [] } };
+    const s = routineSaveOf({ ...base, slot: "Routine A", routine: laid, machineIds: A.machineIds, purpose: "Rebuild the knee" });
+    expect(s.fields["plan.purpose"]).toBeUndefined();
+    expect((s.fields.plan as { intended: string[]; purpose: string }).intended).toEqual(A.machineIds);
+    expect((s.fields.plan as { purpose: string }).purpose).toBe("Rebuild the knee");
   });
 });

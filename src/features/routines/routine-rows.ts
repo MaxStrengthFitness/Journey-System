@@ -186,7 +186,9 @@ export interface RoutineChange {
   when: number | null;
   trainerInitials: string;
   trainerName: string;
-  kind: "created" | "enabled" | "disabled" | "machines";
+  kind: "created" | "enabled" | "disabled" | "machines" | "equipped";
+  /** An "equipped" change: the slot it went into, or null for the stash. */
+  slot?: "A" | "B" | null;
   added: string[];
   removed: string[];
   notes: string | null;
@@ -211,15 +213,18 @@ export function buildRoutineChanges(
   const nameOf = (id: string) => machines.find((m) => m.id === id)?.name || "Unknown";
   const labelFor = (routineId: string): "A" | "B" | "?" => {
     const r = routines.find((x) => x.id === routineId);
-    if (r?.name?.includes("B") || routineId === "temp-b") return "B";
-    if (r?.name?.includes("A") || routineId === "temp-a") return "A";
+    // The slot it is in, else its letter name (features/routine-slots): never a letter that merely appears in a name like "Back focus".
+    if (routineId === "temp-b" || matchesRoutineLetter(r, "B")) return "B";
+    if (routineId === "temp-a" || matchesRoutineLetter(r, "A")) return "A";
     return "?";
   };
   return adjustments.map((adj) => {
     // An id the list doesn't hold is a trainer from another studio (the trainer lock): said so, never shown raw.
     const trainer = findTrainerRecord(trainers, adj.trainerId);
     const kind: RoutineChange["kind"] =
-      adj.changeType === "enabled" || adj.changeType === "disabled" || adj.changeType === "created" ? adj.changeType : "machines";
+      adj.changeType === "enabled" || adj.changeType === "disabled" || adj.changeType === "created" || adj.changeType === "equipped"
+        ? adj.changeType
+        : "machines";
     const prev = adj.previousMachineIds || [];
     const next = adj.newMachineIds || [];
     return {
@@ -233,6 +238,7 @@ export function buildRoutineChanges(
       added: kind === "machines" || kind === "created" ? next.filter((id) => !prev.includes(id)).map(nameOf) : [],
       removed: kind === "machines" ? prev.filter((id) => !next.includes(id)).map(nameOf) : [],
       notes: adj.notes?.trim() || null,
+      ...(kind === "equipped" ? { slot: adj.slot === "A" || adj.slot === "B" ? adj.slot : null } : null),
     };
   });
 }

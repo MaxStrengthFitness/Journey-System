@@ -28,6 +28,7 @@ import {
   Lock,
 } from "lucide-react";
 import { auth, db } from "../firebase";
+import { ownRoutinesOf } from "../features/routine-slots/my-routines";
 import { cn, safeToDate } from "../lib/utils";
 import { isPerformedLog } from "../lib/set-outcome";
 import { useUnsavedChanges } from "../features/unsaved-changes";
@@ -322,10 +323,11 @@ export function EditRoutineDrawer({
    * `start` part, Oct 8 2026) are Start a plan's, never applied here
    * (`drawerTemplates`).
    */
-  const { company: companyTemplates, studio: studioPresets } = useMemo(
-    () => drawerTemplates(allPresets, activeStudioId, GLOBAL_ROUTINE_PRESETS),
-    [allPresets, activeStudioId],
-  );
+  const { company: companyTemplates, studio: studioPresets } = useMemo(() => {
+    const listed = drawerTemplates(allPresets, activeStudioId, GLOBAL_ROUTINE_PRESETS);
+    // The signed-in trainer's own routines first (the routine library round, Oct 23 2026): theirs alone, never another trainer's.
+    return { ...listed, studio: [...ownRoutinesOf(allPresets, auth.currentUser?.uid), ...listed.studio] };
+  }, [allPresets, activeStudioId]);
 
   // Last-performed weight + date per machine, sourced from this client's
   // own session logs (round 4). Sorted by sessionNumber first (an
@@ -459,11 +461,13 @@ export function EditRoutineDrawer({
         tier: "trainer",
         scope: activeStudioId,
         studioId: activeStudioId,
+        // The trainer's own (AJ, Oct 23 2026: "just allow trainers to make their own routines and save them on their profile"): My Profile → My routines.
+        ...(auth.currentUser?.uid ? { ownerUid: auth.currentUser.uid } : null),
         createdBy: authTrainer?.id || null,
         createdByName: authTrainer?.fullName || "Trainer",
         createdAt: serverTimestamp(),
       });
-      toastSuccess(`Saved "${name}" as a studio preset.`);
+      toastSuccess(`Saved "${name}" to My routines.`);
       setPresetNameDraft("");
       setShowSavePresetInput(false);
     } catch (err) {

@@ -88,6 +88,8 @@ import { withoutUndefined } from "../studio-tasks/task-wizard";
 import { plannedBTarget, type BFollow } from "./b-routine";
 import type { NextTimeWrite } from "./next-time";
 import { PLAN_CHANGE_MACHINES_MAX, type PlanChange, type RoutinePlan } from "./types";
+import { programmingFromPlan } from "../routine-slots/programming";
+import { addProgrammingToBatch } from "../routine-slots/store";
 
 /** A change as it is written: the server's time, nothing undefined, and no more machines than the rules take. */
 function changeDoc(change: PlanChange): Record<string, unknown> {
@@ -354,10 +356,18 @@ export function savePlanChange(
     follow?: BFollow | null;
     /** A planned B started with Routine A (the Wrap-up, `plannedBStart`), in the same batch. */
     startB?: BStartWrite | null;
+    /**
+     * The client, when this is slot A's plan and the change moves what the
+     * client can't do or their focus (the routine library round, Oct 23 2026):
+     * the client's programming document is written from the plan in the same
+     * batch, so the marks are the client's whatever routine is equipped.
+     */
+    programming?: { clientId: string; uid: string } | null;
   },
 ): Promise<void> {
   const batch = writeBatch(db);
   const routineRef = doc(db, "routines", routineId);
+  if (input.programming) addProgrammingToBatch(batch, db, input.programming.clientId, programmingFromPlan(input.plan), input.programming.uid);
   batch.update(
     routineRef,
     withoutUndefined({

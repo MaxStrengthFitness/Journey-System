@@ -810,6 +810,15 @@ export interface Client {
   subjectiveSnapshot?: ClientSubjectiveSnapshot | null;
   events?: ClientEvent[];
   isRoutineBActive?: boolean;
+  /**
+   * The routines equipped in slot A and slot B (the routine library round,
+   * Oct 23 2026; AJ's OK on the Firestore change, docs/rounds/2026-10-20-routine-library.md §10.7).
+   * Each a routine id, or null for an empty slot; a slot not written yet is
+   * found by the routine's name, as before. Read only through
+   * features/routine-slots/slots.ts; written by field path, on its own.
+   * `isRoutineBActive` is kept as "slot B holds a routine" beside it.
+   */
+  routineSlots?: RoutineSlots;
   /** Retired Sep 26 2026 with "Use today": nothing writes or reads it. Older records still carry it. */
   preferredTodayRoutineId?: string;
   remainingSessions: number;
@@ -1134,6 +1143,12 @@ export interface MachineSettingChange {
   createdAt: any;
 }
 
+/** A client's two equipped routines (see `Client.routineSlots`). */
+export interface RoutineSlots {
+  a?: string | null;
+  b?: string | null;
+}
+
 export interface Routine {
   studioId?: string;
   id?: string;
@@ -1166,6 +1181,19 @@ export interface Routine {
    * can't do and the Academy sheet column picked, read by A and B.
    */
   plan?: RoutinePlan;
+  /**
+   * Retired into the client's stash (the routine library round, Oct 23 2026):
+   * hidden under Retired, never deleted, and never in a slot.
+   */
+  archived?: boolean;
+  archivedAt?: any;
+  /**
+   * The slot this routine is equipped in, worked out when it is read beside
+   * the client's `routineSlots` (features/routine-slots/slots.ts `withSlots`):
+   * "A", "B", or null for a routine in the stash. NEVER stored: the rules
+   * refuse it on a routine, and absent means "read by its name", as before.
+   */
+  inSlot?: "A" | "B" | null;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -1229,6 +1257,16 @@ export interface RoutinePreset {
    * starting routine, so while it is here the template is an ordinary one.
    */
   startParked?: RoutinePresetStart;
+  /**
+   * A trainer's own routine (the routine library round, Oct 23 2026; AJ:
+   * "just allow trainers to make their own routines and save them on their
+   * profile so they can load it into a client if they need"): the Auth uid of
+   * the trainer whose it is. Only that trainer sees it, on My Profile → My
+   * routines and in Change's "My routines"; the rules let only them (or an
+   * administrator) change it. A trainer preset saved before has none and is
+   * the studio's, as it was.
+   */
+  ownerUid?: string;
   createdBy?: string;
   createdByName?: string;
   createdAt?: any;
@@ -1274,7 +1312,9 @@ export interface RoutineAdjustment {
   trainerId: string;
   notes?: string;
   createdAt: any;
-  changeType?: "created" | "machines" | "enabled" | "disabled";
+  changeType?: "created" | "machines" | "enabled" | "disabled" | "equipped";
+  /** An "equipped" record (the routine library round, Oct 23 2026): the slot the routine went into, or null for the stash. */
+  slot?: "A" | "B" | null;
 }
 
 export type SessionType = "Standard" | "Onboarding" | "Reset";

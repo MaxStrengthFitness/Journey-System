@@ -24,7 +24,10 @@
  *      Routine A's PLAN, and Routine A's machines when a swap, a can't-do or
  *      a re-plan moves them, Routine B following in the same batch (AJ's Q6,
  *      quoted at its test below); today's order changes only for a machine
- *      with no set logged today;
+ *      with no set logged today; and, through the same writer, a planned
+ *      machine added for good (the routine library round, Oct 23 2026: AJ's
+ *      "Adds it on for good"): the Now Bar's "Planned for the routine · Add"
+ *      and the briefing's Planned for the routine, which Start writes;
  *   3. the Wrap-up's Next time: the ticked machines into the routine, once,
  *      on the way out (`saveNextTime`).
  * Nothing else on the session path writes a routine.

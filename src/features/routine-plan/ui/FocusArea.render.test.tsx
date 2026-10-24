@@ -250,6 +250,7 @@ function Profile({ initial }: { initial: Routine[] }) {
   const [routines, setRoutines] = useState<Routine[]>(initial);
   const actions = usePlanActions({
     clientId: "c1",
+    programmingKnown: true,
     studioId: "westlake",
     routines,
     setRoutines,
@@ -495,9 +496,12 @@ describe("a weak area on the A | B lineup", () => {
     expect(fake.batches).toHaveLength(1);
     const ops = fake.batches[0]!.ops;
     expect((ops.find((o) => o.op === "update")!.data.plan as RoutinePlan).focus).toEqual([]);
-    const change = ops.find((o) => o.op === "set")!;
+    const change = ops.find((o) => o.op === "set" && o.path.includes("planChanges"))!;
     expect(change.data).toMatchObject({ kind: "focus", machineIds: [] });
     expect("value" in change.data).toBe(false);
+    // The focus is the client's (the routine library round, Oct 23 2026): their own record, in the SAME batch.
+    const client = ops.find((o) => o.op === "set" && o.path.endsWith("/programming/current"))!;
+    expect(client.data).toMatchObject({ focus: [], updatedByUid: "uid-sam" });
     expect(page().querySelector(".rpl-tint")).toBeNull();
     expect(page().querySelector(".rpl-focusline")).toBeNull();
     expect(answers()).toBeNull();

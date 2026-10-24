@@ -7,30 +7,41 @@ as a whole and swaps is all very very confusing". The round, his words in
 full and his "1a 2a 3a" are `docs/rounds/2026-10-19-routine-builder.md`; the
 decision is `docs/DECISIONS.md` → The routine builder.
 
-Programming → **Routines** is this studio's floor beside Routine A and
-Routine B. **Add to** (Routine A · Routine B · Both) says which routine a tap
-goes into, and every tile carries a small A, B or AB mark. Each routine has
-its own order, What it's for and its own Save.
+Programming → **Routines** is slot A and slot B first (the routine library
+round, Oct 23 2026; `docs/rounds/2026-10-20-routine-library.md` §10 and
+`features/routine-slots`): each slot's routine by its name (Rename), its
+machines in order, What it's for and its own Save. **Add machine** opens this
+studio's floor as a sheet and adds to the slot it was opened from (Add now),
+or plans a machine for later (Plan for later); every tile still carries a
+small A, B or AB mark. **Change** puts another routine in the slot, the
+**stash** row holds the rest, and the **history strip** says which ran when.
+Until Oct 23 the floor sat beside the routines with Add to (Routine A ·
+Routine B · Both).
 
 | File | What it answers |
 | --- | --- |
 | `builder.ts` | The draft, pure: a floor tap into A, B or both (`tapFloor`), a tile's mark (`markOf`, `markWords`), a routine's order (`moved`, `takenOut`), Copy A into B, a routine laid from Start from… into the routine being built into (`laidFrom`), whether A and B differ |
 | `phase.ts` | Phasing B in, pure: the steps from where B stands to the B on screen (`stepsBetween`: what leaves paired with what joins, as swaps, then additions or machines taken out), a new plan one a week from this week (`phasePlanOf`), what B runs now (`runningB`), a tick (`tickedStep`), Finish now (`finishedNow`), where it stands (`phaseStatus`, `phaseLine`), the briefing's line (`phaseDueWords`) and a stored plan read back safely (`phaseOf`). Days are the studio's, worked in UTC |
 | `store.ts` | What a save writes, worked out pure (`routineSaveOf`, `phaseSaveOf`) and sent as ONE batch, never awaited by the tap (`commitRoutineSave`, `commitPhaseSave`) |
-| `ui/RoutineBuilder.tsx` | The screen: Add to, Start from…, the floor's tiles, the two routine cards (`RoutineCard`), B's switch, Copy A into B, Phase it in, each routine's Changes |
+| `ui/RoutineBuilder.tsx` | The screen: the two slot cards (`RoutineCard`: the name, Rename, Change, Save as mine, Planned for the routine, Add machine, Start from…), the floor as a sheet (`FloorTiles`), the stash and Retired, the history strip, B's switch, Copy A into B, Phase it in on either slot, Phase B in for a planned B, each routine's Changes |
 | `ui/PhasePanel.tsx` | B's phase-in plan on its card (the line, the steps as ticks, Change the plan, Finish now, Stop phasing) and the sheet that makes or changes it (each step's week and owner, One a week) |
 | `ui/PhaseDueLine.tsx` | The briefing's one line while a step is due |
 | `ui/ab-builder.css` | The layout and the builder's own marks, in the Hub's palette (`--eq-*`); the parts are `routine-plan/ui/routine-plan.css`'s |
 
 ## Rules that hold here
 
+- **A B saved while B is off is planned** (the routine library round, Oct 23
+  2026): Save never turns B on. Phase B in steps it in from Routine A toward
+  the planned B and turns B on with the plan's start; where the studio allows
+  it (`plannedRoutineStarts`), B's switch turns it on whole. A B already on
+  keeps running. **Either slot phases in**: slot A's plan is `plan.phase` on
+  A's own plan, and a tick is A's own save (`phaseSaveOfA`, the road kept).
 - **B is built whole and is its own list.** Save writes Routine B's machines
   and a plan with no swaps (`planFromRoutine`), so `bFollowOf` finds no plan
   of swaps and B never follows A again. A Routine B of swaps from before this
   round still follows A (every writer of A asks `bFollowOf`, this one too)
   until someone saves it here.
-- **B on goes with B's machines.** A B saved with machines while B is off is
-  turned on; one saved empty while on is turned off (an empty B alternated
+- **B on goes with B's machines.** One saved empty while on is turned off (an empty B alternated
   into is a session of nothing, the critic's #22). The client's
   `isRoutineBActive` is its own write once the batch has landed, never in it.
   Turning B on with nothing in B, from the profile's switch or the Edit

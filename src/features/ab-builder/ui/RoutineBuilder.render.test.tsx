@@ -3,9 +3,12 @@
  * PROGRAMMING → ROUTINES, MOUNTED (the routine builder round, Oct 19 2026).
  *
  * The real builder over a host whose floor and signer are given, with the
- * two commits recorded (the pure half that works each save out runs for
+ * commits recorded (the pure half that works each save out runs for
  * real). What matters is silent when wrong:
- *   - a tap goes into the routine Add to names, and never into the other;
+ *   - Add machine adds to the slot it was opened from, and never the other;
+ *   - Change puts a stashed routine in a slot (one in the other slot swaps),
+ *     a template is copied in, and a letter-named routine leaving is renamed;
+ *   - the stash: rename, retire, bring back; never a delete;
  *   - Routine B saved with machines while B is off turns B on with it;
  *   - Copy A into B, and Phase it in only when B differs;
  *   - a phase-in plan ticks a step as ONE write, and nothing changes B by itself;
@@ -19,7 +22,51 @@ import { createRoot, type Root } from "react-dom/client";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("../../../firebase", () => ({ db: { __fake: true }, auth: { currentUser: { uid: "uid-sam" } } }));
-const commits = vi.hoisted(() => ({ routine: [] as unknown[], phase: [] as unknown[] }));
+const commits = vi.hoisted(() => ({
+  routine: [] as unknown[],
+  phase: [] as unknown[],
+  moves: [] as unknown[],
+  made: [] as { input: unknown; move: unknown }[],
+  renames: [] as unknown[],
+  retires: [] as unknown[],
+}));
+vi.mock("../../routine-slots/store", async () => {
+  const real = await vi.importActual<typeof import("../../routine-slots/store")>("../../routine-slots/store");
+  return {
+    ...real,
+    commitSlotMove: (_db: unknown, _client: string, move: unknown) => {
+      commits.moves.push(move);
+      return Promise.resolve();
+    },
+    commitNewRoutine: (_db: unknown, input: unknown, equip: ((id: string) => unknown) | null) => {
+      commits.made.push({ input, move: equip ? equip("new-routine") : null });
+      return { routineId: "new-routine", commit: Promise.resolve() };
+    },
+    commitRename: (_db: unknown, _client: string, id: string, name: string, pin: unknown) => {
+      commits.renames.push({ id, name, pin });
+      return Promise.resolve();
+    },
+    commitRetire: (_db: unknown, id: string, archived: boolean) => {
+      commits.retires.push({ id, archived });
+      return Promise.resolve();
+    },
+  };
+});
+const settings = vi.hoisted(() => ({ switchWhole: false }));
+vi.mock("../../routine-slots/usePlannedStarts", () => ({ useSwitchOnWhole: () => settings.switchWhole }));
+vi.mock("../../routine-slots/useMyRoutines", () => ({
+  useMyRoutines: () => ({ routines: [], status: "ready", reload: () => {} }),
+}));
+vi.mock("../../routine-plan/useStartingRoutines", () => ({
+  useStartingRoutines: () => ({
+    status: "ready",
+    routines: [],
+    choice: null,
+    fromCode: false,
+    templates: [{ id: "tpl-upper", name: "Upper focus", machineIds: ["m-pulldown", "m-chest-press"], scope: "strongsville", tier: "studio", studioId: "strongsville" }],
+    reload: () => {},
+  }),
+}));
 vi.mock("../store", async () => {
   const real = await vi.importActual<typeof import("../store")>("../store");
   return {
@@ -44,7 +91,7 @@ if (!("ResizeObserver" in g)) {
   };
 }
 
-import type { Client, Machine, Routine } from "../../../types";
+import type { Client, Machine, Routine, WorkoutSession } from "../../../types";
 import { UnsavedChangesProvider, useUnsavedStatus, type UnsavedStatus } from "../../unsaved-changes";
 import { startingKindOf } from "../../routine-plan/client-kind";
 import type { PlanHost } from "../../routine-plan/ui/host";
@@ -85,7 +132,7 @@ function Probe() {
   status = useUnsavedStatus();
   return null;
 }
-async function mount(props: { routines: Routine[]; isBActive?: boolean; host?: PlanHost; toggles?: boolean[] }) {
+async function mount(props: { routines: Routine[]; isBActive?: boolean; host?: PlanHost; toggles?: boolean[]; client?: Client; sessions?: WorkoutSession[] }) {
   el = document.createElement("div");
   document.body.appendChild(el);
   root = createRoot(el);
@@ -95,11 +142,12 @@ async function mount(props: { routines: Routine[]; isBActive?: boolean; host?: P
         <Probe />
         <RoutineBuilder
           host={props.host ?? hostOf()}
-          client={client}
+          client={props.client ?? client}
           clientId="c1"
           routines={props.routines}
           machines={FLOOR}
           isBActive={props.isBActive ?? false}
+          sessions={props.sessions ?? []}
           trainers={[]}
           adjustments={[]}
           onToggleB={(on) => props.toggles?.push(on)}
@@ -133,8 +181,13 @@ const listOf = (slot: string) =>
   Array.from(document.body.querySelectorAll(`ol[aria-label="Michael's ${slot}"] .rpl-cell__name`)).map((n) => n.textContent);
 
 beforeEach(() => {
+  settings.switchWhole = false;
   commits.routine = [];
   commits.phase = [];
+  commits.moves = [];
+  commits.made = [];
+  commits.renames = [];
+  commits.retires = [];
 });
 afterEach(() => {
   act(() => root?.unmount());
@@ -144,25 +197,29 @@ afterEach(() => {
 });
 
 describe("one builder for A and B", () => {
-  it("draws the floor, Routine A and Routine B together, each tile marked", async () => {
+  it("draws the two slots first, and the floor only in Add machine, each tile marked", async () => {
     await mount({ routines: [A] });
-    expect(text()).toContain("This studio's floor");
     expect(listOf("Routine A")).toEqual(["Pulldown", "Leg Press"]);
     expect(listOf("Routine B")).toEqual([]);
+    expect(text()).toContain("Slot A");
+    expect(text()).toContain("Nothing in B: every session runs A.");
+    expect(has("Pulldown, In Routine A")).toBe(false);
+    await tap("Add a machine to slot A");
     expect(has("Pulldown, In Routine A")).toBe(true);
   });
 
-  it("taps into the routine Add to names, and never into the other", async () => {
+  it("adds to the slot Add machine was opened from, and never the other", async () => {
     await mount({ routines: [A] });
-    await tap("Routine B");
+    await tap("Add a machine to slot B");
     await tap("Leg Curl");
     expect(listOf("Routine B")).toEqual(["Leg Curl"]);
     expect(listOf("Routine A")).toEqual(["Pulldown", "Leg Press"]);
     expect(status?.anyDirty()).toBe(true);
-    await tap("Both");
+    await tap("Done");
+    await tap("Add a machine to slot A");
     await tap("Chest Press");
     expect(listOf("Routine A")).toEqual(["Pulldown", "Leg Press", "Chest Press"]);
-    expect(listOf("Routine B")).toEqual(["Leg Curl", "Chest Press"]);
+    expect(listOf("Routine B")).toEqual(["Leg Curl"]);
   });
 
   it("swaps a machine in its own place in B, and never touches A", async () => {
@@ -175,14 +232,52 @@ describe("one builder for A and B", () => {
     expect(listOf("Routine A")).toEqual(["Pulldown", "Leg Press"]);
   });
 
-  it("saves Routine B whole, and turns B on with it", async () => {
+  it("saves Routine B whole while B is off: planned, B stays off (§10.2)", async () => {
     await mount({ routines: [A] });
     await tap("Copy A into B");
     expect(listOf("Routine B")).toEqual(["Pulldown", "Leg Press"]);
-    await tap("Save and turn B on");
+    await tap("Save Routine B");
     const save = commits.routine[0] as RoutineSave;
     expect(save.fields).toMatchObject({ name: "Routine B", machineIds: ["m-pulldown", "m-leg-press"] });
+    expect(save.turnB).toBeNull();
+    expect(status?.anyDirty()).toBe(false);
+  });
+
+  it("starts a planned B by phasing it in from Routine A, which turns B on (AJ: turn it on and phase it in)", async () => {
+    const B: Routine = { id: "rb", name: "Routine B", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-curl", "m-chest-press"] };
+    await mount({ routines: [A, B], isBActive: false });
+    expect(document.body.querySelector('[data-testid="planned-b"]')?.textContent).toContain("Phase it in to start it.");
+    // Phased in only at this studio: no switch to turn it on whole.
+    expect(document.body.querySelector('[aria-label="Turn Routine B on"]')).toBeNull();
+    await tap("Phase B in");
+    await tap("Start phasing in");
+    const save = commits.phase[0] as PhaseSave;
+    // B starts as Routine A and steps toward the B that was planned.
+    expect(save.fields.machineIds).toEqual(["m-pulldown", "m-leg-press"]);
+    const planned = (save.fields["plan.phase"] ?? (save.fields.plan as { phase: unknown }).phase) as { target: string[] };
+    expect(planned.target).toEqual(["m-leg-curl", "m-chest-press"]);
     expect(save.turnB).toBe(true);
+  });
+
+  it("where the studio allows it, a planned B can also be switched on whole", async () => {
+    settings.switchWhole = true;
+    const B: Routine = { id: "rb", name: "Routine B", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-curl"] };
+    await mount({ routines: [A, B], isBActive: false });
+    expect(document.body.querySelector('[data-testid="planned-b"]')?.textContent).toContain("Phase it in, or switch it on.");
+    expect(document.body.querySelector('[aria-label="Turn Routine B on"]')).not.toBeNull();
+  });
+
+  it("phases slot A in too: the plan on A's own plan, A unchanged until a step is ticked", async () => {
+    await mount({ routines: [{ ...A, plan: { purpose: "", intended: ["m-pulldown", "m-leg-press"], building: false, madeByUid: "u0" } }] });
+    await tap("Add a machine to slot A");
+    await tap("Chest Press");
+    await tap("Done");
+    await tap("Phase it in");
+    await tap("Start phasing in");
+    const save = commits.phase[0] as PhaseSave;
+    expect(save.fields.machineIds).toBeUndefined();
+    expect((save.fields["plan.phase"] as { target: string[] }).target).toEqual(["m-pulldown", "m-leg-press", "m-chest-press"]);
+    expect(save.turnB).toBeNull();
     expect(status?.anyDirty()).toBe(false);
   });
 
@@ -190,9 +285,10 @@ describe("one builder for A and B", () => {
     await mount({ routines: [A] });
     await tap("Copy A into B");
     expect(has("Phase it in")).toBe(false);
-    await tap("Routine B");
+    await tap("Add a machine to slot B");
     await tap(/^Leg Press, In Routine A and Routine B$/);
     await tap("Leg Curl");
+    await tap("Done");
     await tap("Phase it in");
     expect(text()).toContain("Leg Curl for Leg Press");
     await tap("Start phasing in");
@@ -277,8 +373,90 @@ describe("one builder for A and B", () => {
 
   it("asks the signed-in person to sign in again before anything saves", async () => {
     await mount({ routines: [A], host: hostOf({ who: null }) });
+    await tap("Add a machine to slot A");
     await tap("Chest Press");
+    await tap("Done");
     expect(button("Save Routine A").disabled).toBe(true);
     expect(text()).toContain("Sign in again to save a routine.");
+  });
+
+  it("Change puts a stashed routine in slot A; the letter-named one leaving takes a dated name", async () => {
+    const post: Routine = { id: "rp", name: "Post-surgery", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-curl"] };
+    await mount({ routines: [A, post] });
+    expect(has("Post-surgery, in the stash")).toBe(true);
+    await tap("Change what is in slot A");
+    await tap(/^Post-surgery1 machine/);
+    const move = commits.moves[0] as { patch: Record<string, unknown>; renames: { id: string; name: string }[] };
+    expect(move.patch).toEqual({ "routineSlots.a": "rp", "routineSlots.b": null });
+    expect(move.renames).toEqual([{ id: "ra", name: "Routine A · until Oct 19 2026" }]);
+  });
+
+  it("a slot reads the client's slots: a renamed routine is still A, and a stashed one is not", async () => {
+    const strength: Routine = { id: "rs", name: "Strength", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-press"], inSlot: "A" };
+    const winter: Routine = { id: "ro", name: "Winter", clientId: "c1", studioId: "strongsville", machineIds: ["m-chest-press"], inSlot: null };
+    await mount({ routines: [strength, winter], client: { ...client, routineSlots: { a: "rs", b: null } } as Client });
+    expect(listOf("Routine A")).toEqual(["Leg Press"]);
+    expect(text()).toContain("Strength");
+    expect(has("Winter, in the stash")).toBe(true);
+  });
+
+  it("copies a template into the stash and into the slot, its source kept", async () => {
+    await mount({ routines: [A] });
+    await tap("Change what is in slot B");
+    await tap(/^Upper focus/);
+    const made = commits.made[0] as { input: { name: string; machineIds: string[]; template: { id: string; name: string } }; move: { patch: Record<string, unknown> } };
+    expect(made.input.name).toBe("Upper focus");
+    expect(made.input.machineIds).toEqual(["m-pulldown", "m-chest-press"]);
+    expect(made.input.template).toMatchObject({ id: "tpl-upper", name: "Upper focus" });
+    expect(made.move.patch).toMatchObject({ "routineSlots.b": "new-routine" });
+  });
+
+  it("renames, retires and brings back a stashed routine, never deleting it", async () => {
+    const winter: Routine = { id: "rw", name: "Winter", clientId: "c1", studioId: "strongsville", machineIds: ["m-chest-press"] };
+    const gone: Routine = { id: "rg", name: "Old", clientId: "c1", studioId: "strongsville", machineIds: [], archived: true };
+    await mount({ routines: [A, winter, gone] });
+    await tap("Winter, in the stash");
+    await tap("Rename");
+    const input = document.body.querySelector('input[aria-label="Routine name"]') as HTMLInputElement;
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      set.call(input, "Winter variety");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(status?.anyDirty()).toBe(true);
+    await tap("Save name");
+    expect(commits.renames[0]).toMatchObject({ id: "rw", name: "Winter variety" });
+    await tap("Winter, in the stash");
+    await tap("Retire");
+    expect(commits.retires[0]).toEqual({ id: "rw", archived: true });
+    await tap("Retired (1)");
+    await tap("Old, retired");
+    await tap("Bring it back");
+    expect(commits.retires[1]).toEqual({ id: "rg", archived: false });
+  });
+
+  it("leaves slot B empty from Change, which turns B off", async () => {
+    const B: Routine = { id: "rb", name: "Routine B", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-curl"] };
+    await mount({ routines: [A, B], isBActive: true });
+    await tap("Change what is in slot B");
+    await tap("Leave slot B empty");
+    const move = commits.moves[0] as { patch: Record<string, unknown>; renames: { id: string; name: string }[] };
+    expect(move.patch).toEqual({ "routineSlots.a": "ra", "routineSlots.b": null, isRoutineBActive: false });
+    expect(move.renames).toEqual([{ id: "rb", name: "Routine B · until Oct 19 2026" }]);
+  });
+
+  it("draws the history strip once two routines and the named minimum of sessions are behind it", async () => {
+    const post: Routine = { id: "rp", name: "Post-surgery", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-curl"] };
+    const ran = (date: string, routineId: string) => ({ id: `${date}`, date, routineId, status: "Completed", clientId: "c1" }) as unknown as WorkoutSession;
+    const sessions = [ran("2026-03-02", "ra"), ran("2026-03-09", "ra"), ran("2026-03-16", "ra"), ran("2026-06-01", "rp"), ran("2026-06-08", "rp"), ran("2026-06-15", "rp")];
+    await mount({ routines: [A, post], sessions });
+    const strip = document.body.querySelector('[data-testid="routine-history"]')!;
+    expect(strip.textContent).toContain("Routine A · Mar 2026 · 3 sessions");
+    expect(strip.textContent).toContain("Post-surgery · Jun– · 3 sessions");
+    await act(async () => root!.unmount());
+    root = null;
+    el?.remove();
+    await mount({ routines: [A, post], sessions: sessions.slice(0, 4) });
+    expect(document.body.querySelector('[data-testid="routine-history"]')).toBeNull();
   });
 });

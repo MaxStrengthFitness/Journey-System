@@ -2369,3 +2369,59 @@ administrators' only; the reader writes only their own, stamped with
 the server's time; nobody deletes one. The caller is resolved once
 (getRole, callerTrainer) to stay inside the budget.
 ```
+
+<a id="routineslotsok"></a>
+### `function routineSlotsOk`
+
+```text
+A CLIENT'S TWO EQUIPPED ROUTINES (the routine library round, Oct 23
+2026; AJ's OK on the Firestore change, docs/rounds/
+2026-10-20-routine-library.md section 10.7; src/features/routine-slots).
+clients/{id}.routineSlots is { a, b }: each a routine id, or null for an
+empty slot. Only the shape is checked (no get() of the routines: a
+routine id the client doesn't own reads as an empty slot on every
+screen, never as someone else's routine). Who may write it is the
+client's update rule, unchanged.
+```
+
+<a id="routinedocok"></a>
+### `function routineDocOk` (in `match /routines/{routineId}`)
+
+```text
+A ROUTINE (the routine library round, Oct 23 2026). `inSlot` is worked
+out on the iPad from the client's routineSlots and never stored, so a
+write carrying it is refused: a stored one would outlive the slots it
+was worked out from. `archived` (Retire) is a boolean and `archivedAt`
+a time; a routine is never deleted from the app.
+```
+
+<a id="presetownerok"></a>
+### `function presetOwnerOk`
+
+```text
+A TRAINER'S OWN ROUTINES (the routine library round, Oct 23 2026; AJ:
+"just allow trainers to make their own routines and save them on their
+profile so they can load it into a client if they need"). A
+trainer-tier preset with ownerUid is that trainer's: made only with
+their own Auth uid, changed or removed only by them or an
+administrator. A trainer-tier preset saved before (no ownerUid) keeps
+the rule it had: any trainer may write it.
+```
+
+<a id="clients-clientid-programming-docid"></a>
+### `match /clients/{clientId}/programming/{docId}`
+
+```text
+WHAT A CLIENT CAN'T DO, AND A WEAK AREA (the routine library round,
+Oct 23 2026; AJ: "1 yes" to keeping them on the client, not on a
+routine, so they follow the client whatever routine is equipped).
+One document, `current`: cantDo (at most 60 marks), focus (at most 10
+areas), signed with the Auth uid and the server's time. Its own
+document, not fields on the client, because a can't-do mark is written
+mid-session in the same batch as the routine change it causes, and the
+client's document is never in someone else's batch.
+  read    whoever can read the client
+  write   an administrator, a trainer of the client's studio, or an
+          approved cross-train visitor (a mark made in their session)
+  delete  administrators only
+```

@@ -192,11 +192,11 @@ export function toggledQuality(current: RepQuality | null | undefined, tapped: 1
  */
 export type CardNext =
   | { kind: "next"; name: string }
-  | { kind: "plan"; id: string; name: string }
+  | { kind: "plan"; id: string; name: string; forGood?: boolean }
   | { kind: "last" };
 
-export function cardNextOf(nextName: string | null | undefined, planNext: { id: string; name: string } | null | undefined): CardNext {
+export function cardNextOf(nextName: string | null | undefined, planNext: { id: string; name: string; forGood?: boolean } | null | undefined): CardNext {
   if (nextName) return { kind: "next", name: nextName };
-  if (planNext && planNext.id) return { kind: "plan", id: planNext.id, name: planNext.name || planNext.id };
+  if (planNext && planNext.id) return { kind: "plan", id: planNext.id, name: planNext.name || planNext.id, ...(planNext.forGood ? { forGood: true } : null) };
   return { kind: "last" };
 }

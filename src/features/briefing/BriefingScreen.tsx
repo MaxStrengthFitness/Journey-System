@@ -55,7 +55,7 @@
  * mounts the screen.
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   ArrowLeft,
   Compass,
@@ -76,6 +76,7 @@ import {
 import { BodyModel, figureGenderOf } from "../../components/anatomy";
 import { focusLine as trainingFocusLine, focusOf } from "../progress-report/report-page";
 import { ClientCheckInPanel } from "../../components/journal/ClientCheckInPanel";
+import { plannedOf } from "../routine-slots/planned";
 import {
   RoutineBuilder,
   type MachineHistoryEntry,
@@ -215,6 +216,12 @@ export interface BriefingScreenProps {
      * the trainer's own notebook (relay/notes/client-jots.ts), never waited on.
      */
     privateNote?: string | null,
+    /**
+     * Planned machines added from "Planned for the routine" (the routine
+     * library round, Oct 23 2026: "Adds it on for good"), on today's list:
+     * the tracker adds them to Routine A through its plan, never awaited.
+     */
+    plannedForGood?: string[] | null,
   ) => void;
   onClose: () => void;
   /**
@@ -799,6 +806,20 @@ export function BriefingScreen({
   /* The client's weak area, from Routine A's plan, read by A and B (Round 2,
      item 7): one quiet line under today's list. */
   const planFocus = onRoutine ? focusLine(routineA?.plan) : null;
+  /* Planned for the routine (the routine library round, Oct 23 2026; §10.2):
+     Routine A's plan's machines not in it yet, each with Add, which marks it
+     to join Routine A at Start. Routine A's alone, as the session's plan
+     writer is, and never while its day one runs (the consult is not Routine
+     A). Nothing here writes. */
+  const plannedA = useMemo(
+    () => (onRoutine && routineLetter === "A" && routineA && (routineA.machineIds?.length ?? 0) > 0 ? plannedOf(routineA, todayKey) : []),
+    [onRoutine, routineLetter, routineA, todayKey],
+  );
+  const [forGood, setForGood] = useState<string[]>([]);
+  useEffect(() => setForGood([]), [client?.id]);
+  const onForGood = useCallback((id: string, on: boolean) => {
+    setForGood((now) => (on ? (now.includes(id) ? now : [...now, id]) : now.filter((x) => x !== id)));
+  }, []);
   /* What the client can't do today (Routine A's plan's marks, read by A and
      B): never offered in + Add or Swap. */
   const held = useMemo(
@@ -879,6 +900,8 @@ export function BriefingScreen({
       category,
       undefined,
       privateNote,
+      // Only what is still on today's list, and only while today runs Routine A.
+      routineLetter === "A" ? forGood.filter((id) => selectedRoutineIds.includes(id) && plannedA.includes(id)) : null,
     );
   };
 
@@ -1444,7 +1467,9 @@ export function BriefingScreen({
                 </button>
               </div>
               {/* Routine B's phase-in step when it is due, with its owner (the routine builder round, Oct 19 2026). */}
-              <PhaseDueLine routineB={routineB} active={!!client?.isRoutineBActive} todayYmd={todayKey} nameOf={planNameOf} />
+              <PhaseDueLine routineB={routineB} active={!!client?.isRoutineBActive} todayYmd={todayKey} nameOf={planNameOf} routineName={routineB?.name || "Routine B"} />
+              {/* Slot A's phase-in step too (the routine library round, Oct 23 2026: phase either slot in). */}
+              <PhaseDueLine routineB={routineA} active todayYmd={todayKey} nameOf={planNameOf} routineName={routineA?.name || "Routine A"} />
               {rebuilding ? (
                 <div className="br-today__rebuild" data-testid="briefing-rebuild">
                   <div className="br-today__rebuild-bar">
@@ -1493,6 +1518,10 @@ export function BriefingScreen({
                   nextInPlan={nextInPlan}
                   nextSwap={nextSwap}
                   held={held}
+                  planned={plannedA}
+                  forGood={forGood}
+                  onForGood={onForGood}
+                  routineName={routineA?.name || "Routine A"}
                   emptyWords={
                     (routineLetter === "A" ? routineA : routineB)
                       ? "Nothing on today's list yet."

@@ -33,11 +33,19 @@ import { DEFAULT_IMPORTANCE, storedNoteOf } from "../../client-notes/note-catalo
 import { bFollowForPlanWrite } from "../b-routine";
 import { studioTodayKey } from "../../../lib/studio-time";
 import { readPlanChanges, savePlanChange, startPlan, startRoutineB } from "../store";
-import type { HealthNoteCall, PlanActions, StartBCall, StartPlanCall } from "./host";
+import { savedRoutineA, type HealthNoteCall, type PlanActions, type StartBCall, type StartPlanCall } from "./host";
+import { movesProgramming } from "../../routine-slots/programming";
 import type { PlanWrite } from "../lineup";
 
 export interface PlanActionsInput {
   clientId: string | null;
+  /**
+   * The client's programming document has answered (the routine library
+   * round): only then is it written from slot A's plan, so a mark the
+   * document holds and this iPad hasn't read is never written over.
+   */
+  programmingKnown?: boolean;
+
   /** The client's home studio, as every routine carries it. */
   studioId: string;
   /**
@@ -128,9 +136,16 @@ export function usePlanActions(input: PlanActionsInput): PlanActions {
         aPlan: write.plan,
         todayYmd: studioTodayKey(),
       });
+      // Slot A's plan moving what the client can't do or their focus: the client's own document too, in the same batch.
+      const uid = write.change.byUid;
+      const isA = savedRoutineA(ref.current.routines ?? [])?.id === routineId;
+      const programming =
+        isA && ref.current.programmingKnown && ref.current.clientId && uid && movesProgramming(write.change, write.also ?? [])
+          ? { clientId: ref.current.clientId, uid }
+          : null;
       let commit: Promise<void>;
       try {
-        commit = savePlanChange(db, routineId, follow ? { ...write, follow } : write);
+        commit = savePlanChange(db, routineId, { ...(follow ? { ...write, follow } : write), programming });
       } catch (err) {
         refused(err);
         return;
