@@ -829,6 +829,7 @@ describe("one studio at a time", () => {
     const plan = forS();
     expect(plan.scope).toEqual({
       studioId: "S",
+      clientIds: null,
       clients: 2,
       hostedHereFiledElsewhere: [{ clientId: "wc2", otherStudioId: "W", sessions: 1 }],
       filedHereHostedElsewhere: [{ clientId: "sc2", otherStudioId: "W", sessions: 1 }],
@@ -944,6 +945,76 @@ describe("one studio at a time", () => {
     const again = planReset(apply(odd, plan), opts(["imported-history"], { studioId: "S" }));
     expect(again.deletes).toEqual([]);
     expect(again.fieldSteps).toEqual([]);
+  });
+
+  describe("one client at a time (--client, Oct 23 2026)", () => {
+    const forSc2 = (groups: GroupId[] = []) => planReset(two(), opts(groups, { studioId: "S", clientIds: ["sc2"] }));
+    /** S's clients and S's own records, which a client run never touches. */
+    const NOT_SC2 = [
+      "sessions/s1", "sessions/s2", "sessions/x1", "exerciseLogs/l1", "exerciseLogs/lx1", "exerciseLogs/lgone-s", "sessions/s1/logs/a",
+      "journalEntries/js", "journalEntries/js-u", "journalEntries/jnone-s", "clients/sc", "clients/sc/ford/a", "clients/sc/machineTotals/current",
+      "studios/S/clientStates/sc", "studios/S/watch/journey", "studios/S/acknowledgements/note:js", "clientMachineSettings/sc_m",
+      "clientMachineSettings/_ghostS", "machines/m/settingHistory/hs", "machines/m/settingHistory/hnone", "routines/rs", "routines/rs/planChanges/p",
+      "routineAdjustments/as", "progressReports/ps", "clientFocuses/fs", "studios/S/floorNotes/n", "studios/S/watchlist/sc", "studios/S/cases/a",
+      "studios/S/dayLogs/d", "studios/S/renewals/c/touches/t", "trainers/ts/stats/rollups", "trainers/tboth/stats/rollups", "leaderboards/old",
+      "clients/wc2",
+    ];
+    const touched = (plan: ResetPlan) => [...plan.deletes.map((d) => d.path), ...plan.fieldSteps.map((s) => s.path)];
+
+    it("takes the client's sessions, imported or hosted elsewhere, and nothing of anyone else's or the studio's own", () => {
+      const plan = forSc2(ALL);
+      expect(deleted(plan)).toContain("sessions/fm_sc_2024-01-01");
+      expect(deleted(plan)).toContain("sessions/x2");
+      expect(touched(plan).filter((p) => NOT_SC2.includes(p) || W_PATHS.includes(p))).toEqual([]);
+      expect(changedFields(plan, "clients/sc2")).toContain("completedSessions");
+      expect(plan.leftAlone.find((l) => l.label.startsWith("Setting change records naming no client"))).toBeUndefined();
+    });
+
+    it("says it is one client's, and lists only that client's sessions hosted elsewhere", () => {
+      expect(forSc2().scope).toEqual({
+        studioId: "S",
+        clientIds: ["sc2"],
+        clients: 1,
+        hostedHereFiledElsewhere: [],
+        filedHereHostedElsewhere: [{ clientId: "sc2", otherStudioId: "W", sessions: 1 }],
+      });
+    });
+
+    it("clears the old counts map only on the trainer who coached the client, and leaves the counts documents", () => {
+      const plan = forSc2(["imported-history"]);
+      expect(plan.fieldSteps.filter((s) => s.path.startsWith("trainers/")).map((s) => s.path)).toEqual(["trainers/tw"]);
+      expect(countOf(plan, "trainer-stats").docs).toBe(0);
+    });
+
+    it("a second run finds nothing left", () => {
+      const before = two();
+      const first = planReset(before, opts(ALL, { studioId: "S", clientIds: ["sc2"] }));
+      const second = planReset(apply(before, first), opts(ALL, { studioId: "S", clientIds: ["sc2"] }));
+      expect(second.deletes).toEqual([]);
+      expect(second.fieldSteps).toEqual([]);
+    });
+
+    it("imported-history for one client: the import undone exactly as the studio run does it", () => {
+      const before = input({
+        clients: [
+          doc("clients/f", { homeStudioId: "S", completedSessions: 1, sessionCount: 79, legacy_filemaker_id: "fm-1", priorHistory: { sessions: 79, importedCount: 1, source: "filemaker" } }),
+          doc("clients/other", { homeStudioId: "S", completedSessions: 5, sessionCount: 5, legacy_filemaker_id: "fm-2", priorHistory: { sessions: 5, importedCount: 5, source: "filemaker" } }),
+        ],
+        sessions: [
+          doc("sessions/fm_f_2025-09-23", { clientId: "f", studioId: "S", legacy_filemaker_id: "x", status: "Completed" }),
+          doc("sessions/fm_other_1", { clientId: "other", studioId: "S", legacy_filemaker_id: "y", status: "Completed" }),
+        ],
+      });
+      const plan = planReset(before, opts(["imported-history"], { studioId: "S", clientIds: ["f"] }));
+      expect(deleted(plan)).toEqual(["sessions/fm_f_2025-09-23"]);
+      const at = (f: string) => plan.fieldSteps.find((s) => s.path === "clients/f")!.changes.find((c) => c.field.join(".") === f);
+      expect(at("priorHistory.importedCount")?.after).toBe(0);
+      expect(at("legacy_filemaker_id")?.after).toBe(ABSENT);
+      // The total was 79 before the import and stays 79; Journey's own count of 1 goes.
+      expect(at("sessionCount")).toBeUndefined();
+      expect(at("completedSessions")?.after).toBe(0);
+      expect(plan.fieldSteps.filter((s) => s.path === "clients/other")).toEqual([]);
+    });
   });
 
   it("without a studio the plan is the whole database, scope null", () => {

@@ -35,6 +35,10 @@
  *
  *   Options:
  *     --studio <id>           one studio's reset (above); an unknown id prints the studios
+ *     --client <id>           one client's reset (Oct 23 2026, Brad Chill's re-import): the
+ *                             client's sessions wherever hosted and what hangs off them,
+ *                             never the studio's own records; the studio is the client's home.
+ *                             ... --client 100003197 --also imported-history
  *     --also a,b,c            optional groups: imported-history, ford-briefing, settings,
  *                             settings-all, setting-history, routines, pulse,
  *                             floor-notes, prior-history, operations
@@ -126,10 +130,10 @@ const PRODUCTION = { projectId: "gen-lang-client-0731527386", databaseId: "ai-st
  * The flags: every one known, anything else stops it
  * ------------------------------------------------------------------ */
 
-const VALUE_FLAGS = ["also", "before", "settle-seconds", "key", "project", "database", "confirm-project", "restore", "expect", "studio"] as const;
+const VALUE_FLAGS = ["also", "before", "settle-seconds", "key", "project", "database", "confirm-project", "restore", "expect", "studio", "client"] as const;
 const BOOL_FLAGS = ["commit", "include-demo", "ignore-open-sessions", "after-cutover"] as const;
 /** Flags that say something about a reset and nothing about a restore. */
-const RESET_ONLY = ["also", "before", "settle-seconds", "expect", "include-demo", "ignore-open-sessions", "after-cutover", "studio"] as const;
+const RESET_ONLY = ["also", "before", "settle-seconds", "expect", "include-demo", "ignore-open-sessions", "after-cutover", "studio", "client"] as const;
 
 function parseFlags(argv: readonly string[]): { values: Map<string, string>; bools: Set<string> } {
   const values = new Map<string, string>();
@@ -482,6 +486,11 @@ function printPlan(plan: ResetPlan, groups: ReadonlySet<GroupId>) {
 function printScope(scope: StudioScope, input: ResetInput) {
   const nameOf = (id: string | null) => (id ? String(input.studios.find((s) => idOf(s.path) === id)?.data.name ?? id) : "(no studio on the record)");
   console.log("");
+  if (scope.clientIds) {
+    console.log(`Scope: ${scope.clientIds.map((id) => `clients/${id}`).join(", ")} only.`);
+    if (scope.filedHereHostedElsewhere.length) for (const c of scope.filedHereHostedElsewhere) console.log(`    ${plural(c.sessions, "session")} hosted at ${nameOf(c.otherStudioId)} (taken: they are this client's)`);
+    return;
+  }
   console.log(`Scope: ${plural(scope.clients, "client")} filed at this studio.`);
   if (scope.hostedHereFiledElsewhere.length === 0 && scope.filedHereHostedElsewhere.length === 0) {
     console.log("    No client crosses the studio line: every session here is a client's filed here, and none of theirs was hosted elsewhere.");
@@ -750,6 +759,15 @@ function followUps(target: Target, includeDemo: boolean, groups: ReadonlySet<Gro
   console.log("  The nightly jobs and the trainers' counts (3 AM) carry on by themselves from tonight.");
 }
 
+/** The home studio of a `--client` run's client (Oct 23 2026); a client with none, or in Demo Mode, stops it. */
+async function clientHomeFor(db: Firestore, clientId: string): Promise<{ id: string; name: string }> {
+  const snap = await db.doc(`clients/${clientId}`).get();
+  if (!snap.exists) throw new Error(`--client ${clientId}: no such client. Nothing was written.`);
+  const home = snap.get("homeStudioId");
+  if (typeof home !== "string" || home === "") throw new Error(`--client ${clientId} has no home studio on the record. Nothing was written.`);
+  return studioFor(db, home);
+}
+
 /** The studio a `--studio` run is scoped to, from the studios collection; an unknown id names them all and stops. */
 async function studioFor(db: Firestore, id: string): Promise<{ id: string; name: string }> {
   const snap = await db.collection("studios").get();
@@ -790,8 +808,11 @@ async function reset(target: Target) {
   if (expectText !== undefined && !commit) throw new Error("--expect goes with --commit.");
 
   console.log(commit ? "COMMIT: the reset below will be written, after a backup." : "DRY RUN: nothing will be written.");
-  const studio = flag("studio") ? await studioFor(db, flag("studio")!) : null;
-  if (studio) console.log(`STUDIO: ${studio.name} (${studio.id}). Only this studio's clients, the sessions hosted here, and its own records; every other studio is left as it is.`);
+  const clientId = flag("client") ?? null;
+  if (clientId !== null && flag("studio")) throw new Error("--client finds the client's own studio; leave --studio off. Nothing was written.");
+  const studio = clientId !== null ? await clientHomeFor(db, clientId) : flag("studio") ? await studioFor(db, flag("studio")!) : null;
+  if (clientId !== null) console.log(`CLIENT: clients/${clientId}, filed at ${studio!.name} (${studio!.id}). Only this client's sessions, wherever hosted, and what hangs off them; nothing that is the studio's as a whole.`);
+  else if (studio) console.log(`STUDIO: ${studio.name} (${studio.id}). Only this studio's clients, the sessions hosted here, and its own records; every other studio is left as it is.`);
   else console.log("WHOLE DATABASE: every studio outside Demo Mode.");
   console.log(`Groups: ${[...groups].join(", ")}${includeDemo ? ", and Demo Mode" : " (Demo Mode left out)"}.`);
   if (note) console.log(note);
@@ -804,7 +825,7 @@ async function reset(target: Target) {
       `${plural(input.clients.length, "client")}, ${plural(input.trainers.length, "trainer")}, ${plural(input.studios.length, "studio")}.`,
   );
 
-  const options: ResetOptions = { groups, includeDemo, beforeMs, nowMs, eraStartMs: earlier?.ms ?? null, studioId: studio?.id ?? null };
+  const options: ResetOptions = { groups, includeDemo, beforeMs, nowMs, eraStartMs: earlier?.ms ?? null, studioId: studio?.id ?? null, clientIds: clientId !== null ? [clientId] : null };
   const plan = planReset(input, options);
   if (plan.scope) printScope(plan.scope, input);
   printPlan(plan, groups);

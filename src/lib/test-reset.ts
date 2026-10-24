@@ -445,6 +445,15 @@ export interface ResetOptions {
    * The plan's `scope` says what fell on the studio line.
    */
   studioId?: string | null;
+  /**
+   * One client at a time (`--client`, Oct 23 2026; AJ: "add a --client option to
+   * reset-test-data.ts so Brad's one imported visit can be removed and his 43
+   * re-imported"). With `studioId` (the client's home), the run takes only these
+   * clients, their sessions wherever they were hosted, and what hangs off them;
+   * nothing that is the studio's as a whole (its rollups, day logs, floor notes,
+   * open sessions' ghosts, setting records naming no client) is touched.
+   */
+  clientIds?: readonly string[] | null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -462,6 +471,8 @@ export interface CrossFiledClient {
 /** What a `--studio` run covers, so the dry run can say it and the backup can record it. */
 export interface StudioScope {
   studioId: string;
+  /** A `--client` run's clients; null when the run is the whole studio. */
+  clientIds: string[] | null;
   /** Clients filed at the studio (Demo Mode aside). */
   clients: number;
   /** Sessions hosted at this studio for clients filed at another: taken, and listed. */
@@ -846,14 +857,22 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   /* ---- the studio line, when there is one ---- */
   const studio = str(options.studioId ?? null);
   /** The studio's clients by their home; null when the run is the whole database. */
-  const scopeClients = studio
-    ? new Set(input.clients.filter((c) => str(c.data.homeStudioId) === studio).map((c) => idOf(c.path)))
-    : null;
+  /** A `--client` run: these clients only, never the studio as a whole. */
+  const clientOnly = studio !== null && options.clientIds?.length ? new Set(options.clientIds) : null;
+  const scopeClients = clientOnly
+    ? clientOnly
+    : studio
+      ? new Set(input.clients.filter((c) => str(c.data.homeStudioId) === studio).map((c) => idOf(c.path)))
+      : null;
   const inScopeClient = (clientId: string | null): boolean => scopeClients === null || (clientId !== null && scopeClients.has(clientId));
   /** A session is the studio's when its client is, or when the studio hosted it (`studioId`). */
-  const inScopeSession = (s: DocIn): boolean => studio === null || inScopeClient(str(s.data.clientId)) || str(s.data.studioId) === studio;
-  /** A record filed under studios/{id}/… belongs to that studio. */
-  const underStudio = (path: string): boolean => studio === null || path.startsWith(`studios/${studio}/`);
+  const inScopeSession = (s: DocIn): boolean =>
+    studio === null || inScopeClient(str(s.data.clientId)) || (clientOnly === null && str(s.data.studioId) === studio);
+  /** A record filed under studios/{id}/… belongs to that studio; a client run takes none of the studio's own. */
+  const underStudio = (path: string): boolean => clientOnly === null && (studio === null || path.startsWith(`studios/${studio}/`));
+  /** A record under studios/{id}/… keyed by the client it is about (the watchlist, cases, the nightly client states). */
+  const underStudioFor = (path: string): boolean =>
+    clientOnly === null ? underStudio(path) : path.startsWith(`studios/${studio}/`) && clientOnly.has(idOf(path));
   const sessionById = new Map(input.sessions.map((s) => [idOf(s.path), s] as const));
   /** A record carrying a session id: the session is the studio's, or it is gone and the record's client is. */
   const inScopeBySession = (sessionId: string | null, clientId: string | null): boolean => {
@@ -1260,7 +1279,7 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   for (const s of input.clientMachineSettings) {
     if (str(s.data.clientId) || !idOf(s.path).startsWith("_")) continue;
     // A ghost names no client; a studio run takes only those its own open sessions saved.
-    if (studio !== null && str(s.data.studioId) !== studio) continue;
+    if (studio !== null && (clientOnly !== null || str(s.data.studioId) !== studio)) continue;
     b.deleteDoc("open-session-ghosts", s, demo.isDemo(s));
   }
 
@@ -1284,7 +1303,7 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
 
   /* ---- the nightly job's output ---- */
   for (const s of input.clientStates) {
-    if (!underStudio(s.path)) continue;
+    if (!underStudioFor(s.path)) continue;
     b.deleteDoc("job-client-states", s, demo.isDemo(s, { clientId: idOf(s.path) }));
   }
   for (const w of input.watch) {
@@ -1315,6 +1334,7 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
     if (studio === null) return true;
     const clientId = str(h.data.clientId);
     if (clientId) return scopeClients!.has(clientId);
+    if (clientOnly !== null) return false;
     const at = str(h.data.studioId);
     if (at) return at === studio;
     unplacedHistory += 1;
@@ -1397,8 +1417,8 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
   }
 
   /* ---- operations ---- */
-  for (const w of input.watchlist) if (underStudio(w.path)) b.deleteDoc("watchlist", w, demo.isDemo(w, { clientId: idOf(w.path) }));
-  for (const c of input.cases) if (underStudio(c.path)) b.deleteDoc("cases", c, demo.isDemo(c, { clientId: idOf(c.path) }));
+  for (const w of input.watchlist) if (underStudioFor(w.path)) b.deleteDoc("watchlist", w, demo.isDemo(w, { clientId: idOf(w.path) }));
+  for (const c of input.cases) if (underStudioFor(c.path)) b.deleteDoc("cases", c, demo.isDemo(c, { clientId: idOf(c.path) }));
   for (const d of input.dayLogs) if (underStudio(d.path)) b.deleteDoc("day-logs", d, demo.isDemo(d));
   for (const t of input.renewalTouches) if (underStudio(t.path)) b.deleteDoc("renewal-touches", t, demo.isDemo(t));
 
@@ -1438,6 +1458,7 @@ export function planReset(input: ResetInput, options: ResetOptions): ResetPlan {
         ? null
         : {
             studioId: studio,
+            clientIds: clientOnly ? [...clientOnly].sort() : null,
             clients: [...scopeClients!].filter((id) => !demo.clients.has(id)).length,
             hostedHereFiledElsewhere: [...hostedHereFiledElsewhere.values()].sort((a, b) => a.clientId.localeCompare(b.clientId)),
             filedHereHostedElsewhere: [...filedHereHostedElsewhere.values()].sort((a, b) => a.clientId.localeCompare(b.clientId)),

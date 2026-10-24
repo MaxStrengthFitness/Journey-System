@@ -167,6 +167,16 @@ Nothing is skipped silently: both lists are printed and kept in the backup's man
 
 **For a FileMaker re-import**, take `imported-history` as well: it deletes the imported sessions and their sets AND takes the import's marks off each client (`priorHistory.importedCount` down by the sessions deleted, `legacy_filemaker_id` cleared), so the total a client shows is what it was before the import and the next import counts from a clean record. Take `settings` (the weights only) too: the import writes a weight only when the set-up is older than the visit, so weights an earlier import left would block the right ones; the dials stay.
 
+## Resetting one client
+
+*Oct 23 2026, Brad Chill's re-import (AJ: "add a --client option to reset-test-data.ts so Brad's one imported visit can be removed and his 43 re-imported").*
+
+Add `--client` and the client's record id instead of `--studio` (the script finds the client's home studio itself; both together are refused). It takes the client's sessions wherever they were hosted and everything built from them, and puts the client's own counters back, exactly as a studio run does for each of its clients. It never touches anything that is the studio's as a whole: other clients, the studio's rollups and tallies, day logs, floor notes, open sessions' ghosts, setting records naming no client. For a FileMaker re-import take `imported-history`; a client's dials and weights stay (the import writes next time's weight itself).
+
+```powershell
+npx tsx scripts/reset-test-data.ts --project gen-lang-client-0731527386 --database ai-studio-32cbbdcc-6e08-4770-9665-867c68878efa --confirm-project gen-lang-client-0731527386 --client 100003197 --also imported-history
+```
+
 ## What trainers will see after
 
 - Every client's Journey starts at their first real session. A long-time client still shows Mindbody's count ("#312", from Mindbody) until a trainer confirms it.
