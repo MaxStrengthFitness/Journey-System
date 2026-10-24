@@ -52,6 +52,8 @@ vi.mock("../../routine-slots/store", async () => {
     },
   };
 });
+const settings = vi.hoisted(() => ({ switchWhole: false }));
+vi.mock("../../routine-slots/usePlannedStarts", () => ({ useSwitchOnWhole: () => settings.switchWhole }));
 vi.mock("../../routine-slots/useMyRoutines", () => ({
   useMyRoutines: () => ({ routines: [], status: "ready", reload: () => {} }),
 }));
@@ -178,6 +180,7 @@ const listOf = (slot: string) =>
   Array.from(document.body.querySelectorAll(`ol[aria-label="Michael's ${slot}"] .rpl-cell__name`)).map((n) => n.textContent);
 
 beforeEach(() => {
+  settings.switchWhole = false;
   commits.routine = [];
   commits.phase = [];
   commits.moves = [];
@@ -228,14 +231,52 @@ describe("one builder for A and B", () => {
     expect(listOf("Routine A")).toEqual(["Pulldown", "Leg Press"]);
   });
 
-  it("saves Routine B whole, and turns B on with it", async () => {
+  it("saves Routine B whole while B is off: planned, B stays off (§10.2)", async () => {
     await mount({ routines: [A] });
     await tap("Copy A into B");
     expect(listOf("Routine B")).toEqual(["Pulldown", "Leg Press"]);
-    await tap("Save and turn B on");
+    await tap("Save Routine B");
     const save = commits.routine[0] as RoutineSave;
     expect(save.fields).toMatchObject({ name: "Routine B", machineIds: ["m-pulldown", "m-leg-press"] });
+    expect(save.turnB).toBeNull();
+    expect(status?.anyDirty()).toBe(false);
+  });
+
+  it("starts a planned B by phasing it in from Routine A, which turns B on (AJ: turn it on and phase it in)", async () => {
+    const B: Routine = { id: "rb", name: "Routine B", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-curl", "m-chest-press"] };
+    await mount({ routines: [A, B], isBActive: false });
+    expect(document.body.querySelector('[data-testid="planned-b"]')?.textContent).toContain("Phase it in to start it.");
+    // Phased in only at this studio: no switch to turn it on whole.
+    expect(document.body.querySelector('[aria-label="Turn Routine B on"]')).toBeNull();
+    await tap("Phase B in");
+    await tap("Start phasing in");
+    const save = commits.phase[0] as PhaseSave;
+    // B starts as Routine A and steps toward the B that was planned.
+    expect(save.fields.machineIds).toEqual(["m-pulldown", "m-leg-press"]);
+    const planned = (save.fields["plan.phase"] ?? (save.fields.plan as { phase: unknown }).phase) as { target: string[] };
+    expect(planned.target).toEqual(["m-leg-curl", "m-chest-press"]);
     expect(save.turnB).toBe(true);
+  });
+
+  it("where the studio allows it, a planned B can also be switched on whole", async () => {
+    settings.switchWhole = true;
+    const B: Routine = { id: "rb", name: "Routine B", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-curl"] };
+    await mount({ routines: [A, B], isBActive: false });
+    expect(document.body.querySelector('[data-testid="planned-b"]')?.textContent).toContain("Phase it in, or switch it on.");
+    expect(document.body.querySelector('[aria-label="Turn Routine B on"]')).not.toBeNull();
+  });
+
+  it("phases slot A in too: the plan on A's own plan, A unchanged until a step is ticked", async () => {
+    await mount({ routines: [{ ...A, plan: { purpose: "", intended: ["m-pulldown", "m-leg-press"], building: false, madeByUid: "u0" } }] });
+    await tap("Add a machine to slot A");
+    await tap("Chest Press");
+    await tap("Done");
+    await tap("Phase it in");
+    await tap("Start phasing in");
+    const save = commits.phase[0] as PhaseSave;
+    expect(save.fields.machineIds).toBeUndefined();
+    expect((save.fields["plan.phase"] as { target: string[] }).target).toEqual(["m-pulldown", "m-leg-press", "m-chest-press"]);
+    expect(save.turnB).toBeNull();
     expect(status?.anyDirty()).toBe(false);
   });
 

@@ -17,9 +17,11 @@
  *   new one. What leaves goes to the stash, kept as it is.
  * - The stash is one row of names under the slots; Retire hides one under
  *   Retired, never deletes it.
- * - Routine B is built whole: Save makes it live (B turned on with it), and
- *   nothing moves it after that but a person. Phase it in is a choice (AJ:
- *   "IF WE WANT TO, not automatic").
+ * - A routine is built whole, and nothing moves it but a person. A B saved
+ *   while B is off is PLANNED (§10.2): it starts when a trainer phases it in
+ *   from Routine A, or, where the studio allows it, switches it on whole.
+ *   Either slot can be phased in toward what is on screen (AJ: "after
+ *   building either one, you can choose to phase any of it in").
  *
  * Every save is issued and never awaited (`../store.ts`,
  * `../../routine-slots/store.ts`); a refusal comes back through `onError`.
@@ -68,7 +70,8 @@ import {
   type Draft,
 } from "../builder";
 import { appliedStep, isDone, phaseOf, phasePlanOf, type PhasePlan } from "../phase";
-import { commitPhaseSave, commitRoutineSave, phaseSaveOf, routineSaveOf, saveChanges, type Slot } from "../store";
+import { commitPhaseSave, commitRoutineSave, phaseSaveOf, phaseSaveOfA, routineSaveOf, saveChanges, type Slot } from "../store";
+import { useSwitchOnWhole } from "../../routine-slots/usePlannedStarts";
 import { PhasePanel, PhaseSheet, type PhaseMove } from "./PhasePanel";
 import "../../routine-plan/ui/routine-plan.css";
 import "./ab-builder.css";
@@ -149,7 +152,10 @@ export function RoutineBuilder({
   const [stashed, setStashed] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [showRetired, setShowRetired] = useState(false);
-  const [phaseDraft, setPhaseDraft] = useState<PhasePlan | null>(null);
+  /** A phase-in plan being made or changed, and the slot it is for (either slot since the routine library round). */
+  const [phaseDraft, setPhaseDraft] = useState<{ slot: "A" | "B"; plan: PhasePlan } | null>(null);
+  // How a planned routine starts at this studio: phased in, or (where the studio allows it) switched on whole (§10.2).
+  const switchWhole = useSwitchOnWhole(studioId || null);
   const [changesOf, setChangesOf] = useState<Slot | null>(null);
   // The trainer's own routines, read only while Change is open.
   const mine = useMyRoutines(who?.uid ?? null, { enabled: changeFor !== null });
@@ -194,6 +200,7 @@ export function RoutineBuilder({
   const dirtyA = !sameList(baseA.ids, draft.a) || baseA.purpose !== pA.trim();
   const dirtyB = !sameList(baseB.ids, draft.b) || baseB.purpose !== pB.trim();
   const phase = phaseOf(savedB?.plan?.phase);
+  const phaseA = phaseOf(savedA?.plan?.phase);
 
   const resetA = () => {
     setDraftA(null);
@@ -342,9 +349,46 @@ export function RoutineBuilder({
     commitRetire(db, routineId, archived).catch(() => onError?.(archived ? "Couldn't retire the routine. Try again." : "Couldn't bring the routine back. Try again."));
   };
 
-  // Where B starts phasing in from: B as saved, or a copy of Routine A as saved when B has nothing (never A's unsaved draft).
-  const phaseBase = savedB && savedB.machineIds.length > 0 ? savedB.machineIds : (savedA?.machineIds ?? []);
-  const canPhase = !phase && phaseBase.length > 0 && draft.b.length > 0 && !sameList(phaseBase, draft.b) && dirtyB;
+  /*
+   * A planned B (§10.2): saved with machines while B is off. AJ: "A full B
+   * can be planned well in advance; when the trainer chooses, they go into B,
+   * turn it on and phase it in". It phases in from Routine A as saved toward
+   * the B that was planned.
+   */
+  const plannedB = !isBActive && !!savedB && savedB.machineIds.length > 0 && !phase;
+  // Where B starts phasing in from: Routine A for a planned B; else B as saved, or a copy of Routine A as saved when B has nothing (never A's unsaved draft).
+  const phaseBase = plannedB ? (savedA?.machineIds ?? []) : savedB && savedB.machineIds.length > 0 ? savedB.machineIds : (savedA?.machineIds ?? []);
+  const canPhase = !phase && !plannedB && phaseBase.length > 0 && draft.b.length > 0 && !sameList(phaseBase, draft.b) && dirtyB;
+  const canPhasePlanned = plannedB && !dirtyB && phaseBase.length > 0 && !sameList(phaseBase, savedB!.machineIds);
+  // Slot A phased in too (AJ: "after building either one, you can choose to phase any of it in"): from A as saved toward the A on screen.
+  const canPhaseA = !phaseA && !!savedA && savedA.machineIds.length > 0 && draft.a.length > 0 && dirtyA && !sameList(savedA.machineIds, draft.a);
+
+  /** A phase plan on slot A saved: a tick is A's own save (its road kept), anything else `plan.phase` alone. */
+  const savePhaseA = (next: PhasePlan | null, note: string, move: PhaseMove) => {
+    if (!who || disabled || !savedA) return;
+    const now = savedA.machineIds;
+    const machineIds =
+      move.kind === "step"
+        ? appliedStep(now, move.step, next?.target ?? [], move.forward)
+        : move.kind === "all"
+          ? move.steps.reduce<string[]>((list, st) => appliedStep(list, st, next?.target ?? []), [...now])
+          : now;
+    const out = phaseSaveOfA({
+      routine: savedA,
+      routines,
+      clientId,
+      studioId,
+      trainerId,
+      who,
+      todayYmd: host.todayYmd,
+      phase: next,
+      machineIds,
+      note,
+      isBActive,
+    });
+    const commit = out.routine ? commitRoutineSave(db, out.routine).commit : commitPhaseSave(db, out.phase!, clientId).commit;
+    commit.catch(() => onError?.(`Couldn't save ${savedA.name}'s phase-in plan. Try again.`));
+  };
 
   /**
    * A phase plan saved. B's machines are worked out from B as it stands now,
@@ -432,6 +476,33 @@ export function RoutineBuilder({
           planned={plannedOf(realA, host.todayYmd)}
           onPlannedNow={realA && !dirtyA ? (id) => addForGood(realA, id) : undefined}
           onPlannedOff={realA ? (id) => planLater(realA, id, false) : undefined}
+          middle={
+            phaseA ? (
+              <PhasePanel
+                phase={phaseA}
+                nameOf={nameOf}
+                todayYmd={host.todayYmd}
+                who={who}
+                disabled={disabled}
+                editing={dirtyA}
+                onSave={savePhaseA}
+                onChange={() => setPhaseDraft({ slot: "A", plan: phaseA })}
+                routineName={realA?.name || "Routine A"}
+              />
+            ) : null
+          }
+          extra={
+            canPhaseA ? (
+              <Button
+                variant="outline"
+                onClick={() => who && savedA && setPhaseDraft({ slot: "A", plan: phasePlanOf({ base: savedA.machineIds, target: draft.a, todayYmd: host.todayYmd, who }) })}
+                disabled={!who || disabled}
+              >
+                <Layers aria-hidden="true" />
+                Phase it in
+              </Button>
+            ) : null
+          }
           disabled={disabled}
           foot={signIn}
         />
@@ -464,10 +535,9 @@ export function RoutineBuilder({
           onPlannedNow={realB && !dirtyB ? (id) => addForGood(realB, id) : undefined}
           onPlannedOff={realB ? (id) => planLater(realB, id, false) : undefined}
           disabled={disabled}
-          saveWords={!isBActive && draft.b.length > 0 ? "Save and turn B on" : undefined}
           head={
-            // B's switch whenever there is something to switch: B with machines, or B on with nothing in it (the way to turn it off).
-            (savedB && savedB.machineIds.length > 0) || isBActive ? (
+            // B's switch: B on (the way to turn it off), or B with machines where the studio lets a planned routine switch on whole.
+            isBActive || (switchWhole && savedB && savedB.machineIds.length > 0) ? (
               <label className="rt-switch abb-switch">
                 <span>{isBActive ? "B on" : "B off"}</span>
                 <Switch
@@ -497,20 +567,29 @@ export function RoutineBuilder({
                 disabled={disabled}
                 editing={dirtyB}
                 onSave={savePhase}
-                onChange={() => setPhaseDraft(phase)}
+                onChange={() => setPhaseDraft({ slot: "B", plan: phase })}
+                routineName={realB?.name || "Routine B"}
               />
+            ) : plannedB ? (
+              <p className="rpl-line" data-testid="planned-b">
+                Planned · B is off, so every session runs A. {switchWhole ? "Phase it in, or switch it on." : "Phase it in to start it."}
+              </p>
             ) : null
           }
           extra={
-            canPhase ? (
-              <Button
-                variant="outline"
-                onClick={() => who && setPhaseDraft(phasePlanOf({ base: phaseBase, target: draft.b, todayYmd: host.todayYmd, who }))}
-                disabled={!who || disabled}
-              >
-                <Layers aria-hidden="true" />
-                Phase it in
-              </Button>
+            canPhase || canPhasePlanned ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    who && setPhaseDraft({ slot: "B", plan: phasePlanOf({ base: phaseBase, target: canPhasePlanned ? savedB!.machineIds : draft.b, todayYmd: host.todayYmd, who }) })
+                  }
+                  disabled={!who || disabled}
+                >
+                  <Layers aria-hidden="true" />
+                  {canPhasePlanned ? "Phase B in" : "Phase it in"}
+                </Button>
+              </>
             ) : null
           }
           foot={signIn}
@@ -690,16 +769,24 @@ export function RoutineBuilder({
         />
       )}
 
-      {phaseDraft && (
+      {phaseDraft && (() => {
+        const forA = phaseDraft.slot === "A";
+        const running = forA ? phaseA : phase;
+        const save = forA ? savePhaseA : savePhase;
+        const routineName = forA ? realA?.name || "Routine A" : realB?.name || "Routine B";
+        return (
         <PhaseSheet
-          initial={phaseDraft}
-          isNew={!phase}
+          initial={phaseDraft.plan}
+          isNew={!running}
           nameOf={nameOf}
           trainers={trainers}
           todayYmd={host.todayYmd}
           first={first}
+          routineName={routineName}
           onClose={() => setPhaseDraft(null)}
           onSave={(next) => {
+            const phase = running;
+            const savePhase = save;
             if (phase) {
               // Weeks and owners from the sheet over the plan as it stands now, so a tick made meanwhile on another iPad is kept.
               const merged =
@@ -716,16 +803,22 @@ export function RoutineBuilder({
                   : next;
               savePhase(merged, "Phase-in plan changed", { kind: "none" });
             } else {
-              savePhase(next, `Phasing B in: ${next.steps.length} ${next.steps.length === 1 ? "step" : "steps"}`, { kind: "start" });
+              savePhase(next, `Phasing ${routineName} in: ${next.steps.length} ${next.steps.length === 1 ? "step" : "steps"}`, { kind: "start" });
             }
             setPhaseDraft(null);
             if (!phase) {
-              resetB();
-              if (!dirtyA) unsaved.release();
+              if (forA) {
+                resetA();
+                if (!dirtyB) unsaved.release();
+              } else {
+                resetB();
+                if (!dirtyA) unsaved.release();
+              }
             }
           }}
         />
-      )}
+        );
+      })()}
 
       <PlanSheet open={changesOf !== null} title={`${changesOf === "Routine A" ? (realA?.name ?? "Routine A") : (realB?.name ?? "Routine B")} · changes`} onClose={() => setChangesOf(null)}>
         {changesOf && (changesOf === "Routine A" ? realA?.id : realB?.id) ? (
@@ -912,7 +1005,7 @@ function RoutineCard({
         <p className="rpl-meta">
           {slot === "Routine A"
             ? `Add the machines ${first} does, in the order ${first} does them.`
-            : `Nothing in B: every session runs A. Add B's machines, or Change to put a routine here. Saving it makes it live.`}
+            : `Nothing in B: every session runs A. Add B's machines, or Change to put a routine here. Saved, it is planned until someone starts it.`}
         </p>
         {empty}
       </li>,

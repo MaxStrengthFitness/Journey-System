@@ -183,6 +183,7 @@ import { useMachineJournalRead } from "../features/equipment/useMachineJournal";
 import { isSuperAdminRole } from "../features/admin/franchise/scope";
 import { withSlots } from "../features/routine-slots/slots";
 import { useClientProgramming } from "../features/routine-slots/useClientProgramming";
+import { useSwitchOnWhole } from "../features/routine-slots/usePlannedStarts";
 
 /** Sessions per Firestore page for the profile's history (see the Journey tab). */
 /* Fifty at a time (audit, Sep 13): "Older really needs to show us their
@@ -1022,6 +1023,7 @@ export function ClientProfileView({
      The drawer asked about its own typing before it handed this over, so it
      closes for Plan B. Plan B is the one sheet the A | B lineup, Routine B's
      segment, the switch and the drawer open. */
+  const switchWhole = useSwitchOnWhole(client?.homeStudioId || activeStudioId || null);
   const bSwitch = useBSwitch({
     routines,
     routinesKnown: routinesStatus === "ready",
@@ -1033,10 +1035,16 @@ export function ClientProfileView({
     onCantTell: toastError,
     beforePlanB: () => setEditRoutineTarget(null),
     // B is built whole on Programming → Routines since the routine builder
-    // round (Oct 19 2026): Save there turns it on, so an empty B goes there.
+    // round (Oct 19 2026), so an empty B goes there; since the routine
+    // library round (Oct 23 2026) Save there plans it, and a planned B starts by being phased in, unless the studio allows switching it on whole (§10.2).
+    phaseOnly: !switchWhole,
+    onPhaseB: () => {
+      nav.setProgrammingView("routine-a");
+      toastInfo("Routine B is planned. Phase it in on Programming → Routines to start it.");
+    },
     onEmptyB: () => {
       nav.setProgrammingView("routine-a");
-      toastInfo("Build Routine B on Programming → Routines. Saving it turns B on.");
+      toastInfo("Build Routine B on Programming → Routines, then phase it in to start it.");
     },
   });
   const handlePromptToggleB = bSwitch.request;

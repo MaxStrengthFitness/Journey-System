@@ -35,6 +35,7 @@ export type SettingKey =
   | "weeklyMaintenanceDay"
   | "inbodyEverySessions"
   | "newClientsStart"
+  | "plannedRoutineStarts"
   | "endingSessions"
   | "packageEndsDays"
   | "birthdayDays";
@@ -270,6 +271,24 @@ export const SETTINGS: readonly SettingDef[] = [
     ],
   },
   {
+    // The routine library round, Oct 23 2026 (docs/rounds/2026-10-20-routine-library.md
+    // §10.2). AJ: a whole B planned in advance; when the trainer chooses,
+    // they turn it on and phase it in, "not an instant switch, though the
+    // studio may allow that". 1 is phased in, Max Strength's default; 2
+    // lets a trainer also switch a planned routine on whole.
+    key: "plannedRoutineStarts",
+    group: "newClients",
+    label: "A planned routine starts",
+    kind: "choice",
+    choices: [
+      { value: 1, label: "Phased in", sub: "A trainer phases it in, a step at a time." },
+      { value: 2, label: "Phased in, or all at once", sub: "A trainer may also switch it on whole." },
+    ],
+    appDefault: 1,
+    help: "A routine planned in slot B while B is off starts when a trainer turns it on: phased in a step at a time, or, if the studio allows it, switched on whole.",
+    readers: ["features/routine-slots/usePlannedStarts.ts", "features/ab-builder/ui/RoutineBuilder.tsx", "components/ClientProfileView.tsx"],
+  },
+  {
     // The Hub's list view, Oct 21 2026. AJ: "who has sessions ending soon, or whose packages are ending soon, or who has a birthday coming up".
     key: "endingSessions",
     group: "hub",
@@ -310,6 +329,9 @@ export const SETTINGS: readonly SettingDef[] = [
 
 /** `newClientsStart`'s two choices by name, so a reader never writes the bare number. */
 export const NEW_CLIENTS_START = { aAlone: 1, aAndB: 2 } as const;
+
+/** `plannedRoutineStarts`' two choices (the routine library round, Oct 23 2026). */
+export const PLANNED_ROUTINE_STARTS = { phased: 1, either: 2 } as const;
 
 export const SETTING_BY_KEY: Record<SettingKey, SettingDef> = Object.fromEntries(
   SETTINGS.map((d) => [d.key, d]),

@@ -12,9 +12,11 @@
  *   here.
  * - Routine B is built whole: Save writes its machines and a plan with no
  *   swaps (`planFromRoutine`), so B is its own list from then on and nothing
- *   moves it but a person. A B saved with machines while B is off is turned
- *   on; a B saved empty while B is on is turned off (an empty B alternated
- *   into is a session of nothing, the critic's #22). The client's
+ *   moves it but a person. Since the routine library round (Oct 23 2026) a B
+ *   saved while B is off stays off: it is PLANNED, and a trainer starts it
+ *   by phasing it in (or, where the studio allows it, switching it on
+ *   whole). A B saved empty while B is on is turned off (an empty B
+ *   alternated into is a session of nothing, the critic's #22). The client's
  *   `isRoutineBActive` is its OWN write once the batch has landed, never in
  *   the batch (routine-plan/store.ts: the client's document is never in
  *   someone else's batch).
@@ -105,7 +107,8 @@ export function routineSaveOf(input: RoutineSaveInput): RoutineSave {
       machineIds,
       plan,
     });
-    const turnB = machineIds.length > 0 && !input.isBActive ? true : machineIds.length === 0 && input.isBActive ? false : null;
+    // Planned while off (§10.2): Save never turns B on; it turns an emptied B off.
+    const turnB = machineIds.length === 0 && input.isBActive ? false : null;
     return { routineId: saved?.id ?? null, fields, adjustment, changes: [], follow: null, turnB };
   }
 
@@ -274,6 +277,73 @@ export function phaseSaveOf(input: PhaseSaveInput): PhaseSave {
   // Only the save that starts the plan turns B on: a tick never switches back on a B someone turned off.
   const turnB = input.starting && now.length > 0 && !input.isBActive && !!input.phase ? true : null;
   return { routineId: saved?.id ?? null, fields, adjustment, turnB };
+}
+
+/* ── Phasing slot A in (the routine library round, Oct 23 2026) ──────── */
+
+export interface PhaseSaveAInput {
+  /** The routine in slot A, as saved, with machines. */
+  routine: Routine;
+  routines: readonly Routine[];
+  clientId: string;
+  studioId: string;
+  trainerId: string;
+  who: Who;
+  todayYmd: string;
+  /** The plan as it now stands, or null to stop phasing (A left as it stands). */
+  phase: PhasePlan | null;
+  /** What slot A holds after this save: as it is for a week, an owner, a start or Stop; one step made or undone for a tick. */
+  machineIds: readonly string[];
+  /** The adjustment's words. */
+  note: string;
+  isBActive: boolean;
+}
+
+/**
+ * A phase plan on slot A's routine made, changed, ticked or stopped (AJ: "after
+ * building either one, you can choose to phase any of it in"). A tick that
+ * moves A's machines is the builder's own save of A (`routineSaveOf`: the
+ * plan's road kept, B following where it follows), with `plan.phase` beside
+ * it; anything else writes `plan.phase` alone by its field path.
+ */
+export function phaseSaveOfA(input: PhaseSaveAInput): { routine: RoutineSave; phase?: undefined } | { phase: PhaseSave; routine?: undefined } {
+  const saved = input.routine;
+  const now = [...input.machineIds];
+  if (!sameList(saved.machineIds, now)) {
+    const s = routineSaveOf({
+      slot: "Routine A",
+      routine: saved,
+      routines: input.routines,
+      clientId: input.clientId,
+      studioId: input.studioId,
+      trainerId: input.trainerId,
+      who: input.who,
+      todayYmd: input.todayYmd,
+      machineIds: now,
+      purpose: saved.plan?.purpose ?? "",
+      why: input.note,
+      isBActive: input.isBActive,
+    });
+    const fields = { ...s.fields } as Record<string, unknown>;
+    if (fields.plan && typeof fields.plan === "object") {
+      const plan = { ...(fields.plan as RoutinePlan) };
+      if (input.phase) plan.phase = input.phase;
+      else delete plan.phase;
+      fields.plan = plan;
+    } else if (saved.plan) {
+      fields["plan.phase"] = input.phase ?? deleteField();
+    } else if (input.phase) {
+      fields.plan = { ...planFromRoutine(now, input.who, input.todayYmd), phase: input.phase };
+    }
+    return { routine: { ...s, fields } };
+  }
+  const fields: Record<string, unknown> = saved.plan
+    ? { "plan.phase": input.phase ?? deleteField() }
+    : input.phase
+      ? { plan: { ...planFromRoutine(now, input.who, input.todayYmd), phase: input.phase } }
+      : {};
+  // A's machines didn't move: no adjustment record (the Changes list would say "Changed the order").
+  return { phase: { routineId: saved.id ?? null, fields, adjustment: null, turnB: null } };
 }
 
 export function commitPhaseSave(db: Firestore, save: PhaseSave, clientId: string): { routineId: string; commit: Promise<void> } {

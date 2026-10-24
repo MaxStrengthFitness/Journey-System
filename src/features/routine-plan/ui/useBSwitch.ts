@@ -44,6 +44,15 @@ export interface BSwitchInput {
    * (`beforePlanB` is still called first). Absent: Plan B opens, as before.
    */
   onEmptyB?: () => void;
+  /**
+   * The studio starts a planned routine by phasing it in only (the routine
+   * library round, Oct 23 2026; `plannedRoutineStarts`): turning on a B that
+   * has machines while it is off takes the trainer to Programming → Routines,
+   * where Phase B in is, instead of switching it on whole.
+   */
+  phaseOnly?: boolean;
+  /** Where a phased-in-only studio's planned B is started (Programming → Routines). */
+  onPhaseB?: () => void;
 }
 
 export interface BSwitch {
@@ -81,6 +90,11 @@ export function useBSwitch(input: BSwitchInput): BSwitch {
           onCantTell(B_SWITCH_CANT_TELL);
           return;
         default:
+          if (on && ref.current.phaseOnly && ref.current.onPhaseB) {
+            ref.current.beforePlanB?.();
+            ref.current.onPhaseB();
+            return;
+          }
           onSwitch(on);
       }
     },

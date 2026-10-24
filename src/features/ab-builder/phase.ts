@@ -295,13 +295,18 @@ export function phaseLine(plan: Pick<PhasePlan, "steps">, todayYmd: string, name
  * step's week, and nothing once every step is done. It says; it never makes
  * the step.
  */
-export function phaseDueWords(plan: Pick<PhasePlan, "steps">, todayYmd: string, nameOf: (id: string) => string): string | null {
+export function phaseDueWords(
+  plan: Pick<PhasePlan, "steps">,
+  todayYmd: string,
+  nameOf: (id: string) => string,
+  routineName = "Routine B",
+): string | null {
   const st = phaseStatus(plan, todayYmd);
   if (!st.next || !st.due) return null;
   const what = stepWords(st.next, nameOf);
   return st.behind
-    ? `Routine B · ${what} was due the week of ${dayWords(st.next.week)} · ${ownerWords(st.next)} · behind`
-    : `Routine B · ${what} is due this week · ${ownerWords(st.next)}`;
+    ? `${routineName} · ${what} was due the week of ${dayWords(st.next.week)} · ${ownerWords(st.next)} · behind`
+    : `${routineName} · ${what} is due this week · ${ownerWords(st.next)}`;
 }
 
 /** A plan as it comes back from the database: a value that isn't usable is no plan, never a guess. */
