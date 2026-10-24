@@ -6,7 +6,7 @@ m-leg-curl,S,Back Pad
 m-leg-curl,Calf,Shin Pad
 m-chest-fly,Pad,Back Pad
 m-chest-press,Pad,Back Pad
-m-leg-press,S,Seat Distance
+m-leg-press,S,Seat
 m-dip,B,Back Pad Height
 m-simple-row,B,Chest Pad
 m-compound-row,S,Chest Pad
@@ -20,7 +20,7 @@ m-hip-abd,P,Thigh Pads
 m-compound-row,Pad,Chest Pad Height
 m-leg-press,SP,Shoulder Pads
 m-leg-press,SH,Shoulder Pads
-m-leg-press,Seat,Seat Distance
+m-leg-press,Seat,Seat
 m-chest-press,B,Back Pad
 m-chest-fly,B,Back Pad
 m-chest-fly,C,Back Pad

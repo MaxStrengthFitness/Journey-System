@@ -45,7 +45,8 @@ describe("the seed and the generated definitions", () => {
   });
 
   it("say what AJ said on Oct 23 2026", () => {
-    expect(dialsOf("m-leg-press")).toEqual(["Gap", "Back Pad", "Shoulder Pads", "Seat Distance"]);
+    expect(dialsOf("m-leg-press")).toEqual(["Gap", "Back Pad", "Shoulder Pads", "Seat"]);
+    expect(dialsOf("m-simple-row")).toEqual(["Gap", "Chest Pad", "Seat"]);
     expect(dialsOf("m-leg-curl")).toEqual(["Gap", "Back Pad", "Shin Pad"]);
     expect(dialsOf("m-lumbar")).toEqual(["Gap", "Seat", "Foot Plate"]);
     expect(dialsOf("m-pullover")).toEqual(["Gap", "Seat", "Elbow Pads", "Back Pad"]);
@@ -101,7 +102,7 @@ describe("the rename table", () => {
   it("adds a dial the seed has, and rewords a value on a dial the seed has", () => {
     for (const a of DIAL_ADDITIONS) expect(dialsOf(a.machineId), `${a.machineId}: ${a.dial}`).toContain(a.dial);
     for (const w of DIAL_VALUE_REWORDS) expect(dialsOf(w.machineId), `${w.machineId}: ${w.dial}`).toContain(w.dial);
-    expect(touchedMachineIds()).toEqual(["m-leg-press", "m-leg-curl", "m-pullover", "m-lumbar", "m-dip"]);
+    expect(touchedMachineIds()).toEqual(["m-leg-press", "m-simple-row", "m-leg-curl", "m-pullover", "m-lumbar", "m-dip", "m-compound-row"]);
   });
 });
 
@@ -110,14 +111,14 @@ describe("moving a set-up's keys", () => {
 
   it("moves each old key to its new one, in place, and leaves the rest", () => {
     const r = moveKeys({ Gap: "9", "Seat Angle": "2", "Shoulder Pads": "3", "Seat Distance": "7", "Seat belt": "On" }, legPress);
-    expect(r.next).toEqual({ Gap: "9", "Back Pad": "2", "Shoulder Pads": "3", "Seat Distance": "7", "Seat belt": "On" });
-    expect(Object.keys(r.next!)).toEqual(["Gap", "Back Pad", "Shoulder Pads", "Seat Distance", "Seat belt"]);
-    expect(r.moved).toEqual(["Seat Angle"]);
+    expect(r.next).toEqual({ Gap: "9", "Back Pad": "2", "Shoulder Pads": "3", Seat: "7", "Seat belt": "On" });
+    expect(Object.keys(r.next!)).toEqual(["Gap", "Back Pad", "Shoulder Pads", "Seat", "Seat belt"]);
+    expect(r.moved).toEqual(["Seat Angle", "Seat Distance"]);
     expect(r.kept).toEqual([]);
   });
 
   it("does nothing to a set-up with nothing under an old name", () => {
-    expect(moveKeys({ Gap: "9", "Seat Distance": "7" }, legPress)).toEqual({ next: null, moved: [], kept: [] });
+    expect(moveKeys({ Gap: "9", Seat: "7" }, legPress)).toEqual({ next: null, moved: [], kept: [] });
     expect(moveKeys(null, legPress).next).toBeNull();
     expect(moveKeys({}, legPress).next).toBeNull();
   });
@@ -158,6 +159,15 @@ describe("rewording a value", () => {
     expect(rewordValue("narrow", words)).toBe("In");
   });
 
+  it("the Compound Row's handles: Neutral and Middle are one position, Middle (AJ: D8 yes)", () => {
+    const words = rewordsFor("m-compound-row").get("Handles")!;
+    expect(rewordValue("Neutral", words)).toBe("Middle");
+    expect(rewordValue("N", words)).toBe("Middle");
+    expect(rewordValue("Mid", words)).toBe("Middle");
+    expect(rewordValue("Middle", words)).toBeNull();
+    expect(rewordValue("Wide", words)).toBeNull();
+  });
+
   it("the Leg Press's back pad is P1 to P4", () => {
     const words = rewordsFor("m-leg-press").get("Back Pad")!;
     expect(rewordValue("2", words)).toBe("P2");
@@ -167,8 +177,8 @@ describe("rewording a value", () => {
   });
 
   it("rewords a settings map and says what changed", () => {
-    const r = rewordValues({ Gap: "9", "Back Pad": "2", "Seat Distance": "7" }, rewordsFor("m-leg-press"));
-    expect(r.next).toEqual({ Gap: "9", "Back Pad": "P2", "Seat Distance": "7" });
+    const r = rewordValues({ Gap: "9", "Back Pad": "2", Seat: "7" }, rewordsFor("m-leg-press"));
+    expect(r.next).toEqual({ Gap: "9", "Back Pad": "P2", Seat: "7" });
     expect(r.changed).toEqual(['Back Pad: "2" → P2']);
     expect(rewordValues({ Gap: "9", "Back Pad": "P2" }, rewordsFor("m-leg-press")).next).toBeNull();
     expect(rewordValues(null, rewordsFor("m-leg-press")).next).toBeNull();
@@ -184,7 +194,7 @@ describe("rewording a history row", () => {
     expect(rewordHistoryText("Seat Angle: —", legPress, legPressWords)).toBe("Back Pad: —");
     expect(rewordHistoryText("Seat Angle: 3", legPress)).toBe("Back Pad: 3");
     expect(rewordHistoryText("Gap: Seat Angle: 6", legPress)).toBeNull();
-    expect(rewordHistoryText("Gap: 6, Seat Distance: 4", legPress, legPressWords)).toBeNull();
+    expect(rewordHistoryText("Gap: 6, Seat: 4", legPress, legPressWords)).toBeNull();
     expect(rewordHistoryText("", legPress)).toBeNull();
     expect(rewordHistoryText(undefined, legPress)).toBeNull();
   });
@@ -199,12 +209,12 @@ describe("a catalog machine's dials after the renames and the additions", () => 
 
   it("takes the seed's order when the dials are the seed's", () => {
     const r = renamedOptions(["Gap", "Seat Angle", "Shoulder Pads", "Seat Distance"], legPress, dialsOf("m-leg-press"));
-    expect(r).toEqual({ next: ["Gap", "Back Pad", "Shoulder Pads", "Seat Distance"], changed: true, conflict: null });
+    expect(r).toEqual({ next: ["Gap", "Back Pad", "Shoulder Pads", "Seat"], changed: true, conflict: null });
   });
 
   it("keeps the catalog's own order when it has a dial the seed lacks", () => {
     const r = renamedOptions(["Gap", "Seat Angle", "Foot Plate", "Seat Distance"], legPress, dialsOf("m-leg-press"));
-    expect(r).toEqual({ next: ["Gap", "Back Pad", "Foot Plate", "Seat Distance"], changed: true, conflict: null });
+    expect(r).toEqual({ next: ["Gap", "Back Pad", "Foot Plate", "Seat"], changed: true, conflict: null });
   });
 
   it("appends an added dial, in the seed's place when the dials are then the seed's", () => {
@@ -215,7 +225,7 @@ describe("a catalog machine's dials after the renames and the additions", () => 
   });
 
   it("is unchanged once renamed, and refuses a machine that has both names", () => {
-    expect(renamedOptions(["Gap", "Back Pad", "Shoulder Pads", "Seat Distance"], legPress, dialsOf("m-leg-press")).changed).toBe(false);
+    expect(renamedOptions(["Gap", "Back Pad", "Shoulder Pads", "Seat"], legPress, dialsOf("m-leg-press")).changed).toBe(false);
     expect(renamedOptions(["Gap", "Seat Angle", "Back Pad"], legPress, null).conflict).toContain("both");
   });
 });

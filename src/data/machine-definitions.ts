@@ -397,8 +397,8 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
         "type": "text"
       },
       {
-        "key": "seat-distance",
-        "label": "Seat Distance",
+        "key": "seat",
+        "label": "Seat",
         "type": "text"
       }
     ],
@@ -1470,8 +1470,8 @@ export const MACHINE_DEFINITIONS: Record<string, MachineCatalogEntry> = {
         "type": "text"
       },
       {
-        "key": "seat-pad",
-        "label": "Seat Pad",
+        "key": "seat",
+        "label": "Seat",
         "type": "text"
       }
     ],

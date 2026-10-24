@@ -100,7 +100,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Posterior Deltoids, Rhomboids",
     kinematicClassification: "Simple Pull",
     order: 7,
-    settingOptions: ["Gap", "Chest Pad", "Seat Pad"],
+    settingOptions: ["Gap", "Chest Pad", "Seat"],
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
     sequencingContraindications: [
       "Avoid back-to-back pulling exercises to prevent localized forearm/biceps fatigue limiting torso stimulation.",
@@ -243,7 +243,7 @@ export const DEFAULT_MACHINES: Machine[] = [
     targetMuscles: "Quadriceps, Gluteus Maximus, Hamstrings",
     kinematicClassification: "Compound Push",
     order: 18,
-    settingOptions: ["Gap", "Back Pad", "Shoulder Pads", "Seat Distance"],
+    settingOptions: ["Gap", "Back Pad", "Shoulder Pads", "Seat"],
     executionPosture: "Chest Up / Anterior Pelvic Tilt",
     primaryMuscles: ["Quadriceps", "Gluteus Maximus"],
     biomechanicalNotes:

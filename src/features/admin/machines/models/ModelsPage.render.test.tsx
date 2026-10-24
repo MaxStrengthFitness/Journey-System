@@ -132,7 +132,7 @@ describe("the models page", () => {
     expect(w.options).toBeUndefined();
     expect(Object.keys(w.data).sort()).toEqual(["brand", "dials", "model", "movementId", "updatedAt", "updatedBy"]);
     expect(w.data.updatedBy).toBe("admin-galadriel");
-    expect((w.data.dials as { key: string }[]).map((d) => d.key)).toEqual(["gap", "back-pad", "shoulder-pads", "seat-distance"]);
+    expect((w.data.dials as { key: string }[]).map((d) => d.key)).toEqual(["gap", "back-pad", "shoulder-pads", "seat"]);
     expect(toasts[0]).toContain("Hoist ROC-IT Leg Press recorded");
   });
 

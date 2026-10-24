@@ -24,10 +24,13 @@ export interface DialRename {
  * The renames, AJ's answers of Oct 23 2026 (§7 of the round document): "2. seat
  * angles are P1 P2 P3 P4 and is the back pad to leg press"; "3. Shin Pad"; "Pull
  * over has elbow pads and a back pad". Hip Adduction, Hip Abduction, Leg Curl and
- * Leg Extension keep Back Pad ("1. back pad").
+ * Leg Extension keep Back Pad ("1. back pad"). Then "D2b Yes / D7 Yes": the Leg
+ * Press's Seat Distance and the Simple Row's Seat Pad are each just Seat.
  */
 export const DIAL_RENAMES: readonly DialRename[] = [
   { machineId: "m-leg-press", from: "Seat Angle", to: "Back Pad" },
+  { machineId: "m-leg-press", from: "Seat Distance", to: "Seat" },
+  { machineId: "m-simple-row", from: "Seat Pad", to: "Seat" },
   { machineId: "m-leg-curl", from: "Ankle Pad", to: "Shin Pad" },
   { machineId: "m-pullover", from: "Handles", to: "Elbow Pads" },
 ];
@@ -57,6 +60,7 @@ export interface DialValueReword {
  * N / Neutral / Inside are In, W / Out are Wide. The Pullover's elbow pads
  * "can [be] out/wide, neutral/middle or in/narrow": N is Middle THERE (not In as
  * on the dip). The Leg Press's back pad is P1–P4, so a bare number becomes its P.
+ * The Compound Row's handles: "D8 Yes", Neutral and Middle are one position, Middle.
  */
 export const DIAL_VALUE_REWORDS: readonly DialValueReword[] = [
   {
@@ -72,6 +76,11 @@ export const DIAL_VALUE_REWORDS: readonly DialValueReword[] = [
       M: "Middle", MID: "Middle", MIDDLE: "Middle", N: "Middle", NEUTRAL: "Middle",
       IN: "In", NARROW: "In", INSIDE: "In",
     },
+  },
+  {
+    machineId: "m-compound-row",
+    dial: "Handles",
+    words: { N: "Middle", NEUTRAL: "Middle", M: "Middle", MID: "Middle", MIDDLE: "Middle" },
   },
   {
     machineId: "m-leg-press",

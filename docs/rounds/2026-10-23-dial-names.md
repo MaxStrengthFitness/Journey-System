@@ -1,6 +1,6 @@
 # One word per dial (the dial-names round, Oct 23 2026)
 
-**Status: AJ has answered (§7, Oct 23 2026); built to his answers, waiting on his go.** Nothing is written to production. The script, the seed change and the test are on `claude/compassionate-diffie-d2420a`, tuned to his answers, so the dry-run numbers in §5 are the real ones. Three questions are still open (§4, marked), each with nothing to migrate until he answers. Front end and one data script: no Firestore rule, index, structure, Cloud Function, cron or Mindbody change.
+**Status: AJ has answered (§7, Oct 23 2026); built to his answers, waiting on his go.** Nothing is written to production. The script, the seed change and the test are on `claude/compassionate-diffie-d2420a`, tuned to his answers, so the dry-run numbers in §5 are the real ones. All of §4 is answered (the last three on Oct 23 evening). Front end and one data script: no Firestore rule, index, structure, Cloud Function, cron or Mindbody change.
 
 ## 1. What AJ asked
 
@@ -46,17 +46,17 @@ Values seen = the Strongsville export's first-visit values (count ×). iPad = sp
 ## 4. The questions for AJ, with a recommendation each
 
 1. **Hip Adduction, Hip Abduction, Leg Extension, Leg Curl: "Back Pad" or "Seat"?** The chart says S on all four and the four have no other seat; the recommendation was Seat. **AJ: "back pad".** They keep Back Pad; the chart's S stays mapped to it in the letters table. Nothing moves.
-2. **Leg Press "Seat Angle" is the back pad (P1–P4; FileMaker "Pad" 2 or 3).** **AJ: "seat angles are P1 P2 P3 P4 and is the back pad to leg press".** The dial is **Back Pad**, stored as **P1–P4** (the recommendation was the bare number; AJ's word wins): the 20 values on file (2, 4, 1, 3) become P2, P4, P1, P3, and the card's number pad takes a P on this dial from now on. **2b, "Seat Distance" → "Seat": OPEN**, not answered; the dial stays Seat Distance until he says.
+2. **Leg Press "Seat Angle" is the back pad (P1–P4; FileMaker "Pad" 2 or 3).** **AJ: "seat angles are P1 P2 P3 P4 and is the back pad to leg press".** The dial is **Back Pad**, stored as **P1–P4** (the recommendation was the bare number; AJ's word wins): the 20 values on file (2, 4, 1, 3) become P2, P4, P1, P3, and the card's number pad takes a P on this dial from now on. **2b, "Seat Distance" → "Seat": AJ, Oct 23: "D2b Yes".** The Leg Press is Gap · Back Pad · Shoulder Pads · Seat.
 3. **Leg Curl: "Ankle Pad" or "Shin Pad"?** The recommendation was Ankle Pad (the Academy's word). **AJ: "Shin Pad".** Ankle Pad → **Shin Pad** (26 records move; Calf and Sh on the charts both read as it).
 4. **Seated Dip handles.** The import wrote FileMaker's N as "Neutral"; AJ: the dip's handles are In or Out/Wide. **AJ: "Neutral is in".** **In · Wide**: Neutral / Inside → In (5 records), W → Wide (3); the 13 "Wide" stay; the six numbers a trainer typed stay as typed.
 5. **Lumbar "Ft", Pullover "Pad", Leg Curl "Pads", Simple Row "Block": dials or not?** The export never carries a value for any of them (Ft on 8,433 Lumbar lines, Pullover Pad on 2,736, Leg Curl Pads on 16; "Block" is one client's value under the Simple Row's Pad), so the recommendation was no new dial. **AJ: "Lumbar - lumbar has a seat height a gap and a foot plate. FT is Foot Plate. Pull over has elbow pads and a back pad, back pad can be up or down".** So the Lumbar gains **Foot Plate** and the Pullover gains **Back Pad** (Up / Down); both are appended to the catalog with nothing to migrate, and the letters table reads Ft and the Pullover's Pad into them. **Leg Curl "Pads" and Simple Row "Block": not dials** (AJ: "there is an ankle pad but then also some clients use extra padding on the pillow pad"; "clients also on some machines will use a yoga block or a stool in order for their feet to reach the pad or the floor"). Extra padding, a block or a stool is the client's note on that machine (Profile only, as the import keeps a leftover), on any machine.
 6. **Pullover "Handles" → "Elbow Pads"?** **AJ: the Pullover "has elbow pads", which "can [be] out/wide, neutral/middle or in/narrow".** Handles → **Elbow Pads** (18 records move), and the words on it are **Wide · Middle · In**: Neutral → Middle (3), M → Middle (2). N on the Pullover is Middle; on the Dip it is In (his answer 4).
-7. **Simple Row "Seat Pad" → "Seat"?** S on the chart, like every seat. Recommend yes (20 records). **OPEN**, not answered.
-8. **Compound Row: are Middle and Neutral one position or two?** 106 records say Middle and 23 say Neutral. His Pullover answer calls "neutral/middle" one position there; the Compound Row was not answered. **OPEN**; recommend the same word there (Neutral → Middle, 23 records) if he says so. Nothing merged on a guess.
+7. **Simple Row "Seat Pad" → "Seat"?** S on the chart, like every seat. Recommend yes (20 records). **AJ, Oct 23: "D7 Yes".** The Simple Row is Gap · Chest Pad · Seat.
+8. **Compound Row: are Middle and Neutral one position or two?** 106 records say Middle and 23 say Neutral. His Pullover answer calls "neutral/middle" one position there; the Compound Row was not answered. **AJ, Oct 23: "D8 Yes"**: one position, Middle (N / Neutral → Middle).
 
 Not asked, not changed: the Dip's Back Pad Angle stays (rare, never alone); the Compound Row's four dials and their order.
 
-**Still open, for AJ's next answer:** 2b (Leg Press "Seat Distance" → "Seat"?), 7 (Simple Row "Seat Pad" → "Seat"?), 8 (Compound Row Neutral → Middle?). None blocks the go: each is one more line in the table later.
+**All answered** (AJ, Oct 23 evening: "D2b Yes, D7 Yes, D8 Yes"). The table, the seed, the generated definitions and the letters table say so; the dry run's count changes with them, so run it again before `--commit`.
 
 ## 5. What changes, and where
 
