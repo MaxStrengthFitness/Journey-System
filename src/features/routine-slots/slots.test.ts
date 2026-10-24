@@ -15,6 +15,8 @@ import {
   stashOf,
   stashedName,
   withSlots,
+  slotMove,
+  pinPatch,
 } from "./slots";
 
 const r = (id: string, name: string, extra: Partial<Routine> = {}): Routine => ({ id, name, clientId: "c1", machineIds: [], ...extra });
@@ -105,9 +107,9 @@ describe("slotsPatch", () => {
   it("the first save pins both slots, by field path", () => {
     expect(slotsPatch(undefined, routines, { a: "3", b: "2" }, true)).toEqual({ "routineSlots.a": "3", "routineSlots.b": "2" });
   });
-  it("afterwards only what differs, with the B switch mirrored", () => {
+  it("afterwards only what differs; emptying B turns B off, filling it never turns B on", () => {
     expect(slotsPatch({ a: "1", b: "2" }, routines, { a: "1", b: null }, true)).toEqual({ "routineSlots.b": null, isRoutineBActive: false });
-    expect(slotsPatch({ a: "1", b: null }, routines, { a: "1", b: "3" }, false)).toEqual({ "routineSlots.b": "3", isRoutineBActive: true });
+    expect(slotsPatch({ a: "1", b: null }, routines, { a: "1", b: "3" }, false)).toEqual({ "routineSlots.b": "3" });
     expect(slotsPatch({ a: "1", b: "2" }, routines, { a: "1", b: "2" }, true)).toEqual({});
   });
 });
@@ -131,5 +133,47 @@ describe("names", () => {
 describe("distinctMachines", () => {
   it("counts a machine in A and B once (13 vs 11)", () => {
     expect(distinctMachines(["m1", "m2", "m3"], ["m2", "m4"])).toEqual(["m1", "m2", "m3", "m4"]);
+  });
+});
+
+describe("slotMove", () => {
+  const T = "2026-10-23";
+  it("a letter-named routine leaving for the stash takes its dated name, and both slots are pinned", () => {
+    const routines = [r("1", "Routine A"), r("2", "Routine B"), r("3", "Post-surgery")];
+    const m = slotMove(routines, undefined, "a", "3", true, T);
+    expect(m.after).toEqual({ a: "3", b: "2" });
+    expect(m.patch).toEqual({ "routineSlots.a": "3", "routineSlots.b": "2" });
+    expect(m.renames).toEqual([{ id: "1", name: "Routine A · until Oct 23 2026" }]);
+  });
+
+  it("swapping A and B swaps the letter names", () => {
+    const routines = [r("1", "Routine A"), r("2", "Routine B")];
+    const m = slotMove(routines, { a: "1", b: "2" }, "a", "2", true, T);
+    expect(m.after).toEqual({ a: "2", b: "1" });
+    expect(m.renames).toEqual([
+      { id: "1", name: "Routine B" },
+      { id: "2", name: "Routine A" },
+    ]);
+  });
+
+  it("a named routine keeps its name, and emptying B turns B off", () => {
+    const routines = [r("1", "Strength"), r("2", "Upper")];
+    const m = slotMove(routines, { a: "1", b: "2" }, "b", null, true, T);
+    expect(m.after).toEqual({ a: "1", b: null });
+    expect(m.renames).toEqual([]);
+    expect(m.patch).toEqual({ "routineSlots.b": null, isRoutineBActive: false });
+  });
+
+  it("a dated name already taken gets a number", () => {
+    const routines = [r("1", "Routine A"), r("3", "Post-surgery"), r("4", "Routine A · until Oct 23 2026")];
+    expect(slotMove(routines, { a: "1" }, "a", "3", false, T).renames).toEqual([{ id: "1", name: "Routine A · until Oct 23 2026 (2)" }]);
+  });
+});
+
+describe("pinPatch", () => {
+  it("writes the slots as they read now, once", () => {
+    const routines = [r("1", "Routine A"), r("2", "Routine B")];
+    expect(pinPatch(routines, undefined)).toEqual({ "routineSlots.a": "1", "routineSlots.b": "2" });
+    expect(pinPatch(routines, { a: "1", b: "2" })).toEqual({});
   });
 });

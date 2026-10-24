@@ -10969,3 +10969,96 @@ describe("the trainer lock", () => {
     await assertFails(getDocs(query(collection(testEnv.unauthenticatedContext().firestore(), "trainers"), where("primaryHomeStudioId", "in", ["studioA"]))));
   });
 });
+
+// THE ROUTINE LIBRARY (Oct 23 2026; AJ's OK on the Firestore change,
+// docs/rounds/2026-10-20-routine-library.md section 10.7). The client's two
+// equipped routines, a routine retired and never carrying its slot, what the
+// client can't do and their weak area in their own document, and a trainer's
+// own routines.
+describe("the routine library", () => {
+  const as = (uid: string) => testEnv.authenticatedContext(uid, { email: `${uid.toLowerCase()}@test.com` }).firestore();
+  const CLIENT = "libraryClient";
+  const VISITING = "libraryVisitingClient";
+  const prog = (db: any, clientId: string, id = "current") => doc(db, "clients", clientId, "programming", id);
+  const mark = { machineId: "m-leg-press", reason: "Surgery", until: "2026-03-01", byUid: "trainerA", at: "2026-10-23" };
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "clients", CLIENT), {
+        firstName: "Mary", lastName: "Library", isActive: true, remainingSessions: 10, homeStudioId: "studioA",
+      });
+      await setDoc(doc(db, "clients", VISITING), {
+        firstName: "Vic", lastName: "Visitor", isActive: true, remainingSessions: 10,
+        homeStudioId: "studioB", approvedCrossTrainStudioIds: ["studioA"],
+      });
+      await setDoc(doc(db, "routines", "libA"), { clientId: CLIENT, name: "Routine A", machineIds: ["m-leg-press"], studioId: "studioA" });
+      await setDoc(doc(db, "routinePresets", "oldTrainerPreset"), {
+        name: "Old favourite", machineIds: ["m-leg-press"], scope: "studioA", tier: "trainer", studioId: "studioA",
+      });
+      await setDoc(doc(db, "routinePresets", "trainerBPreset"), {
+        name: "B's own", machineIds: ["m-leg-press"], scope: "studioB", tier: "trainer", studioId: "studioB", ownerUid: "trainerB",
+      });
+      await setDoc(doc(db, "trainers", "adminLibrary"), { fullName: "Admin", initials: "AD", role: "Admin" });
+    });
+  });
+
+  it("lets the client's studio write the slots by field path, and checks their shape", async () => {
+    const db = as("trainerA");
+    await assertSucceeds(updateDoc(doc(db, "clients", CLIENT), { "routineSlots.a": "libA", "routineSlots.b": null, isRoutineBActive: false }));
+    await assertSucceeds(updateDoc(doc(db, "clients", CLIENT), { "routineSlots.b": "libB" }));
+    await assertFails(updateDoc(doc(db, "clients", CLIENT), { "routineSlots.c": "x" }));
+    await assertFails(updateDoc(doc(db, "clients", CLIENT), { "routineSlots.a": 7 }));
+    await assertFails(updateDoc(doc(db, "clients", CLIENT), { "routineSlots.a": "" }));
+    await assertFails(updateDoc(doc(db, "clients", CLIENT), { routineSlots: "libA" }));
+    // Another studio's trainer can't write the client at all, slots included.
+    await assertFails(updateDoc(doc(as("trainerB"), "clients", CLIENT), { "routineSlots.a": "libA" }));
+  });
+
+  it("retires a routine, never stores its slot, and still refuses a delete", async () => {
+    const db = as("trainerA");
+    await assertSucceeds(updateDoc(doc(db, "routines", "libA"), { archived: true, archivedAt: serverTimestamp(), name: "Routine A · until Oct 23 2026" }));
+    await assertSucceeds(updateDoc(doc(db, "routines", "libA"), { archived: false, archivedAt: null }));
+    await assertFails(updateDoc(doc(db, "routines", "libA"), { archived: "yes" }));
+    await assertFails(updateDoc(doc(db, "routines", "libA"), { inSlot: "A" }));
+    await assertFails(setDoc(doc(db, "routines", "libNew"), { clientId: CLIENT, name: "Upper", machineIds: [], studioId: "studioA", inSlot: null }));
+    await assertSucceeds(setDoc(doc(db, "routines", "libNew2"), { clientId: CLIENT, name: "Upper", machineIds: [], studioId: "studioA" }));
+    await assertFails(deleteDoc(doc(db, "routines", "libA")));
+  });
+
+  it("keeps what the client can't do and their weak area in one signed document", async () => {
+    const db = as("trainerA");
+    const write = { cantDo: [mark], focus: ["delts"], updatedAt: serverTimestamp(), updatedByUid: "trainerA" };
+    await assertSucceeds(setDoc(prog(db, CLIENT), write));
+    await assertSucceeds(getDoc(prog(db, CLIENT)));
+    await assertSucceeds(updateDoc(prog(db, CLIENT), { cantDo: [], updatedAt: serverTimestamp(), updatedByUid: "trainerA" }));
+    // Signed by someone else, unsigned, another field, another id, too many: no.
+    await assertFails(setDoc(prog(db, CLIENT), { ...write, updatedByUid: "trainerB" }));
+    await assertFails(setDoc(prog(db, CLIENT), { cantDo: [mark], focus: [] }));
+    await assertFails(setDoc(prog(db, CLIENT), { ...write, isRoutineBActive: true }));
+    await assertFails(setDoc(prog(db, CLIENT, "other"), write));
+    await assertFails(setDoc(prog(db, CLIENT), { ...write, cantDo: Array.from({ length: 61 }, () => mark) }));
+    // Another studio's trainer neither reads nor writes it; a cross-train visitor writes a mark made in their session.
+    await assertFails(getDoc(prog(as("trainerB"), CLIENT)));
+    await assertFails(setDoc(prog(as("trainerB"), CLIENT), { ...write, updatedByUid: "trainerB" }));
+    await assertSucceeds(setDoc(prog(db, VISITING), write));
+    await assertSucceeds(getDoc(prog(as("adminLibrary"), CLIENT)));
+    await assertFails(setDoc(prog(db, "noSuchClient"), write));
+    await assertFails(deleteDoc(prog(db, CLIENT)));
+  });
+
+  it("makes a trainer's own routine theirs: made with their uid, changed only by them or an administrator", async () => {
+    const db = as("trainerA");
+    const own = { name: "My start", machineIds: ["m-leg-press"], scope: "studioA", tier: "trainer", studioId: "studioA", ownerUid: "trainerA" };
+    await assertSucceeds(setDoc(doc(db, "routinePresets", "aOwn"), own));
+    await assertSucceeds(updateDoc(doc(db, "routinePresets", "aOwn"), { name: "My start, renamed" }));
+    await assertFails(setDoc(doc(db, "routinePresets", "aPosing"), { ...own, ownerUid: "trainerB" }));
+    await assertFails(updateDoc(doc(db, "routinePresets", "trainerBPreset"), { name: "Taken over" }));
+    await assertFails(deleteDoc(doc(db, "routinePresets", "trainerBPreset")));
+    await assertSucceeds(updateDoc(doc(as("adminLibrary"), "routinePresets", "trainerBPreset"), { name: "Tidied" }));
+    // A trainer preset saved before this round (no ownerUid) keeps today's rule.
+    await assertSucceeds(updateDoc(doc(db, "routinePresets", "oldTrainerPreset"), { name: "Old favourite, renamed" }));
+    // Their own list is one query on (tier, ownerUid).
+    await assertSucceeds(getDocs(query(collection(db, "routinePresets"), where("tier", "==", "trainer"), where("ownerUid", "==", "trainerA"))));
+  });
+});

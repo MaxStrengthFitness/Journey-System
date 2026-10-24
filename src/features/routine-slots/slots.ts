@@ -159,8 +159,10 @@ export function equipped(
 /**
  * What a slot change writes on the client: each slot by its own field path,
  * only those that differ from what is stored (or that were never written, so
- * the first save pins both), never the whole map, plus `isRoutineBActive`
- * mirrored from "slot B holds a routine" when that changes.
+ * the first save pins both), never the whole map. Emptying slot B turns B off
+ * (`isRoutineBActive`: an empty B alternated into is a session of nothing);
+ * filling it never turns B on. A whole B is planned ahead while off (AJ, Oct
+ * 23 2026), and a trainer turns it on.
  */
 export function slotsPatch(
   raw: unknown,
@@ -176,8 +178,7 @@ export function slotsPatch(
   }
   const resolved = resolvedSlots(routines, raw);
   if (Object.keys(patch).length === 0 && resolved.a === next.a && resolved.b === next.b) return {};
-  const bOn = !!next.b;
-  if (bOn !== isBActive) patch.isRoutineBActive = bOn;
+  if (!next.b && isBActive) patch.isRoutineBActive = false;
   return patch;
 }
 
@@ -216,4 +217,87 @@ export function distinctMachines(...lists: readonly (readonly string[])[]): stri
   const out: string[] = [];
   for (const list of lists) for (const id of list) if (!out.includes(id)) out.push(id);
   return out;
+}
+
+export interface SlotMove {
+  /** The client's fields: each slot by its field path (and B off when B is emptied). */
+  patch: Record<string, string | boolean | null>;
+  /** Routines renamed by the move, so no letter name sits where its letter doesn't. */
+  renames: { id: string; name: string }[];
+  /** The slots after the move. */
+  after: { a: string | null; b: string | null };
+}
+
+/**
+ * Equipping a routine in a slot (or emptying slot B), worked out: the slots
+ * after it, what the client writes, and the renames that keep a letter name
+ * honest. A letter-named routine leaving for the stash takes its dated name
+ * (`stashedName`); one swapped into the other slot takes that slot's letter
+ * name when no other routine has it. The first move on a client pins both
+ * slots, so a later rename never loses one.
+ */
+export function slotMove(
+  routines: readonly Routine[],
+  raw: unknown,
+  key: SlotKey,
+  routineId: string | null,
+  isBActive: boolean,
+  todayYmd: string,
+): SlotMove {
+  const before = resolvedSlots(routines, raw);
+  const after = equipped(before, key, routineId);
+  const patch = slotsPatch(raw, routines, after, isBActive);
+  const renames: { id: string; name: string }[] = [];
+  const named = (id: string) => routines.find((r) => r.id === id);
+  for (const id of [before.a, before.b]) {
+    if (!id) continue;
+    const r = named(id);
+    if (!r) continue;
+    const letter = letterByName(r);
+    if (!letter) continue;
+    const now: RoutineLetter | null = after.a === id ? "A" : after.b === id ? "B" : null;
+    if (now === letter) continue;
+    if (now === null) {
+      const name = stashedName(r, todayYmd);
+      if (name) renames.push({ id, name: uniqueName(name, routines, id) });
+    } else {
+      const want = `Routine ${now}`;
+      const taken = routines.some((x) => x.id !== id && (x.name || "").trim().toLowerCase() === want.toLowerCase() && !renamedAway(x.id, renames));
+      const otherLetterNamed = routines.find((x) => x.id !== id && letterByName(x) === now);
+      // The routine that held that letter is renamed too (it moved or left), so the name is free once it does.
+      if (!taken || (otherLetterNamed && (after.a === otherLetterNamed.id || after.b === otherLetterNamed.id || renamedAway(otherLetterNamed.id, renames)))) {
+        renames.push({ id, name: want });
+      }
+    }
+  }
+  return { patch, renames, after };
+}
+
+function renamedAway(id: string | undefined, renames: { id: string }[]): boolean {
+  return !!id && renames.some((r) => r.id === id);
+}
+
+/** A name made unique among the client's routines: "Name", else "Name (2)", "Name (3)" … */
+export function uniqueName(name: string, routines: readonly Pick<Routine, "id" | "name">[], selfId?: string | null): string {
+  const taken = new Set(routines.filter((r) => r.id !== selfId).map((r) => (r.name || "").trim().toLowerCase()));
+  if (!taken.has(name.trim().toLowerCase())) return name.trim();
+  for (let n = 2; ; n++) {
+    const next = `${name.trim()} (${n})`;
+    if (!taken.has(next.toLowerCase())) return next;
+  }
+}
+
+/**
+ * Pinning the slots as they read now, before a change that would otherwise
+ * move one (a letter-named routine renamed in its slot): the client's fields,
+ * or nothing when both are written already.
+ */
+export function pinPatch(routines: readonly Routine[], raw: unknown): Record<string, string | null> {
+  const stored = slotsOf(raw);
+  const now = resolvedSlots(routines, raw);
+  const patch: Record<string, string | null> = {};
+  for (const k of ["a", "b"] as const) {
+    if (!stored || !(k in stored) || (stored[k] ?? null) !== now[k]) patch[`routineSlots.${k}`] = now[k];
+  }
+  return patch;
 }
