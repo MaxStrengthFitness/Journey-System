@@ -82,7 +82,7 @@ export interface PhoneSessionStageProps {
    * round, Oct 8 2026, §4.6), offered on the last card's Next ("Next in the
    * plan: Hip Abduction · Add") and under an empty list; null without one.
    */
-  planNext?: { id: string; name: string } | null;
+  planNext?: { id: string; name: string; forGood?: boolean } | null;
   /** Adds the plan's next machine to today's order (today only) and makes it the card in hand. */
   onAddPlanned?: (machineId: string) => void;
   /**
@@ -193,7 +193,7 @@ export function PhoneSessionStage({
           </p>
           {planNext && onAddPlanned && (
             <button type="button" className="ph-card__next ph-card__next--plan ph-stage__plan" onClick={() => onAddPlanned(planNext.id)}>
-              Next in the plan: <span>{planNext.name}</span> · Add
+              {planNext.forGood ? "Planned for the routine" : "Next in the plan"}: <span>{planNext.name}</span> · Add
             </button>
           )}
         </>
@@ -502,7 +502,7 @@ function MachineCard({
              2026). */
           <>
             <button type="button" className="ph-card__next ph-card__next--plan" onClick={() => onAddPlanned(nextIs.id)}>
-              Next in the plan: <span>{nextIs.name}</span> · Add
+              {nextIs.forGood ? "Planned for the routine" : "Next in the plan"}: <span>{nextIs.name}</span> · Add
             </button>
             <p className="ph-card__last">Last machine · Finish is at the top</p>
           </>

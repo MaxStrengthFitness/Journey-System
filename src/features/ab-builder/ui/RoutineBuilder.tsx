@@ -33,7 +33,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useUnsavedChanges } from "../../unsaved-changes";
 import { cantDoActive } from "../../routine-plan/cant-do";
-import { effectsAbove, floorByFamily } from "../../routine-plan/lineup";
+import { effectsAbove, floorByFamily, planFromRoutine, signedChange, takenOut as takenOutOfPlan, writeOf } from "../../routine-plan/lineup";
+import { applyPlanChange } from "../../routine-plan/plan";
 import { floorMachinesOf, machineNamer, savedRoutineA, savedRoutineB, type PlanHost } from "../../routine-plan/ui/host";
 import { Chip, LineupRow, OrderNote, PlanSheet } from "../../routine-plan/ui/parts";
 import { PlanChangesList } from "../../routine-plan/ui/PlanChangesList";
@@ -49,6 +50,7 @@ import {
   type SlotKey,
 } from "../../routine-slots/slots";
 import { commitNewRoutine, commitRename, commitRetire, commitSlotMove, copyOf } from "../../routine-slots/store";
+import { addedForGood, plannedOf } from "../../routine-slots/planned";
 import { useMyRoutines } from "../../routine-slots/useMyRoutines";
 import { ChangeSlotSheet, RenameSheet, StashSheet } from "../../routine-slots/ui/SlotSheets";
 import {
@@ -135,6 +137,8 @@ export function RoutineBuilder({
   const [pendingA, setPendingA] = useState<{ ids: string[]; purpose: string } | null>(null);
   const [pendingB, setPendingB] = useState<{ ids: string[]; purpose: string } | null>(null);
   const [addFor, setAddFor] = useState<Slot | null>(null);
+  /** The Add machine sheet adds to the routine now, or plans a machine for later (§10.2). */
+  const [addMode, setAddMode] = useState<"now" | "later">("now");
   const [startFor, setStartFor] = useState<Slot | null>(null);
   const [changeFor, setChangeFor] = useState<SlotKey | null>(null);
   const [stashed, setStashed] = useState<string | null>(null);
@@ -293,6 +297,29 @@ export function RoutineBuilder({
   const rename = (routineId: string, name: string) => {
     commitRename(db, clientId, routineId, name, pinPatch(routines, slots)).catch(() => onError?.("Couldn't rename the routine. Try again."));
   };
+  /*
+   * Planned, not active (§10.2): a machine on a routine's plan and not in it
+   * yet. Planned and unplanned on the plan alone; Add now joins it to the
+   * routine for good, the plan's own "add now". Each one ONE write through the
+   * profile's plan actions, never awaited.
+   */
+  const planLater = (routine: Routine, id: string, on: boolean) => {
+    if (!who || disabled || !routine.id) return;
+    const plan = routine.plan ?? planFromRoutine(routine.machineIds, who, host.todayYmd, routine.plan?.purpose ?? "");
+    if (on) {
+      if (plan.intended.includes(id)) return;
+      const change = { kind: "add" as const, machineIds: [id] };
+      host.actions.save(routine.id, { plan: applyPlanChange(plan, change), change: signedChange(change, who) });
+    } else {
+      if (!plan.intended.includes(id) || routine.machineIds.includes(id)) return;
+      host.actions.save(routine.id, writeOf(takenOutOfPlan(plan, routine.machineIds, id, "plan"), routine.machineIds, who));
+    }
+  };
+  const addForGood = (routine: Routine, id: string) => {
+    if (!who || disabled || !routine.id) return;
+    const w = addedForGood(routine, [id], who, host.todayYmd);
+    if (w) host.actions.save(routine.id, w);
+  };
   const retire = (routineId: string, archived: boolean) => {
     commitRetire(db, routineId, archived).catch(() => onError?.(archived ? "Couldn't retire the routine. Try again." : "Couldn't bring the routine back. Try again."));
   };
@@ -383,6 +410,9 @@ export function RoutineBuilder({
           onSwapSlot={() => setChangeFor("a")}
           onRename={realA?.id ? () => setRenaming(realA.id!) : undefined}
           onChanges={realA?.id ? () => setChangesOf("Routine A") : undefined}
+          planned={plannedOf(realA, host.todayYmd)}
+          onPlannedNow={realA && !dirtyA ? (id) => addForGood(realA, id) : undefined}
+          onPlannedOff={realA ? (id) => planLater(realA, id, false) : undefined}
           disabled={disabled}
           foot={signIn}
         />
@@ -410,6 +440,9 @@ export function RoutineBuilder({
           onSwapSlot={() => setChangeFor("b")}
           onRename={realB?.id ? () => setRenaming(realB.id!) : undefined}
           onChanges={realB?.id ? () => setChangesOf("Routine B") : undefined}
+          planned={plannedOf(realB, host.todayYmd)}
+          onPlannedNow={realB && !dirtyB ? (id) => addForGood(realB, id) : undefined}
+          onPlannedOff={realB ? (id) => planLater(realB, id, false) : undefined}
           disabled={disabled}
           saveWords={!isBActive && draft.b.length > 0 ? "Save and turn B on" : undefined}
           head={
@@ -495,31 +528,61 @@ export function RoutineBuilder({
         )}
       </section>
 
-      {addFor && (
-        <PlanSheet
-          open
-          title={`Add to ${addFor === "Routine A" ? (realA?.name ?? "slot A") : (realB?.name ?? "slot B")}`}
-          meta="Tap a machine to add it, or tap it again to take it out. Save on the slot keeps it."
-          onClose={() => setAddFor(null)}
-          footer={
-            <Button onClick={() => setAddFor(null)}>
-              <Check aria-hidden="true" />
-              Done
-            </Button>
-          }
-        >
-          <FloorTiles
-            floor={floor}
-            draft={draft}
-            target={LETTER[addFor]}
-            held={held}
-            first={first}
-            nameOf={nameOf}
-            disabled={disabled}
-            onTap={(id) => apply(tapFloor(draft, id, LETTER[addFor]))}
-          />
-        </PlanSheet>
-      )}
+      {addFor && (() => {
+        const target = addFor === "Routine A" ? realA : realB;
+        const later = addMode === "later" && !!target?.id;
+        const plannedHere = later ? plannedOf(target, host.todayYmd) : [];
+        return (
+          <PlanSheet
+            open
+            title={`Add to ${target?.name ?? (addFor === "Routine A" ? "slot A" : "slot B")}`}
+            meta={
+              later
+                ? "Tap a machine to plan it for this routine. It shows as planned on the briefing and in the session, and runs once someone adds it."
+                : "Tap a machine to add it, or tap it again to take it out. Save on the slot keeps it."
+            }
+            onClose={() => {
+              setAddFor(null);
+              setAddMode("now");
+            }}
+            footer={
+              <Button
+                onClick={() => {
+                  setAddFor(null);
+                  setAddMode("now");
+                }}
+              >
+                <Check aria-hidden="true" />
+                Done
+              </Button>
+            }
+          >
+            <div className="rpl-chips" role="group" aria-label="Add or plan">
+              <Chip on={addMode === "now"} onClick={() => setAddMode("now")}>
+                Add now
+              </Chip>
+              <Chip on={addMode === "later"} onClick={() => setAddMode("later")} disabled={!target?.id || !who}>
+                Plan for later
+              </Chip>
+            </div>
+            {addMode === "later" && !target?.id && <p className="rpl-meta">Save this slot's routine first, then plan machines for it.</p>}
+            <FloorTiles
+              floor={floor}
+              draft={draft}
+              target={LETTER[addFor]}
+              held={held}
+              first={first}
+              nameOf={nameOf}
+              disabled={disabled}
+              planned={later ? plannedHere : null}
+              onTap={(id) => {
+                if (later && target) planLater(target, id, !plannedHere.includes(id));
+                else apply(tapFloor(draft, id, LETTER[addFor]));
+              }}
+            />
+          </PlanSheet>
+        );
+      })()}
 
       {startFor && (
         <StartFromRoutineSheet
@@ -664,6 +727,7 @@ function FloorTiles({
   first,
   nameOf,
   disabled,
+  planned = null,
   onTap,
 }: {
   floor: ReturnType<typeof floorMachinesOf>;
@@ -673,6 +737,8 @@ function FloorTiles({
   first: string;
   nameOf: (id: string) => string;
   disabled: boolean;
+  /** Planning for later: the machines planned for the routine (a tap plans or unplans one); null while adding now. */
+  planned?: readonly string[] | null;
   onTap: (id: string) => void;
 }) {
   const families = floorByFamily(floor);
@@ -694,8 +760,10 @@ function FloorTiles({
                 );
               }
               const mark = markOf(draft, id);
-              const inTarget = target === "A" ? draft.a.includes(id) : draft.b.includes(id);
-              const said = markWords(mark);
+              const inRoutine = target === "A" ? draft.a.includes(id) : draft.b.includes(id);
+              const isPlanned = !!planned && planned.includes(id);
+              const inTarget = planned ? isPlanned : inRoutine;
+              const said = planned ? (inRoutine ? "in the routine already" : isPlanned ? "planned" : null) : markWords(mark);
               return (
                 <button
                   key={id}
@@ -704,7 +772,7 @@ function FloorTiles({
                   aria-pressed={inTarget}
                   aria-label={said ? `${nameOf(id)}, ${said}` : nameOf(id)}
                   onClick={() => onTap(id)}
-                  disabled={disabled}
+                  disabled={disabled || (!!planned && inRoutine)}
                 >
                   <span className="rpl-tile__name">{nameOf(id)}</span>
                   {mark && (
@@ -746,6 +814,9 @@ function RoutineCard({
   onSwapSlot,
   onRename,
   onChanges,
+  planned = [],
+  onPlannedNow,
+  onPlannedOff,
   disabled,
   saveWords,
   head,
@@ -778,6 +849,11 @@ function RoutineCard({
   onSwapSlot: () => void;
   onRename?: () => void;
   onChanges?: () => void;
+  /** Planned for the routine, not in it yet (§10.2), in the road's order. */
+  planned?: readonly string[];
+  /** Adds a planned machine to the routine for good; absent while the slot has unsaved changes. */
+  onPlannedNow?: (id: string) => void;
+  onPlannedOff?: (id: string) => void;
   disabled: boolean;
   saveWords?: string;
   head?: ReactNode;
@@ -903,6 +979,32 @@ function RoutineCard({
         <ol className="rpl-list rpl-list--flush" aria-label={`${first}'s ${slot}`}>
           {items}
         </ol>
+        {planned.length > 0 && (
+          <div className="abb-planned" aria-label={`Planned for ${title}`}>
+            <p className="rpl-sheet__label">Planned for the routine</p>
+            <ul className="rpl-list rpl-list--flush">
+              {planned.map((id) => (
+                <li key={id} className="abb-planned__row">
+                  <span className="abb-planned__name">{nameOf(id)}</span>
+                  <span className="rpl-actions">
+                    {onPlannedNow && (
+                      <Button variant="outline" onClick={() => onPlannedNow(id)} disabled={disabled} aria-label={`Add ${nameOf(id)} to ${title} now`}>
+                        <Plus aria-hidden="true" />
+                        Add now
+                      </Button>
+                    )}
+                    {onPlannedOff && (
+                      <Button variant="ghost" onClick={() => onPlannedOff(id)} disabled={disabled} aria-label={`Take ${nameOf(id)} off ${title}'s plan`}>
+                        Not planned
+                      </Button>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {!onPlannedNow && <p className="rpl-meta">Save or undo this slot's changes to add a planned machine.</p>}
+          </div>
+        )}
         <div className="rpl-actions">
           <Button variant="outline" onClick={onAdd} disabled={disabled} aria-label={`Add a machine to slot ${letter}`}>
             <Plus aria-hidden="true" />

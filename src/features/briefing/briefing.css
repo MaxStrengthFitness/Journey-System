@@ -1272,6 +1272,54 @@
   cursor: pointer;
 }
 
+/* Planned for the routine (the routine library round, Oct 23 2026): the
+   plan's machines not in the routine yet, each with Add, on a dashed blue
+   edge (planned, not running). */
+.br-today__planned {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--br-live);
+}
+.br-today__planned-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--br-ink-2);
+}
+.br-today__planned-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.br-today__planned-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  min-height: 44px;
+}
+.br-today__planned-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--br-ink);
+  overflow-wrap: anywhere;
+}
+.br-today__planned-joins { font-weight: 500; color: var(--br-live-text); }
+.br-today__planned-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--br-live-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.br-today__planned-btn:focus-visible { outline: 2px solid var(--br-focus-ring); outline-offset: 2px; }
+
 /* The Academy's order rules, said without a tap, each with its fix. */
 .br-today__warnings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .br-today__warning {

@@ -50,6 +50,29 @@
   color: var(--eq-ink);
 }
 
+/* Planned for the routine, not in it yet (§10.2): under the slot's machines. */
+.abb-planned {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--eq-live);
+}
+.abb-planned__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  min-height: 44px;
+}
+.abb-planned__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--eq-ink);
+}
+
 /* The floor, in the Add machine sheet. */
 .abb-floor {
   padding: 4px 0 8px;

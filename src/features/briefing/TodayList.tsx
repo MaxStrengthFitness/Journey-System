@@ -81,6 +81,18 @@ export interface TodayListProps {
   /** What an empty list says. */
   emptyWords: string;
   onRebuild: () => void;
+  /**
+   * Planned for the routine, not in it yet (the routine library round, Oct
+   * 23 2026; §10.2), in the plan's order: each with Add, which puts it on
+   * today's list and marks it to join the routine for good at Start (AJ:
+   * "Adds it on for good"). Nothing here writes; Start does.
+   */
+  planned?: readonly string[];
+  /** The planned machines marked to join the routine at Start. */
+  forGood?: readonly string[];
+  onForGood?: (machineId: string, on: boolean) => void;
+  /** The routine's name as the screen says it ("Routine A", "Strength"). */
+  routineName?: string;
 }
 
 type SheetState = { kind: "add" } | { kind: "swap"; id: string } | null;
@@ -97,6 +109,10 @@ export function TodayList({
   footnotes,
   emptyWords,
   onRebuild,
+  planned = [],
+  forGood = [],
+  onForGood,
+  routineName = "the routine",
 }: TodayListProps) {
   const [sheet, setSheet] = useState<SheetState>(null);
   const [undo, setUndo] = useState<TakenOut | null>(null);
@@ -191,6 +207,43 @@ export function TodayList({
             </li>
           ))}
         </ul>
+      )}
+
+      {onForGood && planned.length > 0 && (
+        <section className="br-today__planned" aria-label={`Planned for ${routineName}`} data-testid="briefing-planned">
+          <p className="br-today__planned-label">Planned for the routine</p>
+          <ul className="br-today__planned-list">
+            {planned.map((id) => {
+              const joining = forGood.includes(id) && ids.includes(id);
+              return (
+                <li key={id} className="br-today__planned-row">
+                  <span className="br-today__planned-name">
+                    {nameOf(id)}
+                    {joining ? <span className="br-today__planned-joins"> · joins {routineName} at Start</span> : null}
+                  </span>
+                  {joining ? (
+                    <button type="button" className="br-today__planned-btn" onClick={() => onForGood(id, false)} aria-label={`Keep ${nameOf(id)} for today only`}>
+                      Today only
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="br-today__planned-btn"
+                      onClick={() => {
+                        if (!ids.includes(id)) change(addTo(ids, id), id);
+                        onForGood(id, true);
+                      }}
+                      aria-label={`Add ${nameOf(id)} to today and to ${routineName}`}
+                    >
+                      <Plus className="w-4 h-4" aria-hidden />
+                      Add
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
 
       {footnotes}

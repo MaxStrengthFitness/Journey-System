@@ -395,6 +395,7 @@ import {
 import type { SettingSource } from "../features/machine-fit/types";
 import { useLeaveGuard } from "../features/unsaved-changes";
 import { withSlots } from "../features/routine-slots/slots";
+import { addedForGood, plannedOf } from "../features/routine-slots/planned";
 import "../features/journey-grid/journey-grid.css";
 type RoutineType = "A" | "B" | "Free";
 
@@ -5436,18 +5437,31 @@ export function WorkoutTrackerView({
   const planNextName = planNextId
     ? (gridRows.find((r) => r.machine.id === planNextId)?.machine.name ?? planNameOf(planNextId))
     : null;
+  /* Planned for the routine (the routine library round, Oct 23 2026; AJ:
+     "Adds it on for good"): once Routine A runs machines of its own, the
+     plan's next machine joins Routine A for good when it is added, through
+     the plan. While its day one runs (the consult is not Routine A) it is
+     today's only, and the Wrap-up's ticks start Routine A. */
+  const planForGood =
+    !!planNextId && !!planWho && !!sessionPlan.routineA && sessionPlan.runsA && sessionPlan.routineA.machineIds.length > 0 &&
+    plannedOf(sessionPlan.routineA, planTodayYmd).includes(planNextId);
   /* Stable for the memo'd Now Bar: a new object only when the machine changes. */
   const planNext = useMemo(
-    () => (planNextId && planNextName ? { id: planNextId, name: planNextName } : null),
-    [planNextId, planNextName],
+    () => (planNextId && planNextName ? { id: planNextId, name: planNextName, forGood: planForGood } : null),
+    [planNextId, planNextName, planForGood],
   );
-  /* "Next in the plan · Add": today's order only, through the one recorder,
-     and the machine becomes the one in hand. */
+  /* "Planned for the routine · Add" (or "Next in the plan" on day one): on
+     today's order through the one recorder, and the machine becomes the one
+     in hand; for good, Routine A takes it through its plan, never awaited. */
   const planAddRef = useRef<(id: string) => void>(() => {});
   planAddRef.current = (id: string) => {
     flushAllLogWrites();
     if (!activeMachineIds.includes(id)) applySessionMachineIds([...activeMachineIds, id]);
     setFocusMachineOverride(id);
+    if (planForGood && planWho && id === planNextId) {
+      const w = addedForGood(sessionPlan.routineA, [id], planWho, planTodayYmd);
+      if (w) sessionPlan.write(w);
+    }
   };
   const onAddPlanned = React.useCallback((id: string) => planAddRef.current(id), []);
 
@@ -5904,7 +5918,7 @@ export function WorkoutTrackerView({
              cache answer is not "no routine"): the briefing claims nothing
              about a client starting out until it is. */
           routinesKnown={routinesKnown}
-          onStart={(routineType, customMachines, note, checkIn, noteCategory, startPlan, privateNote) => {
+          onStart={(routineType, customMachines, note, checkIn, noteCategory, startPlan, privateNote, plannedForGood) => {
             /* "Just for me" (the briefing round, phase 4): the trainer's own
                notebook, under their Auth uid, never the client's record.
                Never waited on; a refusal comes back as a toast. */
@@ -5926,6 +5940,14 @@ export function WorkoutTrackerView({
               noteCategory,
               startPlan,
             );
+            /* Planned machines the briefing added for good (the routine
+               library round, Oct 23 2026: "Adds it on for good"): into
+               Routine A through its plan, the session's one plan writer,
+               never awaited. Today's list already has them. */
+            if (plannedForGood && plannedForGood.length > 0 && planWho) {
+              const w = addedForGood(sessionPlan.routineA, plannedForGood, planWho, planTodayYmd);
+              if (w) sessionPlan.write(w);
+            }
           }}
           /* Back where Start was tapped, and says so (AJ's F4 "a", the
              briefing round, Oct 17 2026; features/briefing/close-target.ts). */

@@ -93,7 +93,7 @@ export interface SessionNowBarProps {
    * Adding is today only: the Wrap-up decides what the routine keeps. Give
    * it a stable object (the bar is memo).
    */
-  planNext?: { id: string; name: string } | null;
+  planNext?: { id: string; name: string; forGood?: boolean } | null;
   /** Adds the plan's next machine to today's order and makes it the machine in hand. */
   onAddPlanned?: (machineId: string) => void;
   /** Today's order has nothing in it yet: the empty bar says so. */
@@ -716,9 +716,11 @@ function SessionNowBarImpl({
         type="button"
         className="jg-nb__next jg-nb__next--add jg-nb__next--plan"
         onClick={() => onAddPlanned(planNext.id)}
-        aria-label={`Next in the plan: add ${planNext.name} to today`}
+        aria-label={
+          planNext.forGood ? `Planned for the routine: add ${planNext.name} to today and to the routine` : `Next in the plan: add ${planNext.name} to today`
+        }
       >
-        <span className="jg-nb__nextlbl">Next in the plan</span>
+        <span className="jg-nb__nextlbl">{planNext.forGood ? "Planned for the routine" : "Next in the plan"}</span>
         <span className="jg-nb__nextname">{planNext.name}</span>
         <span className="jg-nb__nextadd">
           <Plus size={16} strokeWidth={2.5} aria-hidden="true" />
