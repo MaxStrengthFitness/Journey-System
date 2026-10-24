@@ -2,6 +2,8 @@
 
 **Status: a proposal. Nothing is built, nothing is pushed.** It needs AJ's yes on the direction (given Oct 20), his answers to the three questions in section 8, and his OK on the one Firestore change in section 5 before any code.
 
+**Oct 23 2026:** AJ answered section 8 with a bigger picture, talked it through and said "you've got the picture". **Section 10 is the agreed design and replaces sections 5, 7 and 8 where they differ.** **AJ OK'd its Firestore change (§10.7) and the three defaults in §10.9 on Oct 23 2026**: "Yes, the Firestore change in 10.7 is OK'd. The three defaults in 10.9 stand too." Building starts at §10.8's phase 0.
+
 AJ walked Programming → Routines on the local build with a client who has 28 Journey sessions, and said, in his words:
 
 > the routine builder is a mess
@@ -123,3 +125,93 @@ Smaller defaults, said so they can be overruled: a new routine is named "Routine
 - Not checked: how the builder lays out in landscape, and for a client with no routines yet (the starting door, `routine-plan/ui/StartPlanPanel`, stays as it is). Not checked: whether the briefing, the Wrap-up and the open session read A and B anywhere beyond the 11 files and the references counted above; phase 0's golden tests are where that is found out.
 - The history strip needs a client's sessions to carry `routineId`; the type has it, but how many real sessions actually do is not measured. If most do not, the strip shows less than it promises and phase 3 is cut back to the routines' "last used" dates.
 - Sessions wiped Oct 12 (`sessions-are-test-data`): a young client's strip will be short until real sessions accumulate. That is correct, not a bug.
+
+---
+
+## 10. The agreed design (AJ, Oct 23 2026)
+
+AJ answered section 8 with a bigger picture, then talked it through in a discussion session (nothing built). He confirmed the play-back ("Yes, you've got the picture") and answered the three follow-up questions ("1 yes", "2 Adds it on for good", "3 No just allow trainers to make their own routines and save them on their profile so they can load it into a client if they need").
+
+### 10.1 The picture, in AJ's terms: a stash and two equipped slots
+
+AJ's metaphor is Path of Exile's weapon slots.
+
+- **The stash.** Every client has an inventory of their own named routines. Nothing is thrown away: "Post-surgery" or "Variety, winter" waits in the stash until it is pulled out again.
+- **Two slots, A and B, both full weapons** ("not a weapon and a shield"). Two routines are equipped at once and sessions alternate between them (`next-routine.ts`'s rule, unchanged). Some clients only ever fill slot A.
+- **The slots have different jobs.** AJ's example: A = hip ab/add, leg press, compound row, seated dip, lumbar; B = leg curl, leg extension, pulldown, overhead press, pullover, bicep curl, ab crunch. Both are full body but mixed, or B is upper-focused so the legs recover from a hard leg press. That job is the routine's What it's for, and stays on the routine.
+- Routines are **rotated out, turned on, phased in or planned**. A person does each one; Journey never rotates a routine by itself (§9).
+
+### 10.2 Planned, not active (R2's redesign)
+
+AJ: "you build both A and B. After building either one, you can choose to phase any of it in", so phasing in is an option, not the only path.
+
+- **A slot can hold machines planned for it that don't run yet.** This is the routine's plan, the road, already on every routine as `plan` (On deck today). It stops being Routine A's alone: each slot's routine has its own.
+- **AJ's example:** at the consult the client does leg press and compound row. The head trainer who ran it decides "this is what I want their full routine to be" and plans it. Whoever takes the second session, maybe a different trainer, sees where it is going without any of it switched on.
+- **On the briefing and in the session**, a planned machine says "Planned for the routine" with a quick toggle to add it on. **The toggle adds it for good** (AJ: "2 Adds it on for good"): it joins the routine, not just today. It is one `add` change on the plan, the reason asked and never required, issued and never awaited (a floor tap), the same change On deck's Add to A now makes today.
+- *A detail kept from the consult rule:* while Routine A is still empty and a visit runs day one, Add to A now is held back, because one machine would become the whole of A. In that one case the toggle adds the machine to today's list, and the Wrap-up's Next time ticks it into A, as now.
+- **A whole B can be planned well ahead.** When a trainer chooses, they go into B, turn it on and phase it in. AJ: "not an instant switch, though the studio may allow that". So **phasing in is the default way a planned slot starts**, and switching it on all at once is a studio setting (`studio-settings/registry.ts`, Max Strength's default beneath). This changes one line of the Oct 19 decision ("Save writes B's machines … and turns B on with it"); the rest stands: B only starts because a trainer chooses, and anyone makes, changes or ticks a phase plan.
+- **Phase it in works on either slot**, not only B: `plan.phase` moves from "Routine B's plan" to "the plan of the routine in that slot" (`ab-builder/phase.ts` is already pure and per routine).
+
+### 10.3 Where routines come from: four tiers (R3)
+
+| Tier | Who makes it | Who can load it | Where it lives today |
+| --- | --- | --- | --- |
+| **Company** | Administrators: baselines, so franchisees get a good start and the company stays consistent | Every trainer at every studio | `routinePresets`, tier `company` (exists; the starting routines are these) |
+| **Studio** | The studio's leaders: "what I want my clients trained on here" | That studio's trainers | `routinePresets`, tier `studio` (exists) |
+| **Trainer** | Each trainer, their own favourite starting points, saved on their profile (My Profile) | That trainer, "so they can load it into a client if they need" | `routinePresets`, tier `trainer` exists but is **shared with the whole studio** and editable by any trainer. This changes (§10.7) |
+| **Client** | Any trainer, on the client's Programming | Lives in that client's stash | `routines/{id}`, one per routine (exists) |
+
+- **Loading one into a client copies it** into the stash, with `templateId` and `templateName` kept (the fields exist), and from there into a slot. A template is advice, and a copy can't be changed under the client by someone else's edit (§3, unchanged).
+- **Save as my routine:** a routine in a client's stash can be copied to the trainer's own list (small and new: it writes a trainer-tier preset).
+- The open session's **Start from a routine…** keeps laying a routine on today's list without writing one, and gains the trainer's own group.
+
+### 10.4 Can't do and the weak area live on the client (R1)
+
+AJ asked to understand this first. The example that settled it: Mary's slot A is "Strength", with leg press. She has knee surgery, so a trainer marks Can't do: Leg Press, until March 1, then equips "Post-surgery" and "Strength" goes back to the stash. Kept on the routine, the knee mark would go into the stash with "Strength", and a studio routine pulled in next week would bring leg press back without a word. Kept on the client, the mark follows Mary whatever is equipped: every routine, Start from… and the briefing leave leg press out until March 1 and say why.
+
+**AJ: "1 yes".** Can't do (with its reason and until) and the weak area (`focus`) belong to the client, and every routine reads them. A routine's job (What it's for) stays on the routine. This replaces "Can't do lives on Routine A's plan, read by A and B" (Oct 8, "2a") in where it is stored, not in how it works: still a flag, never an automatic change; a surgery or injury still offers the one unticked Health note.
+
+### 10.5 Rules that do not change
+
+- Any trainer changes a plan, mid-session included; the reason is asked, never required.
+- A slot starts only because a trainer chooses.
+- An injury is a flag, never an automatic change.
+- Nothing suggests a weight, anywhere.
+- The consult is not Routine A; Routine A still starts only through Next time or a trainer editing it on purpose.
+- A tap on the floor never waits on the network; what is typed and not saved is unsaved work.
+
+### 10.6 The screen, in short
+
+Section 2's screen stands, with three additions: each slot card shows its planned machines under the running ones ("Planned for the routine"); the Change sheet's groups are **this client's stash · my routines · the studio's · Max Strength's · New routine**; and My Profile gets **My routines** (make, rename, retire). Nothing here is drawn until it is built and walked.
+
+### 10.7 The full Firestore change (OK'd by AJ, Oct 23 2026)
+
+CLAUDE.md: "Don't change the Mindbody integration, Cloud Functions or the Firestore structure without an explicit OK." AJ's Oct 23 answer to R4 was the OK in principle ("yes it sounds like we may have to add more with the new context"). This is the whole of it, for his yes before any code. No new top-level collection, no Cloud Function, no Mindbody change, no migration job.
+
+1. **`clients/{id}.routineSlots: { a: string | null, b: string | null }`**: the routine ids equipped in slot A and slot B (as §5). Written by field path, on its own, never inside another batch (the client's document is never in someone else's batch). `isRoutineBActive` keeps being written as "slot B holds a routine", so its readers keep working until each moves over. A client with no `routineSlots` is read by the old name match.
+2. **`routines/{id}.archived: boolean` and `archivedAt`**: Retire, so the stash doesn't fill up with old routines. Never a delete.
+3. **`clients/{id}/programming/current`** (new: one small document per client): `cantDo` (the list as A's plan holds it today: machine, reason, until, who, when; at most 60), `focus` (the weak areas), `updatedAt`, `updatedByUid`. **Why its own document, not a field on the client:** a can't-do mark is written mid-session in the same batch as the routine change it causes, and the client's document is never put in someone else's batch (a refused client field took Start's session down with it, Oct 9 2026). The machine totals are the precedent (`clients/{id}/machineTotals/current`). Read once with the client, one document, no query, so **no index**. Until it exists, readers fall back to Routine A's plan, and the first can't-do or focus written copies A's plan's marks across. A's plan's own copy is left in place, never deleted.
+4. **`routinePresets` trainer tier gets `ownerUid`** (the Auth uid). A trainer's own list is `tier == "trainer"` and `ownerUid ==` them: **one new composite index (tier, ownerUid)** in `firestore.indexes.json`. Trainer-tier presets saved before this (no `ownerUid`) stay where they are and keep showing in the Edit routine drawer's studio group, so nothing anyone saved disappears.
+5. **Rules** (`firestore.rules`, tested in `tests/firestore.rules.test.ts`):
+   - clients: `routineSlots` is a map of exactly `a` and `b`, each an id string or null.
+   - routines: `archived` is a boolean, `archivedAt` the server's time.
+   - `clients/{id}/programming/current`: read by whoever may read the client; written by any trainer who may write that client's routines; only the four fields; `cantDo` at most 60, `focus` a short list; signed with the Auth uid and the server's time.
+   - routinePresets, trainer tier: created only with `ownerUid ==` the signed-in uid; updated and deleted only by that owner or an administrator. **This tightens today's rule**, where any trainer may edit any trainer-tier preset; a preset with no `ownerUid` keeps today's rule.
+   - Deploy order as CLAUDE.md: indexes, then **AJ's `npm run test:rules`**, then rules, then the app. The tightening in item 4 is the one part that removes access, so it ships after the app that writes `ownerUid`, not before.
+
+### 10.8 Phases (replaces §7)
+
+0. The count fix and the slot seam (§7's phase 0, unchanged).
+1. The fields and the rules (§10.7), after AJ's OK and his `test:rules`.
+2. The slot screen with the stash (§2, §10.6).
+3. Planned machines on the briefing and in the session, with the toggle that adds for good.
+4. Can't do and the weak area moved to the client (`programming/current`), every reader on it.
+5. The four tiers: My routines on My Profile, Save as my routine, the Change sheet's groups, Start from…'s trainer group.
+6. Phase it in on either slot, and the studio's "switch on all at once" setting.
+7. The history strip (§7's phase 3).
+
+### 10.9 Defaults (AJ, Oct 23 2026: "The three defaults in 10.9 stand too")
+
+- **The studio setting's default:** "switch on all at once" off in Max Strength's default, so a studio turns it on. *Default:* off.
+- **A B already saved whole in the Oct 19 builder keeps running as it is.** *Default:* yes; nothing already on goes off.
+- The day-one detail in §10.2.

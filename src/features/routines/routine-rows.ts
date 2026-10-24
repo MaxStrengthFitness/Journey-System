@@ -211,8 +211,9 @@ export function buildRoutineChanges(
   const nameOf = (id: string) => machines.find((m) => m.id === id)?.name || "Unknown";
   const labelFor = (routineId: string): "A" | "B" | "?" => {
     const r = routines.find((x) => x.id === routineId);
-    if (r?.name?.includes("B") || routineId === "temp-b") return "B";
-    if (r?.name?.includes("A") || routineId === "temp-a") return "A";
+    // The slot it is in, else its letter name (features/routine-slots): never a letter that merely appears in a name like "Back focus".
+    if (routineId === "temp-b" || matchesRoutineLetter(r, "B")) return "B";
+    if (routineId === "temp-a" || matchesRoutineLetter(r, "A")) return "A";
     return "?";
   };
   return adjustments.map((adj) => {

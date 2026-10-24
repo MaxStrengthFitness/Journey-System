@@ -181,6 +181,7 @@ import { recordStudioIdOf } from "../features/client-codex/access";
 import { machineNoteLoudness } from "../features/equipment/machine-notes";
 import { useMachineJournalRead } from "../features/equipment/useMachineJournal";
 import { isSuperAdminRole } from "../features/admin/franchise/scope";
+import { withSlots } from "../features/routine-slots/slots";
 
 /** Sessions per Firestore page for the profile's history (see the Journey tab). */
 /* Fifty at a time (audit, Sep 13): "Older really needs to show us their
@@ -225,7 +226,8 @@ export function ClientProfileView({
   const [reportToDelete, setReportToDelete] = useState<ProgressReport | null>(
     null,
   );
-  const [routines, setRoutines] = useState<Routine[]>([]);
+  // As read; `routines` below is the same list with each one's slot (features/routine-slots).
+  const [storedRoutines, setRoutines] = useState<Routine[]>([]);
   const [allLogs, setAllLogs] = useState<ExerciseLog[]>([]);
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   // The newest sessions array, for a read that must know what it is replacing.
@@ -492,6 +494,10 @@ export function ClientProfileView({
   };
 
   const client = clients.find((c) => c.id === clientId);
+  /* The client's routines with the slot each is equipped in (the routine
+     library round, Oct 23 2026): every "is this Routine A?" on the profile
+     asks the slots, and a client with none is read by name, as before. */
+  const routines = useMemo(() => withSlots(storedRoutines, client?.routineSlots), [storedRoutines, client?.routineSlots]);
 
   /* Which routine the next session runs: the running session's own, else the
      Active Session's alternation (features/routines/next-routine.ts). "Use

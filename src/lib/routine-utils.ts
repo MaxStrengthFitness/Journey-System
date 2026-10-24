@@ -20,9 +20,15 @@ export type RoutineLetter = "A" | "B";
  * a missing name simply fails to match rather than throwing.
  */
 export function matchesRoutineLetter(
-  routine: Pick<Routine, "name"> | null | undefined,
+  routine: (Pick<Routine, "name"> & Partial<Pick<Routine, "inSlot">>) | null | undefined,
   letter: RoutineLetter,
 ): boolean {
+  // The routine library round (Oct 23 2026): a routine read with the client's
+  // slots carries the slot it is equipped in (`inSlot`, set by
+  // features/routine-slots/slots.ts `withSlots`), and that is the answer, so a
+  // routine renamed "Post-surgery" is still A and a stashed "Routine A" is not.
+  // A routine read without them falls back to its name, as before.
+  if (routine && routine.inSlot !== undefined) return routine.inSlot === letter;
   const name = typeof routine?.name === "string" ? routine.name.trim().toLowerCase() : "";
   if (!name) return false;
   const target = letter.toLowerCase();
@@ -31,7 +37,7 @@ export function matchesRoutineLetter(
 
 /** The A/B letter a routine represents, or null if it is neither. */
 export function routineLetterOf(
-  routine: Pick<Routine, "name"> | null | undefined,
+  routine: (Pick<Routine, "name"> & Partial<Pick<Routine, "inSlot">>) | null | undefined,
 ): RoutineLetter | null {
   if (matchesRoutineLetter(routine, "A")) return "A";
   if (matchesRoutineLetter(routine, "B")) return "B";
@@ -39,7 +45,7 @@ export function routineLetterOf(
 }
 
 /** Finds a client's Routine A or B, tolerating either naming convention. */
-export function findRoutineByLetter<T extends Pick<Routine, "name">>(
+export function findRoutineByLetter<T extends Pick<Routine, "name"> & Partial<Pick<Routine, "inSlot">>>(
   routines: T[] | null | undefined,
   letter: RoutineLetter,
 ): T | undefined {

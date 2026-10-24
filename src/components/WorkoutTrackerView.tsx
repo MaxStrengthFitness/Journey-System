@@ -394,6 +394,7 @@ import {
 } from "../features/open-session/start";
 import type { SettingSource } from "../features/machine-fit/types";
 import { useLeaveGuard } from "../features/unsaved-changes";
+import { withSlots } from "../features/routine-slots/slots";
 import "../features/journey-grid/journey-grid.css";
 type RoutineType = "A" | "B" | "Free";
 
@@ -562,7 +563,8 @@ export function WorkoutTrackerView({
   const guardLeave = useLeaveGuard();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [logs, setLogs] = useState<Record<string, ExerciseLog>>({});
-  const [routines, setRoutines] = useState<Routine[]>([]);
+  // As read; `routines` below is the same list with each one's slot (features/routine-slots).
+  const [storedRoutines, setRoutines] = useState<Routine[]>([]);
   /*
    * Whether this client's routines and machine settings are KNOWN: a snapshot
    * has arrived for this client, from the iPad's cache or the server (speed
@@ -623,6 +625,13 @@ export function WorkoutTrackerView({
   const olderCursorRef = useRef<{ clientId: string; doc: QueryDocumentSnapshot } | null>(null);
   const olderGenRef = useRef(0);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  /* The client's routines with the slot each is equipped in (the routine
+     library round, Oct 23 2026): every "is this Routine A?" below asks the
+     slots, and a client with none is read by name, as before. */
+  const routines = useMemo(
+    () => withSlots(storedRoutines, selectedClient?.id === clientId ? selectedClient?.routineSlots : undefined),
+    [storedRoutines, selectedClient, clientId],
+  );
   /* The client's machine totals (the last set on each machine: Start's
      prefilled weights) have answered. They live in their own document since
      the iPad round (features/machine-totals), so the prefill waits for them
