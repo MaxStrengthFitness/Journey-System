@@ -31,6 +31,31 @@
   color: var(--eq-live);
 }
 
+/* The history strip: which routine ran when, one stretch after another. */
+.abb-history {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.abb-history__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.abb-history__stretch {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--eq-surface-2);
+  font-size: 14px;
+  color: var(--eq-ink);
+}
+.abb-history__stretch[data-current] {
+  box-shadow: inset 0 0 0 1px var(--eq-live);
+}
+
 /* The stash: one row of names under the slots. */
 .abb-stash {
   display: flex;

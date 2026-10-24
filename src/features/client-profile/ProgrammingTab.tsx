@@ -430,6 +430,7 @@ export function ProgrammingTab({
               authTrainer={authTrainer}
               activeStudioId={activeStudioId}
               nextRoutineId={selectedRoutineTodayId}
+              sessions={sessions}
               onToggleB={onToggleB}
               onError={onError}
               onNotice={onNotice}

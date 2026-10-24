@@ -29,7 +29,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeftRight, BookmarkPlus, Check, ClipboardList, Copy, History, Layers, Pencil, Plus, Undo2 } from "lucide-react";
-import type { Client, Machine, Routine, RoutineAdjustment, Trainer } from "../../../types";
+import type { Client, Machine, Routine, RoutineAdjustment, Trainer, WorkoutSession } from "../../../types";
 import { db } from "../../../firebase";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -53,6 +53,7 @@ import {
 } from "../../routine-slots/slots";
 import { commitNewRoutine, commitRename, commitRetire, commitSlotMove, copyOf } from "../../routine-slots/store";
 import { addedForGood, plannedOf } from "../../routine-slots/planned";
+import { historyOf, historyShown, stretchWords } from "../../routine-slots/history";
 import { programmingFromPlan } from "../../routine-slots/programming";
 import { saveMyRoutine, useMyRoutines } from "../../routine-slots/useMyRoutines";
 import { myRoutineFromClientRoutine } from "../../routine-slots/my-routines";
@@ -90,6 +91,8 @@ export interface RoutineBuilderProps {
   activeStudioId?: string | null;
   /** The routine the next session runs (routines/next-routine.ts), marked on its slot. */
   nextRoutineId?: string | null;
+  /** The client's sessions as the profile holds them: the history strip, which routine ran when. */
+  sessions?: readonly WorkoutSession[];
   /** The profile's B switch: the reason asked, never required. */
   onToggleB: (on: boolean) => void;
   /** A refused save, in a sentence. */
@@ -114,6 +117,7 @@ export function RoutineBuilder({
   authTrainer,
   activeStudioId,
   nextRoutineId = null,
+  sessions = [],
   onToggleB,
   onError,
   onNotice,
@@ -439,6 +443,7 @@ export function RoutineBuilder({
   }
 
   const signIn = !who ? <p className="rpl-meta">Sign in again to save a routine.</p> : null;
+  const history = historyOf(sessions, routines);
   const stash = stashOf(routines, slots);
   const retired = retiredOf(routines);
   const stashRoutine = stashed ? (routines.find((r) => r.id === stashed) ?? null) : null;
@@ -595,6 +600,19 @@ export function RoutineBuilder({
           foot={signIn}
         />
       </div>
+
+      {historyShown(history) && (
+        <section className="abb-history" aria-label={`Which routine ${first} ran, over time`} data-testid="routine-history">
+          <p className="rpl-sheet__label">History · Journey sessions with a routine recorded</p>
+          <ol className="abb-history__list">
+            {history.map((h) => (
+              <li key={`${h.routineId}-${h.from}`} className="abb-history__stretch" data-current={h.current || undefined}>
+                {stretchWords(h)}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <section className="rpl-panel abb-stash" aria-label={`${first}'s stash`}>
         <div className="abb-stash__head">

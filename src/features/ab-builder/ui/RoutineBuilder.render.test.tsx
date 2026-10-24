@@ -91,7 +91,7 @@ if (!("ResizeObserver" in g)) {
   };
 }
 
-import type { Client, Machine, Routine } from "../../../types";
+import type { Client, Machine, Routine, WorkoutSession } from "../../../types";
 import { UnsavedChangesProvider, useUnsavedStatus, type UnsavedStatus } from "../../unsaved-changes";
 import { startingKindOf } from "../../routine-plan/client-kind";
 import type { PlanHost } from "../../routine-plan/ui/host";
@@ -132,7 +132,7 @@ function Probe() {
   status = useUnsavedStatus();
   return null;
 }
-async function mount(props: { routines: Routine[]; isBActive?: boolean; host?: PlanHost; toggles?: boolean[]; client?: Client }) {
+async function mount(props: { routines: Routine[]; isBActive?: boolean; host?: PlanHost; toggles?: boolean[]; client?: Client; sessions?: WorkoutSession[] }) {
   el = document.createElement("div");
   document.body.appendChild(el);
   root = createRoot(el);
@@ -147,6 +147,7 @@ async function mount(props: { routines: Routine[]; isBActive?: boolean; host?: P
           routines={props.routines}
           machines={FLOOR}
           isBActive={props.isBActive ?? false}
+          sessions={props.sessions ?? []}
           trainers={[]}
           adjustments={[]}
           onToggleB={(on) => props.toggles?.push(on)}
@@ -442,5 +443,20 @@ describe("one builder for A and B", () => {
     const move = commits.moves[0] as { patch: Record<string, unknown>; renames: { id: string; name: string }[] };
     expect(move.patch).toEqual({ "routineSlots.a": "ra", "routineSlots.b": null, isRoutineBActive: false });
     expect(move.renames).toEqual([{ id: "rb", name: "Routine B · until Oct 19 2026" }]);
+  });
+
+  it("draws the history strip once two routines and the named minimum of sessions are behind it", async () => {
+    const post: Routine = { id: "rp", name: "Post-surgery", clientId: "c1", studioId: "strongsville", machineIds: ["m-leg-curl"] };
+    const ran = (date: string, routineId: string) => ({ id: `${date}`, date, routineId, status: "Completed", clientId: "c1" }) as unknown as WorkoutSession;
+    const sessions = [ran("2026-03-02", "ra"), ran("2026-03-09", "ra"), ran("2026-03-16", "ra"), ran("2026-06-01", "rp"), ran("2026-06-08", "rp"), ran("2026-06-15", "rp")];
+    await mount({ routines: [A, post], sessions });
+    const strip = document.body.querySelector('[data-testid="routine-history"]')!;
+    expect(strip.textContent).toContain("Routine A · Mar 2026 · 3 sessions");
+    expect(strip.textContent).toContain("Post-surgery · Jun– · 3 sessions");
+    await act(async () => root!.unmount());
+    root = null;
+    el?.remove();
+    await mount({ routines: [A, post], sessions: sessions.slice(0, 4) });
+    expect(document.body.querySelector('[data-testid="routine-history"]')).toBeNull();
   });
 });
