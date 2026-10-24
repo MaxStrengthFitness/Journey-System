@@ -238,6 +238,7 @@ function describe(c: RoutineChange): string {
   if (c.kind === "created") return `Routine ${c.routineLabel} created`;
   if (c.kind === "enabled") return `Routine ${c.routineLabel} turned on`;
   if (c.kind === "disabled") return `Routine ${c.routineLabel} turned off`;
+  if (c.kind === "equipped") return c.slot ? `Put in slot ${c.slot}` : "Moved to the stash";
   if (!c.added.length && !c.removed.length) return `Routine ${c.routineLabel} saved`;
   return `Routine ${c.routineLabel}`;
 }

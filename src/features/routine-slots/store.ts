@@ -18,12 +18,40 @@ function settled(...ps: Promise<void>[]): Promise<void> {
   return Promise.all(ps).then(() => undefined);
 }
 
-/** A slot move: the renames as one batch, then the client's slots as their own write. */
-export function commitSlotMove(db: Firestore, clientId: string, move: SlotMove): Promise<void> {
+/** Who made a move, as every routineAdjustments record names them. */
+export interface MoveBy {
+  trainerId: string;
+  studioId: string;
+  /** Each routine's machines, so its record says what it held. */
+  machinesOf: (routineId: string) => readonly string[];
+}
+
+/**
+ * A slot move: the renames and a record per routine moved (the Changes list:
+ * "Put in slot A", "Moved to the stash") as one batch, then the client's
+ * slots as their own write.
+ */
+export function commitSlotMove(db: Firestore, clientId: string, move: SlotMove, by?: MoveBy): Promise<void> {
   const out: Promise<void>[] = [];
-  if (move.renames.length > 0) {
+  if (move.renames.length > 0 || (by && move.moved.length > 0)) {
     const batch = writeBatch(db);
     for (const r of move.renames) batch.update(doc(db, "routines", r.id), { name: r.name, updatedAt: serverTimestamp() });
+    if (by) {
+      for (const m of move.moved) {
+        const ids = [...by.machinesOf(m.id)];
+        batch.set(doc(collection(db, "routineAdjustments")), {
+          clientId,
+          routineId: m.id,
+          previousMachineIds: ids,
+          newMachineIds: ids,
+          trainerId: by.trainerId,
+          studioId: by.studioId,
+          changeType: "equipped",
+          slot: m.to,
+          createdAt: serverTimestamp(),
+        });
+      }
+    }
     out.push(batch.commit());
   }
   if (Object.keys(move.patch).length > 0) out.push(updateDoc(doc(db, "clients", clientId), move.patch));
@@ -107,7 +135,7 @@ export function commitNewRoutine(
   });
   const made = batch.commit();
   const out: Promise<void>[] = [made];
-  if (equip) out.push(commitSlotMove(db, input.clientId, equip(ref.id)));
+  if (equip) out.push(commitSlotMove(db, input.clientId, equip(ref.id), { trainerId: input.trainerId, studioId: input.studioId, machinesOf: (id) => (id === ref.id ? machineIds : []) }));
   return { routineId: ref.id, commit: settled(...out) };
 }
 

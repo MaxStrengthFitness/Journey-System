@@ -57,6 +57,7 @@ export function normalizeRoutinePreset(
     // One switched off in the editor keeps its part beside it, for the
     // editor to bring back (`startParked`); nothing else reads it.
     ...(raw?.startParked !== undefined ? { startParked: raw.startParked } : null),
+    ...(typeof raw?.ownerUid === "string" && raw.ownerUid ? { ownerUid: raw.ownerUid } : null),
     createdBy: raw?.createdBy,
     createdByName: raw?.createdByName,
     createdAt: raw?.createdAt,
@@ -125,7 +126,8 @@ export function drawerTemplates(
   studioId: string | null | undefined,
   builtIn: readonly RoutinePreset[],
 ): { company: RoutinePreset[]; studio: RoutinePreset[] } {
-  const routines = presets.filter((p) => !isStartingRoutinePreset(p));
+  // A trainer's own routine (ownerUid) is theirs alone: never in the studio's list (features/routine-slots/my-routines.ts).
+  const routines = presets.filter((p) => !isStartingRoutinePreset(p) && !p.ownerUid);
   const byName = (a: RoutinePreset, b: RoutinePreset) => (a.name || "").localeCompare(b.name || "");
   const company = routines.filter((p) => p.tier === "company").sort(byName);
   // This studio's own templates first, then trainer-saved presets.

@@ -226,6 +226,8 @@ export interface SlotMove {
   renames: { id: string; name: string }[];
   /** The slots after the move. */
   after: { a: string | null; b: string | null };
+  /** Each routine whose place changed, and where it went (null: the stash), for the Changes list. */
+  moved: { id: string; to: RoutineLetter | null }[];
 }
 
 /**
@@ -270,7 +272,14 @@ export function slotMove(
       }
     }
   }
-  return { patch, renames, after };
+  const moved: { id: string; to: RoutineLetter | null }[] = [];
+  for (const id of new Set([before.a, before.b, after.a, after.b])) {
+    if (!id) continue;
+    const was: RoutineLetter | null = before.a === id ? "A" : before.b === id ? "B" : null;
+    const to: RoutineLetter | null = after.a === id ? "A" : after.b === id ? "B" : null;
+    if (was !== to) moved.push({ id, to });
+  }
+  return { patch, renames, after, moved };
 }
 
 function renamedAway(id: string | undefined, renames: { id: string }[]): boolean {

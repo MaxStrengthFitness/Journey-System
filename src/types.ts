@@ -1257,6 +1257,16 @@ export interface RoutinePreset {
    * starting routine, so while it is here the template is an ordinary one.
    */
   startParked?: RoutinePresetStart;
+  /**
+   * A trainer's own routine (the routine library round, Oct 23 2026; AJ:
+   * "just allow trainers to make their own routines and save them on their
+   * profile so they can load it into a client if they need"): the Auth uid of
+   * the trainer whose it is. Only that trainer sees it, on My Profile → My
+   * routines and in Change's "My routines"; the rules let only them (or an
+   * administrator) change it. A trainer preset saved before has none and is
+   * the studio's, as it was.
+   */
+  ownerUid?: string;
   createdBy?: string;
   createdByName?: string;
   createdAt?: any;
@@ -1302,7 +1312,9 @@ export interface RoutineAdjustment {
   trainerId: string;
   notes?: string;
   createdAt: any;
-  changeType?: "created" | "machines" | "enabled" | "disabled";
+  changeType?: "created" | "machines" | "enabled" | "disabled" | "equipped";
+  /** An "equipped" record (the routine library round, Oct 23 2026): the slot the routine went into, or null for the stash. */
+  slot?: "A" | "B" | null;
 }
 
 export type SessionType = "Standard" | "Onboarding" | "Reset";

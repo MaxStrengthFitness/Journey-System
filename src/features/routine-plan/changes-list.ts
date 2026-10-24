@@ -225,6 +225,8 @@ export function adjustmentWhat(adj: RoutineAdjustment, input: Pick<ChangesListIn
       return `Turned ${input.routineName?.trim() || "Routine B"} on`;
     case "disabled":
       return `Turned ${input.routineName?.trim() || "Routine B"} off`;
+    case "equipped":
+      return adj.slot === "A" || adj.slot === "B" ? `Put in slot ${adj.slot}` : "Moved to the stash";
     case "created": {
       const names = next.map(input.nameOf);
       return names.length > 0 ? `Made ${routine}: ${listWords(names)}` : `Made ${routine}`;

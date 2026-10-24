@@ -34,7 +34,8 @@ export interface PlanChangesListProps {
   /** The count, once known, for the "Changes · N" button. */
   onCount?: (n: number) => void;
   /** Whose changes these are: "Routine A" (the default), or "Routine B" on Routine B's plan. */
-  routineName?: "Routine A" | "Routine B";
+  /** The routine's name as the screen says it ("Routine A", or a named one like "Post-surgery"). */
+  routineName?: string;
 }
 
 type ReadState = { key: string; status: "ready"; changes: StoredPlanChange[] } | { key: string; status: "failed" };

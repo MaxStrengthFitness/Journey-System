@@ -186,7 +186,9 @@ export interface RoutineChange {
   when: number | null;
   trainerInitials: string;
   trainerName: string;
-  kind: "created" | "enabled" | "disabled" | "machines";
+  kind: "created" | "enabled" | "disabled" | "machines" | "equipped";
+  /** An "equipped" change: the slot it went into, or null for the stash. */
+  slot?: "A" | "B" | null;
   added: string[];
   removed: string[];
   notes: string | null;
@@ -220,7 +222,9 @@ export function buildRoutineChanges(
     // An id the list doesn't hold is a trainer from another studio (the trainer lock): said so, never shown raw.
     const trainer = findTrainerRecord(trainers, adj.trainerId);
     const kind: RoutineChange["kind"] =
-      adj.changeType === "enabled" || adj.changeType === "disabled" || adj.changeType === "created" ? adj.changeType : "machines";
+      adj.changeType === "enabled" || adj.changeType === "disabled" || adj.changeType === "created" || adj.changeType === "equipped"
+        ? adj.changeType
+        : "machines";
     const prev = adj.previousMachineIds || [];
     const next = adj.newMachineIds || [];
     return {
@@ -234,6 +238,7 @@ export function buildRoutineChanges(
       added: kind === "machines" || kind === "created" ? next.filter((id) => !prev.includes(id)).map(nameOf) : [],
       removed: kind === "machines" ? prev.filter((id) => !next.includes(id)).map(nameOf) : [],
       notes: adj.notes?.trim() || null,
+      ...(kind === "equipped" ? { slot: adj.slot === "A" || adj.slot === "B" ? adj.slot : null } : null),
     };
   });
 }

@@ -1,32 +1,32 @@
 /**
- * PROGRAMMING → ROUTINES: one builder for Routine A and Routine B (the
- * routine builder round, Oct 19 2026; docs/rounds/2026-10-19-routine-builder.md).
+ * PROGRAMMING → ROUTINES: the client's two equipped routines and their stash
+ * (the routine library round, Oct 23 2026; docs/rounds/2026-10-20-routine-library.md
+ * §2 and §10, over the one A+B builder of Oct 19).
  *
- * AJ: "the A routine builder is very intuitive and easy. I think that is a
- * great foundation to build off of", and "we dont even need Routine B to have
- * its own tab if you can come up with a design that allows us to choose what
- * machines are on A or B routine in one selector".
+ * AJ, Oct 20: "the routine builder is a mess … I want to be able to create a
+ * routine, rotate routines in and out and possibly name the routines". Oct 23:
+ * each client has a stash of named routines and two equipped at once, slot A
+ * and slot B, "both full weapons", alternating session to session.
  *
- * This studio's floor on one side, as the A builder drew it; Routine A and
- * Routine B beside it, each its own list with What it's for and its own
- * Save. Add to (Routine A · Routine B · Both) says which routine a tap goes
- * into; every tile carries a small mark of the routines that hold it.
- *
+ * - Two slot cards first, each with its routine's name (Rename), What it's
+ *   for, its machines in order and its own Save. Add machine opens this
+ *   studio's floor as a sheet and adds to the slot it was opened from; each
+ *   tile still says which slot holds it.
+ * - Change puts another routine in a slot: one from the stash (one in the
+ *   other slot swaps places), a starting routine or a template copied in, or a
+ *   new one. What leaves goes to the stash, kept as it is.
+ * - The stash is one row of names under the slots; Retire hides one under
+ *   Retired, never deletes it.
  * - Routine B is built whole: Save makes it live (B turned on with it), and
- *   nothing moves it after that but a person. Copy A into B is the start for
- *   a B a machine or two different.
- * - Phase it in is a choice (AJ: "IF WE WANT TO, not automatic"): the
- *   difference between B as it stands and the B on screen becomes steps, a
- *   week and an owner each, ticked by a person (`PhasePanel`).
- * - Start from… lays a studio's, head office's or the client's own routine
- *   into the routine being built into; nothing is saved until Save.
+ *   nothing moves it after that but a person. Phase it in is a choice (AJ:
+ *   "IF WE WANT TO, not automatic").
  *
- * Every save is one batch, issued and never awaited (`../store.ts`); a
- * refusal comes back through `onError`. What is typed and not saved is
- * registered as unsaved work.
+ * Every save is issued and never awaited (`../store.ts`,
+ * `../../routine-slots/store.ts`); a refusal comes back through `onError`.
+ * What is typed and not saved is registered as unsaved work.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Check, ClipboardList, Copy, History, Layers, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Check, ClipboardList, Copy, History, Layers, Pencil, Plus, Undo2 } from "lucide-react";
 import type { Client, Machine, Routine, RoutineAdjustment, Trainer } from "../../../types";
 import { db } from "../../../firebase";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,19 @@ import { floorMachinesOf, machineNamer, savedRoutineA, savedRoutineB, type PlanH
 import { Chip, LineupRow, OrderNote, PlanSheet } from "../../routine-plan/ui/parts";
 import { PlanChangesList } from "../../routine-plan/ui/PlanChangesList";
 import { StartFromRoutineSheet } from "../../routine-plan/ui/StartFromRoutineSheet";
+import type { StartFromChoice } from "../../routine-plan/start-from";
+import {
+  pinPatch,
+  retiredOf,
+  slotMove,
+  stashOf,
+  uniqueName,
+  nextRoutineName,
+  type SlotKey,
+} from "../../routine-slots/slots";
+import { commitNewRoutine, commitRename, commitRetire, commitSlotMove, copyOf } from "../../routine-slots/store";
+import { useMyRoutines } from "../../routine-slots/useMyRoutines";
+import { ChangeSlotSheet, RenameSheet, StashSheet } from "../../routine-slots/ui/SlotSheets";
 import {
   copiedAIntoB,
   laidFrom,
@@ -48,9 +61,7 @@ import {
   swapped,
   takenOut,
   tapFloor,
-  TARGET_WORDS,
   type Draft,
-  type Target,
 } from "../builder";
 import { appliedStep, isDone, phaseOf, phasePlanOf, type PhasePlan } from "../phase";
 import { commitPhaseSave, commitRoutineSave, phaseSaveOf, routineSaveOf, saveChanges, type Slot } from "../store";
@@ -70,12 +81,17 @@ export interface RoutineBuilderProps {
   adjustments: readonly RoutineAdjustment[];
   authTrainer?: Trainer | null;
   activeStudioId?: string | null;
+  /** The routine the next session runs (routines/next-routine.ts), marked on its slot. */
+  nextRoutineId?: string | null;
   /** The profile's B switch: the reason asked, never required. */
   onToggleB: (on: boolean) => void;
   /** A refused save, in a sentence. */
   onError?: (message: string) => void;
   disabled?: boolean;
 }
+
+const KEY_OF_SLOT: Record<Slot, SlotKey> = { "Routine A": "a", "Routine B": "b" };
+const LETTER: Record<Slot, "A" | "B"> = { "Routine A": "A", "Routine B": "B" };
 
 export function RoutineBuilder({
   host,
@@ -88,6 +104,7 @@ export function RoutineBuilder({
   adjustments,
   authTrainer,
   activeStudioId,
+  nextRoutineId = null,
   onToggleB,
   onError,
   disabled = false,
@@ -97,11 +114,12 @@ export function RoutineBuilder({
   const nameOf = useMemo(() => machineNamer(host.floor, machines), [host.floor, machines]);
   const savedA = savedRoutineA(routines);
   const savedB = savedRoutineB(routines);
+  const slots = client?.routineSlots;
   const studioId = client?.homeStudioId || activeStudioId || host.studioId || "";
   const who = host.who;
   const ready = host.status === "ready";
+  const trainerId = authTrainer?.id || "unknown";
 
-  const [target, setTarget] = useState<Target>("A");
   const [draftA, setDraftA] = useState<string[] | null>(null);
   const [draftB, setDraftB] = useState<string[] | null>(null);
   const [purposeA, setPurposeA] = useState<string | null>(null);
@@ -116,16 +134,22 @@ export function RoutineBuilder({
    */
   const [pendingA, setPendingA] = useState<{ ids: string[]; purpose: string } | null>(null);
   const [pendingB, setPendingB] = useState<{ ids: string[]; purpose: string } | null>(null);
-  const [startFrom, setStartFrom] = useState(false);
+  const [addFor, setAddFor] = useState<Slot | null>(null);
+  const [startFor, setStartFor] = useState<Slot | null>(null);
+  const [changeFor, setChangeFor] = useState<SlotKey | null>(null);
+  const [stashed, setStashed] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [showRetired, setShowRetired] = useState(false);
   const [phaseDraft, setPhaseDraft] = useState<PhasePlan | null>(null);
   const [changesOf, setChangesOf] = useState<Slot | null>(null);
+  // The trainer's own routines, read only while Change is open.
+  const mine = useMyRoutines(who?.uid ?? null, { enabled: changeFor !== null });
 
   // Another client is another builder: nothing carries over.
   const lastClient = useRef(clientId);
   useEffect(() => {
     if (lastClient.current === clientId) return;
     lastClient.current = clientId;
-    setTarget("A");
     setDraftA(null);
     setDraftB(null);
     setPurposeA(null);
@@ -134,7 +158,12 @@ export function RoutineBuilder({
     setWhyB("");
     setPendingA(null);
     setPendingB(null);
-    setStartFrom(false);
+    setAddFor(null);
+    setStartFor(null);
+    setChangeFor(null);
+    setStashed(null);
+    setRenaming(null);
+    setShowRetired(false);
     setPhaseDraft(null);
     setChangesOf(null);
   }, [clientId]);
@@ -202,7 +231,7 @@ export function RoutineBuilder({
       routines,
       clientId,
       studioId,
-      trainerId: authTrainer?.id || "unknown",
+      trainerId,
       who,
       todayYmd: host.todayYmd,
       machineIds: ids,
@@ -220,6 +249,52 @@ export function RoutineBuilder({
     if (isA) resetA();
     else resetB();
     if (!(isA ? dirtyB : dirtyA)) unsaved.release();
+  };
+
+  /* ── The stash and the slots ────────────────────────────────────────── */
+
+  const by = { trainerId, studioId, machinesOf: (id: string) => routines.find((r) => r.id === id)?.machineIds ?? [] };
+  /** A slot's unsaved draft is let go when another routine goes into it: it was a draft of the routine leaving. */
+  const dropDraft = (key: SlotKey) => {
+    if (key === "a") {
+      resetA();
+      setPendingA(null);
+    } else {
+      resetB();
+      setPendingB(null);
+    }
+  };
+  const equip = (key: SlotKey, routineId: string | null) => {
+    if (disabled) return;
+    const move = slotMove(routines, slots, key, routineId, isBActive, host.todayYmd);
+    if (move.after.a !== (savedA?.id ?? null)) dropDraft("a");
+    if (move.after.b !== (savedB?.id ?? null)) dropDraft("b");
+    commitSlotMove(db, clientId, move, by).catch(() => onError?.("Couldn't change the slot. Try again."));
+  };
+  const copyIn = (key: SlotKey, input: { name: string; machineIds: string[]; template?: { id: string; name: string; machineIds: string[] } | null; machineNotes?: Record<string, string> }) => {
+    if (disabled) return;
+    dropDraft(key);
+    const { commit } = commitNewRoutine(
+      db,
+      { clientId, studioId, trainerId, name: uniqueName(input.name, routines), machineIds: input.machineIds, template: input.template ?? null, machineNotes: input.machineNotes },
+      (newId) => slotMove([...routines, { id: newId, name: input.name, clientId, machineIds: input.machineIds }], slots, key, newId, isBActive, host.todayYmd),
+    );
+    commit.catch(() => onError?.("Couldn't make the routine. Try again."));
+  };
+  const fromChoice = (key: SlotKey, c: StartFromChoice) => {
+    const id = c.key.slice(c.key.indexOf(":") + 1);
+    copyIn(key, { name: c.label, machineIds: [...c.machineIds], template: { id, name: c.label, machineIds: [...c.machineIds] } });
+  };
+  const newRoutine = (key: SlotKey, from: "copy" | "blank") => {
+    const here = key === "a" ? savedA : savedB;
+    if (from === "copy" && here) copyIn(key, { name: `Copy of ${here.name}`, ...copyOf(here), machineIds: [...here.machineIds] });
+    else copyIn(key, { name: nextRoutineName(routines), machineIds: [] });
+  };
+  const rename = (routineId: string, name: string) => {
+    commitRename(db, clientId, routineId, name, pinPatch(routines, slots)).catch(() => onError?.("Couldn't rename the routine. Try again."));
+  };
+  const retire = (routineId: string, archived: boolean) => {
+    commitRetire(db, routineId, archived).catch(() => onError?.(archived ? "Couldn't retire the routine. Try again." : "Couldn't bring the routine back. Try again."));
   };
 
   // Where B starts phasing in from: B as saved, or a copy of Routine A as saved when B has nothing (never A's unsaved draft).
@@ -246,7 +321,7 @@ export function RoutineBuilder({
       routine: savedB,
       clientId,
       studioId,
-      trainerId: authTrainer?.id || "unknown",
+      trainerId,
       who,
       todayYmd: host.todayYmd,
       phase: next,
@@ -274,80 +349,21 @@ export function RoutineBuilder({
     );
   }
 
-  const families = floorByFamily(floor);
   const signIn = !who ? <p className="rpl-meta">Sign in again to save a routine.</p> : null;
+  const stash = stashOf(routines, slots);
+  const retired = retiredOf(routines);
+  const stashRoutine = stashed ? (routines.find((r) => r.id === stashed) ?? null) : null;
+  const renameRoutine = renaming ? (routines.find((r) => r.id === renaming) ?? null) : null;
+  const realA = savedA && !savedA.id?.startsWith("temp-") ? savedA : null;
+  const realB = savedB && !savedB.id?.startsWith("temp-") ? savedB : null;
 
   return (
     <div className="rpl abb" data-disabled={disabled || undefined}>
-      <div className="abb-top">
-        <div className="abb-target" role="group" aria-label="Add machines to">
-          <span className="abb-target__label">Add to</span>
-          {(["A", "B", "both"] as const).map((t) => (
-            <Chip key={t} on={target === t} onClick={() => setTarget(t)}>
-              {TARGET_WORDS[t]}
-            </Chip>
-          ))}
-        </div>
-        <Button variant="outline" onClick={() => setStartFrom(true)} disabled={disabled}>
-          <ClipboardList aria-hidden="true" />
-          Start from…
-        </Button>
-      </div>
-
-      <div className="abb-grid">
-        <section className="rpl-panel abb-floor" aria-label="This studio's floor">
-          <div className="rpl-panel__head">
-            <h3 className="rpl-panel__title">This studio's floor</h3>
-          </div>
-          {families.length === 0 ? (
-            <p className="rpl-meta">This studio's floor has no machines listed yet.</p>
-          ) : (
-            <div className="rpl-floor">
-              {families.map((f) => (
-                <div key={f.key}>
-                  <p className="rpl-family__label">{f.label}</p>
-                  <div className="rpl-tiles">
-                    {f.machineIds.map((id) => {
-                      if (held.includes(id)) {
-                        return (
-                          <div key={id} className="rpl-tile rpl-tile--held">
-                            <span className="rpl-tile__name">
-                              {nameOf(id)} · not for {first}
-                            </span>
-                          </div>
-                        );
-                      }
-                      const mark = markOf(draft, id);
-                      const inTarget = target === "A" ? draft.a.includes(id) : target === "B" ? draft.b.includes(id) : mark === "AB";
-                      const said = markWords(mark);
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          className="rpl-tile"
-                          aria-pressed={inTarget}
-                          aria-label={said ? `${nameOf(id)}, ${said}` : nameOf(id)}
-                          onClick={() => apply(tapFloor(draft, id, target))}
-                          disabled={disabled}
-                        >
-                          <span className="rpl-tile__name">{nameOf(id)}</span>
-                          {mark && (
-                            <span className={inTarget ? "abb-mark" : "abb-mark abb-mark--quiet"} aria-hidden="true">
-                              {mark}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
+      <div className="abb-slots">
         <RoutineCard
           slot="Routine A"
+          routine={realA}
+          next={!!realA && realA.id === nextRoutineId}
           held={held}
           first={first}
           ids={draft.a}
@@ -362,12 +378,19 @@ export function RoutineBuilder({
           onChange={setDraftA}
           onSave={() => save("Routine A")}
           onUndo={resetA}
-          onChanges={savedA?.id ? () => setChangesOf("Routine A") : undefined}
+          onAdd={() => setAddFor("Routine A")}
+          onStartFrom={() => setStartFor("Routine A")}
+          onSwapSlot={() => setChangeFor("a")}
+          onRename={realA?.id ? () => setRenaming(realA.id!) : undefined}
+          onChanges={realA?.id ? () => setChangesOf("Routine A") : undefined}
+          disabled={disabled}
           foot={signIn}
         />
 
         <RoutineCard
           slot="Routine B"
+          routine={realB}
+          next={!!realB && realB.id === nextRoutineId}
           held={held}
           first={first}
           ids={draft.b}
@@ -382,7 +405,12 @@ export function RoutineBuilder({
           onChange={setDraftB}
           onSave={() => save("Routine B")}
           onUndo={resetB}
-          onChanges={savedB?.id ? () => setChangesOf("Routine B") : undefined}
+          onAdd={() => setAddFor("Routine B")}
+          onStartFrom={() => setStartFor("Routine B")}
+          onSwapSlot={() => setChangeFor("b")}
+          onRename={realB?.id ? () => setRenaming(realB.id!) : undefined}
+          onChanges={realB?.id ? () => setChangesOf("Routine B") : undefined}
+          disabled={disabled}
           saveWords={!isBActive && draft.b.length > 0 ? "Save and turn B on" : undefined}
           head={
             // B's switch whenever there is something to switch: B with machines, or B on with nothing in it (the way to turn it off).
@@ -436,9 +464,66 @@ export function RoutineBuilder({
         />
       </div>
 
-      {startFrom && (
+      <section className="rpl-panel abb-stash" aria-label={`${first}'s stash`}>
+        <div className="abb-stash__head">
+          <h3 className="rpl-panel__title">Stash</h3>
+          {retired.length > 0 && (
+            <Button variant="ghost" aria-expanded={showRetired} onClick={() => setShowRetired((o) => !o)}>
+              Retired ({retired.length})
+            </Button>
+          )}
+        </div>
+        {stash.length === 0 ? (
+          <p className="rpl-meta">Routines {first} isn't running now wait here. Change on a slot puts one away or brings one back.</p>
+        ) : (
+          <div className="rpl-chips">
+            {stash.map((r) => (
+              <Chip key={r.id} label={`${r.name}, in the stash`} onClick={() => setStashed(r.id!)}>
+                {r.name}
+              </Chip>
+            ))}
+          </div>
+        )}
+        {showRetired && retired.length > 0 && (
+          <div className="rpl-chips" aria-label="Retired routines">
+            {retired.map((r) => (
+              <Chip key={r.id} label={`${r.name}, retired`} onClick={() => setStashed(r.id!)}>
+                {r.name}
+              </Chip>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {addFor && (
+        <PlanSheet
+          open
+          title={`Add to ${addFor === "Routine A" ? (realA?.name ?? "slot A") : (realB?.name ?? "slot B")}`}
+          meta="Tap a machine to add it, or tap it again to take it out. Save on the slot keeps it."
+          onClose={() => setAddFor(null)}
+          footer={
+            <Button onClick={() => setAddFor(null)}>
+              <Check aria-hidden="true" />
+              Done
+            </Button>
+          }
+        >
+          <FloorTiles
+            floor={floor}
+            draft={draft}
+            target={LETTER[addFor]}
+            held={held}
+            first={first}
+            nameOf={nameOf}
+            disabled={disabled}
+            onTap={(id) => apply(tapFloor(draft, id, LETTER[addFor]))}
+          />
+        </PlanSheet>
+      )}
+
+      {startFor && (
         <StartFromRoutineSheet
-          onClose={() => setStartFrom(false)}
+          onClose={() => setStartFor(null)}
           studioId={host.studioId}
           studioName={host.studioName}
           floor={floor}
@@ -447,8 +532,69 @@ export function RoutineBuilder({
           clientRoutines={routines}
           firstName={client?.firstName ?? null}
           onLay={(ids) => {
-            apply(laidFrom(draft, ids, target));
-            setStartFrom(false);
+            apply(laidFrom(draft, ids, LETTER[startFor]));
+            setStartFor(null);
+          }}
+        />
+      )}
+
+      {changeFor && (
+        <ChangeSlotSheet
+          slot={changeFor}
+          first={first}
+          routines={routines}
+          slots={slots}
+          nameOf={nameOf}
+          floor={floor}
+          studioId={host.studioId}
+          studioName={host.studioName}
+          todayYmd={host.todayYmd}
+          myRoutines={mine.routines}
+          onClose={() => setChangeFor(null)}
+          onEquip={(id) => {
+            equip(changeFor, id);
+            setChangeFor(null);
+          }}
+          onCopyIn={(c) => {
+            fromChoice(changeFor, c);
+            setChangeFor(null);
+          }}
+          onNew={(from) => {
+            newRoutine(changeFor, from);
+            setChangeFor(null);
+          }}
+        />
+      )}
+
+      {stashRoutine && (
+        <StashSheet
+          routine={stashRoutine}
+          first={first}
+          nameOf={nameOf}
+          onClose={() => setStashed(null)}
+          onEquip={(key) => {
+            equip(key, stashRoutine.id!);
+            setStashed(null);
+          }}
+          onRename={() => {
+            setRenaming(stashRoutine.id!);
+            setStashed(null);
+          }}
+          onRetire={(archived) => {
+            retire(stashRoutine.id!, archived);
+            setStashed(null);
+          }}
+        />
+      )}
+
+      {renameRoutine && (
+        <RenameSheet
+          routine={{ id: renameRoutine.id, name: renameRoutine.name }}
+          routines={routines}
+          onClose={() => setRenaming(null)}
+          onSave={(name) => {
+            rename(renameRoutine.id!, name);
+            setRenaming(null);
           }}
         />
       )}
@@ -490,17 +636,17 @@ export function RoutineBuilder({
         />
       )}
 
-      <PlanSheet open={changesOf !== null} title={`${changesOf ?? ""} · changes`} onClose={() => setChangesOf(null)}>
-        {changesOf && (changesOf === "Routine A" ? savedA?.id : savedB?.id) ? (
+      <PlanSheet open={changesOf !== null} title={`${changesOf === "Routine A" ? (realA?.name ?? "Routine A") : (realB?.name ?? "Routine B")} · changes`} onClose={() => setChangesOf(null)}>
+        {changesOf && (changesOf === "Routine A" ? realA?.id : realB?.id) ? (
           <PlanChangesList
-            routineId={(changesOf === "Routine A" ? savedA?.id : savedB?.id) as string}
+            routineId={(changesOf === "Routine A" ? realA?.id : realB?.id) as string}
             adjustments={adjustments}
             trainers={trainers}
             nameOf={nameOf}
             firstName={client?.firstName ?? undefined}
             todayYmd={host.todayYmd}
             read={host.actions.readChanges}
-            routineName={changesOf}
+            routineName={changesOf === "Routine A" ? (realA?.name ?? "Routine A") : (realB?.name ?? "Routine B")}
           />
         ) : null}
       </PlanSheet>
@@ -508,10 +654,80 @@ export function RoutineBuilder({
   );
 }
 
-/* ── One routine ──────────────────────────────────────────────────────── */
+/* ── This studio's floor, in the Add machine sheet ────────────────────── */
+
+function FloorTiles({
+  floor,
+  draft,
+  target,
+  held,
+  first,
+  nameOf,
+  disabled,
+  onTap,
+}: {
+  floor: ReturnType<typeof floorMachinesOf>;
+  draft: Draft;
+  target: "A" | "B";
+  held: readonly string[];
+  first: string;
+  nameOf: (id: string) => string;
+  disabled: boolean;
+  onTap: (id: string) => void;
+}) {
+  const families = floorByFamily(floor);
+  if (families.length === 0) return <p className="rpl-meta">This studio's floor has no machines listed yet.</p>;
+  return (
+    <div className="rpl-floor abb-floor" aria-label="This studio's floor">
+      {families.map((f) => (
+        <div key={f.key}>
+          <p className="rpl-family__label">{f.label}</p>
+          <div className="rpl-tiles">
+            {f.machineIds.map((id) => {
+              if (held.includes(id)) {
+                return (
+                  <div key={id} className="rpl-tile rpl-tile--held">
+                    <span className="rpl-tile__name">
+                      {nameOf(id)} · not for {first}
+                    </span>
+                  </div>
+                );
+              }
+              const mark = markOf(draft, id);
+              const inTarget = target === "A" ? draft.a.includes(id) : draft.b.includes(id);
+              const said = markWords(mark);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className="rpl-tile"
+                  aria-pressed={inTarget}
+                  aria-label={said ? `${nameOf(id)}, ${said}` : nameOf(id)}
+                  onClick={() => onTap(id)}
+                  disabled={disabled}
+                >
+                  <span className="rpl-tile__name">{nameOf(id)}</span>
+                  {mark && (
+                    <span className={inTarget ? "abb-mark" : "abb-mark abb-mark--quiet"} aria-hidden="true">
+                      {mark}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── One slot ─────────────────────────────────────────────────────────── */
 
 function RoutineCard({
   slot,
+  routine,
+  next,
   first,
   ids,
   nameOf,
@@ -525,7 +741,12 @@ function RoutineCard({
   onChange,
   onSave,
   onUndo,
+  onAdd,
+  onStartFrom,
+  onSwapSlot,
+  onRename,
   onChanges,
+  disabled,
   saveWords,
   head,
   empty,
@@ -535,6 +756,10 @@ function RoutineCard({
   held = [],
 }: {
   slot: Slot;
+  /** The routine equipped here, or null while the slot has none saved. */
+  routine: Routine | null;
+  /** The next session runs this slot. */
+  next: boolean;
   first: string;
   ids: readonly string[];
   nameOf: (id: string) => string;
@@ -548,7 +773,12 @@ function RoutineCard({
   onChange: (ids: string[]) => void;
   onSave: () => void;
   onUndo: () => void;
+  onAdd: () => void;
+  onStartFrom: () => void;
+  onSwapSlot: () => void;
+  onRename?: () => void;
   onChanges?: () => void;
+  disabled: boolean;
   saveWords?: string;
   head?: ReactNode;
   empty?: ReactNode;
@@ -566,15 +796,16 @@ function RoutineCard({
     setSwapOpen(false);
   };
   const effects = useMemo(() => effectsAbove(ids, nameOf, floor), [ids, nameOf, floor]);
-  const letter = slot === "Routine A" ? "A" : "B";
+  const letter = LETTER[slot];
+  const title = routine?.name?.trim() || slot;
   const items: ReactNode[] = [];
   if (ids.length === 0) {
     items.push(
       <li key="e" className="abb-empty">
         <p className="rpl-meta">
           {slot === "Routine A"
-            ? `Tap the machines ${first} does, in the order ${first} does them.`
-            : `Pick Routine B on Add to, then tap B's machines. Saving it makes it live.`}
+            ? `Add the machines ${first} does, in the order ${first} does them.`
+            : `Nothing in B: every session runs A. Add B's machines, or Change to put a routine here. Saving it makes it live.`}
         </p>
         {empty}
       </li>,
@@ -655,9 +886,13 @@ function RoutineCard({
   return (
     <section className="rpl-panel abb-routine" aria-label={`${first}'s ${slot}`} data-routine={letter}>
       <div className="rpl-panel__head">
-        <h3 className="rpl-panel__title">
-          {first}'s {slot}
-        </h3>
+        <div className="abb-slot__titles">
+          <span className="abb-slot__label">
+            Slot {letter}
+            {next ? <span className="abb-next"> · Next session</span> : null}
+          </span>
+          <h3 className="rpl-panel__title">{title}</h3>
+        </div>
         <div className="rpl-panel__right">
           <span className="rpl-meta">{ids.length === 1 ? "1 machine" : `${ids.length} machines`}</span>
           {head}
@@ -668,6 +903,16 @@ function RoutineCard({
         <ol className="rpl-list rpl-list--flush" aria-label={`${first}'s ${slot}`}>
           {items}
         </ol>
+        <div className="rpl-actions">
+          <Button variant="outline" onClick={onAdd} disabled={disabled} aria-label={`Add a machine to slot ${letter}`}>
+            <Plus aria-hidden="true" />
+            Add machine
+          </Button>
+          <Button variant="outline" onClick={onStartFrom} disabled={disabled} aria-label={`Start slot ${letter} from a routine`}>
+            <ClipboardList aria-hidden="true" />
+            Start from…
+          </Button>
+        </div>
         <label className="rpl-sheet__section">
           <span className="rpl-sheet__label">What it's for · optional</span>
           <input
@@ -695,6 +940,16 @@ function RoutineCard({
               <Button variant="ghost" onClick={onUndo}>
                 <Undo2 aria-hidden="true" />
                 Undo changes
+              </Button>
+            )}
+            <Button variant="ghost" onClick={onSwapSlot} disabled={disabled} aria-label={`Change what is in slot ${letter}`}>
+              <ArrowLeftRight aria-hidden="true" />
+              Change
+            </Button>
+            {onRename && (
+              <Button variant="ghost" onClick={onRename} disabled={disabled} aria-label={`Rename ${title}`}>
+                <Pencil aria-hidden="true" />
+                Rename
               </Button>
             )}
             {onChanges && (
