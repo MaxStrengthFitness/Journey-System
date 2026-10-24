@@ -179,6 +179,12 @@ screens in `ui/`.
   variety; A's own comes back as Keep {A} in B), never a gender. The
   middle delt waits for the body figure's side view and a `delts-side` id;
   until then Delts is the front and rear delt.
+- **Can't do and the weak area are the client's** since the routine library
+  round (Oct 23 2026; AJ's "1 yes"): `clients/{id}/programming/current`,
+  laid onto whichever routine is in slot A as it is read
+  (`routine-slots/programming.ts`), so every reader here still reads Routine
+  A's plan. `savePlanChange` writes the document in the same batch when a
+  change moves them on slot A (`programming`).
 - **Can't do reshapes, never hides.** A machine on the bench says what stands
   in for it and why; reopening it puts it back; a dated mark holds through its
   day and ends once that day has passed, and the screens say "Back on {the

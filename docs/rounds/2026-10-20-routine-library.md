@@ -1,6 +1,6 @@
 # The routine library round (Oct 20 2026)
 
-**Status: a proposal. Nothing is built, nothing is pushed.** It needs AJ's yes on the direction (given Oct 20), his answers to the three questions in section 8, and his OK on the one Firestore change in section 5 before any code.
+**Status: BUILT on branch `oct23/routine-library` (Oct 23 2026, §11); not pushed, not deployed.** It began as a proposal: It needs AJ's yes on the direction (given Oct 20), his answers to the three questions in section 8, and his OK on the one Firestore change in section 5 before any code.
 
 **Oct 23 2026:** AJ answered section 8 with a bigger picture, talked it through and said "you've got the picture". **Section 10 is the agreed design and replaces sections 5, 7 and 8 where they differ.** **AJ OK'd its Firestore change (§10.7) and the three defaults in §10.9 on Oct 23 2026**: "Yes, the Firestore change in 10.7 is OK'd. The three defaults in 10.9 stand too." Building starts at §10.8's phase 0.
 
@@ -215,3 +215,33 @@ CLAUDE.md: "Don't change the Mindbody integration, Cloud Functions or the Firest
 - **The studio setting's default:** "switch on all at once" off in Max Strength's default, so a studio turns it on. *Default:* off.
 - **A B already saved whole in the Oct 19 builder keeps running as it is.** *Default:* yes; nothing already on goes off.
 - The day-one detail in §10.2.
+
+---
+
+## 11. What was built (Oct 23 2026, after AJ's "lets get it all finished here")
+
+Branch `oct23/routine-library`, one commit per phase, each typechecked on its own (§10.8's order). **Nothing is pushed and nothing is deployed.**
+
+| Commit | Phase |
+| --- | --- |
+| `ba4f7259` | 0 · The slot seam and the distinct-machine count. A routine read beside `routineSlots` carries `inSlot`; `matchesRoutineLetter` answers from it first, so the 60-odd "is this Routine A?" readers ask the slots with no change of their own. Programming counts distinct machines (11, not 13). |
+| `678442c8` | 1 · The rules and the moves: `routineSlotsOk`, `routineDocOk` (no stored `inSlot`; `archived`), `presetOwnerOk`, `clients/{id}/programming/current`; index (tier, ownerUid); `routine-slots/slots.ts` and `store.ts`. |
+| `ede83bbe` | 2 · The screen: slot A and slot B first, Rename, Change (stash, templates, new), the stash row with Retired, the floor as an Add machine sheet; each move recorded for the Changes list. |
+| `ba7b2c01` | 3 · Planned for the routine: on the slot cards (Add now, Not planned, Plan for later), on the Now Bar ("Planned for the routine · Add", for good) and on the briefing (Add marks it; Start writes it). |
+| `6e54013a` | 4 · Can't do and the weak area on the client, laid onto slot A's routine as it is read; written with the plan change that moves them, and when slot A changes. |
+| `b81974a3` | 5 · My Profile → My routines; Save as my routine; My routines in Change and in Start from a routine…; the drawer's save is now the trainer's own. |
+| `864862c9` | 6 · A planned B phases in from A (Phase B in); either slot phases in; the studio setting `plannedRoutineStarts`. |
+| `ae3340f7` | 7 · The history strip. |
+
+**Found while building, and how it went:**
+
+- **Filling slot B can't mean "B on".** The §10.7 draft said `isRoutineBActive` would mirror "slot B holds a routine"; that would have switched on every planned B. B's switch stays the switch: emptying B turns it off, filling B never turns it on (§10.7 corrected).
+- **An empty slot falls back to the routine named for it**, so the older writers that make a "Routine A" or "Routine B" (Start, the Wrap-up's Next time, the Edit routine drawer, a planned B) keep landing in the slot. A letter-named routine leaving for the stash is therefore renamed ("Routine A · until Oct 23 2026"), and one swapped into the other slot takes that slot's letter name.
+- **The planned toggle goes through the session's own plan writer** (`session-scope.test.ts`'s writer 2, restated), Routine A's alone; while Routine A is empty and day one runs it stays today's only (§10.2's detail, kept).
+- **A can't-do mark carries road fields** (where its stand-in stands). On another routine in slot A the client's mark is laid on without them; the routine's own entry keeps them.
+
+**Checked:** typecheck 0; the whole suite with `TZ=America/New_York`, 16,508 passing in 1,003 files (the one failure, CLAUDE.md's length, fixed); the rules tests, 632 passing on this PC (AJ's `npm run test:rules` is the one that counts); `NODE_ENV=production npx vite build` and `npm run check:bundle`, 483.5 KB gzip of 490; no case-only filename clashes.
+
+**Not checked:** the screens on an iPad, portrait and landscape; a real client's data.
+
+**To ship** (CLAUDE.md's deploy order): `firebase deploy --only firestore:indexes` (the new (tier, ownerUid) index) → AJ's `npm run test:rules` → `firebase deploy --only firestore:rules` → merge the branch to `master` and push → Render: Manual Deploy on the web service. No cron changes; no Cloud Function; no Mindbody change; no migration job. The rules only add checks that today's app already meets (it never writes `inSlot`, `routineSlots`, `ownerUid` or the programming document), so they can go first.
