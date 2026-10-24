@@ -26,10 +26,21 @@
  */
 import type { Routine } from "../../types";
 import type { CantDo, PlanChange, RoutinePlan } from "../routine-plan/types";
+import { studioDayKeyOf } from "../../lib/studio-time";
 
 export interface Programming {
   cantDo: CantDo[];
   focus: string[];
+  /** The studio day the document was last written, when known: a routine's own newer marks are kept beside it. */
+  day?: string | null;
+}
+
+/** The maker of a plan laid onto a plan-less routine as it is read: not stored, so a writer writes a whole plan, never a field of one. */
+export const LAID_ON = "client-record";
+
+/** The plan was laid on as the routine was read (the routine has none of its own). */
+export function laidOnPlan(plan: Pick<RoutinePlan, "madeByUid"> | null | undefined): boolean {
+  return !!plan && plan.madeByUid === LAID_ON;
 }
 
 /** The change kinds that move what the client can't do or their focus. */
@@ -57,7 +68,10 @@ function cleanFocus(raw: unknown): string[] {
 export function programmingOf(raw: unknown): Programming | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  return { cantDo: cleanCantDo(o.cantDo), focus: cleanFocus(o.focus) };
+  const at = o.updatedAt as { toDate?: () => Date } | null | undefined;
+  const when = at && typeof at.toDate === "function" ? at.toDate() : null;
+  const day = when && !Number.isNaN(when.getTime()) ? studioDayKeyOf(when) : null;
+  return { cantDo: cleanCantDo(o.cantDo), focus: cleanFocus(o.focus), day };
 }
 
 /**
@@ -71,15 +85,17 @@ export function withProgramming<T extends Routine>(routine: T, prog: Programming
   const plan = routine.plan as RoutinePlan | undefined;
   if (!plan && prog.cantDo.length === 0 && prog.focus.length === 0) return routine;
   const own = plan?.cantDo ?? [];
-  const cantDo = prog.cantDo.map((c) => {
+  // A mark the routine holds that the document doesn't, made on or after the document's last day (written while the document was unread, or by Start a plan): kept, never hidden.
+  const newer = prog.day ? own.filter((o) => !prog.cantDo.some((c) => c.machineId === o.machineId) && typeof o.day === "string" && o.day >= prog.day!) : [];
+  const cantDo = [...prog.cantDo.map((c) => {
     const mine = own.find((o) => o.machineId === c.machineId);
     if (!mine) {
       const { replacedBy: _r, onRoad: _o, dayOneAt: _d, ...rest } = c;
       return rest as CantDo;
     }
     return { ...mine, until: c.until, day: c.day, byUid: c.byUid, ...(c.reason ? { reason: c.reason } : null), ...(c.byName ? { byName: c.byName } : null) } as CantDo;
-  });
-  const base: RoutinePlan = plan ?? { purpose: "", intended: [...routine.machineIds], building: false, madeByUid: "client-record" };
+  }), ...newer];
+  const base: RoutinePlan = plan ?? { purpose: "", intended: [...routine.machineIds], building: false, madeByUid: LAID_ON };
   const sameCantDo = JSON.stringify(base.cantDo ?? []) === JSON.stringify(cantDo);
   const sameFocus = JSON.stringify(base.focus ?? []) === JSON.stringify(prog.focus);
   if (plan && sameCantDo && sameFocus) return routine;

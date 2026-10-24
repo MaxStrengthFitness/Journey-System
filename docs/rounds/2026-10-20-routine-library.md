@@ -240,7 +240,9 @@ Branch `oct23/routine-library`, one commit per phase, each typechecked on its ow
 - **The planned toggle goes through the session's own plan writer** (`session-scope.test.ts`'s writer 2, restated), Routine A's alone; while Routine A is empty and day one runs it stays today's only (§10.2's detail, kept).
 - **A can't-do mark carries road fields** (where its stand-in stands). On another routine in slot A the client's mark is laid on without them; the routine's own entry keeps them.
 
-**Checked:** typecheck 0; the whole suite with `TZ=America/New_York`, 16,508 passing in 1,003 files (the one failure, CLAUDE.md's length, fixed); the rules tests, 632 passing on this PC (AJ's `npm run test:rules` is the one that counts); `NODE_ENV=production npx vite build` and `npm run check:bundle`, 483.5 KB gzip of 490; no case-only filename clashes.
+**An independent review of the branch found five defects, all fixed in the last commit:** slot A's routine moved into an empty slot B left A empty (now refused); a plan laid onto a plan-less routine could be stored as a field of a plan with no road, which broke the plan screen (a laid-on plan is now always written whole); a can't-do written while the client's record hadn't loaded could overwrite it (the record is now written only once it has answered, and a mark slot A holds from on or after the record's last day is kept beside it, which also keeps Start a plan's marks); and renaming a stashed routine "Routine B" would have put it in slot B (a slot's letter name is refused for a routine not in that slot).
+
+**Checked:** typecheck 0; the whole suite with `TZ=America/New_York`, 16,513 passing in 1,003 files; the rules tests, 632 passing on this PC (AJ's `npm run test:rules` is the one that counts); `NODE_ENV=production npx vite build` and `npm run check:bundle`, 483.5 KB gzip of 490; no case-only filename clashes.
 
 **Not checked:** the screens on an iPad, portrait and landscape; a real client's data.
 

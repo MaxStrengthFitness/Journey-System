@@ -174,3 +174,13 @@ describe("how a planned routine starts at a studio", () => {
     expect(read(2, "company", false, true)).toBe(false);
   });
 });
+
+describe("a plan laid on as it was read (the review, Oct 23 2026)", () => {
+  it("is written whole, never by a field of it, so the stored plan always has its road", () => {
+    const laid: Routine = { ...A, plan: { purpose: "", intended: [...A.machineIds], building: false, madeByUid: "client-record", cantDo: [] } };
+    const s = routineSaveOf({ ...base, slot: "Routine A", routine: laid, machineIds: A.machineIds, purpose: "Rebuild the knee" });
+    expect(s.fields["plan.purpose"]).toBeUndefined();
+    expect((s.fields.plan as { intended: string[]; purpose: string }).intended).toEqual(A.machineIds);
+    expect((s.fields.plan as { purpose: string }).purpose).toBe("Rebuild the knee");
+  });
+});

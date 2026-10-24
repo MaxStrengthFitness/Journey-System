@@ -52,7 +52,7 @@ describe("Mary's knee follows her, whatever is equipped (AJ: 1 yes)", () => {
 describe("the document read and written", () => {
   it("reads back only usable marks, once each", () => {
     expect(programmingOf(null)).toBeNull();
-    expect(programmingOf({ cantDo: [knee, knee, { machineId: 3 }], focus: ["delts", "delts", 7] })).toEqual({ cantDo: [knee], focus: ["delts"] });
+    expect(programmingOf({ cantDo: [knee, knee, { machineId: 3 }], focus: ["delts", "delts", 7] })).toEqual({ cantDo: [knee], focus: ["delts"], day: null });
   });
   it("is written from slot A's plan when a change moves the marks or the focus", () => {
     expect(movesProgramming({ kind: "cantdo" })).toBe(true);
@@ -60,5 +60,15 @@ describe("the document read and written", () => {
     expect(movesProgramming({ kind: "reorder" })).toBe(false);
     expect(programmingFromPlan(plan({ cantDo: [{ ...knee }], focus: ["delts"] }))).toEqual({ cantDo: [knee], focus: ["delts"] });
     expect(programmingFromPlan(undefined)).toEqual({ cantDo: [], focus: [] });
+  });
+});
+
+describe("the review's fixes (Oct 23 2026)", () => {
+  it("a mark slot A holds that the document doesn't, made on or after its last day, is kept beside it", () => {
+    const fresh = { machineId: "m-row", until: "cleared", day: "2026-10-23", byUid: "u-sam" };
+    const stale = { machineId: "m-dip", until: "cleared", day: "2026-10-01", byUid: "u-sam" };
+    const a = r("s", "Routine A", { plan: plan({ cantDo: [fresh, stale] }) });
+    const out = withProgramming(a, { cantDo: [{ ...knee }], focus: [], day: "2026-10-20" });
+    expect(out.plan!.cantDo!.map((c) => c.machineId)).toEqual(["m-leg-press", "m-row"]);
   });
 });

@@ -42,6 +42,7 @@ import { planFromRoutine, signedChange, type Who } from "../routine-plan/lineup"
 import { PLAN_CHANGES, setRoutineBActive, withBFollowing } from "../routine-plan/store";
 import { PLAN_CHANGE_MACHINES_MAX, type PlanChange, type RoutinePlan } from "../routine-plan/types";
 import { sameList } from "./builder";
+import { laidOnPlan } from "../routine-slots/programming";
 import type { PhasePlan } from "./phase";
 
 export type Slot = "Routine A" | "Routine B";
@@ -134,7 +135,11 @@ export function routineSaveOf(input: RoutineSaveInput): RoutineSave {
   const changes: PlanChange[] = [];
   let plan: RoutinePlan | undefined;
   let purposeOnly = false;
-  if (saved.plan) {
+  if (saved.plan && laidOnPlan(saved.plan)) {
+    // A plan laid on as it was read (the client's marks on a plan-less routine): written whole, never a field of it.
+    plan = planFromRoutine(machineIds, input.who, input.todayYmd, purpose);
+    changes.push(signedChange({ kind: "start", machineIds }, input.who, why));
+  } else if (saved.plan) {
     const kept = planChangeFromEdit({ before, after: machineIds, plan: saved.plan });
     if (kept) {
       plan = kept.plan;
@@ -330,14 +335,14 @@ export function phaseSaveOfA(input: PhaseSaveAInput): { routine: RoutineSave; ph
       if (input.phase) plan.phase = input.phase;
       else delete plan.phase;
       fields.plan = plan;
-    } else if (saved.plan) {
+    } else if (saved.plan && !laidOnPlan(saved.plan)) {
       fields["plan.phase"] = input.phase ?? deleteField();
     } else if (input.phase) {
       fields.plan = { ...planFromRoutine(now, input.who, input.todayYmd), phase: input.phase };
     }
     return { routine: { ...s, fields } };
   }
-  const fields: Record<string, unknown> = saved.plan
+  const fields: Record<string, unknown> = saved.plan && !laidOnPlan(saved.plan)
     ? { "plan.phase": input.phase ?? deleteField() }
     : input.phase
       ? { plan: { ...planFromRoutine(now, input.who, input.todayYmd), phase: input.phase } }

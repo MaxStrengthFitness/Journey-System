@@ -250,6 +250,7 @@ function Profile({ initial }: { initial: Routine[] }) {
   const [routines, setRoutines] = useState<Routine[]>(initial);
   const actions = usePlanActions({
     clientId: "c1",
+    programmingKnown: true,
     studioId: "westlake",
     routines,
     setRoutines,

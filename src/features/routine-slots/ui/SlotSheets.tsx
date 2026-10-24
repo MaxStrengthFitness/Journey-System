@@ -128,7 +128,7 @@ export function ChangeSlotSheet({
           <p className="rpl-meta">Nothing else in {first}'s stash yet.</p>
         ) : (
           <div className="rpl-starts">
-            {[...(inOther ? [inOther] : []), ...stash].map((r) => (
+            {[...(inOther && !(slot === "b" && !here) ? [inOther] : []), ...stash].map((r) => (
               <button key={r.id} type="button" className="rpl-start" onClick={() => onEquip(r.id!)}>
                 <span className="rpl-start__name">
                   {r.name}
@@ -265,7 +265,7 @@ export function StashSheet({ routine, first, nameOf, onClose, onEquip, onRename,
 }
 
 export interface RenameSheetProps {
-  routine: Pick<Routine, "id" | "name">;
+  routine: Pick<Routine, "id" | "name"> & { inSlot?: "A" | "B" | null };
   routines: readonly Pick<Routine, "id" | "name">[];
   onClose: () => void;
   onSave: (name: string) => void;
@@ -275,7 +275,7 @@ export function RenameSheet({ routine, routines, onClose, onSave }: RenameSheetP
   const [name, setName] = useState(routine.name);
   const dirty = name.trim() !== routine.name.trim();
   const unsaved = useUnsavedChanges(dirty, `${routine.name}'s name`, { onDiscard: () => setName(routine.name) });
-  const problem = dirty ? nameProblem(name, routines, routine.id) : null;
+  const problem = dirty ? nameProblem(name, routines, routine.id, routine.inSlot ?? null) : null;
   const close = () => {
     unsaved.release();
     onClose();

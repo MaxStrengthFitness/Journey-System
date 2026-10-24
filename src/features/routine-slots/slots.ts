@@ -156,6 +156,8 @@ export function equipped(
 ): { a: string | null; b: string | null } {
   if (key === "a" && !routineId) return now;
   const other: SlotKey = key === "a" ? "b" : "a";
+  // Slot A's routine into an empty slot B would leave A with nothing: refused (the review, Oct 23 2026).
+  if (key === "b" && routineId && now.a === routineId && !now.b) return now;
   const next = { ...now, [key]: routineId };
   if (routineId && now[other] === routineId) next[other] = now[key];
   if (next.a && next.a === next.b) next.b = null;
@@ -205,11 +207,24 @@ export function nextRoutineName(routines: readonly Pick<Routine, "name">[]): str
   }
 }
 
-/** A routine's name checked: trimmed, at most 60 characters, unique for the client (another routine's name refused). */
-export function nameProblem(name: string, routines: readonly Pick<Routine, "id" | "name">[], selfId?: string | null): string | null {
+/**
+ * A routine's name checked: trimmed, at most 60 characters, unique for the
+ * client (another routine's name refused). A slot's letter name ("Routine A",
+ * "B") is refused for a routine not in that slot: an empty slot falls back to
+ * the routine named for it, so the name would move the routine (the review,
+ * Oct 23 2026).
+ */
+export function nameProblem(
+  name: string,
+  routines: readonly Pick<Routine, "id" | "name">[],
+  selfId?: string | null,
+  inSlot?: RoutineLetter | null,
+): string | null {
   const n = name.trim();
   if (!n) return "Give it a name.";
   if (n.length > 60) return "Keep the name to 60 characters.";
+  const letter = letterByName({ name: n });
+  if (letter && letter !== inSlot) return `"${n}" names slot ${letter}. Give it a name of its own.`;
   const clash = routines.find((r) => r.id !== selfId && (r.name || "").trim().toLowerCase() === n.toLowerCase());
   return clash ? `${first(n)} is already the name of another routine.` : null;
 }

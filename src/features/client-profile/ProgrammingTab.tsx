@@ -119,6 +119,8 @@ export interface ProgrammingTabProps {
   onError?: (message: string) => void;
   /** A save worth saying (Save as my routine). */
   onNotice?: (message: string) => void;
+  /** The client's programming document has answered: a slot change writes it only then. */
+  programmingKnown?: boolean;
   onSelectMachine?: (machineId: string) => void;
   /**
    * The machine menu's door on the profile (ClientProfileView builds it):
@@ -158,6 +160,7 @@ export function ProgrammingTab({
   onToggleB,
   onError,
   onNotice,
+  programmingKnown = false,
   onSelectMachine,
   machineMenuHost,
   disabled = false,
@@ -434,6 +437,7 @@ export function ProgrammingTab({
               onToggleB={onToggleB}
               onError={onError}
               onNotice={onNotice}
+              programmingKnown={programmingKnown}
               disabled={disabled}
             />
             {aHasPlan && (

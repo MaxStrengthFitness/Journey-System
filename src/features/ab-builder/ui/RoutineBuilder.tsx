@@ -99,6 +99,8 @@ export interface RoutineBuilderProps {
   onError?: (message: string) => void;
   /** A save that went through and is worth saying (Save as my routine). */
   onNotice?: (message: string) => void;
+  /** The client's programming document has answered: a slot change writes it only then, never from a guess. */
+  programmingKnown?: boolean;
   disabled?: boolean;
 }
 
@@ -121,6 +123,7 @@ export function RoutineBuilder({
   onToggleB,
   onError,
   onNotice,
+  programmingKnown = false,
   disabled = false,
 }: RoutineBuilderProps) {
   const first = client?.firstName?.trim() || "the client";
@@ -278,7 +281,7 @@ export function RoutineBuilder({
     studioId,
     machinesOf: (id: string) => routines.find((r) => r.id === id)?.machineIds ?? [],
     // What the client can't do and their focus, as slot A holds them now: onto the client before another routine takes slot A (§10.4).
-    programming: who ? { prog: programmingFromPlan(savedA?.plan), uid: who.uid } : null,
+    programming: who && programmingKnown ? { prog: programmingFromPlan(savedA?.plan), uid: who.uid } : null,
   };
   /** A slot's unsaved draft is let go when another routine goes into it: it was a draft of the routine leaving. */
   const dropDraft = (key: SlotKey) => {
@@ -777,7 +780,7 @@ export function RoutineBuilder({
 
       {renameRoutine && (
         <RenameSheet
-          routine={{ id: renameRoutine.id, name: renameRoutine.name }}
+          routine={{ id: renameRoutine.id, name: renameRoutine.name, inSlot: renameRoutine.id === realA?.id ? "A" : renameRoutine.id === realB?.id ? "B" : null }}
           routines={routines}
           onClose={() => setRenaming(null)}
           onSave={(name) => {

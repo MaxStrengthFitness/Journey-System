@@ -5431,6 +5431,7 @@ export function WorkoutTrackerView({
     onError: toastError,
     note: planNote,
     clientId: clientId || null,
+    programmingKnown: programming !== undefined,
   });
   const planNameOf = useMemo(() => machineNamer(floorMachines, machines), [floorMachines, machines]);
   /* Today's list is on screen: before it is seeded, the plan's "next" would

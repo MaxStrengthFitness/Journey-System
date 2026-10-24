@@ -1574,6 +1574,7 @@ export function ClientProfileView({
   const planAuthUid = auth.currentUser?.uid || user?.uid || null;
   const planActions = usePlanActions({
     clientId,
+    programmingKnown: programming !== undefined,
     studioId: client?.homeStudioId || activeStudioId || "",
     routines,
     setRoutines,
@@ -2251,6 +2252,7 @@ export function ClientProfileView({
             onToggleB={handlePromptToggleB}
             onError={toastError}
             onNotice={toastSuccess}
+            programmingKnown={programming !== undefined}
             onSelectMachine={openMachineWindow}
             machineMenuHost={machineMenuHost}
             disabled={!!hasQuotaError}

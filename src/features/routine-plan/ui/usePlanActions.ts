@@ -39,6 +39,13 @@ import type { PlanWrite } from "../lineup";
 
 export interface PlanActionsInput {
   clientId: string | null;
+  /**
+   * The client's programming document has answered (the routine library
+   * round): only then is it written from slot A's plan, so a mark the
+   * document holds and this iPad hasn't read is never written over.
+   */
+  programmingKnown?: boolean;
+
   /** The client's home studio, as every routine carries it. */
   studioId: string;
   /**
@@ -133,7 +140,9 @@ export function usePlanActions(input: PlanActionsInput): PlanActions {
       const uid = write.change.byUid;
       const isA = savedRoutineA(ref.current.routines ?? [])?.id === routineId;
       const programming =
-        isA && ref.current.clientId && uid && movesProgramming(write.change, write.also ?? []) ? { clientId: ref.current.clientId, uid } : null;
+        isA && ref.current.programmingKnown && ref.current.clientId && uid && movesProgramming(write.change, write.also ?? [])
+          ? { clientId: ref.current.clientId, uid }
+          : null;
       let commit: Promise<void>;
       try {
         commit = savePlanChange(db, routineId, { ...(follow ? { ...write, follow } : write), programming });

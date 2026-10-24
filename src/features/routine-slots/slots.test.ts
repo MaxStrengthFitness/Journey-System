@@ -177,3 +177,14 @@ describe("pinPatch", () => {
     expect(pinPatch(routines, { a: "1", b: "2" })).toEqual({});
   });
 });
+
+describe("the review's fixes (Oct 23 2026)", () => {
+  it("slot A's routine never moves into an empty slot B, which would leave A with nothing", () => {
+    expect(equipped({ a: "1", b: null }, "b", "1")).toEqual({ a: "1", b: null });
+  });
+  it("a slot's letter name is refused for a routine not in that slot", () => {
+    expect(nameProblem("Routine B", [], "x", null)).toMatch(/names slot B/);
+    expect(nameProblem("routine a", [], "x", "B")).toMatch(/names slot A/);
+    expect(nameProblem("Routine A", [], "x", "A")).toBeNull();
+  });
+});
