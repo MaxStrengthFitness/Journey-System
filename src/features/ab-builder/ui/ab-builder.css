@@ -17,10 +17,15 @@
   .abb-slots { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 .abb-slot__titles {
+  flex: 1 1 200px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+/* The title's own flex basis is for a row head; in this column it would be a height. */
+.abb-slot__titles .rpl-panel__title {
+  flex: none;
 }
 .abb-slot__label {
   font-size: 13px;
